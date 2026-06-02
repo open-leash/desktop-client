@@ -1,0 +1,13 @@
+import os from "node:os";
+import path from "node:path";
+
+export const home = os.homedir();
+export const openLeashDir = path.join(home, ".openleash");
+export const openLeashConfigPath = path.join(openLeashDir, "config.json");
+export const claudeSettingsPath = path.join(home, ".claude", "settings.json");
+export const codexConfigPath = path.join(home, ".codex", "config.toml");
+export const codexHooksPath = path.join(home, ".codex", "hooks.json");
+export const openClawConfigPath = path.join(home, ".openclaw", "config.json");
+export const openClawHooksDir = path.join(home, ".openclaw", "hooks");
+export const openClawOpenLeashHookDir = path.join(openClawHooksDir, "openleash");
+export const nanoClawSettingsPath = path.join(home, ".nanoclaw", "settings.json");

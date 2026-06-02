@@ -1,0 +1,2971 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>OpenLeash</title>
+    <style>
+      :root {
+        --ink: #101318;
+        --ink-2: #3d4450;
+        --muted: #8b909b;
+        --line: #e6e8ee;
+        --soft: #f5f6f8;
+        --panel: #ffffff;
+        --accent: #c8d6ff;
+        --green: #22b981;
+        --red: #e7574f;
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        background: #eef0f4;
+        color: var(--ink);
+        font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        -webkit-font-smoothing: antialiased;
+        user-select: none;
+      }
+      .drag-strip {
+        position: fixed;
+        z-index: 20;
+        top: 0;
+        left: 0;
+        right: 0;
+        height: 58px;
+        -webkit-app-region: drag;
+      }
+      aside, .head {
+        -webkit-app-region: drag;
+      }
+      button, input, label, nav, main, .card, .switch, .actions {
+        -webkit-app-region: no-drag;
+      }
+      .app {
+        min-height: 100vh;
+        display: grid;
+        grid-template-columns: 230px minmax(0, 1fr);
+        gap: 14px;
+        padding: 14px;
+      }
+      aside, main {
+        background: var(--panel);
+        border-radius: 18px;
+        border: 1px solid rgba(16, 19, 24, .06);
+      }
+      aside {
+        padding: 24px 16px;
+        display: flex;
+        flex-direction: column;
+        gap: 18px;
+      }
+      .brand {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        min-height: 48px;
+        font-size: 21px;
+        font-weight: 900;
+      }
+      .brand img { width: 28px; height: 28px; border-radius: 7px; object-fit: contain; }
+      nav { display: grid; gap: 8px; }
+      nav button {
+        width: 100%;
+        border: 0;
+        border-radius: 12px;
+        padding: 12px 14px;
+        background: transparent;
+        color: var(--ink-2);
+        text-align: left;
+        font: inherit;
+        font-weight: 800;
+        cursor: pointer;
+      }
+      nav button.active { background: var(--soft); color: var(--ink); }
+      body.setup-locked nav {
+        display: none;
+      }
+      body.setup-locked .foot {
+        display: none;
+      }
+      body.setup-locked .app {
+        grid-template-columns: minmax(0, 1fr);
+        padding: 14px;
+      }
+      body.setup-locked aside {
+        display: none;
+      }
+      body.setup-locked main {
+        width: min(1120px, calc(100vw - 28px));
+        margin: 0 auto;
+      }
+      body.intro-active main {
+        height: calc(100vh - 28px);
+        padding: 0;
+        overflow: hidden;
+      }
+      .foot {
+        margin-top: auto;
+        padding: 14px;
+        border-radius: 14px;
+        background: var(--soft);
+        color: var(--muted);
+        font-size: 13px;
+        line-height: 1.45;
+      }
+      main { padding: 48px 38px 38px; overflow: auto; }
+      h1 { margin: 0; font-size: 38px; letter-spacing: 0; }
+      h2 { margin: 0; font-size: 20px; letter-spacing: 0; }
+      p { margin: 0; color: var(--muted); line-height: 1.5; }
+      .head {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        gap: 20px;
+        padding-bottom: 24px;
+        border-bottom: 1px solid var(--line);
+      }
+      .grid { display: grid; gap: 14px; margin-top: 24px; }
+      .two { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .setupStack {
+        display: grid;
+        gap: 24px;
+        margin-top: 28px;
+      }
+      .setupStepper {
+        display: grid;
+        gap: 10px;
+        margin-top: 24px;
+      }
+      .setupProgress {
+        display: grid;
+        gap: 10px;
+        margin-top: 24px;
+      }
+      .setupProgressMeta {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 16px;
+        color: var(--muted);
+        font-size: 13px;
+        font-weight: 900;
+        text-transform: uppercase;
+      }
+      .setupProgressBar {
+        height: 8px;
+        border-radius: 999px;
+        background: var(--soft);
+        overflow: hidden;
+      }
+      .setupProgressFill {
+        height: 100%;
+        border-radius: 999px;
+        background: var(--accent);
+      }
+      .welcomeHero {
+        min-height: calc(100vh - 128px);
+        display: grid;
+        align-content: center;
+        gap: 28px;
+        max-width: 1080px;
+        margin: 0 auto;
+      }
+      .welcomeMark {
+        width: 68px;
+        height: 68px;
+        border-radius: 20px;
+        display: grid;
+        place-items: center;
+        background: var(--soft);
+        border: 1px solid var(--line);
+        color: var(--ink);
+      }
+      .welcomeMark svg {
+        width: 38px;
+        height: 38px;
+      }
+      .welcomeCopy {
+        display: grid;
+        gap: 12px;
+      }
+      .welcomeKicker {
+        color: var(--ink);
+        font-size: 24px;
+        font-weight: 950;
+        letter-spacing: 0;
+      }
+      .welcomeHero h1 {
+        font-size: 74px;
+        line-height: .98;
+        max-width: 920px;
+      }
+      .welcomeHero p {
+        max-width: 900px;
+        font-size: 20px;
+        line-height: 1.45;
+      }
+      .welcomeTiles {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 16px;
+      }
+      .welcomeTile {
+        min-height: 188px;
+        padding: 22px;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: white;
+      }
+      .welcomeTile strong {
+        display: block;
+        margin-bottom: 12px;
+        font-size: 18px;
+      }
+      .welcomeTile p {
+        font-size: 17px;
+        line-height: 1.45;
+      }
+      .welcomeActions {
+        display: flex;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 18px;
+      }
+      .welcomeFootnote {
+        color: var(--muted);
+        font-size: 15px;
+        font-weight: 800;
+      }
+      .introScreen {
+        position: relative;
+        width: 100%;
+        height: 100%;
+        min-height: 0;
+        display: grid;
+        place-items: center;
+        overflow: hidden;
+        border-radius: 18px;
+        background: #06080d;
+      }
+      .introScreen video {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        display: block;
+      }
+      .introSkip {
+        position: absolute;
+        right: 22px;
+        bottom: 22px;
+        border-color: rgba(255,255,255,.32);
+        background: rgba(255,255,255,.9);
+        backdrop-filter: blur(12px);
+      }
+      .setupStepPill {
+        display: grid;
+        grid-template-columns: 28px minmax(0, 1fr);
+        align-items: center;
+        gap: 10px;
+        min-height: 54px;
+        border: 1px solid var(--line);
+        border-radius: 999px;
+        padding: 9px 14px 9px 10px;
+        background: white;
+        color: var(--muted);
+        font-weight: 900;
+      }
+      .setupStepPill b {
+        display: grid;
+        place-items: center;
+        width: 28px;
+        height: 28px;
+        border-radius: 50%;
+        background: var(--soft);
+        color: var(--muted);
+        font-size: 13px;
+      }
+      .setupStepPill.active {
+        border-color: rgba(93, 119, 205, .22);
+        background: #f1f5ff;
+        color: var(--ink);
+      }
+      .setupStepPill.active b {
+        background: var(--accent);
+        color: var(--ink);
+      }
+      .setupStepPill.done {
+        color: var(--ink-2);
+      }
+      .setupStepPill.done b {
+        background: #e9f8f1;
+        color: #11795f;
+      }
+      .setupSection {
+        display: grid;
+        gap: 16px;
+      }
+      .setupSection h2 {
+        margin: 0;
+      }
+      .cardList {
+        display: grid;
+        gap: 14px;
+      }
+      .card {
+        border: 1px solid var(--line);
+        border-radius: 14px;
+        background: white;
+        padding: 16px;
+      }
+      .choiceCard {
+        display: grid;
+        grid-template-columns: 42px minmax(0, 1fr) auto;
+        align-items: center;
+        gap: 14px;
+        cursor: pointer;
+      }
+      .choiceCard.selected {
+        border-color: rgba(93, 119, 205, .35);
+        background: #f5f7ff;
+      }
+      .choiceCard.featured {
+        position: relative;
+        grid-template-columns: 48px minmax(0, 1fr) auto;
+        padding: 20px;
+        border-color: rgba(34, 185, 129, .26);
+        background: #f2fbf7;
+      }
+      .choiceCard.featured.selected {
+        border-color: rgba(34, 185, 129, .46);
+        background: #ecfaf4;
+      }
+      .choiceCard.featured .agentIcon {
+        width: 48px;
+        height: 48px;
+        background: white;
+      }
+      .choiceCard .benefits {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        margin-top: 10px;
+      }
+      .choiceCard .benefits span {
+        display: inline-flex;
+        align-items: center;
+        min-height: 28px;
+        border-radius: 999px;
+        padding: 5px 10px;
+        background: rgba(255, 255, 255, .78);
+        border: 1px solid rgba(16, 19, 24, .06);
+        color: #11795f;
+        font-size: 12px;
+        font-weight: 900;
+      }
+      .recommendedTag {
+        display: inline-flex;
+        margin-left: 8px;
+        vertical-align: middle;
+        border-radius: 999px;
+        padding: 3px 8px;
+        background: #dff7ec;
+        color: #11795f;
+        font-size: 11px;
+        font-weight: 900;
+        text-transform: uppercase;
+      }
+      .choiceCard input {
+        accent-color: #8da4f4;
+        width: 18px;
+        height: 18px;
+      }
+      .connectionFields {
+        display: grid;
+        gap: 12px;
+        margin-top: 14px;
+      }
+      .authSummary {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 14px;
+        padding: 14px;
+        border-radius: 14px;
+        background: var(--soft);
+      }
+      .googleSignIn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 10px;
+        min-width: 220px;
+        height: 44px;
+        padding: 0 16px 0 12px;
+        border: 1px solid #747775;
+        border-radius: 22px;
+        background: #fff;
+        color: #1f1f1f;
+        font-family: Roboto, Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        font-size: 14px;
+        font-weight: 500;
+        cursor: pointer;
+      }
+      .googleSignIn:hover {
+        background: #f8fafd;
+        box-shadow: 0 1px 2px rgba(60, 64, 67, .18);
+      }
+      .googleSignIn svg {
+        width: 18px;
+        height: 18px;
+        flex: 0 0 18px;
+      }
+      .row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 18px;
+      }
+      .agentIcon {
+        width: 42px;
+        height: 42px;
+        display: grid;
+        place-items: center;
+        flex: 0 0 42px;
+        border-radius: 12px;
+        background: var(--soft);
+        font-weight: 900;
+      }
+      .agentIcon img {
+        width: 24px;
+        height: 24px;
+        object-fit: contain;
+      }
+      .agentIcon.muted {
+        filter: grayscale(1);
+        opacity: .54;
+        background: #f2f3f5;
+      }
+      .agentLine {
+        display: grid;
+        grid-template-columns: 42px minmax(0, 1fr) auto;
+        align-items: center;
+        gap: 12px;
+      }
+      strong { display: block; }
+      small { color: var(--muted); font-weight: 700; }
+      .tag {
+        border-radius: 999px;
+        padding: 7px 10px;
+        background: var(--soft);
+        color: var(--ink-2);
+        font-size: 12px;
+        font-weight: 900;
+      }
+      .tag.good { background: #e9f8f1; color: #11795f; }
+      .tag.bad { background: #fdeced; color: #bd2d3f; }
+      .switch {
+        position: relative;
+        width: 48px;
+        height: 28px;
+      }
+      .switch input { display: none; }
+      .switch span {
+        position: absolute;
+        inset: 0;
+        border-radius: 999px;
+        background: #d9dde6;
+        cursor: pointer;
+      }
+      .switch span::after {
+        content: "";
+        position: absolute;
+        top: 4px;
+        left: 4px;
+        width: 20px;
+        height: 20px;
+        border-radius: 50%;
+        background: white;
+        box-shadow: 0 1px 4px rgba(0,0,0,.15);
+        transition: transform .15s ease;
+      }
+      .switch input:checked + span { background: var(--accent); }
+      .switch input:checked + span::after { transform: translateX(20px); }
+      .switch input:disabled + span {
+        cursor: not-allowed;
+        opacity: .72;
+        box-shadow: inset 0 0 0 1px rgba(15,17,21,.12);
+      }
+      .primary, .secondary {
+        border: 0;
+        border-radius: 999px;
+        padding: 13px 20px;
+        font: inherit;
+        font-weight: 900;
+        cursor: pointer;
+      }
+      .primary:disabled, .secondary:disabled {
+        opacity: .45;
+        cursor: default;
+      }
+      .primary { background: var(--accent); color: var(--ink); }
+      .secondary { background: var(--soft); color: var(--ink); }
+      .dangerButton { background: #fee7e7; color: #af2626; }
+      .actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 24px; }
+      .actions.installOnly { justify-content: flex-start; }
+      .primary.installPrimary {
+        min-height: 68px;
+        min-width: min(100%, 420px);
+        padding: 18px 30px;
+        font-size: 22px;
+      }
+      .headActions {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        flex-wrap: wrap;
+        justify-content: flex-end;
+      }
+      .actions.left { justify-content: flex-start; margin-top: 18px; }
+      .fieldRow {
+        display: grid;
+        grid-template-columns: 180px minmax(0, 1fr);
+        gap: 12px;
+        align-items: center;
+      }
+      .segmented {
+        display: inline-grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 4px;
+        padding: 4px;
+        border-radius: 999px;
+        background: var(--soft);
+      }
+      .segmented label {
+        display: block;
+        padding: 9px 14px;
+        border-radius: 999px;
+        color: var(--muted);
+        font-weight: 900;
+        text-align: center;
+        cursor: pointer;
+      }
+      .segmented input { display: none; }
+      .segmented label:has(input:checked) {
+        background: white;
+        color: var(--ink);
+        box-shadow: 0 1px 6px rgba(16, 19, 24, .08);
+      }
+      input.secret {
+        width: 100%;
+        min-height: 42px;
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        padding: 0 14px;
+        background: white;
+        color: var(--ink);
+        font: inherit;
+        font-weight: 700;
+      }
+      .error {
+        margin-top: 10px;
+        color: #bd2d3f;
+        font-weight: 800;
+      }
+      .notice {
+        margin-top: 10px;
+        color: var(--muted);
+        font-weight: 800;
+      }
+      .desktopToast {
+        margin-bottom: 16px;
+        padding: 12px 14px;
+        color: #0f7556;
+        background: #e6f6ef;
+        border: 1px solid #bdebd6;
+        border-radius: 14px;
+        font-weight: 900;
+      }
+      .inlineNotice {
+        min-height: 20px;
+        margin-top: 10px;
+        color: var(--muted);
+        font-size: 13px;
+        font-weight: 800;
+        text-align: right;
+      }
+      .dangerZone {
+        border-color: #f5c9c9;
+        background: #fffafa;
+      }
+      .dangerGrid {
+        display: grid;
+        gap: 14px;
+      }
+      .dangerRow {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        align-items: center;
+        gap: 16px;
+      }
+      .dangerRow + .dangerRow {
+        padding-top: 14px;
+        border-top: 1px solid #f5d9d9;
+      }
+      .importCard {
+        display: grid;
+        gap: 18px;
+        min-height: 150px;
+      }
+      .hidden { display: none !important; }
+      .history { display: grid; gap: 0; margin-top: 22px; border-top: 1px solid var(--line); }
+      .history article {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        align-items: center;
+        gap: 18px;
+        padding: 16px 0;
+        border-bottom: 1px solid var(--line);
+        cursor: pointer;
+      }
+      .history article:hover strong { text-decoration: underline; }
+      .eventBody {
+        display: grid;
+        gap: 8px;
+        min-width: 0;
+      }
+      .filePathPill {
+        display: inline-grid;
+        grid-template-columns: auto minmax(0, 1fr);
+        align-items: center;
+        gap: 8px;
+        width: fit-content;
+        max-width: min(720px, 100%);
+        margin-top: 2px;
+        padding: 7px 12px;
+        border-radius: 999px;
+        background: var(--soft);
+        color: var(--ink-2);
+      }
+      .filePathPill span {
+        color: var(--muted);
+        font-size: 12px;
+        font-weight: 900;
+        text-transform: uppercase;
+      }
+      .filePathPill code {
+        margin: 0;
+        padding: 0;
+        border-radius: 0;
+        background: transparent;
+        font-size: 14px;
+      }
+      .evidenceLine {
+        color: var(--muted);
+        font-size: 14px;
+        font-weight: 800;
+      }
+      code {
+        display: inline-block;
+        max-width: 100%;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        margin-top: 8px;
+        padding: 7px 10px;
+        border-radius: 999px;
+        background: var(--soft);
+        color: var(--ink-2);
+      }
+      .empty {
+        padding: 38px;
+        text-align: center;
+        color: var(--muted);
+      }
+      .category {
+        margin-top: 0;
+        margin-bottom: 18px;
+        color: var(--muted);
+        font-size: 12px;
+        font-weight: 900;
+        text-transform: uppercase;
+      }
+      .ruleGroups {
+        display: grid;
+        gap: 32px;
+      }
+      .ruleGroup {
+        display: grid;
+        gap: 14px;
+      }
+      .ruleLine strong {
+        display: flex;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 8px;
+      }
+      .managedBadge {
+        display: inline-flex;
+        align-items: center;
+        min-height: 24px;
+        padding: 4px 9px;
+        border-radius: 999px;
+        background: #f3eadb;
+        color: #6a5433;
+        font-size: 11px;
+        font-weight: 950;
+        text-transform: uppercase;
+      }
+      .managedBadge.soft {
+        background: #edf1fb;
+        color: #536070;
+      }
+      .lockedRule {
+        background: linear-gradient(180deg, rgba(255,255,255,.96), rgba(250,247,240,.96));
+      }
+      .statusTag {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        align-self: center;
+        min-width: 74px;
+        height: 34px;
+        white-space: nowrap;
+      }
+      .detailStack {
+        display: grid;
+        gap: 16px;
+        margin-top: 24px;
+      }
+      .kv {
+        display: grid;
+        grid-template-columns: 150px minmax(0, 1fr);
+        gap: 10px;
+        padding: 10px 0;
+        border-bottom: 1px solid var(--line);
+      }
+      .pre {
+        user-select: text;
+        white-space: pre-wrap;
+        overflow: auto;
+        max-height: 260px;
+        border-radius: 12px;
+        background: var(--soft);
+        padding: 14px;
+        color: var(--ink-2);
+        font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+        font-size: 13px;
+        line-height: 1.45;
+      }
+      .overviewAgents {
+        display: grid;
+        gap: 16px;
+        margin-top: 24px;
+      }
+      .overviewAgentGrid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+        gap: 12px;
+        margin-top: 24px;
+      }
+      .overviewAgentTile {
+        display: grid;
+        grid-template-columns: 42px minmax(0, 1fr);
+        gap: 12px;
+        align-items: center;
+        min-height: 86px;
+        border-color: transparent;
+        background: #f6fbf9;
+      }
+      .overviewAgentTile.missing {
+        background: #f7f7f8;
+        border-color: var(--line);
+      }
+      .overviewAgentTile.protected {
+        background: #eef8ff;
+      }
+      .overviewAgentTile .tag {
+        display: inline-flex;
+        width: fit-content;
+        margin-top: 8px;
+        font-size: 12px;
+      }
+      .overviewAgentTile small {
+        display: block;
+        margin-top: 2px;
+      }
+      .subhead {
+        margin-top: 10px;
+      }
+      .subhead h2 {
+        margin: 0;
+        font-size: 22px;
+      }
+      .subhead p {
+        margin: 4px 0 0;
+        color: var(--muted);
+      }
+      .agentOverview {
+        display: grid;
+        grid-template-columns: 46px minmax(0, 1fr);
+        gap: 14px;
+      }
+      .agentOverviewHead {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        gap: 14px;
+        margin-bottom: 14px;
+      }
+      .nowSummary {
+        font-size: 17px;
+        line-height: 1.35;
+        font-weight: 900;
+        color: var(--ink);
+        margin-bottom: 12px;
+      }
+      .projectLine {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        max-width: 100%;
+        margin: -3px 0 14px;
+        padding: 9px 12px;
+        border-radius: 12px;
+        background: #f7f8fb;
+        border: 1px solid var(--line);
+        color: var(--ink-2);
+      }
+      .projectLine span {
+        color: var(--muted);
+        font-size: 11px;
+        font-weight: 900;
+        text-transform: uppercase;
+      }
+      .projectLine strong {
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        font-size: 14px;
+      }
+      .agentMeta {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        margin-bottom: 12px;
+      }
+      .agentMeta .tag {
+        max-width: 280px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+      .detailList {
+        display: grid;
+        gap: 8px;
+        margin-top: 12px;
+      }
+      .detailLine {
+        display: grid;
+        grid-template-columns: 104px minmax(0, 1fr);
+        gap: 10px;
+        color: var(--muted);
+        font-size: 13px;
+        line-height: 1.35;
+      }
+      .detailLine b {
+        color: var(--ink-2);
+      }
+      .agentSessionGrid {
+        display: grid;
+        gap: 16px;
+        margin-top: 24px;
+      }
+      .sessionStats {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 12px;
+        margin-top: 18px;
+      }
+      .sessionStat {
+        padding: 14px;
+        border: 1px solid var(--line);
+        border-radius: 14px;
+        background: white;
+      }
+      .sessionStat strong {
+        display: block;
+        font-size: 20px;
+        font-weight: 950;
+      }
+      .sessionStat small {
+        display: block;
+        margin-top: 4px;
+        color: var(--muted);
+        font-weight: 850;
+      }
+      .agentSessionsCard {
+        display: grid;
+        gap: 12px;
+      }
+      .agentTitleLine {
+        display: grid;
+        grid-template-columns: 46px minmax(0, 1fr);
+        align-items: center;
+        gap: 12px;
+      }
+      .sessionList {
+        display: grid;
+        gap: 10px;
+      }
+      .sessionRow {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        align-items: center;
+        gap: 14px;
+        width: 100%;
+        padding: 14px;
+        border: 1px solid var(--line);
+        border-radius: 14px;
+        background: #f8f9fc;
+        color: inherit;
+        text-align: left;
+        cursor: pointer;
+      }
+      .sessionRow:hover {
+        background: #f2f5fb;
+      }
+      .sessionRow span {
+        min-width: 0;
+      }
+      .sessionRow strong,
+      .sessionRow small,
+      .sessionRow em {
+        display: block;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+      .sessionRow small {
+        margin-top: 4px;
+        color: var(--muted);
+        font-weight: 800;
+      }
+      .sessionRow em {
+        margin-top: 6px;
+        color: var(--ink-2);
+        font-style: normal;
+        font-size: 13px;
+        font-weight: 800;
+      }
+      .sessionMeta {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+      .sessionMeta b,
+      .sessionMeta i {
+        padding: 6px 9px;
+        border-radius: 999px;
+        background: white;
+        border: 1px solid var(--line);
+        color: var(--ink-2);
+        font-size: 12px;
+        font-style: normal;
+        font-weight: 900;
+      }
+      .sessionHero {
+        margin-top: 20px;
+      }
+      .empty.compact {
+        padding: 18px;
+      }
+      .highlightList {
+        display: grid;
+        gap: 10px;
+      }
+      .highlight {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        gap: 14px;
+        align-items: center;
+        padding: 12px;
+        border-radius: 12px;
+        background: var(--soft);
+      }
+      .highlightTitle {
+        font-weight: 900;
+      }
+      .fileLine {
+        display: grid;
+        grid-template-columns: 34px minmax(0, 1fr);
+        align-items: center;
+        gap: 10px;
+        margin-top: 8px;
+        color: var(--ink-2);
+      }
+      .fileTypeIcon {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 34px;
+        height: 34px;
+        border-radius: 10px;
+        background: white;
+        border: 1px solid var(--line);
+        font-size: 16px;
+        font-weight: 900;
+      }
+      .fileName {
+        display: block;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+        font-size: 13px;
+      }
+      .quote {
+        display: block;
+        margin-top: 5px;
+        color: var(--ink-2);
+        font-size: 13px;
+        line-height: 1.35;
+      }
+      .quote::before { content: "“"; }
+      .quote::after { content: "”"; }
+    </style>
+  </head>
+  <body>
+    <div class="drag-strip" aria-hidden="true"></div>
+    <div class="app">
+      <aside>
+        <div class="brand">
+          <img src="openleash-icon.png" alt="" />
+          OpenLeash
+        </div>
+        <nav>
+          <button class="active" data-view="overview">Overview</button>
+          <button data-view="usage">Usage</button>
+          <button data-view="history">History</button>
+          <button data-view="agents">Agents</button>
+          <button data-view="rules">Rules</button>
+          <button data-view="skills">Skills</button>
+          <button data-view="mcps">MCP</button>
+          <button data-view="settings">Settings</button>
+        </nav>
+        <div class="foot" id="modeFoot">Personal mode runs fully on this Mac. Rules, history, approvals, and agent protection stay local.</div>
+      </aside>
+      <main id="root"></main>
+    </div>
+    <script>
+      let state = { rules: [], history: [], localProtections: [], setupComplete: false, introSeen: false };
+      let selectedAgents;
+      let selectedRules;
+      let setupStep = 0;
+      let setupAudience = "individual";
+      let setupClientMode = "cloud";
+      let setupRemoteApiUrl = "https://api.openleash.com";
+      let setupOrganizationSlug = "";
+      let setupRemoteBootstrap;
+      let setupRemoteAuth;
+      let setupRemoteError = "";
+      let setupRemoteNotice = "";
+      let setupRemoteBusy = false;
+      let setupRemoteProvider = "google";
+      let setupRemoteKeySaved = false;
+      let setupDockerStatus;
+      let setupDockerBusy = false;
+      let setupProvider = "openai";
+      let setupApiKey = "";
+      let importedRules;
+      let importRulesMessage = "";
+      let desktopMessageTimer;
+      let introPlaying = false;
+      let view = "overview";
+      let selectedEventId = "";
+      let selectedMcpServerId = "";
+      let selectedAgentSessionId = "";
+      const root = document.getElementById("root");
+      const nav = [...document.querySelectorAll("nav button")];
+      const modeFoot = document.getElementById("modeFoot");
+
+      function render(payload) {
+        const incomingRules = payload.policies || payload.rules || state.rules;
+        state = { ...state, ...payload, rules: importedRules || incomingRules };
+        if (payload.desktopMessage) {
+          if (desktopMessageTimer) clearTimeout(desktopMessageTimer);
+          desktopMessageTimer = setTimeout(() => {
+            state.desktopMessage = "";
+            renderView();
+          }, 5000);
+        }
+        if (state.clientMode) setupClientMode = state.clientMode;
+        setupRemoteApiUrl = state.remoteApiUrl || state.cloudApiUrl || setupRemoteApiUrl;
+        if (!selectedAgents && (state.localProtections || []).length > 0) {
+          selectedAgents = new Set((state.localProtections || []).filter((agent) => agent.installed && agent.supportsInstall).map((agent) => agent.kind));
+        }
+        if (!selectedRules && (state.rules || []).length > 0) {
+          selectedRules = new Map((state.rules || []).map((rule) => [rule.id, rule.locked ? true : Boolean(rule.enabled)]));
+        }
+        updateModeFoot();
+        document.body.classList.toggle("setup-locked", isSetupLocked());
+        document.body.classList.toggle("intro-active", isIntroLocked());
+        if (isIntroLocked()) {
+          if (!introPlaying) renderIntro();
+          return;
+        }
+        introPlaying = false;
+        if (isSetupLocked()) return renderSetup();
+        importedRules = undefined;
+        renderView();
+      }
+
+      function modeLabel() {
+        if (state.clientMode === "cloud") return "OpenLeash Cloud";
+        if (state.clientMode === "custom") return "Private Cloud";
+        return "Local only";
+      }
+
+      function modeFootnote() {
+        if (state.clientMode === "cloud") {
+          const tenant = state.remoteOrganization || "organization tenant";
+          return `OpenLeash Cloud organization mode. Rules and approvals sync with ${tenant}. Local hooks still call this Mac first.`;
+        }
+        if (state.clientMode === "custom") {
+          const tenant = state.remoteOrganization || state.remoteApiUrl || "your private cloud";
+          return `Private Cloud mode. Rules and approvals sync with ${tenant}. Local hooks still call this Mac first.`;
+        }
+        return "Personal mode runs fully on this Mac. Rules, history, approvals, and agent protection stay local.";
+      }
+
+      function updateModeFoot() {
+        modeFoot.textContent = modeFootnote();
+      }
+
+      function modeTag() {
+        return `<span class="tag good">${escapeHtml(modeLabel())}</span>`;
+      }
+
+      function isSetupLocked() {
+        return !state.setupComplete || state.mode === "setup";
+      }
+
+      function isIntroLocked() {
+        return !state.setupComplete && !state.introSeen;
+      }
+
+      function renderIntro() {
+        introPlaying = true;
+        document.body.classList.add("intro-active");
+        root.innerHTML = `
+          <section class="introScreen">
+            <video id="introVideo" autoplay muted playsinline preload="auto" src="openleash-video.mp4"></video>
+            <button class="secondary introSkip" id="skipIntro">Skip</button>
+          </section>
+        `;
+        const video = document.getElementById("introVideo");
+        const finish = () => finishIntro();
+        document.getElementById("skipIntro").onclick = finish;
+        video.onended = finish;
+        video.onerror = finish;
+        video.play?.().catch(() => undefined);
+      }
+
+      async function finishIntro() {
+        if (state.introSeen) return;
+        introPlaying = false;
+        state.introSeen = true;
+        document.body.classList.remove("intro-active");
+        await window.openleash.markIntroSeen?.();
+        renderSetup();
+      }
+
+      function renderSetup() {
+        enforceAudienceMode();
+        const personal = setupClientMode === "personal";
+        const cloud = setupClientMode === "cloud";
+        const orgCloud = setupAudience === "organization" && cloud;
+        const ruleSteps = setupRuleGroups(state.rules).map((group) => ({
+          title: group.title,
+          subtitle: personal ? "Choose which rules OpenLeash enforces." : "Review dashboard-managed rules.",
+          ruleGroup: group
+        }));
+        const steps = personal
+          ? [
+              { title: "Account", subtitle: "Tell us who is setting this up." },
+              { title: "Connect", subtitle: "Pick how OpenLeash runs." },
+              { title: "Model key", subtitle: "Add an optional local evaluator key." },
+              { title: "Agents", subtitle: "Choose agents to protect." },
+              ...ruleSteps
+            ]
+          : cloud
+            ? [
+                { title: "Account", subtitle: "Tell us who is setting this up." },
+                { title: "Connect", subtitle: "Pick how OpenLeash runs." },
+                ...(orgCloud ? [
+                  { title: "Sign in", subtitle: "Continue onboarding in the dashboard." }
+                ] : [
+                  { title: "Sign in", subtitle: "Sign in to OpenLeash Cloud." },
+                  { title: "Agents", subtitle: "Choose agents to protect." },
+                  ...ruleSteps
+                ])
+              ]
+          : [
+              { title: "Account", subtitle: "Tell us who is setting this up." },
+              { title: "Connect", subtitle: "Pick how OpenLeash runs." },
+              { title: "API", subtitle: "Add your company API." },
+              { title: "Sign in", subtitle: "Sign in with your company." },
+              { title: "Agents", subtitle: "Choose agents to protect." },
+              ...ruleSteps
+            ];
+        const current = steps[Math.max(0, setupStep - 1)] || steps[0];
+        const currentId = current.title.toLowerCase();
+        const progress = Math.round((Math.max(1, setupStep) / steps.length) * 100);
+        if (setupStep === 0) {
+          root.innerHTML = `
+            <section class="welcomeHero">
+              <div class="welcomeMark">
+                <svg viewBox="0 0 34 34" fill="none" aria-hidden="true">
+                  <path d="M8 8c0 4.4 3.6 8 8 8s8-3.6 8-8" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" />
+                  <path d="M8 17c0 4.4 3.6 8 8 8s8-3.6 8-8" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" opacity=".55" />
+                  <circle cx="26" cy="8" r="3" fill="currentColor" />
+                </svg>
+              </div>
+              <div class="welcomeCopy">
+                <div class="welcomeKicker">Know your agents</div>
+                <h1>OpenLeash</h1>
+                <p>Understand and control AI agents wherever they run.</p>
+              </div>
+              <div class="welcomeTiles">
+                <div class="welcomeTile"><strong>See what they do</strong><p>Track agents commands, files, MCPs, Skills, tools, usage and history.</p></div>
+                <div class="welcomeTile"><strong>Control risky actions</strong><p>Approve dangerous or destructive actions to you files, Git, databases, environment, secret access etc.</p></div>
+                <div class="welcomeTile"><strong>Stay in control anywhere</strong><p>Know your agents even when your on the go from your phone.</p></div>
+              </div>
+              <div class="welcomeActions">
+                <button class="primary" id="setupNext">Next</button>
+                <span class="welcomeFootnote">Works locally, in OpenLeash Cloud, or in your private cloud.</span>
+              </div>
+            </section>
+          `;
+          const next = document.getElementById("setupNext");
+          if (next) next.onclick = () => {
+            setupStep = 1;
+            renderSetup();
+          };
+          return;
+        }
+        root.innerHTML = `
+          <div class="head">
+            <div>
+              <h1>Set up OpenLeash</h1>
+              <p>${escapeHtml(current.subtitle)}</p>
+            </div>
+          </div>
+          <div class="setupProgress">
+            <div class="setupProgressMeta">
+              <span>Step ${setupStep} of ${steps.length}</span>
+              <span>${escapeHtml(current.title)}</span>
+            </div>
+            <div class="setupProgressBar"><div class="setupProgressFill" style="width:${progress}%"></div></div>
+          </div>
+          <div class="setupStack">
+            ${currentId === "account" ? `
+              <section class="setupSection">
+                <h2>Who is OpenLeash for?</h2>
+                <p>This shapes the setup options you see next.</p>
+                <div class="cardList">
+                  ${audienceChoice("individual", "Individual", "Use OpenLeash for your own local AI agents.", "OL")}
+                  ${audienceChoice("organization", "Organization", "Set up OpenLeash for a company or team.", "ORG")}
+                </div>
+              </section>
+            ` : ""}
+            ${currentId === "connect" ? `
+              <section class="setupSection">
+                <h2>Connection</h2>
+                <p>${setupAudience === "organization" ? "Pick how your organization runs OpenLeash." : "Pick how OpenLeash runs for you."}</p>
+                <div class="cardList">
+                  ${connectionChoice("cloud", "OpenLeash Cloud", setupAudience === "organization" ? "Use the OpenLeash-hosted API and dashboard." : "Use the OpenLeash-hosted account and sync.", "cloud")}
+                  ${setupAudience === "organization" ? connectionChoice("custom", "Private Cloud", "Use your private OpenLeash deployment.", "dns") : ""}
+                  ${setupAudience === "individual" ? connectionChoice("personal", "Local mode", "Run local evaluation on this computer. No account, no web.", "devices") : ""}
+                </div>
+              </section>
+            ` : ""}
+            ${currentId === "api" ? `
+              <section class="setupSection">
+                <h2>API configuration</h2>
+                ${personal ? `
+                  <div class="card">
+                    <strong>Local API</strong>
+                    <p>Used by standalone mode.</p>
+                    <div class="fieldRow" style="margin-top:14px">
+                      <strong>Endpoint</strong>
+                      <input id="remoteApiUrl" value="${escapeHtml(setupRemoteApiUrl || state.apiUrl || "http://127.0.0.1:9317")}" placeholder="http://127.0.0.1:9317">
+                    </div>
+                  </div>
+                ` : `
+                  <div class="card">
+                    <strong>Managed API</strong>
+                    <p>Your OpenLeash Cloud or Private Cloud endpoint.</p>
+                    <div class="fieldRow" style="margin-top:14px">
+                      <strong>API URL</strong>
+                      <input id="remoteApiUrl" value="${escapeHtml(setupRemoteApiUrl === (state.cloudApiUrl || "https://api.openleash.com") ? "" : setupRemoteApiUrl)}" placeholder="https://openleash.your-company.com">
+                    </div>
+                    <div id="remoteSetupError" class="error">${escapeHtml(setupRemoteError)}</div>
+                  </div>
+                `}
+              </section>
+            ` : ""}
+            ${currentId === "model key" ? `
+              <section class="setupSection">
+                <h2>Model key</h2>
+                <div class="card">
+                  <strong>Optional local evaluation</strong>
+                  <p>Local mode can start immediately. Add a key now only if you want local LLM-backed risk evaluation on this Mac.</p>
+                  <div class="fieldRow">
+                    <strong>Provider</strong>
+                    <div class="segmented">
+                      <label><input type="radio" name="provider" value="openai" ${setupProvider !== "anthropic" ? "checked" : ""}>OpenAI</label>
+                      <label><input type="radio" name="provider" value="anthropic" ${setupProvider === "anthropic" ? "checked" : ""}>Claude</label>
+                    </div>
+                  </div>
+                  <div class="fieldRow" style="margin-top:14px">
+                    <strong>API key</strong>
+                    <input id="apiKey" class="secret" type="password" value="${escapeHtml(setupApiKey)}" placeholder="Paste your API key (optional)">
+                  </div>
+                  <p style="margin-top:12px">Stored locally on this Mac. You can add or change it later.</p>
+                  <div id="setupError" class="error"></div>
+                </div>
+              </section>
+            ` : ""}
+            ${currentId === "sign in" ? `
+              <section class="setupSection">
+                <h2>Sign in</h2>
+                <div class="card">
+                  ${setupRemoteAuth ? `
+                    <div class="authSummary">
+                      <div>
+                        <strong>${escapeHtml(setupRemoteAuth.userName || setupRemoteAuth.userEmail || "Signed in")}</strong>
+                        <small>${escapeHtml(setupRemoteAuth.organizationName || setupRemoteAuth.organizationSlug || setupRemoteApiUrl)}</small>
+                      </div>
+                      <span class="tag good">Connected</span>
+                    </div>
+                  ` : `
+                    <strong>${setupClientMode === "cloud" ? (setupAudience === "organization" ? (state.cloudDevAuth ? "Use local dev sign-in" : "Continue with work identity") : "Continue with Google") : "Sign in with your company"}</strong>
+                    <p>${setupClientMode === "cloud" ? (setupAudience === "organization" ? (state.cloudDevAuth ? `This local run will use ${escapeHtml(state.cloudDevAuthEmail || "mobile.user@openleash.com")} and will not open a real Google or Microsoft account picker.` : "Use Google Workspace or Microsoft 365. OpenLeash will detect or create your company workspace from your work email domain.") : "Create or access your personal OpenLeash Cloud account here.") : "Your API chooses the identity provider."}</p>
+                    <div class="actions left" style="margin-top:16px">
+                      ${orgCloud && state.cloudDevAuth ? `
+                        <button class="googleSignIn" id="orgCloudGoogle" ${setupRemoteBusy ? "disabled" : ""}>
+                          <span style="font-weight:900;color:#111827">DEV</span>
+                          <span>${setupRemoteBusy ? "Opening..." : `Continue as ${escapeHtml(state.cloudDevAuthEmail || "mobile.user@openleash.com")}`}</span>
+                        </button>
+                      ` : orgCloud ? `
+                        <button class="googleSignIn" id="orgCloudGoogle" ${setupRemoteBusy ? "disabled" : ""}>
+                          <svg viewBox="0 0 18 18" aria-hidden="true">
+                            <path fill="#4285F4" d="M17.64 9.2c0-.64-.06-1.25-.16-1.84H9v3.48h4.84a4.14 4.14 0 0 1-1.8 2.72v2.26h2.92c1.7-1.57 2.68-3.88 2.68-6.62z"/>
+                            <path fill="#34A853" d="M9 18c2.43 0 4.47-.8 5.96-2.18l-2.92-2.26c-.8.54-1.84.86-3.04.86-2.34 0-4.33-1.58-5.04-3.71H.94v2.33A9 9 0 0 0 9 18z"/>
+                            <path fill="#FBBC05" d="M3.96 10.71a5.41 5.41 0 0 1 0-3.42V4.96H.94a9 9 0 0 0 0 8.08l3.02-2.33z"/>
+                            <path fill="#EA4335" d="M9 3.58c1.32 0 2.5.45 3.44 1.35l2.58-2.58C13.46.9 11.43 0 9 0A9 9 0 0 0 .94 4.96l3.02 2.33C4.67 5.16 6.66 3.58 9 3.58z"/>
+                          </svg>
+                          <span>${setupRemoteBusy && setupRemoteProvider === "google" ? "Opening..." : "Google Workspace"}</span>
+                        </button>
+                        <button class="googleSignIn" id="orgCloudMicrosoft" ${setupRemoteBusy ? "disabled" : ""}>
+                          <span style="font-weight:900;color:#2563eb">M</span>
+                          <span>${setupRemoteBusy && setupRemoteProvider === "microsoft" ? "Opening..." : "Microsoft 365"}</span>
+                        </button>
+                      ` : setupClientMode === "cloud" ? `
+                        <button class="googleSignIn" id="remoteSignIn" ${setupRemoteBusy ? "disabled" : ""}>
+                          <svg viewBox="0 0 18 18" aria-hidden="true">
+                            <path fill="#4285F4" d="M17.64 9.2c0-.64-.06-1.25-.16-1.84H9v3.48h4.84a4.14 4.14 0 0 1-1.8 2.72v2.26h2.92c1.7-1.57 2.68-3.88 2.68-6.62z"/>
+                            <path fill="#34A853" d="M9 18c2.43 0 4.47-.8 5.96-2.18l-2.92-2.26c-.8.54-1.84.86-3.04.86-2.34 0-4.33-1.58-5.04-3.71H.94v2.33A9 9 0 0 0 9 18z"/>
+                            <path fill="#FBBC05" d="M3.96 10.71a5.41 5.41 0 0 1 0-3.42V4.96H.94a9 9 0 0 0 0 8.08l3.02-2.33z"/>
+                            <path fill="#EA4335" d="M9 3.58c1.32 0 2.5.45 3.44 1.35l2.58-2.58C13.46.9 11.43 0 9 0A9 9 0 0 0 .94 4.96l3.02 2.33C4.67 5.16 6.66 3.58 9 3.58z"/>
+                          </svg>
+                          <span>${setupRemoteBusy && setupRemoteProvider === "google" ? "Opening..." : setupAudience === "organization" ? "Google Workspace" : "Sign in with Google"}</span>
+                        </button>
+                        ${setupAudience === "organization" ? `<button class="googleSignIn" id="remoteSignInMicrosoft" ${setupRemoteBusy ? "disabled" : ""}><span style="font-weight:900;color:#2563eb">M</span><span>${setupRemoteBusy && setupRemoteProvider === "azure_ad" ? "Opening..." : "Microsoft 365"}</span></button>` : ""}
+                      ` : `<button class="primary" id="remoteSignIn" ${setupRemoteBusy ? "disabled" : ""}>${setupRemoteBusy ? "Opening..." : "Sign in"}</button>`}
+                    </div>
+                  `}
+                  <div id="remoteAuthError" class="error">${escapeHtml(setupRemoteError)}</div>
+                  <div class="notice">${escapeHtml(setupRemoteNotice)}</div>
+                </div>
+              </section>
+            ` : ""}
+            ${currentId === "agents" ? `
+              <section class="setupSection">
+                <h2>Agents</h2>
+                <p>Select agents to protect.</p>
+                ${agentCards({ selectable: true })}
+              </section>
+            ` : ""}
+            ${current.ruleGroup ? `
+              <section class="setupSection">
+                <h2>${escapeHtml(current.ruleGroup.title)}</h2>
+                <p>${personal ? escapeHtml(current.ruleGroup.description) : "These rules are managed by your OpenLeash administrator. Mandatory rules cannot be disabled on this device."}</p>
+                ${personal && current.ruleGroup.first ? importRulesPanel({ setup: true }) : ""}
+                ${ruleCards(current.ruleGroup.rules, { setup: true, managed: !personal })}
+              </section>
+            ` : ""}
+            ${setupStep >= steps.length ? `<div id="setupError" class="error"></div>` : ""}
+          </div>
+          <div class="actions">
+            <button class="secondary" id="setupBack">Back</button>
+            ${setupStep < steps.length
+              ? `<button class="primary" id="setupNext">Next</button>`
+              : `<button class="primary" id="finish">Install and start protecting</button>`}
+          </div>
+        `;
+        const back = document.getElementById("setupBack");
+        if (back) back.onclick = () => {
+          rememberSetupInputs();
+          setupStep = Math.max(0, setupStep - 1);
+          renderSetup();
+        };
+        const next = document.getElementById("setupNext");
+        if (next) next.onclick = async () => {
+          rememberSetupInputs();
+          if (currentId === "api" && setupClientMode === "custom") {
+            const ok = await bootstrapRemoteSetup();
+            if (!ok) return renderSetup();
+          }
+          if (currentId === "sign in" && setupClientMode === "cloud" && setupAudience === "organization") return;
+          if (currentId === "sign in" && setupClientMode !== "personal" && !setupRemoteAuth) {
+            setupRemoteError = "Sign in before continuing.";
+            return renderSetup();
+          }
+          if (currentId === "sign in" && setupClientMode === "cloud" && setupAudience === "organization" && isPersonalEmail(setupRemoteAuth?.userEmail)) {
+            setupRemoteError = "Use your company Google Workspace or Microsoft 365 account, not a personal email address.";
+            setupRemoteAuth = undefined;
+            return renderSetup();
+          }
+          setupStep = Math.min(steps.length, setupStep + 1);
+          renderSetup();
+        };
+        const finish = document.getElementById("finish");
+        if (finish) finish.onclick = finishSetup;
+        bindAgentSelection();
+        bindRuleSelection();
+        bindAudienceSelection();
+        bindConnectionSelection();
+        bindModelSelection();
+        bindRuleImport({ setup: true });
+        const signIn = document.getElementById("remoteSignIn");
+        if (signIn) signIn.onclick = () => startRemoteSignIn("google");
+        const signInMicrosoft = document.getElementById("remoteSignInMicrosoft");
+        if (signInMicrosoft) signInMicrosoft.onclick = () => startRemoteSignIn("azure_ad");
+        const orgCloudGoogle = document.getElementById("orgCloudGoogle");
+        if (orgCloudGoogle) orgCloudGoogle.onclick = () => startOrgCloudOnboarding("google");
+        const orgCloudMicrosoft = document.getElementById("orgCloudMicrosoft");
+        if (orgCloudMicrosoft) orgCloudMicrosoft.onclick = () => startOrgCloudOnboarding("microsoft");
+        const openLocalRules = document.getElementById("openLocalRules");
+        if (openLocalRules) openLocalRules.onclick = () => window.openleash.openLocalConfig();
+      }
+
+      async function startOrgCloudOnboarding(provider) {
+        rememberSetupInputs();
+        setupRemoteProvider = provider;
+        setupRemoteBusy = true;
+        setupRemoteError = "";
+        setupRemoteNotice = "";
+        renderSetup();
+        const result = await window.openleash.startOrgCloudOnboarding({ provider });
+        setupRemoteBusy = false;
+        if (!result?.ok) {
+          setupRemoteError = result?.error || "Could not open OpenLeash Cloud sign-in.";
+        } else {
+          setupRemoteNotice = state.cloudDevAuth
+            ? `Using local dev sign-in as ${state.cloudDevAuthEmail || "mobile.user@openleash.com"}.`
+            : provider === "microsoft"
+            ? "Continue with your Microsoft 365 account in the browser."
+            : "Continue with your Google Workspace account in the browser.";
+        }
+        renderSetup();
+      }
+
+      function rememberSetupInputs() {
+        const audience = root.querySelector("[name=setupAudience]:checked");
+        if (audience) setupAudience = audience.value;
+        const mode = root.querySelector("[name=clientMode]:checked");
+        if (mode) setupClientMode = mode.value;
+        enforceAudienceMode();
+        const remoteApi = document.getElementById("remoteApiUrl");
+        if (remoteApi) setupRemoteApiUrl = remoteApi.value.trim();
+        const slug = document.getElementById("organizationSlug");
+        if (slug) setupOrganizationSlug = slug.value.trim();
+        root.querySelectorAll("[data-agent]").forEach((input) => {
+          if (!selectedAgents) selectedAgents = new Set();
+          input.checked ? selectedAgents.add(input.dataset.agent) : selectedAgents.delete(input.dataset.agent);
+        });
+        root.querySelectorAll("[data-rule]").forEach((input) => {
+          if (!selectedRules) selectedRules = new Map();
+          selectedRules.set(input.dataset.rule, Boolean(input.checked));
+        });
+        const provider = root.querySelector("[name=provider]:checked");
+        if (provider) setupProvider = provider.value;
+        const key = document.getElementById("apiKey");
+        if (key) setupApiKey = key.value.trim();
+      }
+
+      async function finishSetup() {
+        rememberSetupInputs();
+        if (setupClientMode === "cloud" && setupAudience === "organization" && isPersonalEmail(setupRemoteAuth?.userEmail)) {
+          setupRemoteError = "Use your company Google Workspace or Microsoft 365 account, not a personal email address.";
+          setupRemoteAuth = undefined;
+          setupStep = setupClientMode === "custom" ? 4 : 3;
+          renderSetup();
+          return;
+        }
+        const agents = [...(selectedAgents || new Set())];
+        const rules = (state.rules || []).map((rule) => ({
+          ...rule,
+          enabled: rule.locked ? true : (selectedRules?.get(rule.id) ?? Boolean(rule.enabled))
+        }));
+        const result = await window.openleash.setup({
+          agents,
+          policies: rules,
+          audience: setupAudience,
+          clientMode: setupClientMode,
+          apiProvider: setupProvider,
+          apiKey: setupApiKey,
+          remoteApiUrl: setupRemoteApiUrl,
+          remoteToken: setupRemoteAuth?.token,
+          remoteOrganization: setupRemoteAuth?.organizationName || setupRemoteAuth?.organizationSlug,
+          remoteUser: setupRemoteAuth?.userName || setupRemoteAuth?.userEmail
+        });
+        if (result && result.ok === false) {
+          const error = document.getElementById("setupError");
+          if (error) error.textContent = result.error || "Setup could not be completed.";
+        }
+      }
+
+      function connectionChoice(value, title, subtitle, icon) {
+        const selected = setupClientMode === value;
+        const featured = value === "cloud";
+        return `
+          <label class="card choiceCard ${featured ? "featured" : ""} ${selected ? "selected" : ""}">
+            <span class="agentIcon">${icon === "cloud" ? "☁" : icon === "dns" ? "API" : "OL"}</span>
+            <span>
+              <strong>${escapeHtml(title)}${featured ? `<span class="recommendedTag">Recommended</span>` : ""}</strong>
+              <small>${escapeHtml(subtitle)}</small>
+              ${featured ? `
+                <span class="benefits">
+                  <span>Advanced protection</span>
+                  <span>Automatic updates</span>
+                  <span>Cloud agent coverage</span>
+                  <span>Codex cloud tasks</span>
+                  <span>Claude Code web</span>
+                </span>
+              ` : ""}
+            </span>
+            <input type="radio" name="clientMode" value="${escapeHtml(value)}" ${selected ? "checked" : ""}>
+          </label>
+        `;
+      }
+
+      function audienceChoice(value, title, subtitle, icon) {
+        const selected = setupAudience === value;
+        return `
+          <label class="card choiceCard ${selected ? "selected" : ""}">
+            <span class="agentIcon">${escapeHtml(icon)}</span>
+            <span>
+              <strong>${escapeHtml(title)}</strong>
+              <small>${escapeHtml(subtitle)}</small>
+            </span>
+            <input type="radio" name="setupAudience" value="${escapeHtml(value)}" ${selected ? "checked" : ""}>
+          </label>
+        `;
+      }
+
+      function enforceAudienceMode() {
+        if (setupAudience === "individual" && setupClientMode === "custom") setupClientMode = "cloud";
+        if (setupAudience === "organization" && setupClientMode === "personal") setupClientMode = "cloud";
+      }
+
+      function bindAudienceSelection() {
+        root.querySelectorAll("[name=setupAudience]").forEach((input) => {
+          input.onchange = () => {
+            setupAudience = input.value;
+            enforceAudienceMode();
+            setupRemoteAuth = undefined;
+            setupRemoteBootstrap = undefined;
+            setupRemoteError = "";
+            setupRemoteNotice = "";
+            renderSetup();
+          };
+        });
+      }
+
+      function bindConnectionSelection() {
+        root.querySelectorAll("[name=clientMode]").forEach((input) => {
+          input.onchange = () => {
+            setupClientMode = input.value;
+            if (setupClientMode === "cloud") {
+              setupRemoteApiUrl = state.cloudApiUrl || "https://api.openleash.com";
+              setupOrganizationSlug = "";
+            } else if (setupClientMode === "personal") {
+              setupRemoteApiUrl = state.apiUrl || "http://127.0.0.1:9317";
+              setupOrganizationSlug = "";
+            } else if (setupClientMode === "custom" && setupRemoteApiUrl === (state.cloudApiUrl || "https://api.openleash.com")) {
+              setupRemoteApiUrl = "";
+            }
+            setupRemoteAuth = undefined;
+            setupRemoteBootstrap = undefined;
+            setupRemoteError = "";
+            setupRemoteNotice = "";
+            renderSetup();
+          };
+        });
+        const remoteApi = document.getElementById("remoteApiUrl");
+        if (remoteApi) remoteApi.oninput = () => {
+          setupRemoteApiUrl = remoteApi.value.trim();
+          setupRemoteAuth = undefined;
+          setupRemoteNotice = "";
+        };
+        const slug = document.getElementById("organizationSlug");
+        if (slug) slug.oninput = () => {
+          setupOrganizationSlug = slug.value.trim();
+          setupRemoteAuth = undefined;
+          setupRemoteNotice = "";
+        };
+      }
+
+      async function bootstrapRemoteSetup() {
+        setupRemoteError = "";
+        if (!setupRemoteApiUrl) {
+          setupRemoteError = "Add the API URL to continue.";
+          return false;
+        }
+        if (setupClientMode === "custom" && !setupOrganizationSlug) {
+          setupOrganizationSlug = "";
+        }
+        const result = await window.openleash.bootstrapRemoteApi({
+          apiUrl: setupRemoteApiUrl,
+          organizationSlug: setupOrganizationSlug
+        }).catch((error) => ({
+          ok: false,
+          error: error?.message || "Could not reach that OpenLeash API."
+        }));
+        if (!result?.ok) {
+          setupRemoteError = result?.error || "Could not reach that OpenLeash API.";
+          return false;
+        }
+        setupRemoteBootstrap = result;
+        setupRemoteApiUrl = result.apiUrl || setupRemoteApiUrl;
+        return true;
+      }
+
+      async function startRemoteSignIn(providerOverride) {
+        rememberSetupInputs();
+        setupRemoteProvider = providerOverride || setupRemoteProvider || "google";
+        setupRemoteBusy = true;
+        setupRemoteError = "";
+        setupRemoteNotice = "";
+        renderSetup();
+        const ok = setupRemoteBootstrap ? true : await bootstrapRemoteSetup();
+        if (!ok) {
+          setupRemoteBusy = false;
+          return renderSetup();
+        }
+        const provider = setupClientMode === "cloud"
+          ? { type: setupRemoteProvider }
+          : (setupRemoteBootstrap.providers || [])[0] || { type: "sso" };
+        const organization = setupRemoteBootstrap.organization || {};
+        const result = await window.openleash.startRemoteAuth({
+          apiUrl: setupRemoteApiUrl,
+          audience: setupAudience,
+          providerType: provider.type || provider.providerType || "google",
+          organizationId: organization.id,
+          organizationSlug: setupOrganizationSlug || organization.slug
+        }).catch((error) => ({
+          ok: false,
+          error: error?.message || "Could not start sign-in."
+        }));
+        setupRemoteBusy = false;
+        if (!result?.ok) {
+          setupRemoteError = result?.error || "Could not start sign-in.";
+          renderSetup();
+        } else {
+          setupRemoteNotice = "Complete sign-in in your browser.";
+          renderSetup();
+        }
+      }
+
+      async function loadManagedRules() {
+        if (!setupRemoteAuth?.token || setupClientMode === "personal") return;
+        const result = await window.openleash.remoteState({
+          apiUrl: setupRemoteApiUrl,
+          token: setupRemoteAuth.token
+        }).catch(() => undefined);
+        if (!result?.ok || !Array.isArray(result.policies)) return;
+        state.rules = result.policies.map((policy) => ({
+          id: policy.id,
+          name: policy.name,
+          category: categoryForManagedRule(policy),
+          description: policy.description || policy.natural_language_rule || "Managed OpenLeash rule.",
+          enabled: Boolean(policy.enabled || policy.locked),
+          locked: Boolean(policy.locked),
+          managedByOrganization: Boolean(policy.managedByOrganization || policy.managed_by_organization)
+        }));
+        selectedRules = new Map((state.rules || []).map((rule) => [rule.id, rule.locked ? true : Boolean(rule.enabled)]));
+      }
+
+      function categoryForManagedRule(policy) {
+        const text = `${policy.name || ""} ${policy.description || ""} ${policy.natural_language_rule || ""}`.toLowerCase();
+        if (/credential|secret|token|personal|private key|\.env/.test(text)) return "Security";
+        if (/git|branch|commit|push|history/.test(text)) return "Git";
+        if (/package|dependency|lockfile|npm|pip|yarn|pnpm/.test(text)) return "Packages";
+        if (/cloud|terraform|kubernetes|infrastructure|filesystem|delete/.test(text)) return "Infrastructure";
+        if (/database|external|upload|sharing|exfiltrat/.test(text)) return "Data";
+        return "Managed rules";
+      }
+
+      async function saveRemoteModelKey() {
+        rememberSetupInputs();
+        setupRemoteError = "";
+        const result = await window.openleash.saveRemoteModelKey({
+          apiUrl: setupRemoteApiUrl,
+          token: setupRemoteAuth?.token,
+          apiProvider: setupProvider,
+          apiKey: setupApiKey
+        });
+        if (!result?.ok) {
+          setupRemoteError = result?.error || "Could not save your model key.";
+          setupRemoteKeySaved = false;
+        } else {
+          setupRemoteKeySaved = true;
+          setupApiKey = "";
+        }
+        renderSetup();
+      }
+
+      async function checkDockerStatus() {
+        setupDockerBusy = true;
+        renderSetup();
+        setupDockerStatus = await window.openleash.dockerStatus();
+        setupDockerBusy = false;
+        renderSetup();
+      }
+
+      async function startSelfHostedRuntime() {
+        setupDockerBusy = true;
+        renderSetup();
+        setupDockerStatus = await window.openleash.startSelfHosted();
+        setupDockerBusy = false;
+        renderSetup();
+      }
+
+      function renderView() {
+        nav.forEach((button) => button.classList.toggle("active", button.dataset.view === view));
+        if (view === "overview") return renderOverview();
+        if (view === "usage") return renderUsage();
+        if (view === "rules") return renderRules();
+        if (view === "agents") return renderAgents();
+        if (view === "mcps") return renderMcps();
+        if (view === "skills") return renderSkills();
+        if (view === "settings") return renderSettings();
+        if (view === "event") return renderEventDetail();
+        if (view === "agent-session") return renderAgentSessionDetail();
+        renderHistory();
+      }
+
+      function renderOverview() {
+        const inventory = overviewAgentInventory();
+        const agentCards = currentAgentCards();
+        const groups = agentHighlights();
+        root.innerHTML = `
+          <div class="head">
+            <div><h1>Overview</h1><p>What local AI agents are doing right now.</p></div>
+            ${modeTag()}
+          </div>
+          <div class="overviewAgentGrid">
+            ${inventory.map((agent) => `
+              <article class="card overviewAgentTile ${agent.installed ? agent.protected ? "protected" : "" : "missing"}">
+                <span class="agentIcon ${agent.installed ? "" : "muted"}">${agentIcon(agent)}</span>
+                <span>
+                  <strong>${escapeHtml(agent.displayName)}</strong>
+                  <small>${escapeHtml(agent.detail)}</small>
+                  <span class="tag ${agent.installed ? "good" : ""}">${agent.skillCount} skill${agent.skillCount === 1 ? "" : "s"}</span>
+                </span>
+              </article>
+            `).join("")}
+          </div>
+          <div class="overviewAgents">
+            ${agentCards.map((agent) => `
+              <article class="card agentOverview">
+                <span class="agentIcon">${agentIcon(agent)}</span>
+                <div>
+                  <div class="agentOverviewHead">
+                    <span>
+                      <strong>${escapeHtml(agent.displayName)}</strong>
+                      <small>${escapeHtml(agent.host)} · ${escapeHtml(agent.when)}</small>
+                    </span>
+                    <span class="tag ${agent.statusClass}">${escapeHtml(agent.status)}</span>
+                  </div>
+                  <div class="projectLine">
+                    <span>Project</span>
+                    <strong>${escapeHtml(agent.project)}</strong>
+                  </div>
+                  <div class="nowSummary">${escapeHtml(agent.summary)}</div>
+                  <div class="agentMeta">
+                    <span class="tag">${escapeHtml(agent.action)}</span>
+                    ${agent.rule ? `<span class="tag">${escapeHtml(agent.rule)}</span>` : ""}
+                  </div>
+                  ${agent.details.length ? `<div class="detailList">
+                    ${agent.details.map((detail) => `
+                      <div class="detailLine"><b>${escapeHtml(detail.label)}</b><span>${escapeHtml(detail.value)}</span></div>
+                    `).join("")}
+                  </div>` : ""}
+                </div>
+              </article>
+            `).join("") || `<div class="card empty">No active agent activity yet.</div>`}
+            ${groups.length ? `
+              <div class="subhead">
+                <h2>Recent highlights</h2>
+                <p>High-signal actions OpenLeash noticed recently.</p>
+              </div>
+              ${groups.map((group) => `
+                <article class="card agentOverview">
+                  <span class="agentIcon">${agentIcon(group.agent)}</span>
+                  <div>
+                    <div class="agentOverviewHead">
+                      <span>
+                        <strong>${escapeHtml(group.agent.displayName)}</strong>
+                        <small>${escapeHtml(group.project || "No project")} · ${escapeHtml(group.actions[0]?.date || "No recent activity")}</small>
+                      </span>
+                      <span class="tag">${group.actions.length} highlighted</span>
+                    </div>
+                    <div class="highlightList">
+                      ${group.actions.map((action) => `
+                        <div class="highlight">
+                          <span>
+                            <span class="highlightTitle">${escapeHtml(action.label)}</span>
+                            ${action.filePath ? fileLine(action.filePath) : `<span class="quote">${escapeHtml(action.quote)}</span>`}
+                          </span>
+                          <small>${escapeHtml(action.date)}</small>
+                        </div>
+                      `).join("")}
+                    </div>
+                  </div>
+                </article>
+              `).join("")}
+            ` : ""}
+          </div>
+        `;
+      }
+
+      function renderHistory() {
+        root.innerHTML = `
+          <div class="head">
+            <div><h1>History</h1><p>Triggered and blocked rule activity from local agents.</p></div>
+            ${modeTag()}
+          </div>
+          <div class="history">
+            ${(state.history || []).map((item) => `
+              <article data-event="${escapeHtml(item.id)}">
+                <div class="eventBody">
+                  <strong>${escapeHtml(item.summary)}</strong>
+                  <small>${escapeHtml(item.agent_name)} · ${escapeHtml(projectTag(item.project_path) || "No project")} · triggered ${formatTime(item.created_at)}${resolutionTime(item) ? ` · ${escapeHtml(resolutionLabel(item))} ${formatTime(resolutionTime(item))}` : ""}</small>
+                  ${filePathForEvent(item) ? `<div class="filePathPill" title="${escapeHtml(filePathForEvent(item))}"><span>File</span><code>${escapeHtml(compactPath(filePathForEvent(item)))}</code></div>` : evidencePreview(item)}
+                </div>
+                <span class="tag statusTag ${item.resolution === "allow" ? "good" : "bad"}">${escapeHtml(item.resolution || item.decision)}</span>
+              </article>
+            `).join("") || `<div class="empty">No triggered rules yet.</div>`}
+          </div>
+        `;
+        root.querySelectorAll("[data-event]").forEach((row) => {
+          row.onclick = () => {
+            selectedEventId = row.dataset.event;
+            view = "event";
+            renderView();
+          };
+        });
+      }
+
+      function renderEventDetail() {
+        const item = (state.history || []).find((entry) => entry.id === selectedEventId);
+        if (!item) {
+          view = "history";
+          return renderHistory();
+        }
+        const transcript = (item.payload?.transcript || []).slice(-5).reverse();
+        root.innerHTML = `
+          <div class="head">
+            <div><h1>Event detail</h1><p>${escapeHtml(item.summary)}</p></div>
+            <div>
+              <div class="headActions">
+                <button class="secondary" id="shareEvent">Share</button>
+                <button class="secondary" id="copyEvent">Copy JSON</button>
+                <button class="secondary" id="backHistory">Back</button>
+              </div>
+              <div class="inlineNotice" id="eventActionNotice"></div>
+            </div>
+          </div>
+          <div class="detailStack">
+            <div class="card">
+              <div class="kv"><small>Status</small><strong>${escapeHtml(item.resolution || item.decision)}</strong></div>
+              <div class="kv"><small>Agent</small><strong>${escapeHtml(item.agent_name)}</strong></div>
+              <div class="kv"><small>Project</small><strong>${escapeHtml(projectTag(item.project_path) || "No project")}</strong></div>
+              ${filePathForEvent(item) ? `<div class="kv"><small>File path</small><strong>${escapeHtml(filePathForEvent(item))}</strong></div>` : ""}
+              <div class="kv"><small>Triggered</small><strong>${formatTime(item.created_at)}</strong></div>
+              ${resolutionTime(item) ? `<div class="kv"><small>${escapeHtml(resolutionLabel(item))}</small><strong>${formatTime(resolutionTime(item))}</strong></div>` : ""}
+            </div>
+            <div class="card">
+              <h2>Triggered rules</h2>
+              ${(item.triggered_policies || []).map((policy) => `
+                <div class="kv"><small>${escapeHtml(policy.policy_name)}</small><strong>${escapeHtml(prettyEvidence(policy, item))}</strong></div>
+              `).join("") || `<p>No rule evidence was recorded.</p>`}
+            </div>
+            <div class="card">
+              <h2>Conversation context</h2>
+              ${transcript.length ? transcript.map((msg) => `<div class="kv"><small>${escapeHtml(msg.role || "message")}</small><strong>${escapeHtml(msg.content || "")}</strong></div>`).join("") : `<p>No conversation context was included with this event.</p>`}
+            </div>
+            <div class="card">
+              <h2>Raw event</h2>
+              <div class="pre">${escapeHtml(JSON.stringify(item.payload || {}, null, 2))}</div>
+            </div>
+          </div>
+        `;
+        document.getElementById("backHistory").onclick = () => {
+          view = "history";
+          renderView();
+        };
+        document.getElementById("copyEvent").onclick = async () => {
+          await copyEventJson(item);
+          showEventNotice("Event JSON copied.");
+        };
+        document.getElementById("shareEvent").onclick = async () => {
+          const shared = await shareEvent(item);
+          showEventNotice(shared ? "Share opened." : "Sharing is not available here, so JSON was copied.");
+        };
+      }
+
+      function renderMcps() {
+        const servers = state.mcpServers || [];
+        const selected = servers.find((server) => server.id === selectedMcpServerId) || servers[0];
+        selectedMcpServerId = selected?.id || "";
+        root.innerHTML = `
+          <div class="head">
+            <div><h1>MCP</h1><p>Model Context Protocol servers used by local agents.</p></div>
+            ${modeTag()}
+          </div>
+          <div class="detailGrid">
+            <div class="card">
+              <h2>Servers</h2>
+              <div class="history compactList">
+                ${servers.map((server) => `
+                  <article data-mcp-server="${escapeHtml(server.id)}" class="${server.id === selectedMcpServerId ? "selected" : ""}">
+                    <div class="eventBody">
+                      <strong>${escapeHtml(server.server_name)}</strong>
+                      <small>${server.call_count} calls · ${server.tool_count} tools · ${server.user_count} users · last seen ${formatTime(server.last_seen_at)}</small>
+                    </div>
+                    <span class="tag">${escapeHtml(String(server.call_count))}</span>
+                  </article>
+                `).join("") || `<div class="empty">No MCP tool calls recorded yet.</div>`}
+              </div>
+            </div>
+            <div class="card">
+              <h2>${escapeHtml(selected?.server_name || "MCP activity")}</h2>
+              ${selected ? `
+                <div class="kv"><small>Tools</small><strong>${escapeHtml((selected.tools || []).map((tool) => tool.tool_name).join(", ") || "None recorded")}</strong></div>
+                <div class="kv"><small>Users</small><strong>${escapeHtml((selected.users || []).map((user) => user.name).join(", ") || "None recorded")}</strong></div>
+                <div class="history compactList">
+                  ${(selected.calls || []).map((call) => `
+                    <article data-mcp-call="${escapeHtml(call.id)}">
+                      <div class="eventBody">
+                        <strong>${escapeHtml(call.tool_name)}</strong>
+                        <small>${escapeHtml(call.agent_name)} · ${escapeHtml(projectTag(call.project_path) || "No project")} · ${formatTime(call.occurred_at)}</small>
+                        ${call.argument_summary ? `<div class="filePathPill"><span>Args</span><code>${escapeHtml(call.argument_summary)}</code></div>` : ""}
+                      </div>
+                      <span class="tag ${call.decision === "ask" ? "" : "good"}">${escapeHtml(call.decision)}</span>
+                    </article>
+                  `).join("") || `<div class="empty">No calls recorded for this server.</div>`}
+                </div>
+              ` : `<p>MCP calls appear here after an agent invokes an MCP tool.</p>`}
+            </div>
+          </div>
+        `;
+        root.querySelectorAll("[data-mcp-server]").forEach((row) => {
+          row.onclick = () => {
+            selectedMcpServerId = row.dataset.mcpServer;
+            renderMcps();
+          };
+        });
+        root.querySelectorAll("[data-mcp-call]").forEach((row) => {
+          row.onclick = () => {
+            selectedEventId = row.dataset.mcpCall;
+            view = "event";
+            renderView();
+          };
+        });
+      }
+
+      function renderSkills() {
+        const skills = state.skills || [];
+        root.innerHTML = `
+          <div class="head">
+            <div><h1>Skills</h1><p>Agent skills discovered in user and project skill folders.</p></div>
+            ${modeTag()}
+          </div>
+          <div class="history">
+            ${skills.map((skill) => `
+              <article>
+                <div class="eventBody">
+                  <strong>${escapeHtml(skill.skill_name)}</strong>
+                  <small>${escapeHtml(skill.agent_name)} · ${escapeHtml(skill.scope)}${skill.project_path ? ` · ${escapeHtml(projectTag(skill.project_path) || "No project")}` : ""} · ${formatTime(skill.updated_at)}</small>
+                  <div class="filePathPill" title="${escapeHtml(skill.skill_path)}"><span>Path</span><code>${escapeHtml(compactPath(skill.skill_path))}</code></div>
+                  ${(skill.reasons || []).slice(0, 3).map((reason) => `<span class="quote">${escapeHtml(reason.quote || reason.reason)}</span>`).join("")}
+                </div>
+                <span class="tag ${skill.status === "suspicious" ? "bad" : "good"}">${escapeHtml(skill.status)}</span>
+              </article>
+            `).join("") || `<div class="empty">No skills detected yet.</div>`}
+          </div>
+        `;
+      }
+
+      function overviewAgentInventory() {
+        const detected = new Map((state.localProtections || []).map((agent) => [agent.kind, agent]));
+        const skillCounts = new Map();
+        for (const skill of state.skills || []) {
+          const kind = skill.agent_kind || agentKindForName(skill.agent_name);
+          if (!kind) continue;
+          skillCounts.set(kind, (skillCounts.get(kind) || 0) + 1);
+        }
+        const catalog = [
+          { kind: "claude-code", displayName: "Claude Code", icon: "claude" },
+          { kind: "codex", displayName: "OpenAI Codex", icon: "openai" },
+          { kind: "gemini", displayName: "Google Gemini CLI", icon: "gemini" },
+          { kind: "cursor", displayName: "Cursor", icon: "cursor" },
+          { kind: "windsurf", displayName: "Windsurf", icon: "windsurf" },
+          { kind: "cline", displayName: "Cline", icon: "cline" },
+          { kind: "opencode", displayName: "opencode", icon: "opencode" }
+        ];
+        const merged = catalog.map((definition) => {
+          const detectedAgent = detected.get(definition.kind);
+          const installed = Boolean(detectedAgent?.installed);
+          const protectedAgent = Boolean(detectedAgent?.protected);
+          return {
+            ...definition,
+            ...(detectedAgent || {}),
+            installed,
+            protected: protectedAgent,
+            detail: installed
+              ? protectedAgent ? "Protected on this Mac" : (detectedAgent?.detail || "Installed")
+              : "Not installed",
+            skillCount: skillCounts.get(definition.kind) || 0
+          };
+        });
+        return merged.sort((a, b) =>
+          Number(b.installed) - Number(a.installed) ||
+          Number(b.protected) - Number(a.protected) ||
+          b.skillCount - a.skillCount ||
+          a.displayName.localeCompare(b.displayName)
+        );
+      }
+
+      function agentKindForName(name) {
+        const text = String(name || "").toLowerCase();
+        if (text.includes("claude")) return "claude-code";
+        if (text.includes("codex") || text.includes("openai")) return "codex";
+        if (text.includes("gemini")) return "gemini";
+        if (text.includes("cursor")) return "cursor";
+        if (text.includes("windsurf")) return "windsurf";
+        if (text.includes("cline")) return "cline";
+        if (text.includes("opencode")) return "opencode";
+        return "";
+      }
+
+      function agentHighlights() {
+        const agentsByKind = new Map((state.localProtections || []).map((agent) => [agent.kind, agent]));
+        const groups = new Map();
+        for (const item of state.history || []) {
+          const highlight = classifyHighlight(item);
+          if (!highlight) continue;
+          const key = item.agent_kind || item.agent_name || "unknown";
+          const group = groups.get(key) || {
+            agent: agentsByKind.get(item.agent_kind) || {
+              kind: item.agent_kind,
+              displayName: item.agent_name,
+              icon: iconNameForAgent(item.agent_name)
+            },
+            project: projectTag(item.project_path),
+            actions: []
+          };
+          if (group.actions.length < 5) {
+            group.actions.push({
+              ...highlight,
+              date: formatTime(item.created_at)
+            });
+          }
+          groups.set(key, group);
+        }
+        return [...groups.values()].slice(0, 8);
+      }
+
+      function currentAgentCards() {
+        return (state.agents || []).slice(0, 8).map((agent) => {
+          const pending = (state.pending || []).find((item) =>
+            (item.agent_kind && item.agent_kind === agent.kind) ||
+            (item.agent_name && item.agent_name === agent.display_name)
+          );
+          const source = pending || agent;
+          const decision = pending ? "ask" : agent.resolution || agent.decision || "";
+          const rule = firstPolicyName(source);
+          const project = projectTag(source.project_path || agent.project_path) || "No project";
+          const summary = pending
+            ? pending.question || pending.summary || "Waiting for approval."
+            : agent.short_summary || summarizeAgentNow(agent);
+          const details = agentDetails(agent, source);
+          return {
+            kind: agent.kind,
+            icon: iconNameForAgent(agent.display_name),
+            displayName: agent.display_name || "AI agent",
+            host: agent.hostname || "This computer",
+            when: source.created_at ? formatTime(source.created_at) : source.activity_at ? formatTime(source.activity_at) : agent.activity_at ? formatTime(agent.activity_at) : "No recent activity",
+            status: statusLabel(decision),
+            statusClass: decision === "ask" ? "" : decision === "deny" || decision === "denied" ? "bad" : "good",
+            summary: truncate(cleanAgentSummary(summary, decision), 160),
+            project,
+            action: friendlyAction(source.event_name || agent.event_name, source.tool_name || agent.tool_name),
+            rule,
+            details
+          };
+        });
+      }
+
+      function summarizeAgentNow(agent) {
+        const action = friendlyAction(agent.event_name, agent.tool_name);
+        const project = projectTag(agent.project_path);
+        if (agent.decision_summary) return agent.decision_summary;
+        if (agent.event_name || agent.tool_name) return `${agent.display_name || "Agent"} is ${action.toLowerCase()}${project ? ` in ${project}` : ""}.`;
+        return `${agent.display_name || "Agent"} is connected and waiting.`;
+      }
+
+      function agentDetails(agent, source) {
+        const quote = highlightQuote(source);
+        const details = [];
+        if (quote && quote !== "Action captured by OpenLeash") {
+          details.push({ label: source.event_name === "UserPromptSubmit" ? "Prompt" : "Details", value: truncate(quote, 150) });
+        }
+        const latest = Array.isArray(agent.recent_activity)
+          ? agent.recent_activity.find((item) => item.summary && item.summary !== source.summary)
+          : undefined;
+        if (latest?.summary) {
+          details.push({ label: "Previous", value: truncate(`${friendlyAction(latest.event_name, latest.tool_name)} · ${cleanAgentSummary(latest.summary, latest.decision || "")}`, 140) });
+        }
+        return details.slice(0, 2);
+      }
+
+      function cleanAgentSummary(summary, decision = "") {
+        const value = String(summary || "").trim()
+          .replace(/^(Allowed|Denied|Blocked|Waiting|Needs approval|Active)\s*·\s*/i, "")
+          .replace(/^Claude Code is /i, "")
+          .replace(/^Agent is /i, "");
+        if ((decision === "deny" || decision === "denied") && /^denied\b/i.test(value)) {
+          return value.replace(/^denied\s*[·:-]?\s*/i, "");
+        }
+        if ((decision === "allow" || decision === "allowed") && /^allowed\b/i.test(value)) {
+          return value.replace(/^allowed\s*[·:-]?\s*/i, "");
+        }
+        return value || "Action captured by OpenLeash.";
+      }
+
+      function firstPolicyName(item) {
+        return (item.triggered_policies || []).map((policy) => policy.policy_name).find(Boolean) || "";
+      }
+
+      function statusLabel(value) {
+        if (value === "ask") return "Waiting";
+        if (value === "deny" || value === "denied") return "Denied";
+        if (value === "allow" || value === "allowed") return "Allowed";
+        return "Active";
+      }
+
+      function friendlyAction(eventName, toolName) {
+        if (toolName) return `Using ${toolName}`;
+        if (eventName === "UserPromptSubmit") return "Reading prompt";
+        if (eventName === "PreToolUse") return "Preparing tool";
+        if (eventName === "PostToolUse") return "Reviewing result";
+        if (eventName === "Stop") return "Finishing session";
+        return eventName || "Connected";
+      }
+
+      function classifyHighlight(item) {
+        if (item.decision === "allow" && (!item.triggered_policies || item.triggered_policies.length === 0)) return null;
+        const text = eventText(item).toLowerCase();
+        const filePath = filePathForEvent(item);
+        const quote = filePath ? compactPath(filePath) : highlightQuote(item);
+        const policyLabel = labelFromPolicy(item);
+        if (policyLabel) return { label: policyLabel, quote, filePath };
+        const checks = [
+          ["Git repo creation", /\bgit\s+init\b|gh repo create|create (a )?(new )?git repo|create (a )?(new )?repository|initialize (a )?(new )?(git )?repo/],
+          ["Credential file read", /\bread\b.*\.env|\bcat\b.*\.env|\bopen\b.*\.env|\bshow\b.*\.env|\bprint\b.*\.env|find .*\.env|search .*\.env|\.env.*read|\.env.*search|\.env.*find/],
+          ["Credential file change", /\bwrite\b.*\.env|\bcreate\b.*\.env|\btouch\b.*\.env|\bedit\b.*\.env|\.env.*write|\.env.*create|\.env.*edit/],
+          ["Secrets exposure", /private key|api[_ -]?key|secret|token|password|kubeconfig|\.npmrc|id_rsa|id_ed25519|credentials/],
+          ["External sharing", /curl|wget|upload|pastebin|gist|send .*code|post .*secret|external domain|webhook/],
+          ["New MCP config", /mcp|model context protocol|mcp\.json|\.cursor\/mcp|claude_desktop_config/],
+          ["New VS Code settings", /settings\.json|keybindings\.json|extensions\.json|\.vscode/],
+          ["New cron jobs / launch agents", /crontab|cron job|launchagent|launchdaemon|plist|launchctl/],
+          ["New background processes", /nohup|pm2|systemctl|brew services|background process|daemon|&\s*$|disown/],
+          ["Shell profile changed", /\.zshrc|\.bashrc|\.bash_profile|\.profile|shell profile|path export/],
+          ["Git config changed", /git config|\.gitconfig|insteadOf|credential.helper|core\.hooksPath/],
+          ["Packages installed", /npm install|pnpm add|yarn add|pip install|brew install|cargo install|gem install/],
+          ["Files created", /\btouch\b|new file|file created|create file|\bwrite\b.*\.(ts|tsx|js|jsx|py|go|rs|java|rb|php|html|css|md|json|yaml|yml)\b/],
+          ["Files modified", /\bedit\b|\bmultiedit\b|\bmodify\b|\bpatch\b|file modified|changed file/]
+        ];
+        const match = checks.find(([, pattern]) => pattern.test(text));
+        if (!match) return null;
+        return { label: match[0], quote, filePath };
+      }
+
+      function labelFromPolicy(item) {
+        const policyNames = (item.triggered_policies || []).map((policy) => String(policy.policy_name || "").toLowerCase()).join("\n");
+        const text = `${policyNames}\n${eventText(item).toLowerCase()}`;
+        if (!policyNames && !text.trim()) return null;
+        const filePath = filePathForEvent(item).toLowerCase();
+        const secretPath = /(^|\/)(\.env|\.npmrc|id_rsa|id_ed25519|credentials|kubeconfig)(\.|$|\/)/.test(filePath);
+        if (/credential|secret|\.env|token|private key|kubeconfig|\.npmrc|id_rsa|id_ed25519/.test(text)) {
+          if (/\b(read|cat|open|show|print|search|find|grep|scan|dump|copy)\b/.test(text)) return "Credential file read";
+          if (/\b(write|create|edit|touch|generate|save)\b/.test(text)) return "Credential file change";
+          return "Credential access";
+        }
+        if (secretPath) return "Credential file touched";
+        if (/git repo|repository|git init/.test(text)) return "Git repo creation";
+        if (/destructive|rm -rf|delete|terraform destroy|git reset/.test(text)) return "Destructive command";
+        if (/personal data|pii|ssn|passport|credit card|customer/.test(text)) return "Personal data use";
+        if (/external|exfiltrat|upload|webhook|pastebin|gist/.test(text)) return "External sharing";
+        if (/package|npm install|pip install|brew install/.test(text)) return "Package installation";
+        return null;
+      }
+
+      function eventText(item) {
+        return [
+          item.summary,
+          item.question,
+          item.event_name,
+          item.tool_name,
+          item.project_path,
+          JSON.stringify(item.payload || {}),
+          ...(item.triggered_policies || []).flatMap((policy) => [policy.policy_name, policy.explanation, ...(Array.isArray(policy.evidence) ? policy.evidence : [policy.evidence])])
+        ].filter(Boolean).join("\n");
+      }
+
+      function highlightQuote(item) {
+        const evidence = (item.triggered_policies || []).flatMap((policy) => Array.isArray(policy.evidence) ? policy.evidence : [policy.evidence]).find(Boolean);
+        const payload = item.payload || {};
+        const toolInput = payload.tool?.input;
+        const command = typeof toolInput === "object" && toolInput ? (toolInput.command || toolInput.file_path || toolInput.path || toolInput.url) : toolInput;
+        return truncate(String(evidence || command || payload.prompt || item.summary || "Action captured by OpenLeash"), 140);
+      }
+
+      function filePathForEvent(item) {
+        if (item.file_path) return String(item.file_path);
+        const payload = item.payload || {};
+        const toolInput = payload.tool?.input;
+        if (toolInput && typeof toolInput === "object") {
+          const direct = toolInput.file_path || toolInput.path || toolInput.filename || toolInput.filepath;
+          if (direct) return normalizePathForDisplay(String(direct), item.project_path);
+        }
+        if (typeof toolInput === "string") {
+          const fromTool = pathFromText(toolInput);
+          if (fromTool) return normalizePathForDisplay(fromTool, item.project_path);
+        }
+        const evidence = (item.triggered_policies || [])
+          .flatMap((policy) => Array.isArray(policy.evidence) ? policy.evidence : [policy.evidence])
+          .find(Boolean);
+        const fromEvidence = pathFromText(String(evidence || ""));
+        if (fromEvidence) return normalizePathForDisplay(fromEvidence, item.project_path);
+        const fromPayload = pathFromText(JSON.stringify(payload || {}));
+        return fromPayload ? normalizePathForDisplay(fromPayload, item.project_path) : "";
+      }
+
+      function pathFromText(text) {
+        if (!text) return "";
+        const jsonPath = text.match(/"file_path"\s*:\s*"([^"]+)"/i)?.[1] ||
+          text.match(/"path"\s*:\s*"([^"]+)"/i)?.[1];
+        if (jsonPath) return jsonPath;
+        const absolute = text.match(/(?:^|[\s"'`])((?:~|\/Users\/|\/private\/|\/tmp\/|\/var\/|\/etc\/|\/opt\/)[^\s"'`,;)]{2,})/i)?.[1];
+        if (absolute) return absolute;
+        const relative = text.match(/(?:^|[\s"'`])((?:\.{1,2}\/)?[A-Za-z0-9_.-]*\.env(?:\.[A-Za-z0-9_.-]+)?|(?:\.{1,2}\/)?[A-Za-z0-9_./-]+\/(?:\.env|\.npmrc|id_rsa|id_ed25519|credentials|kubeconfig))(?:$|[\s"'`,;)])/i)?.[1];
+        if (relative) return relative;
+        return /\.env(?:\b|["'\\/\s])/.test(text) ? ".env" : "";
+      }
+
+      function normalizePathForDisplay(filePath, projectPath) {
+        const value = String(filePath || "").trim().replace(/^['"`]+|['"`]+$/g, "");
+        if (!value) return "";
+        if (value === ".env" && projectPath) return `${String(projectPath).replace(/\/+$/, "")}/.env`;
+        if ((value.startsWith("./") || value.startsWith("../")) && projectPath) return `${String(projectPath).replace(/\/+$/, "")}/${value}`;
+        if (!value.startsWith("/") && !value.startsWith("~") && !value.includes("://") && projectPath && value.includes("/")) {
+          return `${String(projectPath).replace(/\/+$/, "")}/${value}`;
+        }
+        return value.replace(/^file:\/\//, "");
+      }
+
+      function compactPath(filePath) {
+        return String(filePath || "").replace(/^\/Users\/[^/]+/, "~");
+      }
+
+      function evidencePreview(item) {
+        const text = prettyEvidence((item.triggered_policies || [])[0] || {}, item);
+        return text ? `<div class="evidenceLine">${escapeHtml(truncate(text, 120))}</div>` : "";
+      }
+
+      function prettyEvidence(policy, item) {
+        const evidence = Array.isArray(policy.evidence) ? policy.evidence.find(Boolean) : policy.evidence;
+        const text = String(evidence || policy.explanation || "");
+        const filePath = filePathForEvent(item);
+        if (filePath && /"file_path"\s*:|"path"\s*:|\.env|kubeconfig|\.npmrc|id_rsa|id_ed25519|credentials/i.test(text)) {
+          return filePath;
+        }
+        return text;
+      }
+
+      function fileLine(filePath) {
+        const compact = compactPath(filePath);
+        return `
+          <span class="fileLine" title="${escapeHtml(filePath)}">
+            <span class="fileTypeIcon">${fileIconForPath(filePath)}</span>
+            <span class="fileName">${escapeHtml(compact)}</span>
+          </span>
+        `;
+      }
+
+      function fileIconForPath(filePath) {
+        const value = String(filePath || "").toLowerCase();
+        const name = value.split("/").pop() || "";
+        if (name === ".env" || name.startsWith(".env.") || value.includes("secret") || value.includes("credential")) return "🔐";
+        if (name === ".npmrc" || name.includes("token")) return "🔑";
+        if (name.includes("kubeconfig") || name === "config") return "☸";
+        if (name.endsWith(".json")) return "{}";
+        if (name.endsWith(".yml") || name.endsWith(".yaml")) return "Y";
+        if (name.endsWith(".py")) return "Py";
+        if (name.endsWith(".ts") || name.endsWith(".tsx")) return "TS";
+        if (name.endsWith(".js") || name.endsWith(".jsx")) return "JS";
+        if (name.endsWith(".md")) return "Md";
+        if (name.endsWith(".sh") || name.endsWith(".zsh") || name.endsWith(".bash")) return "$";
+        if (name.includes("id_rsa") || name.includes("id_ed25519") || name.endsWith(".pem") || name.endsWith(".key")) return "🔑";
+        return "📄";
+      }
+
+      function sharePayloadForEvent(item) {
+        const rules = (item.triggered_policies || []).map((policy) => ({
+          name: policy.policy_name,
+          status: policy.status,
+          severity: policy.severity,
+          explanation: policy.explanation,
+          evidence: Array.isArray(policy.evidence) ? policy.evidence : (policy.evidence ? [policy.evidence] : [])
+        }));
+        const transcript = (item.payload?.transcript || []).slice(-5).reverse().map((message) => ({
+          role: message.role || "message",
+          content: message.content || ""
+        }));
+        return {
+          product: "OpenLeash",
+          exported_at: new Date().toISOString(),
+          event: {
+            id: item.id,
+            status: item.resolution || item.decision,
+            summary: item.summary,
+            agent: item.agent_name,
+            agent_kind: item.agent_kind,
+            project: projectTag(item.project_path) || "",
+            project_path: item.project_path || "",
+            file_path: filePathForEvent(item) || "",
+            triggered_at: item.created_at,
+            resolved_at: resolutionTime(item) || "",
+            resolution_label: resolutionTime(item) ? resolutionLabel(item) : "",
+            rules,
+            conversation_context: transcript,
+            raw_payload: item.payload || {}
+          }
+        };
+      }
+
+      function eventJson(item) {
+        return JSON.stringify(sharePayloadForEvent(item), null, 2);
+      }
+
+      async function copyEventJson(item) {
+        await window.openleash.copyText(eventJson(item));
+      }
+
+      async function shareEvent(item) {
+        const data = sharePayloadForEvent(item);
+        const text = eventJson(item);
+        const title = `OpenLeash event - ${data.event.agent}`;
+        if (navigator.share && (!navigator.canShare || navigator.canShare({ title, text }))) {
+          try {
+            await navigator.share({ title, text });
+            return true;
+          } catch (error) {
+            if (error && error.name === "AbortError") return true;
+          }
+        }
+        await copyEventJson(item);
+        return false;
+      }
+
+      function showEventNotice(message) {
+        const node = document.getElementById("eventActionNotice");
+        if (!node) return;
+        node.textContent = message;
+        clearTimeout(showEventNotice.timer);
+        showEventNotice.timer = setTimeout(() => {
+          if (node) node.textContent = "";
+        }, 2400);
+      }
+
+      function iconNameForAgent(name) {
+        const text = String(name || "").toLowerCase();
+        if (text.includes("claude")) return "claude";
+        if (text.includes("codex") || text.includes("openai")) return "openai";
+        if (text.includes("gemini")) return "gemini";
+        if (text.includes("cline")) return "cline";
+        if (text.includes("opencode")) return "opencode";
+        if (text.includes("cursor")) return "cursor";
+        if (text.includes("windsurf")) return "windsurf";
+        return "";
+      }
+
+      function renderRules() {
+        root.innerHTML = `
+          <div class="head">
+            <div><h1>Rules</h1><p>Choose which local safety rules OpenLeash enforces.</p></div>
+          </div>
+          <div class="grid">${importRulesPanel({ setup: false })}</div>
+          <div class="grid ruleGroups">${ruleCards(state.rules, { grouped: true, managed: state.clientMode !== "personal" })}</div>
+          <div class="actions"><button class="primary" id="save">Save rules</button></div>
+        `;
+        bindRuleImport({ setup: false });
+        document.getElementById("save").onclick = async () => {
+          const rules = (state.rules || []).map((rule) => {
+            const input = root.querySelector(`[data-rule="${cssEscape(rule.id)}"]`);
+            return { id: rule.id, enabled: rule.locked ? true : Boolean(input?.checked) };
+          });
+          await window.openleash.savePolicies(rules);
+        };
+      }
+
+      function importRulesPanel({ setup }) {
+        return `
+          <div class="card importCard">
+            <div class="row">
+              <span>
+                <strong>Import rules</strong>
+                <small>${setup ? "Bring in a prepared rule set before finishing setup." : "Merge a prepared rule set into your local rules."}</small>
+              </span>
+              <label class="row" style="justify-content:flex-start;gap:10px">
+                <input id="replaceRules" type="checkbox">
+                <small>Replace existing rules</small>
+              </label>
+            </div>
+            <div>
+              <div class="actions left"><button class="secondary" id="importRules">Import rules</button></div>
+              <div id="importRulesMessage" class="notice">${escapeHtml(importRulesMessage)}</div>
+            </div>
+          </div>
+        `;
+      }
+
+      function bindRuleImport({ setup }) {
+        const button = document.getElementById("importRules");
+        if (!button) return;
+        button.onclick = async () => {
+          const replace = Boolean(document.getElementById("replaceRules")?.checked);
+          const result = await window.openleash.importRules({ replace, save: !setup, currentRules: state.rules });
+          const message = document.getElementById("importRulesMessage");
+          if (!result || result.canceled) return;
+          if (result.ok === false) {
+            importRulesMessage = result.error || "Could not import that rules file.";
+            if (message) message.textContent = importRulesMessage;
+            return;
+          }
+          importedRules = result.policies || state.rules;
+          state.rules = importedRules;
+          selectedRules = new Map((state.rules || []).map((rule) => [rule.id, Boolean(rule.enabled)]));
+          importRulesMessage = `Imported ${state.rules.length} rule${state.rules.length === 1 ? "" : "s"}.`;
+          if (message) message.textContent = importRulesMessage;
+          setup ? renderSetup() : renderRules();
+        };
+      }
+
+      function renderAgents() {
+        const agents = state.agents || [];
+        const metrics = state.sessionMetrics || {};
+        root.innerHTML = `
+          <div class="head">
+            <div><h1>Agents</h1><p>Software, sessions, MCP usage, and recent agent work.</p></div>
+            <span class="tag good">${agents.length} tracked</span>
+          </div>
+          <div class="sessionStats">
+            ${sessionStat("Today", metrics.today)}
+            ${sessionStat("24 hours", metrics.last24h)}
+            ${sessionStat("7 days", metrics.week)}
+            ${sessionStat("30 days", metrics.month)}
+          </div>
+          <div class="agentSessionGrid">
+            ${agents.map((agent) => {
+              const sessions = Array.isArray(agent.sessions) ? agent.sessions : [];
+              return `
+                <article class="card agentSessionsCard">
+                  <div class="agentOverviewHead">
+                    <span class="agentTitleLine">
+                      <span class="agentIcon">${agentIcon({ displayName: agent.display_name, icon: iconNameForAgent(agent.display_name), kind: agent.kind })}</span>
+                      <span>
+                        <strong>${escapeHtml(agent.display_name || "AI agent")}</strong>
+                        <small>${escapeHtml(agent.hostname || "This computer")} · ${escapeHtml(agent.short_summary || summarizeAgentNow(agent))}</small>
+                      </span>
+                    </span>
+                    <span class="tag">${sessions.length} sessions</span>
+                  </div>
+                  <div class="sessionList">
+                    ${sessions.map((session) => `
+                      <button class="sessionRow" data-session="${escapeHtml(session.id)}">
+                        <span>
+                          <strong>${escapeHtml(session.title || "Agent session")}</strong>
+                          <small>${escapeHtml(projectTag(session.project_path) || "No project")} · ${escapeHtml(formatDuration(session.duration_seconds))} · ${escapeHtml(formatTime(session.last_activity_at))}</small>
+                          <em>${escapeHtml(session.summary || `${session.event_count || 0} events`)}</em>
+                        </span>
+                        <span class="sessionMeta">
+                          ${(session.mcp_servers || []).slice(0, 2).map((server) => `<b>${escapeHtml(server)}</b>`).join("")}
+                          <i>Open</i>
+                        </span>
+                      </button>
+                    `).join("") || `<div class="empty compact">No sessions captured yet.</div>`}
+                  </div>
+                </article>
+              `;
+            }).join("") || `<div class="card empty">No agents have reported sessions yet.</div>`}
+          </div>
+        `;
+        root.querySelectorAll("[data-session]").forEach((row) => {
+          row.onclick = () => {
+            selectedAgentSessionId = row.dataset.session;
+            view = "agent-session";
+            renderView();
+          };
+        });
+      }
+
+      function renderUsage() {
+        const sessions = allAgentSessions();
+        const metrics = state.sessionMetrics || {};
+        const employees = usageByPerson(sessions);
+        root.innerHTML = `
+          <div class="head">
+            <div><h1>Usage</h1><p>Agent session time, approvals, and local runtime activity.</p></div>
+            <span class="tag good">${sessions.length} sessions</span>
+          </div>
+          <div class="sessionStats">
+            ${sessionStat("Today", metrics.today)}
+            ${sessionStat("24 hours", metrics.last24h)}
+            ${sessionStat("7 days", metrics.week)}
+            ${sessionStat("30 days", metrics.month)}
+          </div>
+          <div class="agentSessionGrid">
+            <article class="card">
+              <h3>People</h3>
+              <div class="sessionList">
+                ${employees.map((person) => `
+                  <div class="sessionRow">
+                    <span>
+                      <strong>${escapeHtml(person.name)}</strong>
+                      <small>${escapeHtml(person.sessions)} sessions · ${escapeHtml(formatDuration(person.duration_seconds))}</small>
+                      <em>${escapeHtml(person.subagent_seconds ? `${formatDuration(person.subagent_seconds)} subagent time` : "session-level timing")}</em>
+                    </span>
+                    <span class="sessionMeta"><b>${escapeHtml(formatTime(person.last_activity_at))}</b></span>
+                  </div>
+                `).join("") || `<div class="empty compact">No usage captured yet.</div>`}
+              </div>
+            </article>
+            <article class="card">
+              <h3>Latest sessions</h3>
+              <div class="sessionList">
+                ${sessions.slice(0, 24).map((session) => `
+                  <button class="sessionRow" data-session="${escapeHtml(session.id)}">
+                    <span>
+                      <strong>${escapeHtml(session.title || "Agent session")}</strong>
+                      <small>${escapeHtml(session.agent_name || session.agent_kind || "AI agent")} · ${escapeHtml(projectTag(session.project_path) || "No project")}</small>
+                      <em>${escapeHtml(formatDuration(session.duration_seconds))} · ${escapeHtml(session.event_count || 0)} events · ${escapeHtml(session.subagent_count || 0)} subagents</em>
+                    </span>
+                    <span class="sessionMeta"><i>Open</i></span>
+                  </button>
+                `).join("") || `<div class="empty compact">No sessions captured yet.</div>`}
+              </div>
+            </article>
+          </div>
+        `;
+        root.querySelectorAll("[data-session]").forEach((row) => {
+          row.onclick = () => {
+            selectedAgentSessionId = row.dataset.session;
+            view = "agent-session";
+            renderView();
+          };
+        });
+      }
+
+      function renderAgentSessionDetail() {
+        const session = (state.agents || []).flatMap((agent) => agent.sessions || []).find((item) => item.id === selectedAgentSessionId);
+        if (!session) {
+          view = "agents";
+          return renderAgents();
+        }
+        const events = session.events || [];
+        root.innerHTML = `
+          <div class="head">
+            <div><h1>${escapeHtml(session.title || "Agent session")}</h1><p>${escapeHtml(session.summary || "Session captured by OpenLeash.")}</p></div>
+            <button class="secondary" id="backAgents">Back</button>
+          </div>
+          <div class="sessionHero card">
+            <div class="projectLine"><span>Project</span><strong>${escapeHtml(projectTag(session.project_path) || "No project")}</strong></div>
+            <div class="agentMeta">
+              <span class="tag">${escapeHtml(formatTime(session.started_at))}</span>
+              <span class="tag">${escapeHtml(formatDuration(session.duration_seconds))}</span>
+              <span class="tag">${escapeHtml(formatDuration(session.subagent_seconds))} subagents</span>
+              <span class="tag">${escapeHtml(formatDuration(session.orchestrator_seconds))} orchestrator</span>
+              <span class="tag">${escapeHtml(session.event_count || 0)} events</span>
+              <span class="tag">${escapeHtml(session.approval_count || 0)} approvals</span>
+              ${(session.mcp_servers || []).map((server) => `<span class="tag">MCP: ${escapeHtml(server)}</span>`).join("")}
+            </div>
+          </div>
+          <div class="history">
+            ${events.map((item) => `
+              <article data-session-event="${escapeHtml(item.id || "")}">
+                <div class="eventBody">
+                  <strong>${escapeHtml(item.summary || friendlyAction(item.event_name, item.tool_name))}</strong>
+                  <small>${escapeHtml(friendlyAction(item.event_name, item.tool_name))} · ${escapeHtml(formatTime(item.created_at))}${item.mcp_server ? ` · MCP ${escapeHtml(item.mcp_server)}` : ""}</small>
+                  ${item.prompt ? `<span class="quote">${escapeHtml(truncate(item.prompt, 180))}</span>` : evidencePreview(item)}
+                </div>
+                <span class="tag statusTag ${item.resolution === "deny" || item.decision === "deny" ? "bad" : "good"}">${escapeHtml(item.resolution || item.decision || "logged")}</span>
+              </article>
+            `).join("") || `<div class="empty">No events in this session.</div>`}
+          </div>
+        `;
+        document.getElementById("backAgents").onclick = () => {
+          view = "agents";
+          renderView();
+        };
+        root.querySelectorAll("[data-session-event]").forEach((row) => {
+          row.onclick = () => {
+            const id = row.dataset.sessionEvent;
+            if (!id || !(state.history || []).some((entry) => entry.id === id)) return;
+            selectedEventId = id;
+            view = "event";
+            renderView();
+          };
+        });
+      }
+
+      function renderSettings() {
+        root.innerHTML = `
+          <div class="head">
+            <div><h1>Settings</h1><p>Manage the model key OpenLeash uses for local rule checks.</p></div>
+          </div>
+          ${state.desktopMessage ? `<div class="desktopToast">${escapeHtml(state.desktopMessage)}</div>` : ""}
+          <div class="grid">
+            <div class="card">
+              <div class="fieldRow">
+                <strong>Provider</strong>
+                <div class="segmented">
+                  <label><input type="radio" name="settingsProvider" value="openai" ${state.apiProvider !== "anthropic" ? "checked" : ""}>OpenAI</label>
+                  <label><input type="radio" name="settingsProvider" value="anthropic" ${state.apiProvider === "anthropic" ? "checked" : ""}>Claude</label>
+                </div>
+              </div>
+              <div class="fieldRow" style="margin-top:14px">
+                <strong>API key</strong>
+                <input id="settingsApiKey" class="secret" type="password" placeholder="${state.apiKeySet ? "Saved key is set. Paste a new key to replace it." : "Paste your API key"}">
+              </div>
+              <p style="margin-top:12px">The key stays on this Mac and can be replaced any time.</p>
+              <div id="settingsMessage" class="notice"></div>
+            </div>
+            <div class="card dangerZone">
+              <div class="dangerGrid">
+                <div>
+                  <strong>Reset OpenLeash</strong>
+                  <p>This restarts the desktop app after it finishes.</p>
+                </div>
+                <div class="dangerRow">
+                  <div>
+                    <strong>Delete data and settings</strong>
+                    <p>Clear local history, approvals, recorded agent activity, setup, selected agents, rules, provider choice, and saved API key.</p>
+                  </div>
+                  <button class="secondary dangerButton" id="deleteDataAndSettings">Delete data and settings</button>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="actions"><button class="primary" id="saveSettings">Save settings</button></div>
+        `;
+        document.getElementById("saveSettings").onclick = async () => {
+          const apiProvider = root.querySelector("[name=settingsProvider]:checked").value;
+          const apiKey = document.getElementById("settingsApiKey").value.trim();
+          const result = await window.openleash.saveSettings({ apiProvider, apiKey });
+          if (result?.ok) {
+            state.apiProvider = result.apiProvider;
+            state.apiKeySet = result.apiKeySet;
+            document.getElementById("settingsApiKey").value = "";
+            document.getElementById("settingsMessage").textContent = "Settings saved.";
+          }
+        };
+        document.getElementById("deleteDataAndSettings").onclick = async () => {
+          const result = await window.openleash.deleteDataAndSettings();
+          if (result?.restarting) document.getElementById("settingsMessage").textContent = "Deleting data and settings and restarting OpenLeash...";
+        };
+      }
+
+      function agentCards({ selectable }) {
+        const agents = state.localProtections || [];
+        if (agents.length === 0) return `<div class="card empty">No supported local agents were detected yet.</div>`;
+        return `
+          <div class="cardList">
+            ${agents.map((agent) => {
+              const checked = isSetupLocked() ? selectedAgents?.has(agent.kind) : agent.protected;
+              return `
+              <label class="card agentLine">
+                <span class="agentIcon">${agentIcon(agent)}</span>
+                <span><strong>${escapeHtml(agent.displayName)}</strong></span>
+                <span class="switch"><input data-agent="${agent.kind}" type="checkbox" ${checked ? "checked" : ""} ${agent.installed && agent.supportsInstall ? "" : "disabled"} ${selectable ? "" : "disabled"}><span></span></span>
+              </label>
+            `}).join("")}
+          </div>
+        `;
+      }
+
+      function bindAgentSelection() {
+        root.querySelectorAll("[data-agent]").forEach((input) => {
+          input.onchange = () => {
+            if (!selectedAgents) selectedAgents = new Set();
+            input.checked ? selectedAgents.add(input.dataset.agent) : selectedAgents.delete(input.dataset.agent);
+          };
+        });
+      }
+
+      function bindRuleSelection() {
+        root.querySelectorAll("[data-rule]").forEach((input) => {
+          input.onchange = () => {
+            if (!selectedRules) selectedRules = new Map();
+            selectedRules.set(input.dataset.rule, Boolean(input.checked));
+          };
+        });
+      }
+
+      function bindModelSelection() {
+        root.querySelectorAll("[name=provider]").forEach((input) => {
+          input.onchange = () => {
+            setupProvider = input.value;
+          };
+        });
+        const key = document.getElementById("apiKey");
+        if (key) key.oninput = () => {
+          setupApiKey = key.value;
+        };
+      }
+
+      function setupRuleGroups(rules) {
+        const list = rules || [];
+        const defs = [
+          {
+            title: "Security rules",
+            description: "Secrets, credentials, personal data, and sensitive staged content.",
+            ids: ["credentials", "committing-secrets", "personal-data"]
+          },
+          {
+            title: "Git rules",
+            description: "Publishing, protected branches, force pushes, and history rewrites.",
+            ids: ["git-publish", "protected-branch-push", "git-history-rewrite"]
+          },
+          {
+            title: "Package rules",
+            description: "Dependency changes, lockfiles, and global package installs.",
+            ids: ["supply-chain-change", "global-package-install"]
+          },
+          {
+            title: "Infrastructure rules",
+            description: "Cloud resources, Kubernetes, Terraform, and local destruction.",
+            ids: ["cloud-resource-deletion", "infra-destruction", "filesystem-destruction"]
+          },
+          {
+            title: "Data rules",
+            description: "Databases, broad mutations, and external data sharing.",
+            ids: ["database-destruction", "database-mass-update", "exfiltration"]
+          }
+        ];
+        const used = new Set();
+        const groups = defs.map((def, index) => {
+          const groupRules = def.ids.map((id) => list.find((rule) => rule.id === id)).filter(Boolean);
+          groupRules.forEach((rule) => used.add(rule.id));
+          return { ...def, first: index === 0, rules: groupRules };
+        }).filter((group) => group.rules.length > 0);
+        const other = list.filter((rule) => !used.has(rule.id));
+        if (other.length > 0) {
+          groups.push({
+            title: "Custom rules",
+            description: "Rules imported locally or added by your OpenLeash administrator.",
+            ids: other.map((rule) => rule.id),
+            first: groups.length === 0,
+            rules: other
+          });
+        }
+        return groups;
+      }
+
+      function ruleCards(rules, options = {}) {
+        const managed = Boolean(options.managed);
+        const grouped = Boolean(options.grouped);
+        const groups = {};
+        for (const rule of rules || []) (groups[grouped ? rule.category : ""] ||= []).push(rule);
+        return Object.entries(groups).map(([category, items]) => `
+          <div>
+            ${category ? `<div class="category">${escapeHtml(category)}</div>` : ""}
+            <div class="ruleGroup">
+              ${items.map((rule) => `
+                <label class="card row ruleLine ${rule.locked ? "lockedRule" : ""}">
+                  <span>
+                    <strong>${escapeHtml(rule.name)}${ruleBadge(rule, managed)}</strong>
+                    <small>${escapeHtml(rule.description)}</small>
+                  </span>
+                  <span class="switch"><input data-rule="${rule.id}" type="checkbox" ${ruleEnabled(rule) ? "checked" : ""} ${rule.locked ? "disabled" : ""}><span></span></span>
+                </label>
+              `).join("")}
+            </div>
+          </div>
+        `).join("");
+      }
+
+      function ruleBadge(rule, managedContext) {
+        if (rule.locked) return `<span class="managedBadge">Mandatory</span>`;
+        if (managedContext && (rule.managedByOrganization || rule.managed_by_organization || rule.managed)) {
+          return `<span class="managedBadge soft">Managed</span>`;
+        }
+        return "";
+      }
+
+      function ruleEnabled(rule) {
+        if (rule.locked) return true;
+        if (isSetupLocked() && selectedRules) return selectedRules.get(rule.id) ?? Boolean(rule.enabled);
+        return Boolean(rule.enabled);
+      }
+
+      function projectTag(value) {
+        return value ? String(value).replace(/\\/g, "/").replace(/\/+$/, "").split("/").filter(Boolean).pop() : "";
+      }
+
+      function formatTime(value) {
+        return value ? new Date(value).toLocaleString() : "";
+      }
+
+      function formatDuration(seconds) {
+        const total = Math.max(0, Number(seconds || 0));
+        if (total < 60) return total ? `${total}s` : "0s";
+        const minutes = Math.floor(total / 60);
+        if (minutes < 60) return `${minutes}m`;
+        const hours = Math.floor(minutes / 60);
+        const rest = minutes % 60;
+        return rest ? `${hours}h ${rest}m` : `${hours}h`;
+      }
+
+      function sessionStat(label, metric) {
+        const count = Number(metric?.session_count || 0);
+        return `<div class="sessionStat"><strong>${escapeHtml(formatDuration(metric?.duration_seconds || 0))}</strong><small>${escapeHtml(label)} · ${count} session${count === 1 ? "" : "s"}</small></div>`;
+      }
+
+      function allAgentSessions() {
+        return (state.agents || [])
+          .flatMap((agent) => (agent.sessions || []).map((session) => ({ ...session, agent_name: agent.display_name, agent_kind: agent.kind, user_name: agent.user_name, hostname: agent.hostname })))
+          .sort((a, b) => new Date(b.last_activity_at || 0).getTime() - new Date(a.last_activity_at || 0).getTime());
+      }
+
+      function usageByPerson(sessions) {
+        const grouped = new Map();
+        for (const session of sessions) {
+          const key = session.user_name || session.hostname || "This Mac";
+          const item = grouped.get(key) || { name: key, sessions: 0, duration_seconds: 0, subagent_seconds: 0, last_activity_at: "" };
+          item.sessions += 1;
+          item.duration_seconds += Number(session.duration_seconds || 0);
+          item.subagent_seconds += Number(session.subagent_seconds || 0);
+          if (!item.last_activity_at || new Date(session.last_activity_at || 0) > new Date(item.last_activity_at || 0)) item.last_activity_at = session.last_activity_at;
+          grouped.set(key, item);
+        }
+        return [...grouped.values()].sort((a, b) => b.duration_seconds - a.duration_seconds);
+      }
+
+      function resolutionTime(item) {
+        return item.resolved_at || (item.resolution === "allow" && item.decision === "allow" ? item.created_at : "");
+      }
+
+      function resolutionLabel(item) {
+        const value = item.resolution || item.decision;
+        if (value === "allow") return "Allowed at";
+        if (value === "deny") return "Denied at";
+        return "Resolved at";
+      }
+
+      function agentIcon(agent) {
+        if (agent.icon) return `<img src="agent-icons/${escapeHtml(agent.icon)}.svg" alt="">`;
+        return escapeHtml(String(agent.displayName || "AI").split(/\s+/).slice(0, 2).map((part) => part[0]).join("").toUpperCase());
+      }
+
+      function escapeHtml(value) {
+        return String(value ?? "").replace(/[&<>"']/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#039;" }[char]));
+      }
+
+      function truncate(value, max) {
+        return value.length <= max ? value : `${value.slice(0, max - 1)}…`;
+      }
+
+      function cssEscape(value) {
+        if (window.CSS?.escape) return window.CSS.escape(String(value));
+        return String(value).replace(/["\\]/g, "\\$&");
+      }
+
+      function isPersonalEmail(email) {
+        const domain = String(email || "").split("@")[1]?.toLowerCase() || "";
+        return new Set([
+          "gmail.com",
+          "googlemail.com",
+          "outlook.com",
+          "hotmail.com",
+          "live.com",
+          "msn.com",
+          "icloud.com",
+          "me.com",
+          "mac.com",
+          "yahoo.com",
+          "proton.me",
+          "protonmail.com",
+          "aol.com"
+        ]).has(domain);
+      }
+
+      nav.forEach((button) => button.onclick = () => {
+        if (isSetupLocked()) return renderSetup();
+        view = button.dataset.view;
+        renderView();
+      });
+      window.openleash.onUpdate(render);
+      window.openleash.onAuth((payload) => {
+        if (payload?.ok) {
+          if (setupClientMode === "cloud" && setupAudience === "organization" && isPersonalEmail(payload.userEmail)) {
+            setupRemoteAuth = undefined;
+            setupRemoteError = "Use your company Google Workspace or Microsoft 365 account, not a personal email address.";
+            setupRemoteNotice = "";
+            setupRemoteBusy = false;
+            renderSetup();
+            return;
+          }
+          setupRemoteAuth = payload;
+          setupRemoteError = "";
+          setupRemoteNotice = "";
+          setupRemoteBusy = false;
+          setupStep = Math.max(setupStep, setupClientMode === "cloud" && setupAudience === "organization" ? 3 : 1);
+          void loadManagedRules().then(() => renderSetup());
+        } else {
+          setupRemoteBusy = false;
+          setupRemoteNotice = "";
+          setupRemoteError = payload?.error || "Sign-in did not complete.";
+        }
+        renderSetup();
+      });
+      window.openleash.list().then(render);
+    </script>
+  </body>
+</html>

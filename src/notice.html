@@ -1,0 +1,294 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>OpenLeash Notice</title>
+    <style>
+      :root {
+        --panel: #ffffff;
+        --soft: #f4f5f7;
+        --ink: #101318;
+        --muted: #8b909b;
+        --line: #e5e7ec;
+        --accent: #c8d6ff;
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        padding: 0;
+        color: var(--ink);
+        background: transparent;
+        font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        -webkit-font-smoothing: antialiased;
+        user-select: none;
+      }
+      .card {
+        overflow: hidden;
+        display: flex;
+        flex-direction: column;
+        background: var(--panel);
+        border: 1px solid rgba(16, 19, 24, .08);
+        border-radius: 28px;
+        box-shadow: 0 18px 42px rgba(16, 19, 24, .18);
+      }
+      .top {
+        display: flex;
+        align-items: flex-start;
+        gap: 14px;
+        padding: 20px 22px 12px;
+      }
+      .agent {
+        width: 54px;
+        height: 54px;
+        display: grid;
+        place-items: center;
+        flex: 0 0 54px;
+        overflow: hidden;
+        background: #f6f7fa;
+        border: 1px solid rgba(16, 19, 24, .08);
+        border-radius: 16px;
+        font-size: 18px;
+        font-weight: 900;
+      }
+      .agent img {
+        width: 58%;
+        height: 58%;
+        object-fit: contain;
+      }
+      .copy { min-width: 0; flex: 1; }
+      .brand {
+        display: inline-flex;
+        align-items: center;
+        gap: 7px;
+        margin-bottom: 5px;
+        color: var(--muted);
+        font-size: 12px;
+        font-weight: 800;
+      }
+      .brand img {
+        width: 16px;
+        height: 16px;
+        border-radius: 4px;
+        object-fit: contain;
+      }
+      h1 {
+        margin: 0;
+        font-size: 22px;
+        line-height: 1.08;
+        letter-spacing: 0;
+      }
+      .meta {
+        margin-top: 5px;
+        color: var(--muted);
+        font-size: 13px;
+        font-weight: 750;
+      }
+      .body {
+        padding: 0 22px 14px;
+      }
+      .summary {
+        margin: 0;
+        color: #2a2f38;
+        font-size: 15px;
+        line-height: 1.42;
+      }
+      .purpose {
+        display: none;
+        margin: 10px 0 0;
+        padding: 10px 12px;
+        border-radius: 14px;
+        background: #f7f8fb;
+        color: #4d5563;
+        font-size: 13px;
+        line-height: 1.35;
+        font-weight: 750;
+      }
+      .purpose span {
+        display: block;
+        margin-bottom: 3px;
+        color: #8b909b;
+        font-size: 11px;
+        font-weight: 900;
+        text-transform: uppercase;
+      }
+      .context {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        margin-top: 10px;
+      }
+      .guidanceToggle {
+        display: none;
+        margin-top: 12px;
+        border: 0;
+        padding: 0;
+        min-height: 0;
+        border-radius: 0;
+        background: transparent;
+        color: #526fb7;
+        font-size: 13px;
+        font-weight: 900;
+      }
+      .guidanceBox {
+        display: none;
+        margin-top: 10px;
+      }
+      .guidanceBox textarea {
+        width: 100%;
+        min-height: 82px;
+        resize: none;
+        border: 1px solid var(--line);
+        border-radius: 14px;
+        padding: 11px 12px;
+        color: var(--ink);
+        background: #fbfcff;
+        font: inherit;
+        font-size: 13px;
+        line-height: 1.35;
+        outline: none;
+      }
+      .guidanceBox textarea:focus {
+        border-color: rgba(82, 111, 183, .45);
+        box-shadow: 0 0 0 3px rgba(200, 214, 255, .45);
+      }
+      .chip {
+        max-width: 100%;
+        overflow: hidden;
+        padding: 7px 10px;
+        color: #606775;
+        background: #f7f1e6;
+        border-radius: 999px;
+        font-size: 12px;
+        font-weight: 800;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+      .chip.project { background: var(--soft); color: #3c424d; }
+      .actions {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 10px;
+        padding: 0 22px 26px;
+      }
+      button {
+        min-height: 44px;
+        border: 0;
+        border-radius: 999px;
+        font: inherit;
+        font-weight: 900;
+        cursor: pointer;
+      }
+      .ghost { color: var(--ink); background: var(--soft); }
+      .primary { color: var(--ink); background: var(--accent); }
+      .single { grid-template-columns: 1fr; }
+    </style>
+  </head>
+  <body>
+    <div class="card">
+      <div class="top">
+        <div id="agent" class="agent">AI</div>
+        <div class="copy">
+          <div class="brand">
+            <img src="openleash-icon.png" alt="" />
+            <span>OpenLeash</span>
+          </div>
+          <h1 id="title">Allow this action?</h1>
+          <div id="meta" class="meta">Local agent request</div>
+        </div>
+      </div>
+      <div class="body">
+        <p id="summary" class="summary"></p>
+        <p id="purpose" class="purpose"><span>Why now</span><b></b></p>
+        <div id="context" class="context"></div>
+        <button id="guidanceToggle" class="guidanceToggle">Add guidance for the agent</button>
+        <div id="guidanceBox" class="guidanceBox">
+          <textarea id="guidance" maxlength="500" placeholder="Optional: tell the agent what to do instead"></textarea>
+        </div>
+      </div>
+      <div id="actions" class="actions"></div>
+    </div>
+    <script>
+      let current = null;
+      const agent = document.getElementById("agent");
+      const title = document.getElementById("title");
+      const meta = document.getElementById("meta");
+      const summary = document.getElementById("summary");
+      const purpose = document.getElementById("purpose");
+      const purposeText = purpose.querySelector("b");
+      const context = document.getElementById("context");
+      const actions = document.getElementById("actions");
+      const guidanceToggle = document.getElementById("guidanceToggle");
+      const guidanceBox = document.getElementById("guidanceBox");
+      const guidance = document.getElementById("guidance");
+
+      function initials(name) {
+        return (name || "AI").split(/\s+/).map((part) => part[0]).join("").slice(0, 2).toUpperCase();
+      }
+
+      window.openleash.onNotice((payload) => {
+        current = payload;
+        agent.innerHTML = "";
+        if (payload.agentIcon) {
+          const img = document.createElement("img");
+          img.src = payload.agentIcon;
+          img.alt = "";
+          agent.appendChild(img);
+        } else {
+          agent.textContent = initials(payload.agentName);
+        }
+        title.textContent = `Allow ${payload.agentName}?`;
+        meta.textContent = `${payload.agentName} · ${payload.time}`;
+        summary.textContent = payload.summary || `${payload.agentName} wants to continue. Do you want to allow it this time?`;
+        purpose.style.display = payload.purpose ? "block" : "none";
+        purposeText.textContent = payload.purpose || "";
+        if (payload.kind === "sample") {
+          title.textContent = "Approval preview";
+          meta.textContent = "OpenLeash setup";
+          summary.textContent = payload.summary || "This is what an OpenLeash approval looks like.";
+          purpose.style.display = "none";
+          purposeText.textContent = "";
+        }
+        guidance.value = "";
+        guidanceBox.style.display = "none";
+        guidanceToggle.style.display = payload.supportsGuidance ? "inline-block" : "none";
+
+        context.innerHTML = "";
+        if (payload.project) {
+          const chip = document.createElement("span");
+          chip.className = "chip project";
+          chip.textContent = payload.project;
+          context.appendChild(chip);
+        }
+        if (payload.policy) {
+          const chip = document.createElement("span");
+          chip.className = "chip";
+          chip.textContent = `Rule: ${payload.policy}`;
+          context.appendChild(chip);
+        }
+
+        actions.className = payload.id ? "actions" : "actions single";
+        actions.innerHTML = payload.id
+          ? '<button class="ghost" data-resolution="deny">Deny</button><button class="primary" data-resolution="allow">Allow</button>'
+          : '<button class="ghost" data-dismiss="true">Got it</button>';
+      });
+
+      guidanceToggle.addEventListener("click", () => {
+        const open = guidanceBox.style.display === "block";
+        guidanceBox.style.display = open ? "none" : "block";
+        guidanceToggle.textContent = open ? "Add guidance for the agent" : "Hide guidance";
+        if (!open) guidance.focus();
+      });
+
+      actions.addEventListener("click", async (event) => {
+        const button = event.target.closest("button");
+        if (!button || !current) return;
+        if (button.dataset.dismiss) {
+          await window.openleash.dismissNotice();
+          return;
+        }
+        await window.openleash.resolve(current.id, button.dataset.resolution, button.dataset.resolution === "deny" ? guidance.value : "");
+      });
+    </script>
+  </body>
+</html>
