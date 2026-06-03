@@ -2946,6 +2946,23 @@
           </div>
           <div class="actions"><button class="primary" id="saveSettings">Save settings</button></div>
         `;
+        const agentDoneSoundInput = document.getElementById("agentDoneSound");
+        agentDoneSoundInput.onchange = async () => {
+          const nextAgentDoneSound = agentDoneSoundInput.checked;
+          state.agentDoneSound = nextAgentDoneSound;
+          const apiProvider = root.querySelector("[name=settingsProvider]:checked").value;
+          const result = await window.openleash.saveSettings({ apiProvider, agentDoneSound: nextAgentDoneSound });
+          if (!result?.ok) {
+            state.agentDoneSound = !nextAgentDoneSound;
+            agentDoneSoundInput.checked = state.agentDoneSound;
+            return;
+          }
+          state.apiProvider = result.apiProvider;
+          state.apiKeySet = result.apiKeySet;
+          state.agentDoneSound = result.agentDoneSound;
+          agentDoneSoundInput.checked = state.agentDoneSound;
+          document.getElementById("settingsMessage").textContent = "Settings saved.";
+        };
         document.getElementById("saveSettings").onclick = async () => {
           const apiProvider = root.querySelector("[name=settingsProvider]:checked").value;
           const apiKey = document.getElementById("settingsApiKey").value.trim();
