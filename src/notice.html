@@ -16,7 +16,7 @@
       * { box-sizing: border-box; }
       body {
         margin: 0;
-        padding: 0;
+        padding: 16px 28px 46px;
         color: var(--ink);
         background: transparent;
         font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
@@ -30,7 +30,7 @@
         background: var(--panel);
         border: 1px solid rgba(16, 19, 24, .08);
         border-radius: 28px;
-        box-shadow: 0 18px 42px rgba(16, 19, 24, .18);
+        box-shadow: 0 18px 42px rgba(16, 19, 24, .16);
       }
       .top {
         display: flex;
@@ -284,9 +284,11 @@
         const button = event.target.closest("button");
         if (!button || !current) return;
         if (button.dataset.dismiss) {
+          button.disabled = true;
           await window.openleash.dismissNotice();
           return;
         }
+        actions.querySelectorAll("button").forEach((item) => item.disabled = true);
         await window.openleash.resolve(current.id, button.dataset.resolution, button.dataset.resolution === "deny" ? guidance.value : "");
       });
     </script>

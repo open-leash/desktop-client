@@ -1,4 +1,4 @@
-import { app, BrowserWindow, clipboard, dialog, Menu, nativeImage, screen, Tray, ipcMain, shell, type MenuItemConstructorOptions, type MessageBoxOptions, type OpenDialogOptions } from "electron";
+import { app, BrowserWindow, clipboard, dialog, Menu, nativeImage, screen, Tray, ipcMain, shell, type Display, type MenuItemConstructorOptions, type MessageBoxOptions, type OpenDialogOptions } from "electron";
 import { spawn, spawnSync } from "node:child_process";
 import crypto from "node:crypto";
 import fs from "node:fs";
@@ -228,9 +228,11 @@ function isPersonalEmailDomain(email?: string) {
     "aol.com"
   ]).has(domain);
 }
-let noticedDecisions = new Set<string>();
 let activeNoticeKey: string | undefined;
+let suppressedNoticeKeys = new Set<string>();
+let resolvingDecisionIds = new Set<string>();
 let suppressMainWindowActivationUntil = 0;
+let mainWindowWasVisibleBeforeNotice = false;
 let currentTrayStatus: "ok" | "pending" | "down" = "ok";
 const enforcedAgentKinds = new Set<string>();
 const protectionWatchers = new Map<string, fs.FSWatcher>();
@@ -322,6 +324,12 @@ function keepDockIconForSetup() {
   if (window && !window.isDestroyed()) window.setSkipTaskbar(false);
 }
 
+function activateOpenLeashApp() {
+  if (process.platform !== "darwin") return;
+  showDockIcon();
+  app.focus({ steal: true });
+}
+
 function hideDockIconIfTrayMode() {
   if (setupNeedsDockIcon()) {
     keepDockIconForSetup();
@@ -374,7 +382,7 @@ app.whenReady().then(async () => {
     name: "OpenLeash"
   });
   startupLog("login item set");
-  localServer = new LocalOpenLeashServer(app.getPath("userData"));
+  localServer = new LocalOpenLeashServer(app.getPath("userData"), { onAgentStop: playAgentDoneSound });
   startupLog(`local server constructed at ${app.getPath("userData")}`);
   if (process.argv.includes("--reset-setup") || process.argv.includes("--fresh-install")) {
     localServer.resetSetup();
@@ -465,9 +473,10 @@ ipcMain.handle("openleash:list", () => ({
   remoteApiUrl: localServer?.remoteApiUrl,
   remoteOrganization: localServer?.remoteOrganization,
   remoteUser: localServer?.remoteUser,
-  apiProvider: localServer?.apiProvider ?? "openai",
-  apiKeySet: localServer?.apiKeySet ?? false,
-  pending: latestPending,
+    apiProvider: localServer?.apiProvider ?? "openai",
+    apiKeySet: localServer?.apiKeySet ?? false,
+    agentDoneSound: localServer?.agentDoneSound ?? false,
+    pending: latestPending,
   agents: latestAgents,
   sessionMetrics: latestSessionMetrics,
   localProtections,
@@ -569,6 +578,33 @@ async function startMobileAuth(
     return { ok: false, error: remoteApiError(error, remoteApiUrl, `Could not start sign-in from ${remoteApiUrl}.`) };
   }
 }
+
+async function enrollDesktopEndpoint(remoteApiUrl: string, dashboardToken: string): Promise<
+  | { ok: true; token: string; user?: { email?: string; display_name?: string } }
+  | { ok: false; error: string }
+> {
+  try {
+    const response = await fetch(new URL("/v1/desktop/enroll", remoteApiUrl), {
+      method: "POST",
+      headers: { "content-type": "application/json", authorization: `Bearer ${dashboardToken}`, ...apiVersionHeaders("desktopEnroll") },
+      body: JSON.stringify({
+        hostname: os.hostname(),
+        platform: os.platform(),
+        osRelease: os.release(),
+        clientVersion: app.getVersion()
+      }),
+      signal: AbortSignal.timeout(Number(process.env.OPENLEASH_DESKTOP_ENROLL_TIMEOUT_MS ?? 15000))
+    });
+    const body = await response.json().catch(() => ({}));
+    if (!response.ok || !body.token) {
+      return { ok: false, error: body.error || body.message || "Could not enroll this Mac with OpenLeash." };
+    }
+    return { ok: true, token: body.token, user: body.user };
+  } catch (error) {
+    return { ok: false, error: remoteApiError(error, remoteApiUrl, "Could not enroll this Mac with OpenLeash.") };
+  }
+}
+
 ipcMain.handle("openleash:save-remote-model-key", async (_event, payload: { apiUrl?: string; token?: string; apiProvider?: "openai" | "anthropic"; apiKey?: string }) => {
   const token = payload.token || desktopAuthSession?.token;
   if (!token) return { ok: false, error: "Sign in before saving the model key." };
@@ -620,15 +656,23 @@ ipcMain.handle("openleash:setup", async (_event, payload: {
   remoteToken?: string;
   remoteOrganization?: string;
   remoteUser?: string;
+  skipDashboardOpen?: boolean;
 }) => {
   const clientMode = payload.clientMode ?? "personal";
   const audience = payload.audience === "organization" ? "organization" : "individual";
   const apiKey = String(payload.apiKey ?? "").trim();
-  const remoteToken = payload.remoteToken || desktopAuthSession?.token;
+  let remoteToken = payload.remoteToken || desktopAuthSession?.token;
   const remoteApiUrl = normalizeRemoteApiUrl(payload.remoteApiUrl || desktopAuthSession?.apiUrl || cloudApiUrl);
   if (clientMode !== "personal" && !remoteToken) return { ok: false, error: "Sign in before installing protection." };
   if (clientMode === "cloud" && audience === "organization" && isPersonalEmailDomain(payload.remoteUser || desktopAuthSession?.userEmail)) {
     return { ok: false, error: "Use your company Google Workspace or Microsoft 365 account, not a personal email address." };
+  }
+  let enrolledRemoteUser = payload.remoteUser || desktopAuthSession?.userName || desktopAuthSession?.userEmail;
+  if (clientMode !== "personal" && desktopAuthSession?.token && remoteToken === desktopAuthSession.token) {
+    const enrollment = await enrollDesktopEndpoint(remoteApiUrl, desktopAuthSession.token);
+    if (!enrollment.ok) return { ok: false, error: enrollment.error };
+    remoteToken = enrollment.token;
+    enrolledRemoteUser = enrollment.user?.display_name || enrollment.user?.email || enrolledRemoteUser;
   }
   const basePolicies = Array.isArray(payload.policies)
     ? normalizePolicies(payload.policies, localServer.policies, clientMode !== "personal")
@@ -644,7 +688,7 @@ ipcMain.handle("openleash:setup", async (_event, payload: {
     remoteApiUrl,
     remoteToken,
     remoteOrganization: payload.remoteOrganization || desktopAuthSession?.organizationName || desktopAuthSession?.organizationSlug,
-    remoteUser: payload.remoteUser || desktopAuthSession?.userName || desktopAuthSession?.userEmail
+    remoteUser: enrolledRemoteUser
   });
   await configureLocalAgent();
   await installLeashCli();
@@ -654,7 +698,7 @@ ipcMain.handle("openleash:setup", async (_event, payload: {
   }
   app.setLoginItemSettings({ openAtLogin: true, openAsHidden: true, name: "OpenLeash" });
   let desktopMessage: string | undefined;
-  if (clientMode === "cloud" && audience === "organization") {
+  if (clientMode === "cloud" && audience === "organization" && !payload.skipDashboardOpen) {
     const dashboardUrl = new URL(cloudDashboardUrl.replace(/\/$/, "") || "http://localhost:9300");
     dashboardUrl.pathname = "/onboarding";
     await openTrustedExternalUrl(dashboardUrl.toString());
@@ -672,9 +716,10 @@ ipcMain.handle("openleash:setup", async (_event, payload: {
     remoteApiUrl: localServer.remoteApiUrl,
     remoteOrganization: localServer.remoteOrganization,
     remoteUser: localServer.remoteUser,
-    apiProvider: payload.apiProvider === "anthropic" ? "anthropic" : "openai",
-    apiKeySet: localServer.apiKeySet,
-    pending: latestPending,
+      apiProvider: payload.apiProvider === "anthropic" ? "anthropic" : "openai",
+      apiKeySet: localServer.apiKeySet,
+      agentDoneSound: localServer.agentDoneSound,
+      pending: latestPending,
     agents: latestAgents,
     sessionMetrics: latestSessionMetrics,
     localProtections,
@@ -712,11 +757,11 @@ ipcMain.handle("openleash:uninstall-agent-protection", async (_event, kind: stri
   });
   return { ok: true };
 });
-ipcMain.handle("openleash:save-settings", (_event, payload: { apiProvider?: "openai" | "anthropic"; apiKey?: string }) => {
+ipcMain.handle("openleash:save-settings", (_event, payload: { apiProvider?: "openai" | "anthropic"; apiKey?: string; agentDoneSound?: boolean }) => {
   const provider = payload.apiProvider === "anthropic" ? "anthropic" : "openai";
   const apiKey = String(payload.apiKey ?? "").trim();
-  localServer.updateSettings(provider, apiKey || undefined);
-  return { ok: true, apiProvider: provider, apiKeySet: localServer.apiKeySet };
+  localServer.updateSettings(provider, apiKey || undefined, typeof payload.agentDoneSound === "boolean" ? payload.agentDoneSound : undefined);
+  return { ok: true, apiProvider: provider, apiKeySet: localServer.apiKeySet, agentDoneSound: localServer.agentDoneSound };
 });
 ipcMain.handle("openleash:delete-data", async () => {
   const options: MessageBoxOptions = {
@@ -798,14 +843,30 @@ ipcMain.handle("openleash:import-rules", async (_event, payload: { replace?: boo
   }
 });
 ipcMain.handle("openleash:resolve", async (_event, id: string, resolution: "allow" | "deny", resolutionGuidance?: string) => {
-  suppressMainWindowActivation();
+  const pending = latestPending.find((item) => item.id === id);
+  const noticeKey = pending ? `ask:${pendingNoticeKey(pending)}` : activeNoticeKey;
+  if (noticeKey) suppressedNoticeKeys.add(noticeKey);
+  const idsToResolve = pending
+    ? latestPending.filter((item) => pendingNoticeKey(item) === pendingNoticeKey(pending)).map((item) => item.id)
+    : [id];
+  for (const decisionId of idsToResolve) resolvingDecisionIds.add(decisionId);
+  for (const decisionId of idsToResolve) {
+    if (!localServer.resolve(decisionId, resolution, resolutionGuidance)) {
+      startupLog(`approval resolve missing local decision ${decisionId}`);
+    }
+  }
   closeNoticeWithoutOpeningMainWindow();
-  latestPending = latestPending.filter((item) => item.id !== id);
+  latestPending = latestPending.filter((item) => !idsToResolve.includes(item.id));
   refreshMenu();
   window?.webContents.send("openleash:update", { apiUrl, pending: latestPending, agents: latestAgents, sessionMetrics: latestSessionMetrics, history: localServer.history, mcpServers: localServer.mcpServers, skills: localServer.skills });
-  void resolveDecision(id, resolution, resolutionGuidance).catch((error) => {
-    startupLog(`approval resolve failed: ${error instanceof Error ? error.stack || error.message : String(error)}`);
+  void Promise.all(idsToResolve.map((decisionId) => syncRemoteDecision(decisionId, resolution, resolutionGuidance))).catch((error) => {
+    startupLog(`remote approval resolve failed: ${error instanceof Error ? error.stack || error.message : String(error)}`);
+  }).finally(() => {
+    for (const decisionId of idsToResolve) resolvingDecisionIds.delete(decisionId);
   });
+  setTimeout(() => {
+    if (noticeKey) suppressedNoticeKeys.delete(noticeKey);
+  }, 5 * 60_000);
   return { ok: true };
 });
 ipcMain.handle("openleash:dismiss-notice", () => {
@@ -818,7 +879,7 @@ async function poll() {
     syncSkillWatchers();
     const body = await fetchTrayState();
     if (!body) return setDisconnected();
-    latestPending = body.pending;
+    latestPending = body.pending.filter((item) => !resolvingDecisionIds.has(item.id) && !suppressedNoticeKeys.has(`ask:${pendingNoticeKey(item)}`));
     latestAgents = body.agents;
     latestSessionMetrics = body.sessionMetrics ?? {};
     setTrayStatus(latestPending.length > 0 ? "pending" : "ok");
@@ -835,6 +896,7 @@ async function poll() {
       remoteUser: localServer.remoteUser,
       apiProvider: localServer.apiProvider ?? "openai",
       apiKeySet: localServer.apiKeySet,
+      agentDoneSound: localServer.agentDoneSound,
       pending: latestPending,
       agents: latestAgents,
       sessionMetrics: latestSessionMetrics,
@@ -847,20 +909,13 @@ async function poll() {
     const nextPending = latestPending[0];
     if (nextPending) {
       const key = `ask:${pendingNoticeKey(nextPending)}`;
-      if (activeNoticeKey !== key || !noticeWindow || !noticeWindow.isVisible()) {
+      if (!suppressedNoticeKeys.has(key) && (activeNoticeKey !== key || !noticeWindow || !noticeWindow.isVisible())) {
         showDecisionNotice({ kind: "ask", pending: nextPending });
       }
     } else if (activeNoticeKey?.startsWith("ask:")) {
       noticeWindow?.close();
       noticeWindow = undefined;
       activeNoticeKey = undefined;
-    }
-    for (const agent of latestAgents) {
-      if (agent.resolution || (agent.decision !== "deny" && !hasBlockingPolicy(agent))) continue;
-      const key = `${agent.id}:${agent.activity_at ?? agent.last_seen_at}:${agent.decision}`;
-      if (noticedDecisions.has(key)) continue;
-      noticedDecisions.add(key);
-      showDecisionNotice({ kind: "deny", agent });
     }
   } catch {
     await refreshLocalProtections();
@@ -926,13 +981,19 @@ function dedupePending(items: PendingDecision[]) {
 }
 
 function pendingNoticeKey(item: PendingDecision) {
-  return canonicalIntentKey(rawIntentKey(item.payload)) ?? [
+  return canonicalIntentKey(rawIntentKey(item.payload)) ?? credentialPendingKey(item) ?? [
     item.agent_kind,
     item.project_path ?? "",
     item.tool_name ?? item.event_name,
     item.summary,
     primaryPendingResource(item)
   ].join("|");
+}
+
+function credentialPendingKey(item: PendingDecision) {
+  const resource = primaryPendingResource(item);
+  if (!resource) return undefined;
+  return [item.agent_kind, item.project_path ?? "", "credential", resource].join("|");
 }
 
 function rawIntentKey(payload: unknown): string | undefined {
@@ -1022,14 +1083,9 @@ function mapRemoteSessionMetrics(metrics: Record<string, unknown> | undefined): 
   };
 }
 
-async function resolveDecision(id: string, resolution: "allow" | "deny", resolutionGuidance?: string) {
+async function syncRemoteDecision(id: string, resolution: "allow" | "deny", resolutionGuidance?: string) {
   const guidance = resolution === "deny" ? cleanResolutionGuidance(resolutionGuidance) : undefined;
-  const localResponse = await fetch(`${apiUrl}/admin/decisions/${id}/resolve`, {
-    method: "POST",
-    headers: { "content-type": "application/json", ...apiVersionHeaders("tenantDecisionResolve") },
-    body: JSON.stringify({ resolution, resolvedBy: "desktop-client", ...(guidance ? { resolutionGuidance: guidance } : {}) })
-  });
-  if (localServer.clientMode === "personal" || localResponse.ok) return;
+  if (localServer.clientMode === "personal") return;
 
   const remoteApiUrl = localServer.remoteApiUrl;
   const remoteToken = localServer.effectiveToken;
@@ -1964,6 +2020,7 @@ function showMainWindow(mode: "setup" | "settings" = localServer?.setupComplete 
       remoteUser: localServer?.remoteUser,
       apiProvider: localServer?.apiProvider ?? "openai",
       apiKeySet: localServer?.apiKeySet ?? false,
+      agentDoneSound: localServer?.agentDoneSound ?? false,
       pending: latestPending,
       agents: latestAgents,
       sessionMetrics: latestSessionMetrics,
@@ -2014,12 +2071,24 @@ function showMainWindow(mode: "setup" | "settings" = localServer?.setupComplete 
   }
   window.setTitle("OpenLeash");
   if (window.isMinimized()) window.restore();
-  window.center();
+  if (mode === "setup" || !localServer?.setupComplete) {
+    centerWindowOnLargestDisplay(window);
+  } else {
+    window.center();
+  }
+  activateOpenLeashApp();
   window.setSkipTaskbar(false);
   window.show();
   window.moveTop();
   window.focus();
   showDockIcon();
+  setTimeout(() => {
+    if (!window || window.isDestroyed()) return;
+    activateOpenLeashApp();
+    window.show();
+    window.moveTop();
+    window.focus();
+  }, 80);
   if (!window.webContents.isLoading()) sendState();
 }
 
@@ -2048,7 +2117,6 @@ function relaunchOpenLeash() {
   quitting = true;
   latestPending = [];
   latestAgents = [];
-  noticedDecisions = new Set<string>();
   activeNoticeKey = undefined;
   app.relaunch();
   setTimeout(() => app.exit(0), 250);
@@ -2060,7 +2128,7 @@ function restoreMainWindow() {
   showMainWindow(localServer.setupComplete ? "settings" : "setup");
 }
 
-function suppressMainWindowActivation(durationMs = 10000) {
+function suppressMainWindowActivation(durationMs = 30000) {
   suppressMainWindowActivationUntil = Date.now() + durationMs;
 }
 
@@ -2069,22 +2137,58 @@ function closeNoticeWithoutOpeningMainWindow() {
   if (noticeWindow && !noticeWindow.isDestroyed()) noticeWindow.destroy();
   noticeWindow = undefined;
   activeNoticeKey = undefined;
+  hideMainWindowAfterNoticeAction();
+}
+
+function hideMainWindowAfterNoticeAction() {
+  const hide = () => {
+    if (!window || window.isDestroyed()) return;
+    window.hide();
+    hideDockIconIfTrayMode();
+  };
+  hide();
+  setTimeout(hide, 120);
+  setTimeout(hide, 600);
 }
 
 function showAgentDetail(_agent: AgentStatus) {
   showMainWindow("settings");
 }
 
-function showDecisionNotice(notice: { kind: "ask"; pending: PendingDecision } | { kind: "deny"; agent: AgentStatus } | { kind: "sample"; agentName: string; summary: string; policy: string; project: string }) {
-  const display = screen.getPrimaryDisplay().workArea;
-  const width = 430;
+function largestDisplay(): Display {
+  return screen.getAllDisplays().reduce((largest, candidate) => {
+    const largestArea = largest.workArea.width * largest.workArea.height;
+    const candidateArea = candidate.workArea.width * candidate.workArea.height;
+    return candidateArea > largestArea ? candidate : largest;
+  }, screen.getPrimaryDisplay());
+}
+
+function centerWindowOnLargestDisplay(target: BrowserWindow) {
+  const display = largestDisplay().workArea;
+  const bounds = target.getBounds();
+  target.setPosition(
+    Math.round(display.x + (display.width - bounds.width) / 2),
+    Math.round(display.y + (display.height - bounds.height) / 2),
+    false
+  );
+}
+
+type DecisionNotice =
+  | { kind: "ask"; pending: PendingDecision }
+  | { kind: "sample"; agentName: string; summary: string; policy: string; project: string };
+
+function noticeWorkArea(notice: DecisionNotice) {
+  return largestDisplay().workArea;
+}
+
+function showDecisionNotice(notice: DecisionNotice) {
+  const display = noticeWorkArea(notice);
+  const width = 486;
   const supportsGuidance = notice.kind === "ask" ? supportsAgentGuidance(notice.pending.agent_kind) : false;
-  const height = notice.kind === "sample" ? 300 : supportsGuidance ? 470 : 360;
+  const height = notice.kind === "sample" ? 362 : supportsGuidance ? 532 : 422;
   const noticeKey = notice.kind === "ask"
     ? `ask:${pendingNoticeKey(notice.pending)}`
-    : notice.kind === "deny"
-      ? `deny:${notice.agent.id}:${notice.agent.activity_at ?? notice.agent.last_seen_at}`
-      : "sample";
+    : "sample";
   if (activeNoticeKey === noticeKey && noticeWindow && !noticeWindow.isDestroyed()) {
     noticeWindow.webContents.send("openleash:notice", formatNotice(notice));
     if (!noticeWindow.isVisible()) noticeWindow.showInactive();
@@ -2093,6 +2197,7 @@ function showDecisionNotice(notice: { kind: "ask"; pending: PendingDecision } | 
   const previousNoticeWindow = noticeWindow;
   previousNoticeWindow?.close();
   suppressMainWindowActivation();
+  mainWindowWasVisibleBeforeNotice = Boolean(window && !window.isDestroyed() && window.isVisible());
   activeNoticeKey = noticeKey;
   const createdNoticeWindow = new BrowserWindow({
     width,
@@ -2136,7 +2241,7 @@ function showDecisionNotice(notice: { kind: "ask"; pending: PendingDecision } | 
   });
 }
 
-function formatNotice(notice: { kind: "ask"; pending: PendingDecision } | { kind: "deny"; agent: AgentStatus } | { kind: "sample"; agentName: string; summary: string; policy: string; project: string }) {
+function formatNotice(notice: DecisionNotice) {
   if (notice.kind === "ask") {
     const item = notice.pending;
     const action = friendlyAction(item.event_name, item.tool_name);
@@ -2166,29 +2271,10 @@ function formatNotice(notice: { kind: "ask"; pending: PendingDecision } | { kind
       time: "example"
     };
   }
-  const agent = notice.agent;
-  const action = friendlyAction(agent.event_name, agent.tool_name);
-  return {
-    kind: "deny",
-    agentName: agent.display_name,
-    id: agent.decision_id,
-    agentIcon: agentIconFor(agent.display_name),
-    action,
-    summary: agent.decision_summary ?? agent.short_summary,
-    purpose: noticePurpose(agent),
-    detail: noticeDetail(agent),
-    policy: agent.triggered_policies?.[0]?.policy_name,
-    project: projectTag(agent.project_path),
-    time: timeAgo(agent.activity_at ?? agent.last_seen_at)
-  };
 }
 
 function supportsAgentGuidance(agentKind?: string) {
   return ["claude-code", "codex", "openclaw", "nanoclaw"].includes(String(agentKind ?? ""));
-}
-
-function hasBlockingPolicy(agent: AgentStatus) {
-  return (agent.triggered_policies ?? []).some((policy) => policy.status === "failed");
 }
 
 function noticeDetail(item: { project_path?: string; hostname?: string; payload?: unknown }) {
@@ -2243,12 +2329,26 @@ function projectTag(value?: string) {
 }
 
 function friendlyAction(eventName?: string, toolName?: string) {
+  if (/^Write$/i.test(toolName || "") || /^MultiEdit$/i.test(toolName || "")) return "edit a file";
   if (toolName) return `use ${toolName}`;
   if (eventName === "UserPromptSubmit") return "submit your prompt";
   if (eventName === "PreToolUse") return "use a tool";
   if (eventName === "PostToolUse") return "finish a tool result";
   if (eventName === "Stop") return "finish this session";
   return "continue";
+}
+
+let lastAgentDoneSoundAt = 0;
+function playAgentDoneSound() {
+  const now = Date.now();
+  if (now - lastAgentDoneSoundAt < 1200) return;
+  lastAgentDoneSoundAt = now;
+  if (process.platform === "darwin") {
+    const child = spawn("afplay", ["/System/Library/Sounds/Glass.aiff"], { stdio: "ignore", detached: true });
+    child.unref();
+    return;
+  }
+  process.stdout.write("\x07");
 }
 
 async function configureLocalAgent() {

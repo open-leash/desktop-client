@@ -141,6 +141,7 @@ type Store = {
   token: string;
   setupComplete: boolean;
   introSeen?: boolean;
+  agentDoneSound?: boolean;
   clientMode?: ClientMode;
   remoteApiUrl?: string;
   remoteToken?: string;
@@ -162,13 +163,17 @@ type SetupConfig = {
   remoteUser?: string;
 };
 
+type LocalServerOptions = {
+  onAgentStop?: (event: { agent: string; eventName: string; body: unknown }) => void;
+};
+
 export class LocalOpenLeashServer {
   readonly apiUrl = "http://127.0.0.1:9317";
   private server?: http.Server;
   private db: Database.Database;
   private store!: Store;
 
-  constructor(private readonly dir: string) {
+  constructor(private readonly dir: string, private readonly options: LocalServerOptions = {}) {
     fs.mkdirSync(dir, { recursive: true });
     this.db = new Database(this.dbPath);
     this.db.pragma("journal_mode = WAL");
@@ -248,6 +253,7 @@ export class LocalOpenLeashServer {
       token: `ol_personal_${crypto.randomBytes(18).toString("base64url")}`,
       setupComplete: false,
       introSeen,
+      agentDoneSound: this.store?.agentDoneSound ?? false,
       clientMode: initialClientMode(),
       policies: defaultPolicies(),
       history: []
@@ -303,9 +309,14 @@ export class LocalOpenLeashServer {
     this.writeStore();
   }
 
-  updateSettings(apiProvider: "openai" | "anthropic", apiKey?: string) {
+  get agentDoneSound() {
+    return Boolean(this.store.agentDoneSound);
+  }
+
+  updateSettings(apiProvider: "openai" | "anthropic", apiKey?: string, agentDoneSound?: boolean) {
     this.store.apiProvider = apiProvider;
     if (apiKey) this.store.apiKey = apiKey;
+    if (typeof agentDoneSound === "boolean") this.store.agentDoneSound = agentDoneSound;
     this.writeStore();
   }
 
@@ -381,6 +392,7 @@ export class LocalOpenLeashServer {
           introSeen: this.introSeen,
           token: this.store.token,
           clientMode: this.clientMode,
+          agentDoneSound: this.agentDoneSound,
           remoteApiUrl: this.store.remoteApiUrl,
           remoteOrganization: this.store.remoteOrganization,
           remoteUser: this.store.remoteUser,
@@ -405,10 +417,14 @@ export class LocalOpenLeashServer {
       if (req.method === "POST" && hookMatch) {
         const body = await readJson(req);
         const remoteDecision = await this.forwardRemoteHook(hookMatch[1], hookMatch[2], body, req.url ?? "");
-        if (remoteDecision) return json(res, remoteDecision);
+        if (remoteDecision) {
+          this.notifyAgentStop(hookMatch[1], hookMatch[2], body);
+          return json(res, remoteDecision);
+        }
         const request = normalizeHookRequest(hookMatch[1], hookMatch[2], body, req.url ?? "");
         const decision = await this.evaluate(request);
         const resolvedDecision = await this.waitForHookDecision(decision);
+        this.notifyAgentStop(hookMatch[1], hookMatch[2], body);
         return json(res, nativeHookDecision(hookMatch[1], hookMatch[2], resolvedDecision));
       }
       const decision = req.url?.match(/^\/v1\/decisions\/([^/]+)$/);
@@ -442,12 +458,17 @@ export class LocalOpenLeashServer {
         results: []
       };
     }
-    const results = this.store.policies.filter((policy) => policy.enabled).map((policy) => evaluatePolicy(policy, request));
+    const evaluatedResults = this.store.policies.filter((policy) => policy.enabled).map((policy) => evaluatePolicy(policy, request));
+    const results = shouldDeferPromptOnlyApproval(request, evaluatedResults) ? deferPromptOnlyPolicyResults(evaluatedResults) : evaluatedResults;
     const failed = results.filter((result) => result.status === "failed" || result.status === "needs_question");
     const decision: "ask" | "allow" = failed.length > 0 ? "ask" : "allow";
+    const filePath = await this.extractFilePath(request, failed);
     const summary = failed[0]
       ? summarizeBlockedAction(request, failed[0].policyName)
-      : "All active policies passed.";
+      : summarizeAllowedAction(request, filePath);
+    if (decision === "allow" && !request.event.tool?.name) {
+      return { decision, decisionId: "", summary, results };
+    }
     const fingerprint = failed.length > 0 ? triggerFingerprint(request, failed, summary) : undefined;
     const duplicate = fingerprint ? this.findRecentDuplicate(fingerprint) : undefined;
     if (duplicate) {
@@ -461,7 +482,6 @@ export class LocalOpenLeashServer {
       };
     }
     const id = crypto.randomUUID();
-    const filePath = await this.extractFilePath(request, failed);
     const purposeSummary = decision === "ask" ? await this.summarizeActionPurpose(request) : undefined;
     const evaluation: Evaluation = {
       id,
@@ -481,7 +501,7 @@ export class LocalOpenLeashServer {
       event_name: request.event.eventName,
       tool_name: request.event.tool?.name,
       project_path: request.event.projectPath,
-      payload: purposeSummary ? { ...request.event, openleashPurposeSummary: purposeSummary } as EvaluationRequest["event"] : request.event,
+      payload: { ...request.event, openleashIntentKey: intentKey, ...(purposeSummary ? { openleashPurposeSummary: purposeSummary } : {}) } as EvaluationRequest["event"],
       triggered_policies: failed.map((result) => ({
         policy_name: result.policyName,
         status: result.status as "failed" | "needs_question",
@@ -522,6 +542,11 @@ export class LocalOpenLeashServer {
     } catch {
       return undefined;
     }
+  }
+
+  private notifyAgentStop(agent: string, eventName: string, body: unknown) {
+    if (eventName !== "Stop" || !this.agentDoneSound) return;
+    this.options.onAgentStop?.({ agent, eventName, body });
   }
 
   private async waitForHookDecision(decision: { decision: "allow" | "ask" | "deny"; decisionId: string; summary: string; question?: string; results: PolicyResult[] }) {
@@ -576,6 +601,7 @@ export class LocalOpenLeashServer {
     const cutoff = Date.now() - 5 * 60_000;
     const canonicalKey = canonicalIntentKey(intentKey);
     return this.store.history.find((entry) => {
+      if (entry.event_name === "UserPromptSubmit") return false;
       const entryIntentKey = canonicalIntentKey(entry.intentKey);
       if (entryIntentKey !== canonicalKey && entry.fingerprint !== intentKey) return false;
       if (entry.id === request.event.raw && typeof request.event.raw === "string") return false;
@@ -588,8 +614,15 @@ export class LocalOpenLeashServer {
     const pending = dedupePendingEvaluations(this.store.history.filter((entry) => entry.decision === "ask" && !entry.resolution));
     const latestByAgent = new Map<string, Evaluation>();
     for (const item of this.store.history) {
+      if (isPassOnlyEvaluation(item)) continue;
       const key = `${item.agent_kind}:${item.hostname}`;
       if (!latestByAgent.has(key)) latestByAgent.set(key, item);
+    }
+    if (latestByAgent.size === 0) {
+      for (const item of this.store.history) {
+        const key = `${item.agent_kind}:${item.hostname}`;
+        if (!latestByAgent.has(key)) latestByAgent.set(key, item);
+      }
     }
     const sessions = this.agentSessions();
     const session_metrics = sessionMetrics(sessions);
@@ -615,6 +648,7 @@ export class LocalOpenLeashServer {
         triggered_policies: item.triggered_policies,
         recent_activity: this.store.history
           .filter((entry) => entry.agent_kind === item.agent_kind && entry.hostname === item.hostname)
+          .filter((entry) => !isPassOnlyEvaluation(entry))
           .slice(0, 5)
           .map((entry) => ({ event_name: entry.event_name, tool_name: entry.tool_name, project_path: entry.project_path, created_at: entry.created_at, decision: entry.decision, summary: entry.summary })),
         sessions: sessions.filter((session) => session.agent_kind === item.agent_kind && session.hostname === item.hostname).slice(0, 8),
@@ -687,6 +721,7 @@ export class LocalOpenLeashServer {
       token,
       setupComplete: this.getSetting("setupComplete") === "true",
       introSeen: this.getSetting("introSeen") === "true",
+      agentDoneSound: this.getSetting("agentDoneSound") === "true",
       clientMode: this.settingValue<ClientMode>("clientMode") ?? initialClientMode(),
       remoteApiUrl: this.settingValue("remoteApiUrl"),
       remoteToken: this.settingValue("remoteToken"),
@@ -844,6 +879,7 @@ export class LocalOpenLeashServer {
       insertSetting.run("token", store.token);
       insertSetting.run("setupComplete", String(store.setupComplete));
       insertSetting.run("introSeen", String(Boolean(store.introSeen)));
+      insertSetting.run("agentDoneSound", String(Boolean(store.agentDoneSound)));
       if (store.clientMode) insertSetting.run("clientMode", store.clientMode);
       if (store.remoteApiUrl) insertSetting.run("remoteApiUrl", store.remoteApiUrl);
       if (store.remoteToken) insertSetting.run("remoteToken", store.remoteToken);
@@ -1187,6 +1223,7 @@ export class LocalOpenLeashServer {
           ? Boolean(parsed.setupComplete && parsed.remoteToken)
           : Boolean(parsed.setupComplete),
         clientMode: parsedClientMode,
+        agentDoneSound: Boolean(parsed.agentDoneSound),
         remoteApiUrl: parsed.remoteApiUrl,
         remoteToken: parsed.remoteToken,
         remoteOrganization: parsed.remoteOrganization,
@@ -1701,6 +1738,52 @@ function summarizeBlockedAction(request: EvaluationRequest, policyName: string) 
   return `${agent} is trying to continue with an action OpenLeash paused.`;
 }
 
+function summarizeAllowedAction(request: EvaluationRequest, filePath?: string) {
+  const toolName = request.event.tool?.name || "";
+  if (/^(Write|MultiEdit)$/i.test(toolName)) return `Editing ${filePath || primaryResource(request)}`;
+  if (/^Read$/i.test(toolName)) return `Reading ${filePath || primaryResource(request)}`;
+  if (toolName) return `${humanizeToolName(toolName)}${filePath ? ` ${filePath}` : ""}`;
+  return "All active policies passed.";
+}
+
+function isPassOnlyEvaluation(item: Pick<Evaluation, "decision" | "resolution" | "summary" | "tool_name" | "triggered_policies">) {
+  return item.decision === "allow"
+    && (!item.resolution || item.resolution === "allow")
+    && !item.tool_name
+    && item.triggered_policies.length === 0
+    && /all active policies passed/i.test(item.summary);
+}
+
+function shouldDeferPromptOnlyApproval(request: EvaluationRequest, results: PolicyResult[]) {
+  if (!isPromptOnlyHook(request)) return false;
+  return results.some((result) => result.status === "failed" || result.status === "needs_question");
+}
+
+function isPromptOnlyHook(request: EvaluationRequest) {
+  return request.event.eventName === "UserPromptSubmit" && !request.event.tool?.name;
+}
+
+function deferPromptOnlyPolicyResults(results: PolicyResult[]): PolicyResult[] {
+  return results.map((result) => result.status === "passed"
+    ? result
+    : {
+        ...result,
+        status: "passed",
+        explanation: "Prompt-only intent observed. Enforcement is deferred until the agent attempts the actual tool action.",
+        evidence: [],
+        question: undefined
+      });
+}
+
+function humanizeToolName(toolName: string) {
+  return toolName
+    .replace(/([a-z0-9])([A-Z])/g, "$1 $2")
+    .replace(/[_-]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .replace(/^./, (char) => char.toUpperCase());
+}
+
 function sessionTitle(items: Evaluation[]) {
   const prompt = items
     .map((item) => item.payload?.prompt || item.summary)
@@ -2209,6 +2292,10 @@ function nativeHookDecision(agent: string, eventName: string, decision: { decisi
   if (agent === "claude" || agent === "nanoclaw") {
     if (eventName === "PreToolUse") {
       return {
+        decision: decision.decision === "deny" ? "block" : decision.decision,
+        reason,
+        continue: decision.decision !== "deny",
+        stopReason: reason,
         hookSpecificOutput: {
           hookEventName: "PreToolUse",
           permissionDecision: decision.decision,

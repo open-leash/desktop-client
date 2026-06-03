@@ -8,6 +8,7 @@ await fs.copyFile(path.join("src", "window.html"), path.join("dist", "window.htm
 await fs.copyFile(path.join("src", "notice.html"), path.join("dist", "notice.html"));
 await fs.copyFile(path.join("src", "openleash-icon.png"), path.join("dist", "openleash-icon.png"));
 await copyIntroVideo();
+await copyWelcomeAgentIcons();
 await fs.mkdir(path.join("dist", "agent-icons"), { recursive: true });
 
 await sharp(path.join("src", "openleash-icon.png")).resize(64, 64).png().toFile(path.join("dist", "tray-icon.png"));
@@ -58,6 +59,22 @@ async function copyIntroVideo() {
   for (const candidate of candidates) {
     try {
       await fs.copyFile(candidate, path.join("dist", "openleash-video.mp4"));
+      return;
+    } catch {
+      // Try the next common asset location/name.
+    }
+  }
+}
+
+async function copyWelcomeAgentIcons() {
+  const candidates = [
+    path.join("..", "..", "assets", "agents"),
+    path.join("src", "agents")
+  ];
+  for (const candidate of candidates) {
+    try {
+      await fs.rm(path.join("dist", "agents"), { recursive: true, force: true });
+      await fs.cp(candidate, path.join("dist", "agents"), { recursive: true });
       return;
     } catch {
       // Try the next common asset location/name.

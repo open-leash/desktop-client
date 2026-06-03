@@ -163,12 +163,41 @@
         background: var(--accent);
       }
       .welcomeHero {
+        position: relative;
         min-height: calc(100vh - 128px);
         display: grid;
         align-content: center;
         gap: 28px;
         max-width: 1080px;
         margin: 0 auto;
+        isolation: isolate;
+      }
+      .welcomeAgents {
+        position: absolute;
+        z-index: -1;
+        top: 0;
+        right: 0;
+        width: min(360px, 38vw);
+        height: 210px;
+        overflow: hidden;
+        pointer-events: none;
+      }
+      .welcomeAgentIcon {
+        position: absolute;
+        width: 34px;
+        height: 34px;
+        display: grid;
+        place-items: center;
+        border-radius: 10px;
+        background: rgba(255, 255, 255, .72);
+        border: 1px solid rgba(16, 19, 24, .08);
+        box-shadow: 0 10px 24px rgba(16, 19, 24, .12);
+        will-change: transform;
+      }
+      .welcomeAgentIcon img {
+        width: 22px;
+        height: 22px;
+        object-fit: contain;
       }
       .welcomeMark {
         width: 68px;
@@ -343,6 +372,26 @@
         width: 48px;
         height: 48px;
         background: white;
+      }
+      .choiceCard .audienceIcon {
+        background: #f7f8fb;
+        color: var(--ink);
+      }
+      .choiceCard.selected .audienceIcon {
+        background: white;
+      }
+      .audienceIcon svg {
+        width: 27px;
+        height: 27px;
+        stroke: currentColor;
+        stroke-width: 1.9;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+        fill: none;
+      }
+      .audienceIcon .softFill {
+        fill: #eef2ff;
+        stroke: none;
       }
       .choiceCard .benefits {
         display: flex;
@@ -531,6 +580,24 @@
         grid-template-columns: 180px minmax(0, 1fr);
         gap: 12px;
         align-items: center;
+      }
+      .toggleRow {
+        display: inline-flex;
+        align-items: center;
+        gap: 10px;
+        width: fit-content;
+        min-height: 42px;
+        padding: 8px 12px;
+        border: 1px solid var(--line);
+        border-radius: 999px;
+        background: white;
+        font-weight: 850;
+        cursor: pointer;
+      }
+      .toggleRow input {
+        width: 18px;
+        height: 18px;
+        accent-color: var(--green);
       }
       .segmented {
         display: inline-grid;
@@ -1072,6 +1139,8 @@
       let setupRemoteBusy = false;
       let setupRemoteProvider = "google";
       let setupRemoteKeySaved = false;
+      let setupFinishing = false;
+      let setupSkipDashboardOpenAfterInstall = false;
       let setupDockerStatus;
       let setupDockerBusy = false;
       let setupProvider = "openai";
@@ -1080,6 +1149,7 @@
       let importRulesMessage = "";
       let desktopMessageTimer;
       let introPlaying = false;
+      let welcomeAgentAnimation = 0;
       let view = "overview";
       let selectedEventId = "";
       let selectedMcpServerId = "";
@@ -1221,8 +1291,16 @@
         const currentId = current.title.toLowerCase();
         const progress = Math.round((Math.max(1, setupStep) / steps.length) * 100);
         if (setupStep === 0) {
+          if (root.querySelector(".welcomeHero")) {
+            bindWelcomeNext();
+            if (!welcomeAgentAnimation) startWelcomeAgentAnimation();
+            return;
+          }
           root.innerHTML = `
             <section class="welcomeHero">
+              <div class="welcomeAgents" aria-hidden="true">
+                ${welcomeAgentSprites()}
+              </div>
               <div class="welcomeMark">
                 <svg viewBox="0 0 34 34" fill="none" aria-hidden="true">
                   <path d="M8 8c0 4.4 3.6 8 8 8s8-3.6 8-8" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" />
@@ -1246,13 +1324,11 @@
               </div>
             </section>
           `;
-          const next = document.getElementById("setupNext");
-          if (next) next.onclick = () => {
-            setupStep = 1;
-            renderSetup();
-          };
+          bindWelcomeNext();
+          startWelcomeAgentAnimation();
           return;
         }
+        stopWelcomeAgentAnimation();
         root.innerHTML = `
           <div class="head">
             <div>
@@ -1273,8 +1349,8 @@
                 <h2>Who is OpenLeash for?</h2>
                 <p>This shapes the setup options you see next.</p>
                 <div class="cardList">
-                  ${audienceChoice("individual", "Individual", "Use OpenLeash for your own local AI agents.", "OL")}
-                  ${audienceChoice("organization", "Organization", "Set up OpenLeash for a company or team.", "ORG")}
+                  ${audienceChoice("individual", "Individual", "Use OpenLeash for your own local AI agents.")}
+                  ${audienceChoice("organization", "Organization", "Set up OpenLeash for a company or team.")}
                 </div>
               </section>
             ` : ""}
@@ -1411,7 +1487,7 @@
             <button class="secondary" id="setupBack">Back</button>
             ${setupStep < steps.length
               ? `<button class="primary" id="setupNext">Next</button>`
-              : `<button class="primary" id="finish">Install and start protecting</button>`}
+              : `<button class="primary" id="finish" ${setupFinishing ? "disabled" : ""}>${setupFinishing ? "Installing..." : "Install and start protecting"}</button>`}
           </div>
         `;
         const back = document.getElementById("setupBack");
@@ -1506,6 +1582,7 @@
       }
 
       async function finishSetup() {
+        if (setupFinishing) return;
         rememberSetupInputs();
         if (setupClientMode === "cloud" && setupAudience === "organization" && isPersonalEmail(setupRemoteAuth?.userEmail)) {
           setupRemoteError = "Use your company Google Workspace or Microsoft 365 account, not a personal email address.";
@@ -1514,6 +1591,9 @@
           renderSetup();
           return;
         }
+        setupFinishing = true;
+        setupRemoteNotice = setupRemoteAuth ? "Installing OpenLeash on this Mac..." : setupRemoteNotice;
+        renderSetup();
         const agents = [...(selectedAgents || new Set())];
         const rules = (state.rules || []).map((rule) => ({
           ...rule,
@@ -1529,12 +1609,97 @@
           remoteApiUrl: setupRemoteApiUrl,
           remoteToken: setupRemoteAuth?.token,
           remoteOrganization: setupRemoteAuth?.organizationName || setupRemoteAuth?.organizationSlug,
-          remoteUser: setupRemoteAuth?.userName || setupRemoteAuth?.userEmail
+          remoteUser: setupRemoteAuth?.userName || setupRemoteAuth?.userEmail,
+          skipDashboardOpen: setupSkipDashboardOpenAfterInstall
         });
         if (result && result.ok === false) {
+          setupFinishing = false;
           const error = document.getElementById("setupError");
           if (error) error.textContent = result.error || "Setup could not be completed.";
+          renderSetup();
         }
+      }
+
+      function welcomeAgentSprites() {
+        const sprites = [
+          { name: "claude", x: 24, y: 18, vx: .12, vy: .055, r: -8, vr: .008 },
+          { name: "codex", x: 202, y: 16, vx: -.09, vy: .08, r: 6, vr: -.007 },
+          { name: "chatgpt", x: 92, y: 82, vx: .105, vy: -.065, r: -5, vr: .0055 },
+          { name: "cursor", x: 284, y: 96, vx: -.08, vy: .095, r: 10, vr: -.009 },
+          { name: "cline", x: 144, y: 150, vx: -.115, vy: -.05, r: -9, vr: .0065 },
+          { name: "opencode", x: 40, y: 156, vx: .095, vy: -.085, r: 7, vr: -.005 },
+          { name: "antigravity", x: 250, y: 152, vx: .07, vy: -.105, r: -4, vr: .0095 }
+        ];
+        return sprites.map((sprite) => `
+          <span class="welcomeAgentIcon" data-x="${sprite.x}" data-y="${sprite.y}" data-vx="${sprite.vx}" data-vy="${sprite.vy}" data-r="${sprite.r}" data-vr="${sprite.vr}">
+            <img src="agents/${sprite.name}.png" alt="">
+          </span>
+        `).join("");
+      }
+
+      function bindWelcomeNext() {
+        const next = document.getElementById("setupNext");
+        if (next) next.onclick = () => {
+          stopWelcomeAgentAnimation();
+          setupStep = 1;
+          renderSetup();
+        };
+      }
+
+      function startWelcomeAgentAnimation() {
+        stopWelcomeAgentAnimation();
+        const box = root.querySelector(".welcomeAgents");
+        if (!box) return;
+        const icons = [...box.querySelectorAll(".welcomeAgentIcon")].map((node) => ({
+          node,
+          x: Number(node.dataset.x || 0),
+          y: Number(node.dataset.y || 0),
+          vx: Number(node.dataset.vx || 0),
+          vy: Number(node.dataset.vy || 0),
+          r: Number(node.dataset.r || 0),
+          vr: Number(node.dataset.vr || 0)
+        }));
+        let last = performance.now();
+        const tick = (now) => {
+          const delta = Math.min(34, now - last);
+          last = now;
+          const width = box.clientWidth;
+          const height = box.clientHeight;
+          for (const icon of icons) {
+            const size = icon.node.offsetWidth || 34;
+            icon.x += icon.vx * delta;
+            icon.y += icon.vy * delta;
+            icon.r += icon.vr * delta;
+            if (icon.x <= 0 || icon.x >= width - size) {
+              icon.x = Math.max(0, Math.min(width - size, icon.x));
+              icon.vx *= -1;
+              varyWelcomeAgentVelocity(icon);
+            }
+            if (icon.y <= 0 || icon.y >= height - size) {
+              icon.y = Math.max(0, Math.min(height - size, icon.y));
+              icon.vy *= -1;
+              varyWelcomeAgentVelocity(icon);
+            }
+            icon.node.style.transform = `translate3d(${icon.x}px, ${icon.y}px, 0) rotate(${icon.r}deg)`;
+          }
+          welcomeAgentAnimation = requestAnimationFrame(tick);
+        };
+        welcomeAgentAnimation = requestAnimationFrame(tick);
+      }
+
+      function varyWelcomeAgentVelocity(icon) {
+        const speed = Math.hypot(icon.vx, icon.vy) || .1;
+        const angle = Math.atan2(icon.vy, icon.vx) + (Math.random() - .5) * .42;
+        const nextSpeed = Math.max(.055, Math.min(.14, speed * (.92 + Math.random() * .16)));
+        icon.vx = Math.cos(angle) * nextSpeed;
+        icon.vy = Math.sin(angle) * nextSpeed;
+        icon.vr = (Math.random() - .5) * .018;
+      }
+
+      function stopWelcomeAgentAnimation() {
+        if (!welcomeAgentAnimation) return;
+        cancelAnimationFrame(welcomeAgentAnimation);
+        welcomeAgentAnimation = 0;
       }
 
       function connectionChoice(value, title, subtitle, icon) {
@@ -1542,7 +1707,7 @@
         const featured = value === "cloud";
         return `
           <label class="card choiceCard ${featured ? "featured" : ""} ${selected ? "selected" : ""}">
-            <span class="agentIcon">${icon === "cloud" ? "☁" : icon === "dns" ? "API" : "OL"}</span>
+            <span class="agentIcon audienceIcon">${connectionIcon(icon)}</span>
             <span>
               <strong>${escapeHtml(title)}${featured ? `<span class="recommendedTag">Recommended</span>` : ""}</strong>
               <small>${escapeHtml(subtitle)}</small>
@@ -1561,11 +1726,60 @@
         `;
       }
 
-      function audienceChoice(value, title, subtitle, icon) {
+      function connectionIcon(icon) {
+        if (icon === "dns") {
+          return `
+            <svg viewBox="0 0 32 32" aria-hidden="true">
+              <path class="softFill" d="M8 7h16a3 3 0 0 1 3 3v12a3 3 0 0 1-3 3H8z"></path>
+              <path d="M7 8.5h18c1.7 0 3 1.3 3 3v4c0 1.7-1.3 3-3 3H7c-1.7 0-3-1.3-3-3v-4c0-1.7 1.3-3 3-3z"></path>
+              <path d="M7 18.5h18c1.7 0 3 1.3 3 3v2c0 1.7-1.3 3-3 3H7c-1.7 0-3-1.3-3-3v-2c0-1.7 1.3-3 3-3z"></path>
+              <path d="M9 13.5h.1M13 13.5h6M9 22.5h.1M13 22.5h6M24 13.5h.1M24 22.5h.1"></path>
+            </svg>
+          `;
+        }
+        if (icon === "devices") {
+          return `
+            <svg viewBox="0 0 32 32" aria-hidden="true">
+              <path class="softFill" d="M7 8h18a3 3 0 0 1 3 3v12H7z"></path>
+              <path d="M7.5 8.5h17c1.7 0 3 1.3 3 3v11h-23v-11c0-1.7 1.3-3 3-3z"></path>
+              <path d="M3.5 25.5h25M13 22.5h6"></path>
+            </svg>
+          `;
+        }
+        return `
+          <svg viewBox="0 0 32 32" aria-hidden="true">
+            <path class="softFill" d="M10.5 15.5a7 7 0 0 1 13.3-1.9A5.8 5.8 0 0 1 23 25H11a5.7 5.7 0 0 1-.5-11.3z"></path>
+            <path d="M10.5 24.5h12.7a5.3 5.3 0 0 0 .7-10.5 7.2 7.2 0 0 0-13.9 1.8 4.5 4.5 0 0 0 .5 8.7z"></path>
+            <path d="M13.5 20.5h6"></path>
+          </svg>
+        `;
+      }
+
+      function audienceIcon(value) {
+        if (value === "organization") {
+          return `
+            <svg viewBox="0 0 32 32" aria-hidden="true">
+              <path class="softFill" d="M8 10.5h14.5a3.5 3.5 0 0 1 3.5 3.5v14H8z"></path>
+              <path d="M8 28V9.5c0-1.4 1.1-2.5 2.5-2.5h10c1.4 0 2.5 1.1 2.5 2.5V28"></path>
+              <path d="M5 28h25"></path>
+              <path d="M12 12h2.5M18 12h2.5M12 16.5h2.5M18 16.5h2.5M12 21h2.5M18 21h2.5"></path>
+            </svg>
+          `;
+        }
+        return `
+          <svg viewBox="0 0 32 32" aria-hidden="true">
+            <circle class="softFill" cx="16" cy="16" r="12"></circle>
+            <path d="M16 15.5a5 5 0 1 0 0-10 5 5 0 0 0 0 10z"></path>
+            <path d="M7.5 27c1.4-5.1 4.3-8 8.5-8s7.1 2.9 8.5 8"></path>
+          </svg>
+        `;
+      }
+
+      function audienceChoice(value, title, subtitle) {
         const selected = setupAudience === value;
         return `
           <label class="card choiceCard ${selected ? "selected" : ""}">
-            <span class="agentIcon">${escapeHtml(icon)}</span>
+            <span class="agentIcon audienceIcon">${audienceIcon(value)}</span>
             <span>
               <strong>${escapeHtml(title)}</strong>
               <small>${escapeHtml(subtitle)}</small>
@@ -1706,6 +1920,10 @@
           managedByOrganization: Boolean(policy.managedByOrganization || policy.managed_by_organization)
         }));
         selectedRules = new Map((state.rules || []).map((rule) => [rule.id, rule.locked ? true : Boolean(rule.enabled)]));
+      }
+
+      function shouldAutoFinishAfterRemoteAuth() {
+        return setupClientMode === "cloud" && setupAudience === "organization";
       }
 
       function categoryForManagedRule(policy) {
@@ -1859,10 +2077,10 @@
             ${modeTag()}
           </div>
           <div class="history">
-            ${(state.history || []).map((item) => `
+            ${visibleHistoryItems().map((item) => `
               <article data-event="${escapeHtml(item.id)}">
                 <div class="eventBody">
-                  <strong>${escapeHtml(item.summary)}</strong>
+                  <strong>${escapeHtml(displayEventSummary(item))}</strong>
                   <small>${escapeHtml(item.agent_name)} · ${escapeHtml(projectTag(item.project_path) || "No project")} · triggered ${formatTime(item.created_at)}${resolutionTime(item) ? ` · ${escapeHtml(resolutionLabel(item))} ${formatTime(resolutionTime(item))}` : ""}</small>
                   ${filePathForEvent(item) ? `<div class="filePathPill" title="${escapeHtml(filePathForEvent(item))}"><span>File</span><code>${escapeHtml(compactPath(filePathForEvent(item)))}</code></div>` : evidencePreview(item)}
                 </div>
@@ -1881,7 +2099,7 @@
       }
 
       function renderEventDetail() {
-        const item = (state.history || []).find((entry) => entry.id === selectedEventId);
+        const item = visibleHistoryItems().find((entry) => entry.id === selectedEventId);
         if (!item) {
           view = "history";
           return renderHistory();
@@ -1889,7 +2107,7 @@
         const transcript = (item.payload?.transcript || []).slice(-5).reverse();
         root.innerHTML = `
           <div class="head">
-            <div><h1>Event detail</h1><p>${escapeHtml(item.summary)}</p></div>
+            <div><h1>Event detail</h1><p>${escapeHtml(displayEventSummary(item))}</p></div>
             <div>
               <div class="headActions">
                 <button class="secondary" id="shareEvent">Share</button>
@@ -2076,7 +2294,7 @@
       function agentHighlights() {
         const agentsByKind = new Map((state.localProtections || []).map((agent) => [agent.kind, agent]));
         const groups = new Map();
-        for (const item of state.history || []) {
+        for (const item of visibleHistoryItems()) {
           const highlight = classifyHighlight(item);
           if (!highlight) continue;
           const key = item.agent_kind || item.agent_name || "unknown";
@@ -2157,6 +2375,7 @@
       function cleanAgentSummary(summary, decision = "") {
         const value = String(summary || "").trim()
           .replace(/^(Allowed|Denied|Blocked|Waiting|Needs approval|Active)\s*·\s*/i, "")
+          .replace(/^Using Write on\s+/i, "Editing ")
           .replace(/^Claude Code is /i, "")
           .replace(/^Agent is /i, "");
         if ((decision === "deny" || decision === "denied") && /^denied\b/i.test(value)) {
@@ -2166,6 +2385,24 @@
           return value.replace(/^allowed\s*[·:-]?\s*/i, "");
         }
         return value || "Action captured by OpenLeash.";
+      }
+
+      function visibleHistoryItems() {
+        return (state.history || []).filter((item) => !isPassOnlyEvent(item));
+      }
+
+      function isPassOnlyEvent(item) {
+        return item.decision === "allow"
+          && (!item.resolution || item.resolution === "allow")
+          && !item.tool_name
+          && !(item.triggered_policies || []).length
+          && /all active policies passed/i.test(item.summary || "");
+      }
+
+      function displayEventSummary(item) {
+        const filePath = filePathForEvent(item);
+        if (/^Write$/i.test(item.tool_name || "") && filePath) return `Editing ${filePath}`;
+        return cleanAgentSummary(item.summary, item.resolution || item.decision);
       }
 
       function firstPolicyName(item) {
@@ -2180,6 +2417,8 @@
       }
 
       function friendlyAction(eventName, toolName) {
+        if (/^Write$/i.test(toolName || "")) return "Editing";
+        if (/^MultiEdit$/i.test(toolName || "")) return "Editing";
         if (toolName) return `Using ${toolName}`;
         if (eventName === "UserPromptSubmit") return "Reading prompt";
         if (eventName === "PreToolUse") return "Preparing tool";
@@ -2364,7 +2603,7 @@
           event: {
             id: item.id,
             status: item.resolution || item.decision,
-            summary: item.summary,
+            summary: displayEventSummary(item),
             agent: item.agent_name,
             agent_kind: item.agent_kind,
             project: projectTag(item.project_path) || "",
@@ -2628,10 +2867,10 @@
             </div>
           </div>
           <div class="history">
-            ${events.map((item) => `
+            ${events.filter((item) => !isPassOnlyEvent(item)).map((item) => `
               <article data-session-event="${escapeHtml(item.id || "")}">
                 <div class="eventBody">
-                  <strong>${escapeHtml(item.summary || friendlyAction(item.event_name, item.tool_name))}</strong>
+                  <strong>${escapeHtml(displayEventSummary(item) || friendlyAction(item.event_name, item.tool_name))}</strong>
                   <small>${escapeHtml(friendlyAction(item.event_name, item.tool_name))} · ${escapeHtml(formatTime(item.created_at))}${item.mcp_server ? ` · MCP ${escapeHtml(item.mcp_server)}` : ""}</small>
                   ${item.prompt ? `<span class="quote">${escapeHtml(truncate(item.prompt, 180))}</span>` : evidencePreview(item)}
                 </div>
@@ -2647,7 +2886,7 @@
         root.querySelectorAll("[data-session-event]").forEach((row) => {
           row.onclick = () => {
             const id = row.dataset.sessionEvent;
-            if (!id || !(state.history || []).some((entry) => entry.id === id)) return;
+            if (!id || !visibleHistoryItems().some((entry) => entry.id === id)) return;
             selectedEventId = id;
             view = "event";
             renderView();
@@ -2677,6 +2916,18 @@
               <p style="margin-top:12px">The key stays on this Mac and can be replaced any time.</p>
               <div id="settingsMessage" class="notice"></div>
             </div>
+            <div class="card">
+              <div class="fieldRow">
+                <div>
+                  <strong>Agent finished sound</strong>
+                  <p>Play a small sound on this Mac when a protected agent finishes a turn.</p>
+                </div>
+                <label class="toggleRow">
+                  <input id="agentDoneSound" type="checkbox" ${state.agentDoneSound ? "checked" : ""}>
+                  <span>Sound on finish</span>
+                </label>
+              </div>
+            </div>
             <div class="card dangerZone">
               <div class="dangerGrid">
                 <div>
@@ -2698,10 +2949,12 @@
         document.getElementById("saveSettings").onclick = async () => {
           const apiProvider = root.querySelector("[name=settingsProvider]:checked").value;
           const apiKey = document.getElementById("settingsApiKey").value.trim();
-          const result = await window.openleash.saveSettings({ apiProvider, apiKey });
+          const agentDoneSound = document.getElementById("agentDoneSound").checked;
+          const result = await window.openleash.saveSettings({ apiProvider, apiKey, agentDoneSound });
           if (result?.ok) {
             state.apiProvider = result.apiProvider;
             state.apiKeySet = result.apiKeySet;
+            state.agentDoneSound = result.agentDoneSound;
             document.getElementById("settingsApiKey").value = "";
             document.getElementById("settingsMessage").textContent = "Settings saved.";
           }
@@ -2957,13 +3210,22 @@
           setupRemoteNotice = "";
           setupRemoteBusy = false;
           setupStep = Math.max(setupStep, setupClientMode === "cloud" && setupAudience === "organization" ? 3 : 1);
-          void loadManagedRules().then(() => renderSetup());
+          void loadManagedRules().then(() => {
+            if (shouldAutoFinishAfterRemoteAuth()) {
+              setupSkipDashboardOpenAfterInstall = true;
+              setupRemoteNotice = "Installing OpenLeash on this Mac...";
+              renderSetup();
+              void finishSetup();
+              return;
+            }
+            renderSetup();
+          });
         } else {
           setupRemoteBusy = false;
           setupRemoteNotice = "";
           setupRemoteError = payload?.error || "Sign-in did not complete.";
+          renderSetup();
         }
-        renderSetup();
       });
       window.openleash.list().then(render);
     </script>

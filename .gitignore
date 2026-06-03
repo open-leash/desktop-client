@@ -4,6 +4,7 @@ dist/
 build/
 release/
 coverage/
+.dev/
 *.log
 tsconfig.tsbuildinfo
 .env
