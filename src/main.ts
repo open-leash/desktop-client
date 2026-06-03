@@ -1656,6 +1656,34 @@ async function refreshLocalProtections(force = false) {
   if (!force && now - localProtectionCheckedAt < 10000 && localProtections.length > 0) return;
   localProtectionCheckedAt = now;
   localProtections = detectLocalAgentProtections({ appVersion: app.getVersion() });
+  void syncRemoteAgentInventory();
+}
+
+async function syncRemoteAgentInventory() {
+  if (localServer.clientMode === "personal") return;
+  const remoteApiUrl = localServer.remoteApiUrl;
+  const token = localServer.effectiveToken;
+  if (!remoteApiUrl || !token || localProtections.length === 0) return;
+  try {
+    await fetch(new URL("/v1/desktop/agents", remoteApiUrl), {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        authorization: `Bearer ${token}`,
+        ...apiVersionHeaders("desktopEnroll")
+      },
+      body: JSON.stringify({
+        hostname: os.hostname(),
+        platform: os.platform(),
+        osRelease: os.release(),
+        clientVersion: app.getVersion(),
+        agents: enrollmentAgents([])
+      }),
+      signal: AbortSignal.timeout(Number(process.env.OPENLEASH_DESKTOP_INVENTORY_TIMEOUT_MS ?? 10000))
+    });
+  } catch {
+    // Inventory sync should never interrupt local protection.
+  }
 }
 
 function rememberCurrentlyProtectedAgents() {
