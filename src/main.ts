@@ -579,7 +579,7 @@ async function startMobileAuth(
   }
 }
 
-async function enrollDesktopEndpoint(remoteApiUrl: string, dashboardToken: string): Promise<
+async function enrollDesktopEndpoint(remoteApiUrl: string, dashboardToken: string, agents: string[] = []): Promise<
   | { ok: true; token: string; user?: { email?: string; display_name?: string } }
   | { ok: false; error: string }
 > {
@@ -591,7 +591,8 @@ async function enrollDesktopEndpoint(remoteApiUrl: string, dashboardToken: strin
         hostname: os.hostname(),
         platform: os.platform(),
         osRelease: os.release(),
-        clientVersion: app.getVersion()
+        clientVersion: app.getVersion(),
+        agents: enrollmentAgents(agents)
       }),
       signal: AbortSignal.timeout(Number(process.env.OPENLEASH_DESKTOP_ENROLL_TIMEOUT_MS ?? 15000))
     });
@@ -603,6 +604,33 @@ async function enrollDesktopEndpoint(remoteApiUrl: string, dashboardToken: strin
   } catch (error) {
     return { ok: false, error: remoteApiError(error, remoteApiUrl, "Could not enroll this Mac with OpenLeash.") };
   }
+}
+
+function enrollmentAgents(agentKinds: string[]) {
+  const selected = new Set(agentKinds.filter(Boolean));
+  for (const agent of localProtections) {
+    if (agent.installed) selected.add(agent.kind);
+  }
+  const detected = new Map(localProtections.map((agent) => [agent.kind, agent]));
+  return [...selected].map((kind) => {
+    const detectedAgent = detected.get(kind);
+    return {
+      kind,
+      displayName: detectedAgent?.displayName ?? agentDisplayName(kind),
+      executablePath: detectedAgent?.executablePath ?? ""
+    };
+  });
+}
+
+function agentDisplayName(kind: string) {
+  if (kind === "claude-code") return "Claude Code";
+  if (kind === "codex") return "OpenAI Codex";
+  if (kind === "cline") return "Cline";
+  if (kind === "opencode") return "opencode";
+  if (kind === "cursor") return "Cursor";
+  if (kind === "gemini") return "Google Gemini CLI";
+  if (kind === "windsurf") return "Windsurf";
+  return kind;
 }
 
 ipcMain.handle("openleash:save-remote-model-key", async (_event, payload: { apiUrl?: string; token?: string; apiProvider?: "openai" | "anthropic"; apiKey?: string }) => {
@@ -669,7 +697,8 @@ ipcMain.handle("openleash:setup", async (_event, payload: {
   }
   let enrolledRemoteUser = payload.remoteUser || desktopAuthSession?.userName || desktopAuthSession?.userEmail;
   if (clientMode !== "personal" && desktopAuthSession?.token && remoteToken === desktopAuthSession.token) {
-    const enrollment = await enrollDesktopEndpoint(remoteApiUrl, desktopAuthSession.token);
+    await refreshLocalProtections(true);
+    const enrollment = await enrollDesktopEndpoint(remoteApiUrl, desktopAuthSession.token, payload.agents ?? []);
     if (!enrollment.ok) return { ok: false, error: enrollment.error };
     remoteToken = enrollment.token;
     enrolledRemoteUser = enrollment.user?.display_name || enrollment.user?.email || enrolledRemoteUser;
