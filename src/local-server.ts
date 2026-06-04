@@ -2231,7 +2231,7 @@ function normalizeHookRequest(agent: string, eventName: string, raw: any, url: s
 function hookAgentMetadata(agent: string) {
   if (agent === "codex") return { kind: "codex", displayName: "OpenAI Codex" };
   if (agent === "gemini") return { kind: "gemini", displayName: "Google Gemini CLI" };
-  if (agent === "opencode") return { kind: "opencode", displayName: "opencode" };
+  if (agent === "opencode") return { kind: "opencode", displayName: "OpenCode" };
   if (agent === "cursor") return { kind: "cursor", displayName: "Cursor" };
   if (agent === "cline") return { kind: "cline", displayName: "Cline" };
   if (agent === "openclaw") return { kind: "openclaw", displayName: "OpenClaw" };

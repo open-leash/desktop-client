@@ -626,7 +626,7 @@ function agentDisplayName(kind: string) {
   if (kind === "claude-code") return "Claude Code";
   if (kind === "codex") return "OpenAI Codex";
   if (kind === "cline") return "Cline";
-  if (kind === "opencode") return "opencode";
+  if (kind === "opencode") return "OpenCode";
   if (kind === "cursor") return "Cursor";
   if (kind === "gemini") return "Google Gemini CLI";
   if (kind === "windsurf") return "Windsurf";

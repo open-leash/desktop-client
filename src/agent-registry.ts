@@ -61,7 +61,7 @@ const genericAgents = [
   },
   {
     kind: "opencode",
-    displayName: "opencode",
+    displayName: "OpenCode",
     icon: "opencode",
     binaries: ["opencode"],
     configPaths: [".config/opencode"],
@@ -180,7 +180,7 @@ export function protectionWatchTargets() {
     },
     {
       kind: "opencode",
-      displayName: "opencode",
+      displayName: "OpenCode",
       paths: [path.join(home, ".config", "opencode", "plugins", "openleash.js")]
     },
     {
