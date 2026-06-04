@@ -48,7 +48,10 @@ const genericAgents = [
     displayName: "Google Gemini CLI",
     icon: "gemini",
     binaries: ["gemini"],
-    configPaths: [".gemini"]
+    configPaths: [".gemini"],
+    install: installGeminiProtection,
+    uninstall: uninstallGeminiProtection,
+    protected: detectGeminiProtected
   },
   {
     kind: "cline",
@@ -61,7 +64,10 @@ const genericAgents = [
     displayName: "opencode",
     icon: "opencode",
     binaries: ["opencode"],
-    configPaths: [".config/opencode"]
+    configPaths: [".config/opencode"],
+    install: installOpenCodeProtection,
+    uninstall: uninstallOpenCodeProtection,
+    protected: detectOpenCodeProtected
   },
   {
     kind: "continue",
@@ -73,7 +79,10 @@ const genericAgents = [
     kind: "cursor",
     displayName: "Cursor",
     icon: "cursor",
-    appPaths: ["/Applications/Cursor.app"]
+    appPaths: ["/Applications/Cursor.app"],
+    install: installCursorProtection,
+    uninstall: uninstallCursorProtection,
+    protected: detectCursorProtected
   },
   {
     kind: "windsurf",
@@ -89,6 +98,9 @@ const genericAgents = [
   configPaths?: string[];
   appPaths?: string[];
   extensionNeedles?: string[];
+  install?: (context: InstallContext) => Promise<void> | void;
+  uninstall?: () => Promise<void> | void;
+  protected?: () => boolean;
 }>;
 
 const agentDefinitions: AgentDefinition[] = [
@@ -162,6 +174,21 @@ export function protectionWatchTargets() {
       paths: [path.join(home, ".codex", "config.toml"), path.join(home, ".codex", "hooks.json")]
     },
     {
+      kind: "gemini",
+      displayName: "Google Gemini CLI",
+      paths: [path.join(home, ".gemini", "settings.json")]
+    },
+    {
+      kind: "opencode",
+      displayName: "opencode",
+      paths: [path.join(home, ".config", "opencode", "plugins", "openleash.js")]
+    },
+    {
+      kind: "cursor",
+      displayName: "Cursor",
+      paths: [path.join(home, ".cursor", "hooks.json")]
+    },
+    {
       kind: "openclaw",
       displayName: "OpenClaw",
       paths: [
@@ -198,7 +225,9 @@ function genericAgentDefinition(agent: (typeof genericAgents)[number]): AgentDef
     kind: agent.kind,
     displayName: agent.displayName,
     icon: agent.icon,
-    detect: () => detectGenericAgent(agent)
+    detect: () => detectGenericAgent(agent),
+    install: agent.install,
+    uninstall: agent.uninstall
   };
 }
 
@@ -313,15 +342,17 @@ function detectGenericAgent(agent: (typeof genericAgents)[number]): LocalAgentPr
     Boolean(agent.configPaths?.some((configPath) => pathExists(path.join(os.homedir(), configPath)))) ||
     Boolean(agent.appPaths?.some(pathExists)) ||
     Boolean(agent.extensionNeedles && extensionInstalled(agent.extensionNeedles));
+  const protectedByOpenLeash = Boolean(agent.protected?.());
+  const supportsInstall = Boolean(agent.install && agent.uninstall);
   return agentStatus({
     kind: agent.kind,
     displayName: agent.displayName,
     installed,
-    protected: false,
-    detail: installed ? "Support coming soon" : "Not installed",
+    protected: protectedByOpenLeash,
+    detail: installed ? protectedByOpenLeash ? "Protection active" : supportsInstall ? "Needs setup" : "Support coming soon" : "Not installed",
     executablePath,
     icon: agent.icon,
-    supportsInstall: false
+    supportsInstall
   });
 }
 
@@ -483,6 +514,197 @@ function uninstallCodexProtection() {
   }
 }
 
+function installGeminiProtection(context: InstallContext) {
+  const settingsPath = path.join(os.homedir(), ".gemini", "settings.json");
+  fs.mkdirSync(path.dirname(settingsPath), { recursive: true });
+  const existing = (readJson(settingsPath) as Record<string, unknown>) ?? {};
+  const hooks = existing.hooks && typeof existing.hooks === "object" ? existing.hooks as Record<string, unknown> : {};
+  const metadata = openLeashMetadata(existing);
+  metadata.gemini = {
+    installedAt: new Date().toISOString(),
+    hooks: snapshotNamedHookEntries(hooks, ["BeforeAgent", "BeforeTool", "AfterTool", "AfterAgent"])
+  };
+  existing.__openleash = metadata;
+  existing.hooks = {
+    ...hooks,
+    BeforeAgent: [geminiHookGroup(context, "UserPromptSubmit")],
+    BeforeTool: [geminiHookGroup(context, "PreToolUse", ".*")],
+    AfterTool: [geminiHookGroup(context, "PostToolUse", ".*")],
+    AfterAgent: [geminiHookGroup(context, "Stop")]
+  };
+  fs.writeFileSync(settingsPath, `${JSON.stringify(existing, null, 2)}\n`);
+}
+
+function uninstallGeminiProtection() {
+  const settingsPath = path.join(os.homedir(), ".gemini", "settings.json");
+  const existing = (readJson(settingsPath) as Record<string, unknown>) ?? {};
+  const metadata = openLeashMetadata(existing);
+  const backup = metadata.gemini;
+  const hooks = existing.hooks && typeof existing.hooks === "object" ? existing.hooks as Record<string, unknown> : {};
+  restoreNamedHookEntries(hooks, backup?.hooks, ["BeforeAgent", "BeforeTool", "AfterTool", "AfterAgent"], "/v1/hooks/gemini/");
+  existing.hooks = hooks;
+  delete metadata.gemini;
+  if (Object.keys(metadata).length > 0) existing.__openleash = metadata;
+  else delete existing.__openleash;
+  fs.writeFileSync(settingsPath, `${JSON.stringify(existing, null, 2)}\n`);
+}
+
+function detectGeminiProtected() {
+  const settingsPath = path.join(os.homedir(), ".gemini", "settings.json");
+  const hooks = (readJson(settingsPath) as { hooks?: unknown } | undefined)?.hooks;
+  return JSON.stringify(hooks ?? {}).includes("/v1/hooks/gemini/");
+}
+
+function geminiHookGroup(context: InstallContext, event: string, matcher?: string) {
+  return {
+    ...(matcher ? { matcher } : {}),
+    hooks: [{ type: "command", command: hookCommand(context, "gemini", event), name: "OpenLeash", timeout: 120000 }]
+  };
+}
+
+function installCursorProtection(context: InstallContext) {
+  const hooksPath = path.join(os.homedir(), ".cursor", "hooks.json");
+  fs.mkdirSync(path.dirname(hooksPath), { recursive: true });
+  const existing = (readJson(hooksPath) as Record<string, unknown>) ?? {};
+  const metadata = openLeashMetadata(existing);
+  const hookKeys = ["beforeSubmitPrompt", "beforeShellExecution", "beforeReadFile", "afterFileEdit", "afterAgentResponse", "beforeMCPExecution", "afterMCPExecution", "stop"];
+  metadata.cursor = {
+    installedAt: new Date().toISOString(),
+    hooks: snapshotNamedHookEntries(existing, hookKeys)
+  };
+  existing.__openleash = metadata;
+  existing.beforeSubmitPrompt = [cursorHook(context, "UserPromptSubmit")];
+  existing.beforeShellExecution = [cursorHook(context, "PreToolUse")];
+  existing.beforeReadFile = [cursorHook(context, "PreToolUse")];
+  existing.afterFileEdit = [cursorHook(context, "PostToolUse")];
+  existing.afterAgentResponse = [cursorHook(context, "PostToolUse")];
+  existing.beforeMCPExecution = [cursorHook(context, "PreToolUse")];
+  existing.afterMCPExecution = [cursorHook(context, "PostToolUse")];
+  existing.stop = [cursorHook(context, "Stop")];
+  fs.writeFileSync(hooksPath, `${JSON.stringify(existing, null, 2)}\n`);
+}
+
+function uninstallCursorProtection() {
+  const hooksPath = path.join(os.homedir(), ".cursor", "hooks.json");
+  const existing = (readJson(hooksPath) as Record<string, unknown>) ?? {};
+  const metadata = openLeashMetadata(existing);
+  const hookKeys = ["beforeSubmitPrompt", "beforeShellExecution", "beforeReadFile", "afterFileEdit", "afterAgentResponse", "beforeMCPExecution", "afterMCPExecution", "stop"];
+  restoreNamedHookEntries(existing, metadata.cursor?.hooks, hookKeys, "/v1/hooks/cursor/");
+  delete metadata.cursor;
+  if (Object.keys(metadata).length > 0) existing.__openleash = metadata;
+  else delete existing.__openleash;
+  fs.writeFileSync(hooksPath, `${JSON.stringify(existing, null, 2)}\n`);
+}
+
+function detectCursorProtected() {
+  const hooksPath = path.join(os.homedir(), ".cursor", "hooks.json");
+  return JSON.stringify(readJson(hooksPath) ?? {}).includes("/v1/hooks/cursor/");
+}
+
+function cursorHook(context: InstallContext, event: string) {
+  return { command: hookCommand(context, "cursor", event), name: "OpenLeash", timeout: 120000 };
+}
+
+function installOpenCodeProtection(context: InstallContext) {
+  const pluginDir = path.join(os.homedir(), ".config", "opencode", "plugins");
+  fs.mkdirSync(pluginDir, { recursive: true });
+  fs.writeFileSync(path.join(pluginDir, "openleash.js"), openCodePluginSource(context));
+}
+
+function uninstallOpenCodeProtection() {
+  fs.rmSync(path.join(os.homedir(), ".config", "opencode", "plugins", "openleash.js"), { force: true });
+}
+
+function detectOpenCodeProtected() {
+  return readText(path.join(os.homedir(), ".config", "opencode", "plugins", "openleash.js")).includes("/v1/hooks/opencode/");
+}
+
+function openCodePluginSource(context: InstallContext) {
+  const preToolUrl = hookEndpoint(context, "opencode", "PreToolUse");
+  const postToolUrl = hookEndpoint(context, "opencode", "PostToolUse");
+  const stopUrl = hookEndpoint(context, "opencode", "Stop");
+  const headers = {
+    "content-type": "application/json",
+    "x-openleash-api-function": context.apiFunction ?? "localHookEvaluate",
+    "x-openleash-api-version": context.apiVersion ?? "2026-05-22.local-hook-evaluate.v1"
+  };
+  return `const headers = ${JSON.stringify(headers, null, 2)};
+
+async function evaluate(url, payload) {
+  const response = await fetch(url, {
+    method: "POST",
+    headers,
+    body: JSON.stringify({
+      ...payload,
+      cwd: payload.cwd || process.cwd(),
+      session_id: payload.session_id || payload.sessionID || payload.session?.id
+    })
+  });
+  if (!response.ok) return;
+  const decision = await response.json().catch(() => ({}));
+  if (decision.decision === "deny" || decision.decision === "block") {
+    throw new Error(decision.reason || "OpenLeash denied this action.");
+  }
+}
+
+export const OpenLeash = async () => ({
+  "tool.execute.before": async (input, output) => {
+    await evaluate(${JSON.stringify(preToolUrl)}, {
+      tool_name: input?.tool,
+      tool_input: output?.args || input?.args || input,
+      session_id: input?.sessionID || input?.session?.id,
+      cwd: input?.cwd
+    });
+  },
+  "tool.execute.after": async (input, output) => {
+    await evaluate(${JSON.stringify(postToolUrl)}, {
+      tool_name: input?.tool,
+      tool_input: input?.args,
+      tool_response: output,
+      session_id: input?.sessionID || input?.session?.id,
+      cwd: input?.cwd
+    });
+  },
+  "session.idle": async (input) => {
+    await evaluate(${JSON.stringify(stopUrl)}, {
+      session_id: input?.sessionID || input?.session?.id,
+      prompt_response: input?.message || input?.summary
+    });
+  }
+});
+`;
+}
+
+function hookEndpoint(context: InstallContext, agent: LocalHookAgent, event: string) {
+  const endpoint = new URL(`/v1/hooks/${agent}/${event}`, context.apiUrl.replace(/\/+$/, ""));
+  endpoint.searchParams.set("user_token", context.token);
+  endpoint.searchParams.set("hostname", os.hostname());
+  endpoint.searchParams.set("platform", os.platform());
+  endpoint.searchParams.set("os_release", os.release());
+  endpoint.searchParams.set("client_version", context.clientVersion);
+  return endpoint.toString();
+}
+
+function snapshotNamedHookEntries(hooks: Record<string, unknown>, events: string[]) {
+  return Object.fromEntries(events.map((event) => [event, {
+    existed: Object.prototype.hasOwnProperty.call(hooks, event),
+    value: hooks[event]
+  }]));
+}
+
+function restoreNamedHookEntries(
+  hooks: Record<string, unknown>,
+  backup: Record<string, { existed?: boolean; value?: unknown }> | undefined,
+  events: string[],
+  managedNeedle: string
+) {
+  for (const event of events) {
+    const item = backup?.[event];
+    if (item?.existed) hooks[event] = item.value;
+    else if (JSON.stringify(hooks[event] ?? {}).includes(managedNeedle)) delete hooks[event];
+  }
+}
+
 function codexHookGroup(context: InstallContext, event: "UserPromptSubmit" | "PreToolUse" | "PostToolUse" | "Stop") {
   return {
     hooks: [{ type: "command", command: hookCommand(context, "codex", event) }]
@@ -566,7 +788,9 @@ function trustCodexHooks(configPath: string, hooksPath: string, appVersion: stri
   fs.writeFileSync(configPath, config);
 }
 
-function hookCommand(context: InstallContext, agent: "claude" | "codex" | "openclaw" | "nanoclaw", event: string) {
+type LocalHookAgent = "claude" | "codex" | "gemini" | "opencode" | "cursor" | "openclaw" | "nanoclaw";
+
+function hookCommand(context: InstallContext, agent: LocalHookAgent, event: string) {
   const endpoint = new URL(`/v1/hooks/${agent}/${event}`, context.apiUrl.replace(/\/+$/, ""));
   endpoint.searchParams.set("user_token", context.token);
   endpoint.searchParams.set("hostname", os.hostname());
@@ -591,7 +815,7 @@ function hookCommand(context: InstallContext, agent: "claude" | "codex" | "openc
   return `curl ${args.map(shellQuote).join(" ")}`;
 }
 
-function curlArgs(context: InstallContext, agent: "claude" | "codex" | "openclaw" | "nanoclaw", event: string) {
+function curlArgs(context: InstallContext, agent: LocalHookAgent, event: string) {
   return hookCommand(context, agent, event).match(/"[^"]+"|'[^']+'|\S+/g)?.slice(1).map((part) => part.replace(/^["']|["']$/g, "")) ?? [];
 }
 
