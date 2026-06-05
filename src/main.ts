@@ -181,6 +181,10 @@ const here = __dirname;
 const defaultUpdateFeedUrl = app.isPackaged ? `${OPENLEASH_PUBLIC_CLOUD_API_URL}/api/updates/check` : "";
 const updateCheckIntervalMs = 24 * 60 * 60 * 1000;
 const NOTICE_CONTEXT_MESSAGE_COUNT = Number(process.env.OPENLEASH_ACTION_PURPOSE_MESSAGES ?? 5);
+const MAIN_WINDOW_WIDTH = 1160;
+const MAIN_WINDOW_HEIGHT = 820;
+const MAIN_WINDOW_MIN_WIDTH = 1040;
+const MAIN_WINDOW_MIN_HEIGHT = 760;
 let localServer: LocalOpenLeashServer;
 let tray: Tray | undefined;
 let traySingleClickTimer: NodeJS.Timeout | undefined;
@@ -2092,8 +2096,10 @@ function showMainWindow(mode: "setup" | "settings" = localServer?.setupComplete 
   };
   if (!window) {
     window = new BrowserWindow({
-      width: 980,
-      height: 720,
+      width: MAIN_WINDOW_WIDTH,
+      height: MAIN_WINDOW_HEIGHT,
+      minWidth: MAIN_WINDOW_MIN_WIDTH,
+      minHeight: MAIN_WINDOW_MIN_HEIGHT,
       show: false,
       skipTaskbar: false,
       frame: true,
@@ -2131,7 +2137,7 @@ function showMainWindow(mode: "setup" | "settings" = localServer?.setupComplete 
   window.setTitle("OpenLeash");
   if (window.isMinimized()) window.restore();
   if (mode === "setup" || !localServer?.setupComplete) {
-    centerWindowOnLargestDisplay(window);
+    fitMainWindowOnLargestDisplay(window);
   } else {
     window.center();
   }
@@ -2230,6 +2236,19 @@ function centerWindowOnLargestDisplay(target: BrowserWindow) {
     Math.round(display.y + (display.height - bounds.height) / 2),
     false
   );
+}
+
+function fitMainWindowOnLargestDisplay(target: BrowserWindow) {
+  const display = largestDisplay().workArea;
+  const width = Math.min(MAIN_WINDOW_WIDTH, Math.max(MAIN_WINDOW_MIN_WIDTH, display.width - 48));
+  const height = Math.min(MAIN_WINDOW_HEIGHT, Math.max(MAIN_WINDOW_MIN_HEIGHT, display.height - 48));
+  target.setMinimumSize(Math.min(MAIN_WINDOW_MIN_WIDTH, width), Math.min(MAIN_WINDOW_MIN_HEIGHT, height));
+  target.setBounds({
+    x: Math.round(display.x + (display.width - width) / 2),
+    y: Math.round(display.y + (display.height - height) / 2),
+    width,
+    height
+  }, false);
 }
 
 type DecisionNotice =
