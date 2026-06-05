@@ -182,9 +182,9 @@ const defaultUpdateFeedUrl = app.isPackaged ? `${OPENLEASH_PUBLIC_CLOUD_API_URL}
 const updateCheckIntervalMs = 24 * 60 * 60 * 1000;
 const NOTICE_CONTEXT_MESSAGE_COUNT = Number(process.env.OPENLEASH_ACTION_PURPOSE_MESSAGES ?? 5);
 const MAIN_WINDOW_WIDTH = 1160;
-const MAIN_WINDOW_HEIGHT = 820;
+const MAIN_WINDOW_HEIGHT = 760;
 const MAIN_WINDOW_MIN_WIDTH = 1040;
-const MAIN_WINDOW_MIN_HEIGHT = 760;
+const MAIN_WINDOW_MIN_HEIGHT = 700;
 let localServer: LocalOpenLeashServer;
 let tray: Tray | undefined;
 let traySingleClickTimer: NodeJS.Timeout | undefined;
