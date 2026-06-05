@@ -2052,13 +2052,15 @@
       }
 
       function renderView() {
-        nav.forEach((button) => button.classList.toggle("active", button.dataset.view === view));
+        const activeView = view === "skill-detail" ? "skills" : view;
+        nav.forEach((button) => button.classList.toggle("active", button.dataset.view === activeView));
         if (view === "overview") return renderOverview();
         if (view === "usage") return renderUsage();
         if (view === "rules") return renderRules();
         if (view === "agents") return renderAgents();
         if (view === "mcps") return renderMcps();
         if (view === "skills") return renderSkills();
+        if (view === "skill-detail") return renderSkillDetailView();
         if (view === "settings") return renderSettings();
         if (view === "event") return renderEventDetail();
         if (view === "agent-session") return renderAgentSessionDetail();
@@ -2298,39 +2300,54 @@
 
       function renderSkills() {
         const skills = state.skills || [];
-        const selected = skills.find((skill) => skill.skill_path === selectedSkillPath) || skills[0];
-        selectedSkillPath = selected?.skill_path || "";
         root.innerHTML = `
           <div class="head">
             <div><h1>Skills</h1><p>Agent skills discovered in user and project skill folders.</p></div>
             ${modeTag()}
           </div>
-          <div class="detailGrid">
-            <div class="card">
-              <h2>Detected skills</h2>
-              <div class="history compactList">
-                ${skills.map((skill) => `
-                  <article data-skill-path="${escapeHtml(skill.skill_path)}" class="${skill.skill_path === selectedSkillPath ? "selected" : ""}">
-                    <div class="eventBody">
-                      <strong>${escapeHtml(skill.skill_name)}</strong>
-                      <small>${escapeHtml(skill.purpose_summary || skill.agent_name)} · ${escapeHtml(skill.scope)}${skill.project_path ? ` · ${escapeHtml(projectTag(skill.project_path) || "No project")}` : ""}</small>
-                    </div>
-                    <span class="tag ${skill.status === "suspicious" ? "bad" : "good"}">${escapeHtml(skill.status === "suspicious" ? "review" : "protected")}</span>
-                  </article>
-                `).join("") || `<div class="empty">No skills detected yet.</div>`}
-              </div>
-            </div>
-            <div class="card skillDetailPanel">
-              ${selected ? renderSkillDetail(selected) : `<p>Skill details appear here after OpenLeash detects local agent skills.</p>`}
-            </div>
+          <div class="history">
+            ${skills.map((skill) => `
+              <article data-skill-path="${escapeHtml(skill.skill_path)}">
+                <div class="eventBody">
+                  <strong>${escapeHtml(skill.skill_name)}</strong>
+                  <small>${escapeHtml(skill.purpose_summary || skill.agent_name)} · ${escapeHtml(skill.scope)}${skill.project_path ? ` · ${escapeHtml(projectTag(skill.project_path) || "No project")}` : ""} · ${formatTime(skill.content_updated_at || skill.updated_at)}</small>
+                  <div class="filePathPill" title="${escapeHtml(skill.skill_path)}"><span>Path</span><code>${escapeHtml(compactPath(skill.skill_path))}</code></div>
+                </div>
+                <span class="tag ${skill.status === "suspicious" ? "bad" : "good"}">${escapeHtml(skill.status === "suspicious" ? "review" : "scanned")}</span>
+              </article>
+            `).join("") || `<div class="empty">No skills detected yet.</div>`}
           </div>
         `;
         root.querySelectorAll("[data-skill-path]").forEach((row) => {
           row.onclick = () => {
             selectedSkillPath = row.dataset.skillPath;
-            renderSkills();
+            view = "skill-detail";
+            renderView();
           };
         });
+      }
+
+      function renderSkillDetailView() {
+        const skills = state.skills || [];
+        const selected = skills.find((skill) => skill.skill_path === selectedSkillPath) || skills[0];
+        selectedSkillPath = selected?.skill_path || "";
+        root.innerHTML = `
+          <div class="head">
+            <div>
+              <button id="backSkills" class="secondary">Back</button>
+              <h1>${escapeHtml(selected?.skill_name || "Skill")}</h1>
+              <p>${escapeHtml(selected?.purpose_summary || "Skill content scanned by OpenLeash.")}</p>
+            </div>
+            ${selected ? `<span class="tag ${selected.status === "suspicious" ? "bad" : "good"}">${escapeHtml(selected.status === "suspicious" ? "review" : "scanned")}</span>` : modeTag()}
+          </div>
+          <div class="card skillDetailPanel">
+            ${selected ? renderSkillDetail(selected) : `<p>Skill details appear here after OpenLeash detects local agent skills.</p>`}
+          </div>
+        `;
+        document.getElementById("backSkills").onclick = () => {
+          view = "skills";
+          renderView();
+        };
       }
 
       function renderSkillDetail(skill) {
@@ -2339,9 +2356,9 @@
           <div class="skillDetailHeader">
             <div>
               <h2>${escapeHtml(skill.skill_name)}</h2>
-              <p class="skillSummary">${escapeHtml(skill.purpose_summary || "Protected skill")}</p>
+              <p class="skillSummary">${escapeHtml(skill.purpose_summary || "Scanned skill")}</p>
             </div>
-            <span class="tag ${skill.status === "suspicious" ? "bad" : "good"}">${escapeHtml(skill.status === "suspicious" ? "review" : "protected")}</span>
+            <span class="tag ${skill.status === "suspicious" ? "bad" : "good"}">${escapeHtml(skill.status === "suspicious" ? "review" : "scanned")}</span>
           </div>
           <div class="skillDetailMeta">
             <div class="kv"><small>Agent</small><strong>${escapeHtml(skill.agent_name)}</strong></div>
