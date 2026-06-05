@@ -132,6 +132,10 @@ type SkillRecord = {
   risk_score: number;
   reasons: Array<{ reason: string; quote?: string }>;
   content_hash: string;
+  content?: string | null;
+  content_preview?: string | null;
+  purpose_summary?: string | null;
+  content_updated_at?: string | null;
   first_seen_at: string;
   last_seen_at: string;
   updated_at: string;
@@ -755,18 +759,19 @@ export class LocalOpenLeashServer {
     changedAt?: string;
   }) {
     const contentHash = crypto.createHash("sha256").update(input.content).digest("hex");
-    const existing = this.db.prepare("select content_hash, status from skills where skill_path = ?").get(input.skillPath) as { content_hash?: string; status?: string } | undefined;
-    if (existing?.content_hash === contentHash && existing.status !== "deleted") return { ok: true, unchanged: true };
+    const existing = this.db.prepare("select content_hash, status, content, purpose_summary, content_updated_at from skills where skill_path = ?").get(input.skillPath) as { content_hash?: string; status?: string; content?: string | null; purpose_summary?: string | null; content_updated_at?: string | null } | undefined;
+    if (existing?.content_hash === contentHash && existing.status !== "deleted" && existing.content && existing.purpose_summary) return { ok: true, unchanged: true };
     const assessment = await this.evaluateSkillRisk(input.content, input.skillName, input.skillPath);
+    const purposeSummary = await this.summarizeSkillPurpose(input.content, input.skillName, input.skillPath);
     const now = new Date().toISOString();
     const status = assessment.malicious ? "suspicious" : existing?.status === "approved" ? "approved" : "observed";
     this.db.prepare(`
       insert into skills (
         id, agent_kind, agent_name, scope, project_path, skill_name, skill_path, status, risk_score,
-        reasons_json, content_hash, first_seen_at, last_seen_at, updated_at
+        reasons_json, content_hash, content, content_preview, purpose_summary, content_updated_at, first_seen_at, last_seen_at, updated_at
       )
       values (@id, @agent_kind, @agent_name, @scope, @project_path, @skill_name, @skill_path, @status, @risk_score,
-        @reasons_json, @content_hash, @first_seen_at, @last_seen_at, @updated_at)
+        @reasons_json, @content_hash, @content, @content_preview, @purpose_summary, @content_updated_at, @first_seen_at, @last_seen_at, @updated_at)
       on conflict(skill_path) do update set
         agent_kind = excluded.agent_kind,
         agent_name = excluded.agent_name,
@@ -777,6 +782,10 @@ export class LocalOpenLeashServer {
         risk_score = excluded.risk_score,
         reasons_json = excluded.reasons_json,
         content_hash = excluded.content_hash,
+        content = excluded.content,
+        content_preview = excluded.content_preview,
+        purpose_summary = excluded.purpose_summary,
+        content_updated_at = excluded.content_updated_at,
         last_seen_at = excluded.last_seen_at,
         updated_at = excluded.updated_at
     `).run({
@@ -791,12 +800,16 @@ export class LocalOpenLeashServer {
       risk_score: assessment.riskScore,
       reasons_json: JSON.stringify(assessment.reasons),
       content_hash: contentHash,
+      content: truncate(input.content, 80000),
+      content_preview: truncate(input.content, 12000),
+      purpose_summary: purposeSummary,
+      content_updated_at: existing?.content_hash === contentHash ? (existing.content_updated_at ?? input.changedAt ?? now) : (input.changedAt ?? now),
       first_seen_at: now,
       last_seen_at: input.changedAt ?? now,
       updated_at: now
     });
     if (assessment.malicious) this.recordSuspiciousSkillEvaluation(input, assessment);
-    return { ok: true, suspicious: assessment.malicious, assessment };
+    return { ok: true, suspicious: assessment.malicious, assessment, purposeSummary };
   }
 
   private async evaluateSkillRisk(content: string, skillName: string, skillPath: string) {
@@ -806,6 +819,14 @@ export class LocalOpenLeashServer {
     if (!modelAssessment) return heuristic;
     if (modelAssessment.malicious) return modelAssessment;
     return heuristic.malicious ? heuristic : modelAssessment;
+  }
+
+  private async summarizeSkillPurpose(content: string, skillName: string, skillPath: string) {
+    if (this.store.apiProvider === "openai" && this.store.apiKey) {
+      const summary = await summarizeSkillPurposeWithOpenAI({ content, skillName, skillPath, apiKey: this.store.apiKey });
+      if (summary) return summary;
+    }
+    return heuristicSkillPurpose(content, skillName);
   }
 
   private recordSuspiciousSkillEvaluation(input: {
@@ -1156,6 +1177,10 @@ export class LocalOpenLeashServer {
         risk_score integer not null default 0,
         reasons_json text not null default '[]',
         content_hash text not null,
+        content text,
+        content_preview text,
+        purpose_summary text,
+        content_updated_at text,
         first_seen_at text not null,
         last_seen_at text not null,
         updated_at text not null
@@ -1168,6 +1193,10 @@ export class LocalOpenLeashServer {
     this.addColumnIfMissing("evaluations", "file_path", "text");
     this.addColumnIfMissing("evaluations", "resolution_guidance", "text");
     this.addColumnIfMissing("policies", "locked", "integer not null default 0");
+    this.addColumnIfMissing("skills", "content", "text");
+    this.addColumnIfMissing("skills", "content_preview", "text");
+    this.addColumnIfMissing("skills", "purpose_summary", "text");
+    this.addColumnIfMissing("skills", "content_updated_at", "text");
     this.db.prepare("create index if not exists evaluations_intent_key_idx on evaluations(intent_key)").run();
   }
 
@@ -1184,6 +1213,10 @@ export class LocalOpenLeashServer {
       risk_score: number;
       reasons_json: string;
       content_hash: string;
+      content?: string | null;
+      content_preview?: string | null;
+      purpose_summary?: string | null;
+      content_updated_at?: string | null;
       first_seen_at: string;
       last_seen_at: string;
       updated_at: string;
@@ -2162,6 +2195,66 @@ async function evaluateSkillRiskWithOpenAI({ content, skillName, skillPath, apiK
   } finally {
     clearTimeout(timeout);
   }
+}
+
+async function summarizeSkillPurposeWithOpenAI({ content, skillName, skillPath, apiKey }: { content: string; skillName: string; skillPath: string; apiKey: string }) {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 3500);
+  try {
+    const response = await fetch("https://api.openai.com/v1/responses", {
+      method: "POST",
+      signal: controller.signal,
+      headers: {
+        "content-type": "application/json",
+        authorization: `Bearer ${apiKey}`
+      },
+      body: JSON.stringify({
+        model: process.env.OPENLEASH_SKILL_SUMMARY_MODEL ?? process.env.OPENAI_EVAL_MODEL ?? "gpt-4.1-mini",
+        input: [
+          {
+            role: "system",
+            content: "Summarize this AI agent skill purpose in 4 to 8 words. No punctuation unless needed. No quotes. Return only the phrase."
+          },
+          {
+            role: "user",
+            content: JSON.stringify({ skillName, skillPath, content: truncate(content, 10000) })
+          }
+        ],
+        temperature: 0,
+        max_output_tokens: 40
+      })
+    });
+    if (!response.ok) return undefined;
+    const payload = await response.json() as { output_text?: string; output?: Array<{ content?: Array<{ text?: string }> }> };
+    const output = payload.output_text ?? payload.output?.flatMap((item) => item.content ?? []).map((item) => item.text ?? "").join("") ?? "";
+    return normalizeSkillPurpose(output, skillName);
+  } catch {
+    return undefined;
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+function heuristicSkillPurpose(content: string, skillName: string) {
+  const heading = content.match(/^#\s+(.+)$/m)?.[1] ?? content.match(/^description:\s*["']?(.+?)["']?\s*$/mi)?.[1];
+  const source = heading || skillName.replace(/[-_]+/g, " ");
+  return normalizeSkillPurpose(source, skillName) ?? titleCaseWords(skillName.replace(/[-_]+/g, " ").split(/\s+/).slice(0, 6).join(" "));
+}
+
+function normalizeSkillPurpose(value: string, fallback: string) {
+  const cleaned = value.replace(/["'`]/g, "").replace(/[.!?]+$/g, "").replace(/\s+/g, " ").trim();
+  const words = cleaned.split(/\s+/).filter(Boolean).slice(0, 8);
+  if (words.length >= 4) return titleCaseWords(words.join(" "));
+  const fallbackWords = fallback.replace(/[-_]+/g, " ").split(/\s+/).filter(Boolean).slice(0, 8);
+  return fallbackWords.length ? titleCaseWords(fallbackWords.join(" ")) : undefined;
+}
+
+function titleCaseWords(value: string) {
+  return value
+    .split(/\s+/)
+    .filter(Boolean)
+    .map((word) => word.length <= 3 ? word : word.charAt(0).toUpperCase() + word.slice(1))
+    .join(" ");
 }
 
 function normalizeSkillAssessment(assessment: SkillAssessment): SkillAssessment {

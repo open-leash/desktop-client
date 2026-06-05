@@ -695,6 +695,12 @@
         cursor: pointer;
       }
       .history article:hover strong { text-decoration: underline; }
+      .history article.selected {
+        padding-left: 12px;
+        padding-right: 12px;
+        border-radius: 14px;
+        background: var(--soft);
+      }
       .eventBody {
         display: grid;
         gap: 8px;
@@ -822,6 +828,79 @@
         font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
         font-size: 13px;
         line-height: 1.45;
+      }
+      .skillDetailPanel {
+        display: grid;
+        gap: 18px;
+      }
+      .skillDetailHeader {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        gap: 18px;
+      }
+      .skillDetailMeta {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 10px;
+      }
+      .skillDetailMeta .kv { margin: 0; }
+      .skillSummary {
+        color: var(--ink-2);
+        font-size: 16px;
+        font-weight: 900;
+      }
+      .skillDoc {
+        max-height: min(58vh, 720px);
+        overflow: auto;
+        padding: 20px;
+        border: 1px solid var(--line);
+        border-radius: 18px;
+        background: white;
+        color: var(--ink);
+        user-select: text;
+      }
+      .skillDoc h2,
+      .skillDoc h3 {
+        margin: 18px 0 8px;
+      }
+      .skillDoc h2:first-child,
+      .skillDoc h3:first-child { margin-top: 0; }
+      .skillDoc p {
+        margin: 0 0 12px;
+        color: var(--ink-2);
+      }
+      .skillDoc ul {
+        margin: 0 0 14px 22px;
+        padding: 0;
+        color: var(--ink-2);
+      }
+      .skillDoc li { margin: 6px 0; }
+      .skillDoc pre {
+        margin: 12px 0;
+        padding: 14px;
+        border-radius: 14px;
+        background: #101318;
+        color: #f5f6f8;
+        font-size: 13px;
+        line-height: 1.5;
+        overflow: auto;
+        white-space: pre-wrap;
+      }
+      .skillDoc code {
+        display: inline;
+        margin: 0;
+        padding: 2px 6px;
+        border-radius: 7px;
+        white-space: normal;
+        font-size: .92em;
+      }
+      .skillDoc pre code {
+        display: block;
+        padding: 0;
+        background: transparent;
+        color: inherit;
+        white-space: pre-wrap;
       }
       .overviewAgents {
         display: grid;
@@ -1153,6 +1232,7 @@
       let view = "overview";
       let selectedEventId = "";
       let selectedMcpServerId = "";
+      let selectedSkillPath = "";
       let selectedAgentSessionId = "";
       const root = document.getElementById("root");
       const nav = [...document.querySelectorAll("nav button")];
@@ -2218,25 +2298,139 @@
 
       function renderSkills() {
         const skills = state.skills || [];
+        const selected = skills.find((skill) => skill.skill_path === selectedSkillPath) || skills[0];
+        selectedSkillPath = selected?.skill_path || "";
         root.innerHTML = `
           <div class="head">
             <div><h1>Skills</h1><p>Agent skills discovered in user and project skill folders.</p></div>
             ${modeTag()}
           </div>
-          <div class="history">
-            ${skills.map((skill) => `
-              <article>
-                <div class="eventBody">
-                  <strong>${escapeHtml(skill.skill_name)}</strong>
-                  <small>${escapeHtml(skill.agent_name)} · ${escapeHtml(skill.scope)}${skill.project_path ? ` · ${escapeHtml(projectTag(skill.project_path) || "No project")}` : ""} · ${formatTime(skill.updated_at)}</small>
-                  <div class="filePathPill" title="${escapeHtml(skill.skill_path)}"><span>Path</span><code>${escapeHtml(compactPath(skill.skill_path))}</code></div>
-                  ${(skill.reasons || []).slice(0, 3).map((reason) => `<span class="quote">${escapeHtml(reason.quote || reason.reason)}</span>`).join("")}
-                </div>
-                <span class="tag ${skill.status === "suspicious" ? "bad" : "good"}">${escapeHtml(skill.status)}</span>
-              </article>
-            `).join("") || `<div class="empty">No skills detected yet.</div>`}
+          <div class="detailGrid">
+            <div class="card">
+              <h2>Detected skills</h2>
+              <div class="history compactList">
+                ${skills.map((skill) => `
+                  <article data-skill-path="${escapeHtml(skill.skill_path)}" class="${skill.skill_path === selectedSkillPath ? "selected" : ""}">
+                    <div class="eventBody">
+                      <strong>${escapeHtml(skill.skill_name)}</strong>
+                      <small>${escapeHtml(skill.purpose_summary || skill.agent_name)} · ${escapeHtml(skill.scope)}${skill.project_path ? ` · ${escapeHtml(projectTag(skill.project_path) || "No project")}` : ""}</small>
+                    </div>
+                    <span class="tag ${skill.status === "suspicious" ? "bad" : "good"}">${escapeHtml(skill.status === "suspicious" ? "review" : "protected")}</span>
+                  </article>
+                `).join("") || `<div class="empty">No skills detected yet.</div>`}
+              </div>
+            </div>
+            <div class="card skillDetailPanel">
+              ${selected ? renderSkillDetail(selected) : `<p>Skill details appear here after OpenLeash detects local agent skills.</p>`}
+            </div>
           </div>
         `;
+        root.querySelectorAll("[data-skill-path]").forEach((row) => {
+          row.onclick = () => {
+            selectedSkillPath = row.dataset.skillPath;
+            renderSkills();
+          };
+        });
+      }
+
+      function renderSkillDetail(skill) {
+        const content = skill.content || skill.content_preview || "";
+        return `
+          <div class="skillDetailHeader">
+            <div>
+              <h2>${escapeHtml(skill.skill_name)}</h2>
+              <p class="skillSummary">${escapeHtml(skill.purpose_summary || "Protected skill")}</p>
+            </div>
+            <span class="tag ${skill.status === "suspicious" ? "bad" : "good"}">${escapeHtml(skill.status === "suspicious" ? "review" : "protected")}</span>
+          </div>
+          <div class="skillDetailMeta">
+            <div class="kv"><small>Agent</small><strong>${escapeHtml(skill.agent_name)}</strong></div>
+            <div class="kv"><small>Last update</small><strong>${formatTime(skill.content_updated_at || skill.updated_at)}</strong></div>
+            <div class="kv"><small>Scope</small><strong>${escapeHtml(skill.scope || "user")}</strong></div>
+            <div class="kv"><small>Project</small><strong>${escapeHtml(projectTag(skill.project_path) || "User-level")}</strong></div>
+          </div>
+          <div class="filePathPill" title="${escapeHtml(skill.skill_path)}"><span>Path</span><code>${escapeHtml(skill.skill_path)}</code></div>
+          <div class="skillDoc">
+            ${content ? renderSkillMarkdown(content) : `<p>No skill content was synced yet.</p>`}
+          </div>
+        `;
+      }
+
+      function renderSkillMarkdown(content) {
+        const lines = String(content || "").replace(/\r\n/g, "\n").split("\n");
+        const parts = [];
+        let paragraph = [];
+        let list = [];
+        let inCode = false;
+        let code = [];
+
+        const flushParagraph = () => {
+          if (!paragraph.length) return;
+          parts.push(`<p>${escapeHtml(paragraph.join(" "))}</p>`);
+          paragraph = [];
+        };
+        const flushList = () => {
+          if (!list.length) return;
+          parts.push(`<ul>${list.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul>`);
+          list = [];
+        };
+        const flushCode = () => {
+          parts.push(`<pre><code>${escapeHtml(code.join("\n"))}</code></pre>`);
+          code = [];
+        };
+
+        for (const line of lines) {
+          if (line.trim().startsWith("```")) {
+            if (inCode) {
+              flushCode();
+              inCode = false;
+            } else {
+              flushParagraph();
+              flushList();
+              inCode = true;
+            }
+            continue;
+          }
+          if (inCode) {
+            code.push(line);
+            continue;
+          }
+          const trimmed = line.trim();
+          if (!trimmed) {
+            flushParagraph();
+            flushList();
+            continue;
+          }
+          if (trimmed.startsWith("### ")) {
+            flushParagraph();
+            flushList();
+            parts.push(`<h3>${escapeHtml(trimmed.slice(4))}</h3>`);
+            continue;
+          }
+          if (trimmed.startsWith("## ")) {
+            flushParagraph();
+            flushList();
+            parts.push(`<h2>${escapeHtml(trimmed.slice(3))}</h2>`);
+            continue;
+          }
+          if (trimmed.startsWith("# ")) {
+            flushParagraph();
+            flushList();
+            parts.push(`<h2>${escapeHtml(trimmed.slice(2))}</h2>`);
+            continue;
+          }
+          const bullet = trimmed.match(/^[-*]\s+(.+)$/);
+          if (bullet) {
+            flushParagraph();
+            list.push(bullet[1]);
+            continue;
+          }
+          paragraph.push(trimmed);
+        }
+        if (inCode) flushCode();
+        flushParagraph();
+        flushList();
+        return parts.join("") || `<p>No readable content.</p>`;
       }
 
       function overviewAgentInventory() {

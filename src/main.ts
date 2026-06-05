@@ -2002,7 +2002,7 @@ async function sendRemoteSkillObservation({ target, skillPath, content, observat
   target: { agentKind: string; agentName: string; scope: "user" | "project"; projectPath?: string | null };
   skillPath: string;
   content: string;
-  observation: { assessment?: { riskScore?: number; reasons?: Array<{ reason: string; quote?: string }>; malicious?: boolean }; suspicious?: boolean; unchanged?: boolean };
+  observation: { assessment?: { riskScore?: number; reasons?: Array<{ reason: string; quote?: string }>; malicious?: boolean }; suspicious?: boolean; unchanged?: boolean; purposeSummary?: string };
 }) {
   if (observation.unchanged || localServer.clientMode === "personal") return;
   const remoteApiUrl = localServer.remoteApiUrl;
@@ -2024,7 +2024,9 @@ async function sendRemoteSkillObservation({ target, skillPath, content, observat
         skillName: path.basename(path.dirname(skillPath)),
         skillPath,
         contentHash: crypto.createHash("sha256").update(content).digest("hex"),
+        content: content.slice(0, 80000),
         contentPreview: content.slice(0, 12000),
+        purposeSummary: observation.purposeSummary,
         status: observation.suspicious ? "suspicious" : "observed",
         riskScore: observation.assessment?.riskScore ?? 0,
         reasons: observation.assessment?.reasons ?? []
