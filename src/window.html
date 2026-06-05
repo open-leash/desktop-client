@@ -1233,6 +1233,7 @@
       let selectedEventId = "";
       let selectedMcpServerId = "";
       let selectedSkillPath = "";
+      const skillDocScrollTops = new Map();
       let selectedAgentSessionId = "";
       const root = document.getElementById("root");
       const nav = [...document.querySelectorAll("nav button")];
@@ -2328,6 +2329,7 @@
       }
 
       function renderSkillDetailView() {
+        rememberSkillDocScroll();
         const skills = state.skills || [];
         const selected = skills.find((skill) => skill.skill_path === selectedSkillPath) || skills[0];
         selectedSkillPath = selected?.skill_path || "";
@@ -2344,9 +2346,31 @@
             ${selected ? renderSkillDetail(selected) : `<p>Skill details appear here after OpenLeash detects local agent skills.</p>`}
           </div>
         `;
+        restoreSkillDocScroll();
         document.getElementById("backSkills").onclick = () => {
+          rememberSkillDocScroll();
           view = "skills";
           renderView();
+        };
+      }
+
+      function rememberSkillDocScroll() {
+        if (!selectedSkillPath) return;
+        const doc = root.querySelector(".skillDoc");
+        if (doc) skillDocScrollTops.set(selectedSkillPath, doc.scrollTop);
+      }
+
+      function restoreSkillDocScroll() {
+        if (!selectedSkillPath) return;
+        const doc = root.querySelector(".skillDoc");
+        if (!doc) return;
+        const top = skillDocScrollTops.get(selectedSkillPath) || 0;
+        doc.scrollTop = top;
+        requestAnimationFrame(() => {
+          doc.scrollTop = top;
+        });
+        doc.onscroll = () => {
+          skillDocScrollTops.set(selectedSkillPath, doc.scrollTop);
         };
       }
 
