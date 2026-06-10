@@ -15,6 +15,21 @@ import { OPENLEASH_DESKTOP_AUTH_CALLBACK_URI, OPENLEASH_DESKTOP_GOOGLE_REDIRECT_
 const ACTION_PURPOSE_CONTEXT_MESSAGES = Number(process.env.OPENLEASH_ACTION_PURPOSE_MESSAGES ?? 5);
 type ClientMode = "personal" | "cloud" | "custom";
 
+const defaultPromptTransformConfig: PromptTransformConfig = {
+  compression: {
+    enabled: false,
+    level: "standard",
+    conciseResponse: false,
+    model: process.env.OPENLEASH_PROMPT_TRANSFORM_MODEL ?? "gpt-4.1-nano"
+  },
+  dlp: {
+    enabled: false,
+    action: "mask",
+    categories: ["pii", "phi", "tokens", "keys", "credentials"],
+    model: process.env.OPENLEASH_PROMPT_TRANSFORM_MODEL ?? "gpt-4.1-nano"
+  }
+};
+
 function initialClientMode(): ClientMode {
   const raw = (process.env.OPENLEASH_CLIENT_MODE || process.env.OPENLEASH_MODE || "").toLowerCase();
   if (raw === "cloud" || raw === "public-cloud") return "cloud";
@@ -31,6 +46,46 @@ export type Policy = {
   locked?: boolean;
   match?: string[];
   pattern?: string;
+};
+
+type CompressionLevel = "light" | "standard" | "maximum";
+type DlpCategory = "pii" | "phi" | "tokens" | "keys" | "credentials";
+type DlpAction = "block" | "mask";
+
+type PromptTransformConfig = {
+  compression: {
+    enabled: boolean;
+    level: CompressionLevel;
+    conciseResponse: boolean;
+    model: string;
+  };
+  dlp: {
+    enabled: boolean;
+    action: DlpAction;
+    categories: DlpCategory[];
+    model: string;
+  };
+};
+
+type PromptTransformResult = {
+  finalPrompt: string;
+  blocked: boolean;
+  summary: string;
+  model: string;
+  compression?: {
+    enabled: boolean;
+    originalLength: number;
+    compressedLength: number;
+    ratio: number;
+  };
+  dlp?: {
+    enabled: boolean;
+    action: DlpAction;
+    matched: boolean;
+    categories: DlpCategory[];
+    findings: Array<{ category: DlpCategory; quote: string; reason: string }>;
+    masked: boolean;
+  };
 };
 
 type EvaluationRequest = {
@@ -153,6 +208,7 @@ type Store = {
   remoteUser?: string;
   apiProvider?: "openai" | "anthropic";
   apiKey?: string;
+  promptTransforms: PromptTransformConfig;
   policies: Policy[];
   history: Evaluation[];
 };
@@ -227,6 +283,10 @@ export class LocalOpenLeashServer {
     return Boolean(this.store.apiKey);
   }
 
+  get promptTransforms() {
+    return this.store.promptTransforms;
+  }
+
   get clientMode() {
     return this.store.clientMode ?? "personal";
   }
@@ -259,6 +319,7 @@ export class LocalOpenLeashServer {
       introSeen,
       agentDoneSound: this.store?.agentDoneSound ?? false,
       clientMode: initialClientMode(),
+      promptTransforms: this.store?.promptTransforms ?? defaultPromptTransformConfig,
       policies: defaultPolicies(),
       history: []
     };
@@ -335,6 +396,12 @@ export class LocalOpenLeashServer {
     this.writeStore();
   }
 
+  updatePromptTransforms(config: unknown) {
+    this.store.promptTransforms = normalizePromptTransformConfig(config);
+    this.writeStore();
+    return this.store.promptTransforms;
+  }
+
   importPolicies(input: unknown, replace = false) {
     this.store.policies = enforceLockedPolicies(normalizePolicies(input, this.store.policies, replace));
     this.writeStore();
@@ -402,6 +469,7 @@ export class LocalOpenLeashServer {
           remoteUser: this.store.remoteUser,
           apiProvider: this.store.apiProvider,
           apiKeySet: this.apiKeySet,
+          promptTransforms: this.store.promptTransforms,
           policies: this.store.policies,
           history: this.store.history,
           mcpServers: this.mcpServers,
@@ -412,6 +480,10 @@ export class LocalOpenLeashServer {
         const body = await readJson(req);
         this.updatePolicies(Array.isArray(body.policies) ? body.policies : this.store.policies);
         return json(res, { ok: true, policies: this.store.policies });
+      }
+      if (req.method === "POST" && req.url === "/personal/prompt-transforms") {
+        const body = await readJson(req);
+        return json(res, { ok: true, config: this.updatePromptTransforms(body.config ?? body) });
       }
       if (req.method === "POST" && req.url === "/v1/evaluate") {
         const request = await readJson(req) as EvaluationRequest;
@@ -429,6 +501,9 @@ export class LocalOpenLeashServer {
         const decision = await this.evaluate(request);
         const resolvedDecision = await this.waitForHookDecision(decision);
         this.notifyAgentStop(hookMatch[1], hookMatch[2], body);
+        if (resolvedDecision.decision === "allow" && isPromptOnlyHook(request) && promptTransformsEnabled(this.store.promptTransforms)) {
+          return json(res, await this.handlePromptTransformHook(hookMatch[1], hookMatch[2], request));
+        }
         return json(res, nativeHookDecision(hookMatch[1], hookMatch[2], resolvedDecision));
       }
       const decision = req.url?.match(/^\/v1\/decisions\/([^/]+)$/);
@@ -519,6 +594,64 @@ export class LocalOpenLeashServer {
     this.writeStore();
     this.recordLocalMcpToolCall(evaluation);
     return { decision, decisionId: id, summary, question: evaluation.question, results };
+  }
+
+  private async handlePromptTransformHook(agent: string, eventName: string, request: EvaluationRequest) {
+    const prompt = request.event.prompt?.trim();
+    if (!prompt) {
+      return nativeHookDecision(agent, eventName, { decision: "allow", summary: "OpenLeash approved this action." });
+    }
+    const result = await transformPrompt({
+      prompt,
+      config: this.store.promptTransforms,
+      apiKey: this.store.apiProvider === "openai" ? this.store.apiKey : undefined
+    });
+    this.recordPromptTransformEvaluation(request, result);
+    if (result.blocked) {
+      return nativeHookDecision(agent, eventName, { decision: "deny", summary: result.summary });
+    }
+    return promptTransformHookDecision(agent, eventName, result.finalPrompt, result.summary);
+  }
+
+  private recordPromptTransformEvaluation(request: EvaluationRequest, result: PromptTransformResult) {
+    const id = crypto.randomUUID();
+    const evaluation: Evaluation = {
+      id,
+      intentKey: triggerIntentKey(request),
+      decision: result.blocked ? "deny" : "allow",
+      resolution: result.blocked ? "deny" : "allow",
+      summary: result.summary,
+      created_at: new Date().toISOString(),
+      resolved_at: new Date().toISOString(),
+      user_name: "Max Brin",
+      hostname: request.computer.hostname || os.hostname(),
+      agent_name: request.agent.displayName,
+      agent_kind: request.agent.kind,
+      event_name: request.event.eventName,
+      tool_name: request.event.tool?.name,
+      project_path: request.event.projectPath,
+      payload: {
+        ...request.event,
+        openleashPromptTransform: {
+          originalPrompt: request.event.prompt ?? "",
+          finalPrompt: result.finalPrompt,
+          blocked: result.blocked,
+          compression: result.compression,
+          dlp: result.dlp,
+          model: result.model
+        }
+      } as EvaluationRequest["event"],
+      triggered_policies: result.blocked ? [{
+        policy_name: "DLP funnel",
+        status: "failed",
+        severity: "high",
+        explanation: result.summary,
+        evidence: result.dlp?.findings?.map((finding) => `${finding.category}: ${finding.reason}`) ?? []
+      }] : []
+    };
+    this.store.history.unshift(evaluation);
+    this.store.history = this.store.history.slice(0, 500);
+    this.writeStore();
   }
 
   private async forwardRemoteHook(agent: string, eventName: string, body: unknown, originalUrl: string) {
@@ -733,6 +866,7 @@ export class LocalOpenLeashServer {
       remoteUser: this.settingValue("remoteUser"),
       apiProvider: this.settingValue<"openai" | "anthropic">("apiProvider"),
       apiKey: this.settingValue("apiKey"),
+      promptTransforms: normalizePromptTransformConfig(parseJson<unknown>(this.settingValue("promptTransforms") ?? null, undefined)),
       policies: enforceLockedPolicies(policies.length > 0 ? policies : defaultPolicies()),
       history: this.readHistory()
     };
@@ -908,6 +1042,7 @@ export class LocalOpenLeashServer {
       if (store.remoteUser) insertSetting.run("remoteUser", store.remoteUser);
       if (store.apiProvider) insertSetting.run("apiProvider", store.apiProvider);
       if (store.apiKey) insertSetting.run("apiKey", store.apiKey);
+      insertSetting.run("promptTransforms", JSON.stringify(normalizePromptTransformConfig(store.promptTransforms)));
       insertSetting.run("jsonMigrated", "true");
 
       const insertPolicy = this.db.prepare(`
@@ -1191,6 +1326,7 @@ export class LocalOpenLeashServer {
     `);
     this.addColumnIfMissing("evaluations", "intent_key", "text");
     this.addColumnIfMissing("evaluations", "file_path", "text");
+    this.addColumnIfMissing("evaluations", "resolution", "text");
     this.addColumnIfMissing("evaluations", "resolution_guidance", "text");
     this.addColumnIfMissing("policies", "locked", "integer not null default 0");
     this.addColumnIfMissing("skills", "content", "text");
@@ -1263,6 +1399,7 @@ export class LocalOpenLeashServer {
         remoteUser: parsed.remoteUser,
         apiProvider: parsed.apiProvider,
         apiKey: parsed.apiKey,
+        promptTransforms: normalizePromptTransformConfig(parsed.promptTransforms),
         policies: parsed.policies?.length ? parsed.policies : defaultPolicies(),
         history: Array.isArray(parsed.history) ? parsed.history : []
       };
@@ -2403,6 +2540,188 @@ function nativeHookDecision(agent: string, eventName: string, decision: { decisi
     return { continue: decision.decision !== "deny", stopReason: reason, suppressOutput: true };
   }
   return { decision: decision.decision === "deny" ? "block" : decision.decision, reason };
+}
+
+function promptTransformHookDecision(agent: string, eventName: string, prompt: string, summary: string) {
+  const base = nativeHookDecision(agent, eventName, { decision: "allow", summary }) as Record<string, unknown>;
+  return {
+    ...base,
+    prompt,
+    transformedPrompt: prompt,
+    replacementPrompt: prompt,
+    output: prompt,
+    hookSpecificOutput: {
+      ...(base.hookSpecificOutput && typeof base.hookSpecificOutput === "object" ? base.hookSpecificOutput as Record<string, unknown> : {}),
+      hookEventName: eventName,
+      prompt,
+      transformedPrompt: prompt,
+      replacementPrompt: prompt
+    }
+  };
+}
+
+function normalizePromptTransformConfig(value: unknown): PromptTransformConfig {
+  const input = value && typeof value === "object" ? value as Partial<PromptTransformConfig> : {};
+  const compression = input.compression && typeof input.compression === "object" ? input.compression as Partial<PromptTransformConfig["compression"]> : {};
+  const dlp = input.dlp && typeof input.dlp === "object" ? input.dlp as Partial<PromptTransformConfig["dlp"]> : {};
+  return {
+    compression: {
+      enabled: Boolean(compression.enabled),
+      level: isCompressionLevel(compression.level) ? compression.level : defaultPromptTransformConfig.compression.level,
+      conciseResponse: Boolean(compression.conciseResponse),
+      model: cleanModel(compression.model) ?? defaultPromptTransformConfig.compression.model
+    },
+    dlp: {
+      enabled: Boolean(dlp.enabled),
+      action: dlp.action === "block" ? "block" : "mask",
+      categories: Array.isArray(dlp.categories) ? dlp.categories.filter(isDlpCategory) : defaultPromptTransformConfig.dlp.categories,
+      model: cleanModel(dlp.model) ?? defaultPromptTransformConfig.dlp.model
+    }
+  };
+}
+
+function promptTransformsEnabled(config: PromptTransformConfig) {
+  return config.compression.enabled || config.dlp.enabled;
+}
+
+async function transformPrompt({ prompt, config, apiKey }: { prompt: string; config: PromptTransformConfig; apiKey?: string }): Promise<PromptTransformResult> {
+  let current = prompt;
+  const models = new Set<string>();
+  let compression: PromptTransformResult["compression"];
+  let dlp: PromptTransformResult["dlp"];
+  if (config.compression.enabled) {
+    const compressed = await compressPrompt(prompt, config, apiKey);
+    models.add(compressed.model);
+    current = compressed.text;
+    if (config.compression.conciseResponse) current = `${current.trim()}\n\nRespond concisely. Be short, direct, and avoid filler.`;
+    compression = {
+      enabled: true,
+      originalLength: prompt.length,
+      compressedLength: current.length,
+      ratio: prompt.length > 0 ? current.length / prompt.length : 1
+    };
+  }
+  if (config.dlp.enabled) {
+    const checked = await checkDlp(current, config, apiKey);
+    models.add(checked.model);
+    dlp = {
+      enabled: true,
+      action: config.dlp.action,
+      matched: checked.matched,
+      categories: checked.categories,
+      findings: checked.findings,
+      masked: checked.masked
+    };
+    if (checked.blocked) {
+      return { finalPrompt: current, blocked: true, summary: `DLP blocked prompt submission: ${checked.categories.join(", ") || "sensitive data"}.`, model: [...models].join(", ") || "heuristic", compression, dlp };
+    }
+    current = checked.text;
+  }
+  return { finalPrompt: current, blocked: false, summary: summaryForPromptTransform(prompt, current, compression, dlp), model: [...models].join(", ") || "none", compression, dlp };
+}
+
+async function compressPrompt(prompt: string, config: PromptTransformConfig, apiKey?: string) {
+  if (!apiKey) return { text: heuristicCompressPrompt(prompt, config.compression.level), model: "heuristic-compression" };
+  const response = await openAiJson(apiKey, config.compression.model, compressionInstruction(config.compression.level), { text: prompt });
+  const parsed = response as { compressed?: string } | undefined;
+  return { text: parsed?.compressed?.trim() || heuristicCompressPrompt(prompt, config.compression.level), model: parsed?.compressed ? config.compression.model : "heuristic-compression" };
+}
+
+async function checkDlp(prompt: string, config: PromptTransformConfig, apiKey?: string) {
+  const heuristic = heuristicDlp(prompt, config);
+  if (!apiKey) return { ...heuristic, model: "heuristic-dlp" };
+  const response = await openAiJson(
+    apiKey,
+    config.dlp.model,
+    [
+      "You are OpenLeash DLP. Inspect text for only the configured categories.",
+      config.dlp.action === "block" ? "If configured sensitive data is present, return blocked true." : "If configured sensitive data is present, mask it and return maskedText.",
+      "Return JSON with matched, blocked, maskedText, categories, findings."
+    ].join("\n"),
+    { categories: config.dlp.categories, action: config.dlp.action, text: prompt }
+  );
+  const parsed = response as any;
+  if (!parsed || typeof parsed !== "object") return { ...heuristic, model: "heuristic-dlp" };
+  return {
+    matched: Boolean(parsed.matched),
+    blocked: config.dlp.action === "block" && Boolean(parsed.matched),
+    masked: config.dlp.action === "mask" && Boolean(parsed.matched) && typeof parsed.maskedText === "string" && parsed.maskedText !== prompt,
+    text: config.dlp.action === "mask" && typeof parsed.maskedText === "string" ? parsed.maskedText : prompt,
+    categories: Array.isArray(parsed.categories) ? parsed.categories.filter(isDlpCategory) : heuristic.categories,
+    findings: Array.isArray(parsed.findings) ? parsed.findings.filter((item: any) => isDlpCategory(item?.category)).map((item: any) => ({ category: item.category, quote: String(item.quote ?? "").slice(0, 120), reason: String(item.reason ?? "") })) : heuristic.findings,
+    model: config.dlp.model
+  };
+}
+
+async function openAiJson(apiKey: string, model: string, instruction: string, payload: unknown) {
+  try {
+    const response = await fetch("https://api.openai.com/v1/responses", {
+      method: "POST",
+      headers: { "content-type": "application/json", authorization: `Bearer ${apiKey}` },
+      body: JSON.stringify({ model, input: [{ role: "system", content: instruction }, { role: "user", content: JSON.stringify(payload) }], temperature: 0 }),
+      signal: AbortSignal.timeout(Number(process.env.OPENLEASH_PROMPT_TRANSFORM_TIMEOUT_MS ?? 20000))
+    });
+    if (!response.ok) return undefined;
+    const body = await response.json() as { output_text?: string; output?: Array<{ content?: Array<{ text?: string }> }> };
+    const text = body.output_text ?? body.output?.flatMap((item) => item.content ?? []).map((item) => item.text).find(Boolean);
+    return text ? JSON.parse(text) as unknown : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+function heuristicCompressPrompt(prompt: string, level: CompressionLevel) {
+  const normalized = prompt.replace(/[ \t]+/g, " ").replace(/\n{3,}/g, "\n\n").trim();
+  if (level === "light") return normalized;
+  const limit = level === "maximum" ? 1800 : 3600;
+  return normalized.length > limit ? `${normalized.slice(0, limit).trim()}\n\n[OpenLeash compressed remaining repetitive context.]` : normalized;
+}
+
+function heuristicDlp(prompt: string, config: PromptTransformConfig) {
+  let text = prompt;
+  const findings: Array<{ category: DlpCategory; quote: string; reason: string }> = [];
+  const add = (category: DlpCategory, regex: RegExp, replacement: string | ((match: string) => string), reason: string) => {
+    if (!config.dlp.categories.includes(category)) return;
+    text = text.replace(regex, (match) => {
+      findings.push({ category, quote: String(match).slice(0, 120), reason });
+      return typeof replacement === "function" ? replacement(String(match)) : replacement;
+    });
+  };
+  add("pii", /\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/gi, "[EMAIL_MASKED]", "Email address detected.");
+  add("pii", /\b\d{3}-\d{2}-\d{4}\b/g, "[SSN_MASKED]", "US SSN-like value detected.");
+  add("tokens", /\b(?:sk|pk|ol|ghp|github_pat)_[A-Za-z0-9_=-]{16,}\b/g, "[TOKEN_MASKED]", "Token-like value detected.");
+  add("keys", /-----BEGIN [A-Z ]*PRIVATE KEY-----[\s\S]+?-----END [A-Z ]*PRIVATE KEY-----/g, "[PRIVATE_KEY_MASKED]", "Private key block detected.");
+  add("credentials", /\b(password|secret|api[_-]?key)\s*[:=]\s*['"]?[^'"\s]{8,}/gi, (match) => `${match.split(/[:=]/)[0].trim()}=[SECRET_MASKED]`, "Credential assignment detected.");
+  add("phi", /\b(patient|diagnosis|medical record|mrn)\b[^\n]{0,120}/gi, "[PHI_MASKED]", "Health-data context detected.");
+  const categories = [...new Set(findings.map((item) => item.category))];
+  const matched = findings.length > 0;
+  return { matched, blocked: config.dlp.action === "block" && matched, masked: config.dlp.action === "mask" && text !== prompt, text: config.dlp.action === "mask" ? text : prompt, categories, findings };
+}
+
+function compressionInstruction(level: CompressionLevel) {
+  if (level === "light") return "Compress this prompt lightly. Remove obvious repetition while preserving all intent, constraints, code names, file paths, and facts. Return JSON {\"compressed\":\"...\"}.";
+  if (level === "maximum") return "Compress this prompt as aggressively as possible while preserving task intent, hard constraints, identifiers, code names, file paths, security-sensitive details, and user requirements. Return JSON {\"compressed\":\"...\"}.";
+  return "Compress this prompt to reduce tokens while preserving task intent, hard constraints, identifiers, code names, file paths, and important context. Return JSON {\"compressed\":\"...\"}.";
+}
+
+function summaryForPromptTransform(original: string, finalPrompt: string, compression?: PromptTransformResult["compression"], dlp?: PromptTransformResult["dlp"]) {
+  const parts = [];
+  if (compression?.enabled) parts.push(`compressed ${original.length} to ${finalPrompt.length} chars`);
+  if (dlp?.enabled) parts.push(dlp.matched ? `DLP ${dlp.action}${dlp.masked ? "ed" : ""}: ${dlp.categories.join(", ")}` : "DLP passed");
+  return parts.length ? `Prompt transformed (${parts.join("; ")}).` : "Prompt transform checked with no changes.";
+}
+
+function isCompressionLevel(value: unknown): value is CompressionLevel {
+  return value === "light" || value === "standard" || value === "maximum";
+}
+
+function isDlpCategory(value: unknown): value is DlpCategory {
+  return value === "pii" || value === "phi" || value === "tokens" || value === "keys" || value === "credentials";
+}
+
+function cleanModel(value: unknown) {
+  const text = typeof value === "string" ? value.trim() : "";
+  return text || undefined;
 }
 
 function cleanResolutionGuidance(value?: string) {

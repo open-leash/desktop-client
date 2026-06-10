@@ -480,6 +480,7 @@ ipcMain.handle("openleash:list", () => ({
     apiProvider: localServer?.apiProvider ?? "openai",
     apiKeySet: localServer?.apiKeySet ?? false,
     agentDoneSound: localServer?.agentDoneSound ?? false,
+    promptTransforms: localServer?.promptTransforms,
     pending: latestPending,
   agents: latestAgents,
   sessionMetrics: latestSessionMetrics,
@@ -752,6 +753,7 @@ ipcMain.handle("openleash:setup", async (_event, payload: {
       apiProvider: payload.apiProvider === "anthropic" ? "anthropic" : "openai",
       apiKeySet: localServer.apiKeySet,
       agentDoneSound: localServer.agentDoneSound,
+      promptTransforms: localServer.promptTransforms,
       pending: latestPending,
     agents: latestAgents,
     sessionMetrics: latestSessionMetrics,
@@ -795,6 +797,10 @@ ipcMain.handle("openleash:save-settings", (_event, payload: { apiProvider?: "ope
   const apiKey = String(payload.apiKey ?? "").trim();
   localServer.updateSettings(provider, apiKey || undefined, typeof payload.agentDoneSound === "boolean" ? payload.agentDoneSound : undefined);
   return { ok: true, apiProvider: provider, apiKeySet: localServer.apiKeySet, agentDoneSound: localServer.agentDoneSound };
+});
+ipcMain.handle("openleash:save-prompt-transforms", (_event, payload: { config?: unknown }) => {
+  const config = localServer.updatePromptTransforms(payload.config ?? payload);
+  return { ok: true, config };
 });
 ipcMain.handle("openleash:delete-data", async () => {
   const options: MessageBoxOptions = {

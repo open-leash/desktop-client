@@ -599,6 +599,68 @@
         height: 18px;
         accent-color: var(--green);
       }
+      .subtleToggle {
+        margin-top: 16px;
+        color: var(--ink-2);
+        background: var(--soft);
+        border-color: transparent;
+      }
+      .settingsGrid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 14px;
+        margin-top: 18px;
+      }
+      .settingsGrid label {
+        display: grid;
+        gap: 8px;
+      }
+      .settingsGrid label strong {
+        color: var(--muted);
+        font-size: 12px;
+        text-transform: uppercase;
+      }
+      .settingsGrid input,
+      .settingsGrid select {
+        min-height: 42px;
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        padding: 0 12px;
+        background: white;
+        color: var(--ink);
+        font: inherit;
+        font-weight: 750;
+      }
+      .categoryGrid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 12px;
+        margin-top: 18px;
+      }
+      .categoryCard {
+        display: flex;
+        align-items: flex-start;
+        gap: 10px;
+        padding: 13px;
+        background: white;
+        border: 1px solid var(--line);
+        border-radius: 14px;
+      }
+      .categoryCard input {
+        width: 17px;
+        height: 17px;
+        margin-top: 2px;
+        accent-color: var(--green);
+      }
+      .categoryCard strong,
+      .categoryCard small {
+        display: block;
+      }
+      .categoryCard small {
+        margin-top: 3px;
+        color: var(--muted);
+        line-height: 1.35;
+      }
       .segmented {
         display: inline-grid;
         grid-template-columns: 1fr 1fr;
@@ -1194,6 +1256,8 @@
           <button data-view="history">History</button>
           <button data-view="agents">Agents</button>
           <button data-view="rules">Rules</button>
+          <button data-view="compression">Compression</button>
+          <button data-view="dlp">DLP</button>
           <button data-view="skills">Skills</button>
           <button data-view="mcps">MCP</button>
           <button data-view="settings">Settings</button>
@@ -1203,7 +1267,7 @@
       <main id="root"></main>
     </div>
     <script>
-      let state = { rules: [], history: [], localProtections: [], setupComplete: false, introSeen: false };
+      let state = { rules: [], history: [], localProtections: [], setupComplete: false, introSeen: false, promptTransforms: defaultPromptTransforms() };
       let selectedAgents;
       let selectedRules;
       let setupStep = 0;
@@ -2058,6 +2122,8 @@
         if (view === "overview") return renderOverview();
         if (view === "usage") return renderUsage();
         if (view === "rules") return renderRules();
+        if (view === "compression") return renderCompression();
+        if (view === "dlp") return renderDlp();
         if (view === "agents") return renderAgents();
         if (view === "mcps") return renderMcps();
         if (view === "skills") return renderSkills();
@@ -2117,7 +2183,7 @@
                   </div>` : ""}
                 </div>
               </article>
-            `).join("") || `<div class="card empty">No active agent activity yet.</div>`}
+            `).join("") || `<div class="card empty">Waiting for agent activity.</div>`}
             ${groups.length ? `
               <div class="subhead">
                 <h2>Recent highlights</h2>
@@ -2472,6 +2538,112 @@
         flushParagraph();
         flushList();
         return parts.join("") || `<p>No readable content.</p>`;
+      }
+
+      function renderCompression() {
+        const config = promptTransforms();
+        root.innerHTML = `
+          <div class="head">
+            <div><h1>Compression</h1><p>Reduce prompt size before provider submission.</p></div>
+            ${modeTag()}
+          </div>
+          <div class="grid">
+            <div class="card">
+              <div class="fieldRow">
+                <div>
+                  <strong>Prompt compression</strong>
+                  <p>Runs on the before-submit prompt hook when enabled.</p>
+                </div>
+                <label class="toggleRow">
+                  <input id="compressionEnabled" type="checkbox" ${config.compression.enabled ? "checked" : ""}>
+                  <span>Enabled</span>
+                </label>
+              </div>
+              <div class="settingsGrid">
+                <label><strong>Level</strong><select id="compressionLevel">
+                  <option value="light" ${config.compression.level === "light" ? "selected" : ""}>Light</option>
+                  <option value="standard" ${config.compression.level === "standard" ? "selected" : ""}>Standard</option>
+                  <option value="maximum" ${config.compression.level === "maximum" ? "selected" : ""}>Maximum</option>
+                </select></label>
+                <label><strong>Model</strong><input id="compressionModel" value="${escapeHtml(config.compression.model)}"></label>
+              </div>
+              <label class="toggleRow subtleToggle">
+                <input id="conciseResponse" type="checkbox" ${config.compression.conciseResponse ? "checked" : ""}>
+                <span>Also ask the model to answer concisely</span>
+              </label>
+              <div id="transformMessage" class="notice"></div>
+            </div>
+          </div>
+          <div class="actions"><button class="primary" id="saveCompression">Save compression</button></div>
+        `;
+        document.getElementById("saveCompression").onclick = async () => {
+          const next = promptTransforms();
+          next.compression = {
+            enabled: document.getElementById("compressionEnabled").checked,
+            level: document.getElementById("compressionLevel").value,
+            conciseResponse: document.getElementById("conciseResponse").checked,
+            model: document.getElementById("compressionModel").value.trim() || "gpt-4.1-nano"
+          };
+          await savePromptTransforms(next);
+        };
+      }
+
+      function renderDlp() {
+        const config = promptTransforms();
+        const categories = [
+          ["pii", "PII", "Emails, SSNs, personal identifiers."],
+          ["phi", "PHI", "Patient and health-data context."],
+          ["tokens", "Tokens", "API and access tokens."],
+          ["keys", "Keys", "Private keys and key material."],
+          ["credentials", "Credentials", "Passwords, secrets, API-key assignments."]
+        ];
+        root.innerHTML = `
+          <div class="head">
+            <div><h1>DLP</h1><p>Mask or block sensitive data before prompts leave this Mac.</p></div>
+            ${modeTag()}
+          </div>
+          <div class="grid">
+            <div class="card">
+              <div class="fieldRow">
+                <div>
+                  <strong>DLP funnel</strong>
+                  <p>Runs after compression on the same before-submit prompt hook.</p>
+                </div>
+                <label class="toggleRow">
+                  <input id="dlpEnabled" type="checkbox" ${config.dlp.enabled ? "checked" : ""}>
+                  <span>Enabled</span>
+                </label>
+              </div>
+              <div class="settingsGrid">
+                <label><strong>Action</strong><select id="dlpAction">
+                  <option value="mask" ${config.dlp.action === "mask" ? "selected" : ""}>Mask and continue</option>
+                  <option value="block" ${config.dlp.action === "block" ? "selected" : ""}>Block submission</option>
+                </select></label>
+                <label><strong>Model</strong><input id="dlpModel" value="${escapeHtml(config.dlp.model)}"></label>
+              </div>
+              <div class="categoryGrid">
+                ${categories.map(([id, label, detail]) => `
+                  <label class="categoryCard">
+                    <input data-dlp-category="${id}" type="checkbox" ${config.dlp.categories.includes(id) ? "checked" : ""}>
+                    <span><strong>${label}</strong><small>${detail}</small></span>
+                  </label>
+                `).join("")}
+              </div>
+              <div id="transformMessage" class="notice"></div>
+            </div>
+          </div>
+          <div class="actions"><button class="primary" id="saveDlp">Save DLP</button></div>
+        `;
+        document.getElementById("saveDlp").onclick = async () => {
+          const next = promptTransforms();
+          next.dlp = {
+            enabled: document.getElementById("dlpEnabled").checked,
+            action: document.getElementById("dlpAction").value,
+            categories: [...root.querySelectorAll("[data-dlp-category]:checked")].map((input) => input.dataset.dlpCategory),
+            model: document.getElementById("dlpModel").value.trim() || "gpt-4.1-nano"
+          };
+          await savePromptTransforms(next);
+        };
       }
 
       function overviewAgentInventory() {
@@ -3407,6 +3579,45 @@
       function agentIcon(agent) {
         if (agent.icon) return `<img src="agent-icons/${escapeHtml(agent.icon)}.svg" alt="">`;
         return escapeHtml(String(agent.displayName || "AI").split(/\s+/).slice(0, 2).map((part) => part[0]).join("").toUpperCase());
+      }
+
+      function defaultPromptTransforms() {
+        return {
+          compression: { enabled: false, level: "standard", conciseResponse: false, model: "gpt-4.1-nano" },
+          dlp: { enabled: false, action: "mask", categories: ["pii", "phi", "tokens", "keys", "credentials"], model: "gpt-4.1-nano" }
+        };
+      }
+
+      function promptTransforms() {
+        const defaults = defaultPromptTransforms();
+        const input = state.promptTransforms || {};
+        const compression = input.compression || {};
+        const dlp = input.dlp || {};
+        return {
+          compression: {
+            enabled: Boolean(compression.enabled),
+            level: ["light", "standard", "maximum"].includes(compression.level) ? compression.level : defaults.compression.level,
+            conciseResponse: Boolean(compression.conciseResponse),
+            model: String(compression.model || defaults.compression.model)
+          },
+          dlp: {
+            enabled: Boolean(dlp.enabled),
+            action: dlp.action === "block" ? "block" : "mask",
+            categories: Array.isArray(dlp.categories) ? dlp.categories.filter((item) => defaults.dlp.categories.includes(item)) : defaults.dlp.categories,
+            model: String(dlp.model || defaults.dlp.model)
+          }
+        };
+      }
+
+      async function savePromptTransforms(config) {
+        const result = await window.openleash.savePromptTransforms({ config });
+        const message = document.getElementById("transformMessage");
+        if (result?.ok) {
+          state.promptTransforms = result.config;
+          if (message) message.textContent = "Saved.";
+          return;
+        }
+        if (message) message.textContent = result?.error || "Could not save settings.";
       }
 
       function escapeHtml(value) {
