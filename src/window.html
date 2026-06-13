@@ -1365,7 +1365,7 @@
       }
 
       function isIntroLocked() {
-        return !state.setupComplete && !state.introSeen;
+        return !state.introSeen;
       }
 
       function renderIntro() {
@@ -1391,7 +1391,8 @@
         state.introSeen = true;
         document.body.classList.remove("intro-active");
         await window.openleash.markIntroSeen?.();
-        renderSetup();
+        if (isSetupLocked()) renderSetup();
+        else renderView();
       }
 
       function renderSetup() {

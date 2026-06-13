@@ -236,7 +236,6 @@ let activeNoticeKey: string | undefined;
 let suppressedNoticeKeys = new Set<string>();
 let resolvingDecisionIds = new Set<string>();
 let suppressMainWindowActivationUntil = 0;
-let mainWindowWasVisibleBeforeNotice = false;
 let currentTrayStatus: "ok" | "pending" | "down" = "ok";
 const enforcedAgentKinds = new Set<string>();
 const protectionWatchers = new Map<string, fs.FSWatcher>();
@@ -342,6 +341,93 @@ function hideDockIconIfTrayMode() {
   hideDockIcon();
 }
 
+function shouldPreserveSettingsForLaunch() {
+  const args = process.argv.slice(1);
+  return args.includes("--keep-settings") ||
+    args.includes("--preserve-settings") ||
+    args.includes("--update") ||
+    args.includes("--check-for-updates");
+}
+
+function currentInstallIdentity() {
+  if (!app.isPackaged) return undefined;
+  const bundlePath = appBundlePath();
+  const statTarget = process.platform === "darwin" ? bundlePath : process.execPath;
+  try {
+    const stat = fs.statSync(statTarget);
+    return JSON.stringify({
+      platform: process.platform,
+      path: fs.realpathSync.native(bundlePath),
+      version: app.getVersion(),
+      birthtimeMs: Math.round(stat.birthtimeMs),
+      ctimeMs: Math.round(stat.ctimeMs),
+      size: stat.size
+    });
+  } catch (error) {
+    startupLog(`install identity unavailable: ${error instanceof Error ? error.message : String(error)}`);
+    return undefined;
+  }
+}
+
+function appBundlePath() {
+  if (process.platform !== "darwin") return path.dirname(process.execPath);
+  const marker = ".app/Contents/MacOS/";
+  const markerIndex = process.execPath.indexOf(marker);
+  if (markerIndex < 0) return path.dirname(process.execPath);
+  return process.execPath.slice(0, markerIndex + ".app".length);
+}
+
+function localStateLooksOlderThanCurrentApp(identity: string) {
+  const current = parseInstallIdentity(identity);
+  if (!current?.ctimeMs) return false;
+  try {
+    const dbPath = path.join(app.getPath("userData"), "openleash.sqlite");
+    const legacyPath = path.join(app.getPath("userData"), "store.json");
+    const candidates = [dbPath, legacyPath]
+      .filter((candidate) => fs.existsSync(candidate))
+      .map((candidate) => fs.statSync(candidate).mtimeMs);
+    if (candidates.length === 0) return false;
+    return Math.min(...candidates) + 60_000 < current.ctimeMs;
+  } catch {
+    return false;
+  }
+}
+
+function isInstalledApplicationIdentity(identity: string) {
+  const current = parseInstallIdentity(identity);
+  if (process.platform !== "darwin") return true;
+  return Boolean(current?.path?.startsWith("/Applications/"));
+}
+
+function parseInstallIdentity(identity?: string) {
+  try {
+    return identity ? JSON.parse(identity) as { path?: string; ctimeMs?: number } : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+function syncInstallIdentity() {
+  const identity = currentInstallIdentity();
+  if (!identity) return;
+  const previous = localServer.installIdentity();
+  const preserveSettings = shouldPreserveSettingsForLaunch();
+  const explicitFreshStart = process.argv.includes("--fresh-install");
+  if (previous === identity && !explicitFreshStart) return;
+
+  const shouldReset = explicitFreshStart ||
+    (!preserveSettings && Boolean(previous) && previous !== identity) ||
+    (!preserveSettings && !previous && localServer.setupComplete && (!isInstalledApplicationIdentity(identity) || localStateLooksOlderThanCurrentApp(identity)));
+
+  if (shouldReset) {
+    localServer.resetAllLocalState();
+    startupLog(previous ? "local state reset after app bundle replacement" : "local state reset after fresh app launch");
+  } else if (previous !== identity) {
+    startupLog(preserveSettings ? "settings preserved for app bundle replacement" : "install identity initialized");
+  }
+  localServer.rememberInstallIdentity(identity);
+}
+
 startupLog(`main loaded argv=${process.argv.join(" ")}`);
 app.setName("OpenLeash");
 app.setAsDefaultProtocolClient("openleash");
@@ -388,7 +474,8 @@ app.whenReady().then(async () => {
   startupLog("login item set");
   localServer = new LocalOpenLeashServer(app.getPath("userData"), { onAgentStop: playAgentDoneSound });
   startupLog(`local server constructed at ${app.getPath("userData")}`);
-  if (process.argv.includes("--reset-setup") || process.argv.includes("--fresh-install")) {
+  syncInstallIdentity();
+  if (process.argv.includes("--reset-setup")) {
     localServer.resetSetup();
     startupLog("setup reset");
   }
@@ -746,6 +833,7 @@ ipcMain.handle("openleash:setup", async (_event, payload: {
     cloudApiUrl,
     mode: "settings",
     setupComplete: true,
+    introSeen: localServer.introSeen,
     clientMode,
     remoteApiUrl: localServer.remoteApiUrl,
     remoteOrganization: localServer.remoteOrganization,
@@ -2083,6 +2171,7 @@ function showMainWindow(mode: "setup" | "settings" = localServer?.setupComplete 
       cloudApiUrl,
       mode,
       setupComplete: localServer?.setupComplete ?? false,
+      introSeen: localServer?.introSeen ?? false,
       clientMode: localServer?.clientMode ?? "personal",
       remoteApiUrl: localServer?.remoteApiUrl,
       remoteOrganization: localServer?.remoteOrganization,
@@ -2208,18 +2297,6 @@ function closeNoticeWithoutOpeningMainWindow() {
   if (noticeWindow && !noticeWindow.isDestroyed()) noticeWindow.destroy();
   noticeWindow = undefined;
   activeNoticeKey = undefined;
-  hideMainWindowAfterNoticeAction();
-}
-
-function hideMainWindowAfterNoticeAction() {
-  const hide = () => {
-    if (!window || window.isDestroyed()) return;
-    window.hide();
-    hideDockIconIfTrayMode();
-  };
-  hide();
-  setTimeout(hide, 120);
-  setTimeout(hide, 600);
 }
 
 function showAgentDetail(_agent: AgentStatus) {
@@ -2281,7 +2358,6 @@ function showDecisionNotice(notice: DecisionNotice) {
   const previousNoticeWindow = noticeWindow;
   previousNoticeWindow?.close();
   suppressMainWindowActivation();
-  mainWindowWasVisibleBeforeNotice = Boolean(window && !window.isDestroyed() && window.isVisible());
   activeNoticeKey = noticeKey;
   const createdNoticeWindow = new BrowserWindow({
     width,

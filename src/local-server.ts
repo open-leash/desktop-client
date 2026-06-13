@@ -199,6 +199,7 @@ type SkillRecord = {
 type Store = {
   token: string;
   setupComplete: boolean;
+  installIdentity?: string;
   introSeen?: boolean;
   agentDoneSound?: boolean;
   clientMode?: ClientMode;
@@ -316,6 +317,7 @@ export class LocalOpenLeashServer {
     this.store = {
       token: `ol_personal_${crypto.randomBytes(18).toString("base64url")}`,
       setupComplete: false,
+      installIdentity: this.store?.installIdentity,
       introSeen,
       agentDoneSound: this.store?.agentDoneSound ?? false,
       clientMode: initialClientMode(),
@@ -323,6 +325,38 @@ export class LocalOpenLeashServer {
       policies: defaultPolicies(),
       history: []
     };
+    this.writeStore();
+  }
+
+  resetAllLocalState() {
+    this.store = {
+      token: `ol_personal_${crypto.randomBytes(18).toString("base64url")}`,
+      setupComplete: false,
+      introSeen: false,
+      agentDoneSound: false,
+      clientMode: initialClientMode(),
+      promptTransforms: defaultPromptTransformConfig,
+      policies: defaultPolicies(),
+      history: []
+    };
+    const reset = this.db.transaction(() => {
+      this.db.prepare("delete from settings").run();
+      this.db.prepare("delete from policies").run();
+      this.db.prepare("delete from evaluations").run();
+      this.db.prepare("delete from mcp_tool_calls").run();
+      this.db.prepare("delete from mcp_servers").run();
+      this.db.prepare("delete from skills").run();
+    });
+    reset();
+    this.writeStore();
+  }
+
+  installIdentity() {
+    return this.settingValue("installIdentity");
+  }
+
+  rememberInstallIdentity(identity: string) {
+    this.store.installIdentity = identity;
     this.writeStore();
   }
 
@@ -857,6 +891,7 @@ export class LocalOpenLeashServer {
     const store = {
       token,
       setupComplete: this.getSetting("setupComplete") === "true",
+      installIdentity: this.settingValue("installIdentity"),
       introSeen: this.getSetting("introSeen") === "true",
       agentDoneSound: this.getSetting("agentDoneSound") === "true",
       clientMode: this.settingValue<ClientMode>("clientMode") ?? initialClientMode(),
@@ -1033,6 +1068,7 @@ export class LocalOpenLeashServer {
       const insertSetting = this.db.prepare("insert into settings (key, value) values (?, ?)");
       insertSetting.run("token", store.token);
       insertSetting.run("setupComplete", String(store.setupComplete));
+      if (store.installIdentity) insertSetting.run("installIdentity", store.installIdentity);
       insertSetting.run("introSeen", String(Boolean(store.introSeen)));
       insertSetting.run("agentDoneSound", String(Boolean(store.agentDoneSound)));
       if (store.clientMode) insertSetting.run("clientMode", store.clientMode);
@@ -1391,6 +1427,7 @@ export class LocalOpenLeashServer {
         setupComplete: parsedClientMode === "cloud" || parsedClientMode === "custom"
           ? Boolean(parsed.setupComplete && parsed.remoteToken)
           : Boolean(parsed.setupComplete),
+        installIdentity: parsed.installIdentity,
         clientMode: parsedClientMode,
         agentDoneSound: Boolean(parsed.agentDoneSound),
         remoteApiUrl: parsed.remoteApiUrl,
