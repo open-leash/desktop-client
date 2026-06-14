@@ -1262,6 +1262,12 @@ export class LocalOpenLeashServer {
         value text
       );
 
+      create table if not exists schema_migrations (
+        id text primary key,
+        checksum text not null,
+        applied_at text not null
+      );
+
       create table if not exists policies (
         id text primary key,
         name text not null,
@@ -1370,6 +1376,15 @@ export class LocalOpenLeashServer {
     this.addColumnIfMissing("skills", "purpose_summary", "text");
     this.addColumnIfMissing("skills", "content_updated_at", "text");
     this.db.prepare("create index if not exists evaluations_intent_key_idx on evaluations(intent_key)").run();
+    this.recordLocalSchemaMigration("0001_desktop_local_schema", "inline-local-server-migrate-schema-v1");
+  }
+
+  private recordLocalSchemaMigration(id: string, checksum: string) {
+    this.db.prepare(`
+      insert into schema_migrations (id, checksum, applied_at)
+      values (?, ?, ?)
+      on conflict(id) do nothing
+    `).run(id, checksum, new Date().toISOString());
   }
 
   private readSkills(): SkillRecord[] {
