@@ -1,22 +1,52 @@
-# OpenLeash Desktop Client 🪝🖥️
+<div align="center">
 
-[![Desktop](https://img.shields.io/badge/desktop-electron-111718)](#)
-[![Local First](https://img.shields.io/badge/local--first-hooks-0c8b67)](#)
-[![CLI](https://img.shields.io/badge/includes-cli-3975a8)](#)
+<img src="https://capsule-render.vercel.app/api?type=waving&color=0:F59E0B,45:10B981,100:111827&height=220&section=header&text=Desktop%20Client&fontSize=52&fontColor=ffffff&fontAlignY=38&desc=Local-first%20agent%20hooks%20and%20approvals.&descSize=18&descAlignY=58" width="100%" />
 
-The installed OpenLeash client: tray app, local API, approval UI, hook installer, local storage, and deployment CLI.
+<p>
+  <img src="https://img.shields.io/badge/Electron-desktop-47848F?style=for-the-badge&logo=electron&logoColor=white" />
+  <img src="https://img.shields.io/badge/Local%20First-hooks-F59E0B?style=for-the-badge" />
+  <img src="https://img.shields.io/badge/SQLite-standalone-003B57?style=for-the-badge&logo=sqlite&logoColor=white" />
+</p>
 
-## Why It Exists
+<h3>🖥 Unleash your agents with a local control point.</h3>
 
-Agent hooks should call the desktop local API first:
+</div>
+
+---
+
+## ✨ What this app is
+
+`desktop-client` is the installed OpenLeash client: tray app, local API, approval UI, hook installer, local SQLite store, update checks, and deployment CLI.
+
+Installed hooks call the desktop local API first:
 
 ```text
-http://127.0.0.1:4317/v1/hooks/:agent/:event
+http://127.0.0.1:9317/v1/hooks/:agent/:event
 ```
 
-That keeps OpenLeash useful offline. In managed modes, the desktop client forwards to the configured `client-api` or OpenLeash Cloud when reachable.
+That keeps Local mode useful without the internet. In managed modes, the desktop client forwards to `client-api` or OpenLeash Cloud when reachable.
 
-## Run
+---
+
+## 🚀 Modes
+
+| Mode | Behavior |
+| --- | --- |
+| 🖥️ Local mode | Local API, local SQLite, user LLM key or deterministic fallback. |
+| 🏢 Private Cloud | Local API forwards to customer-hosted `client-api`. |
+| ☁️ OpenLeash Cloud | Local API forwards to OpenLeash-hosted cloud APIs. |
+
+---
+
+## 🛠 Run locally
+
+Best path:
+
+```bash
+python3 run.py
+```
+
+Direct app run:
 
 ```bash
 npm install
@@ -28,24 +58,29 @@ CLI examples:
 ```bash
 npm run desktop-cli -- discover
 npm run desktop-cli -- install-hooks --all
-npm run desktop-cli -- configure --token "$OPENLEASH_TOKEN" --api-url http://127.0.0.1:4317
+npm run desktop-cli -- configure --token "$OPENLEASH_TOKEN" --api-url http://127.0.0.1:9317
 ```
 
-## Modes
+---
 
-| Mode | Behavior |
-| --- | --- |
-| Standalone | Local API evaluates with user-provided LLM key or fallback rules. |
-| Managed private cloud | Local API forwards to customer-hosted `client-api`. |
-| OpenLeash Cloud | Local API forwards to OpenLeash-hosted `cloud-client-api`. |
+## 🪝 Hook philosophy
 
-## Hook Philosophy
+- Hooks stay local-first.
+- Install changes are explicit and reversible.
+- Offline behavior should remain understandable.
+- Users should see what changed and how to undo it.
+- Risky actions should feel clear, not spooky.
 
-- Install only explicit, reversible config.
-- Keep hooks local-first.
-- Preserve offline behavior.
-- Show users what changed and how to remove it.
+---
 
-## Security Notes
+## 🛡 Security notes
 
-The Electron renderer runs with context isolation, sandboxing, no Node integration, and guarded external URL opening. Keep it that way.
+The Electron renderer uses context isolation, sandboxing, no Node integration, and guarded external URL opening.
+
+Keep it that way.
+
+<div align="center">
+
+### Fast agents. Local checkpoint. Human confidence.
+
+</div>
