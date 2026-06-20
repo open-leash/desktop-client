@@ -2,10 +2,19 @@ import fs from "node:fs/promises";
 import { accessSync, constants } from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { claudeSettingsPath, codexConfigPath, nanoClawSettingsPath, openClawConfigPath, openClawOpenLeashHookDir } from "./paths.js";
+import {
+  claudeSettingsPath,
+  codexConfigPath,
+  cursorHooksPath,
+  geminiSettingsPath,
+  nanoClawSettingsPath,
+  openClawConfigPath,
+  openClawOpenLeashHookDir,
+  openCodePluginPath
+} from "./paths.js";
 
 export type DiscoveredAgent = {
-  kind: "claude-code" | "codex" | "openclaw" | "nanoclaw";
+  kind: "claude-code" | "codex" | "gemini" | "opencode" | "cursor" | "openclaw" | "nanoclaw";
   displayName: string;
   configPath: string;
   installed: boolean;
@@ -13,9 +22,12 @@ export type DiscoveredAgent = {
 };
 
 export async function discoverAgents(): Promise<DiscoveredAgent[]> {
-  const [claudeExists, codexExists, openClawExists, openClawHookExists, nanoClawExists] = await Promise.all([
+  const [claudeExists, codexExists, geminiExists, openCodeExists, cursorExists, openClawExists, openClawHookExists, nanoClawExists] = await Promise.all([
     exists(claudeSettingsPath),
     exists(codexConfigPath),
+    exists(geminiSettingsPath),
+    exists(openCodePluginPath),
+    exists(cursorHooksPath),
     exists(openClawConfigPath),
     exists(openClawOpenLeashHookDir),
     exists(nanoClawSettingsPath)
@@ -34,6 +46,27 @@ export async function discoverAgents(): Promise<DiscoveredAgent[]> {
       configPath: codexConfigPath,
       installed: codexExists || Boolean(findOnPath("codex")),
       executablePath: findOnPath("codex")
+    },
+    {
+      kind: "gemini",
+      displayName: "Google Gemini CLI",
+      configPath: geminiSettingsPath,
+      installed: geminiExists || Boolean(findOnPath("gemini")),
+      executablePath: findOnPath("gemini")
+    },
+    {
+      kind: "opencode",
+      displayName: "OpenCode",
+      configPath: openCodePluginPath,
+      installed: openCodeExists || Boolean(findOnPath("opencode")),
+      executablePath: findOnPath("opencode")
+    },
+    {
+      kind: "cursor",
+      displayName: "Cursor",
+      configPath: cursorHooksPath,
+      installed: cursorExists || pathExists("/Applications/Cursor.app"),
+      executablePath: undefined
     },
     {
       kind: "openclaw",

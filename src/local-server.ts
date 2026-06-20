@@ -11,6 +11,7 @@ import {
   type OpenLeashApiFunction
 } from "./api-contract";
 import { OPENLEASH_DESKTOP_AUTH_CALLBACK_URI, OPENLEASH_DESKTOP_GOOGLE_REDIRECT_URI } from "./public-config";
+import { bundledPluginCatalog, type PluginCatalogItem } from "./plugin-catalog";
 
 const ACTION_PURPOSE_CONTEXT_MESSAGES = Number(process.env.OPENLEASH_ACTION_PURPOSE_MESSAGES ?? 5);
 type ClientMode = "personal" | "cloud" | "custom";
@@ -34,7 +35,11 @@ function initialClientMode(): ClientMode {
   const raw = (process.env.OPENLEASH_CLIENT_MODE || process.env.OPENLEASH_MODE || "").toLowerCase();
   if (raw === "cloud" || raw === "public-cloud") return "cloud";
   if (raw === "custom" || raw === "enterprise" || raw === "self-hosted" || raw === "private-cloud") return "custom";
-  return "personal";
+  return "cloud";
+}
+
+function normalizeClientMode(value?: ClientMode | string): ClientMode {
+  return value === "custom" ? "custom" : "cloud";
 }
 
 export type Policy = {
@@ -210,6 +215,7 @@ type Store = {
   apiProvider?: "openai" | "anthropic";
   apiKey?: string;
   promptTransforms: PromptTransformConfig;
+  plugins: PluginCatalogItem[];
   policies: Policy[];
   history: Evaluation[];
 };
@@ -289,7 +295,7 @@ export class LocalOpenLeashServer {
   }
 
   get clientMode() {
-    return this.store.clientMode ?? "personal";
+    return this.store.clientMode === "custom" ? "custom" : "cloud";
   }
 
   get remoteApiUrl() {
@@ -305,11 +311,11 @@ export class LocalOpenLeashServer {
   }
 
   get effectiveApiUrl() {
-    return this.clientMode === "personal" ? this.apiUrl : (this.store.remoteApiUrl ?? this.apiUrl);
+    return this.store.remoteApiUrl ?? this.apiUrl;
   }
 
   get effectiveToken() {
-    return this.clientMode === "personal" ? this.store.token : (this.store.remoteToken ?? this.store.token);
+    return this.store.remoteToken ?? this.store.token;
   }
 
   resetSetup() {
@@ -322,6 +328,7 @@ export class LocalOpenLeashServer {
       agentDoneSound: this.store?.agentDoneSound ?? false,
       clientMode: initialClientMode(),
       promptTransforms: this.store?.promptTransforms ?? defaultPromptTransformConfig,
+      plugins: bundledPluginCatalog(),
       policies: defaultPolicies(),
       history: []
     };
@@ -336,6 +343,7 @@ export class LocalOpenLeashServer {
       agentDoneSound: false,
       clientMode: initialClientMode(),
       promptTransforms: defaultPromptTransformConfig,
+      plugins: bundledPluginCatalog(),
       policies: defaultPolicies(),
       history: []
     };
@@ -386,23 +394,14 @@ export class LocalOpenLeashServer {
   }
 
   completeSetup(policies: Policy[], config: SetupConfig) {
-    const clientMode = config.clientMode ?? "personal";
+    const clientMode = config.clientMode === "custom" ? "custom" : "cloud";
     this.store.policies = enforceLockedPolicies(normalizePolicies(policies, this.store.policies, true));
     this.store.clientMode = clientMode;
-    if (clientMode === "personal") {
-      this.store.apiProvider = config.apiProvider === "anthropic" ? "anthropic" : "openai";
-      this.store.apiKey = config.apiKey;
-      this.store.remoteApiUrl = undefined;
-      this.store.remoteToken = undefined;
-      this.store.remoteOrganization = undefined;
-      this.store.remoteUser = undefined;
-    } else {
-      this.store.remoteApiUrl = config.remoteApiUrl;
-      this.store.remoteToken = config.remoteToken;
-      this.store.remoteOrganization = config.remoteOrganization;
-      this.store.remoteUser = config.remoteUser;
-      this.store.apiKey = undefined;
-    }
+    this.store.remoteApiUrl = config.remoteApiUrl;
+    this.store.remoteToken = config.remoteToken;
+    this.store.remoteOrganization = config.remoteOrganization;
+    this.store.remoteUser = config.remoteUser;
+    this.store.apiKey = undefined;
     this.store.history = [];
     this.store.setupComplete = true;
     this.writeStore();
@@ -412,9 +411,13 @@ export class LocalOpenLeashServer {
     return Boolean(this.store.agentDoneSound);
   }
 
+  get plugins() {
+    return this.store.plugins;
+  }
+
   updateSettings(apiProvider: "openai" | "anthropic", apiKey?: string, agentDoneSound?: boolean) {
-    this.store.apiProvider = apiProvider;
-    if (apiKey) this.store.apiKey = apiKey;
+    this.store.apiProvider = undefined;
+    this.store.apiKey = undefined;
     if (typeof agentDoneSound === "boolean") this.store.agentDoneSound = agentDoneSound;
     this.writeStore();
   }
@@ -478,7 +481,7 @@ export class LocalOpenLeashServer {
     try {
       const functionName = localApiFunction(req.method ?? "", req.url ?? "");
       if (functionName && !applyLocalContract(req, res, functionName)) return;
-      if (req.method === "GET" && req.url === "/health") return json(res, { ok: true, mode: "personal" });
+      if (req.method === "GET" && req.url === "/health") return json(res, { ok: true, mode: this.clientMode });
       const oauthCallback = new URL(req.url ?? "/", this.apiUrl);
       if (req.method === "GET" && oauthCallback.pathname === "/v1/auth/google/callback") {
         const redirect = new URL(OPENLEASH_DESKTOP_AUTH_CALLBACK_URI);
@@ -504,6 +507,7 @@ export class LocalOpenLeashServer {
           apiProvider: this.store.apiProvider,
           apiKeySet: this.apiKeySet,
           promptTransforms: this.store.promptTransforms,
+          plugins: this.store.plugins,
           policies: this.store.policies,
           history: this.store.history,
           mcpServers: this.mcpServers,
@@ -531,14 +535,7 @@ export class LocalOpenLeashServer {
           this.notifyAgentStop(hookMatch[1], hookMatch[2], body);
           return json(res, remoteDecision);
         }
-        const request = normalizeHookRequest(hookMatch[1], hookMatch[2], body, req.url ?? "");
-        const decision = await this.evaluate(request);
-        const resolvedDecision = await this.waitForHookDecision(decision);
-        this.notifyAgentStop(hookMatch[1], hookMatch[2], body);
-        if (resolvedDecision.decision === "allow" && isPromptOnlyHook(request) && promptTransformsEnabled(this.store.promptTransforms)) {
-          return json(res, await this.handlePromptTransformHook(hookMatch[1], hookMatch[2], request));
-        }
-        return json(res, nativeHookDecision(hookMatch[1], hookMatch[2], resolvedDecision));
+        return json(res, backendUnavailableHookDecision(hookMatch[1], hookMatch[2]));
       }
       const decision = req.url?.match(/^\/v1\/decisions\/([^/]+)$/);
       if (req.method === "GET" && decision) {
@@ -689,7 +686,7 @@ export class LocalOpenLeashServer {
   }
 
   private async forwardRemoteHook(agent: string, eventName: string, body: unknown, originalUrl: string) {
-    if (this.clientMode === "personal" || !this.store.remoteApiUrl || !this.store.remoteToken) return undefined;
+    if (!this.store.remoteApiUrl || !this.store.remoteToken) return undefined;
     try {
       const endpoint = new URL(`/v1/hooks/${agent}/${eventName}`, this.store.remoteApiUrl.replace(/\/+$/, ""));
       const query = new URL(originalUrl, "http://127.0.0.1").searchParams;
@@ -894,14 +891,15 @@ export class LocalOpenLeashServer {
       installIdentity: this.settingValue("installIdentity"),
       introSeen: this.getSetting("introSeen") === "true",
       agentDoneSound: this.getSetting("agentDoneSound") === "true",
-      clientMode: this.settingValue<ClientMode>("clientMode") ?? initialClientMode(),
+      clientMode: normalizeClientMode(this.settingValue<ClientMode>("clientMode") ?? initialClientMode()),
       remoteApiUrl: this.settingValue("remoteApiUrl"),
       remoteToken: this.settingValue("remoteToken"),
       remoteOrganization: this.settingValue("remoteOrganization"),
       remoteUser: this.settingValue("remoteUser"),
-      apiProvider: this.settingValue<"openai" | "anthropic">("apiProvider"),
-      apiKey: this.settingValue("apiKey"),
+      apiProvider: undefined,
+      apiKey: undefined,
       promptTransforms: normalizePromptTransformConfig(parseJson<unknown>(this.settingValue("promptTransforms") ?? null, undefined)),
+      plugins: bundledPluginCatalog(),
       policies: enforceLockedPolicies(policies.length > 0 ? policies : defaultPolicies()),
       history: this.readHistory()
     };
@@ -911,9 +909,7 @@ export class LocalOpenLeashServer {
     }
     return {
       ...store,
-      setupComplete: store.clientMode === "cloud" || store.clientMode === "custom"
-        ? Boolean(store.setupComplete && store.remoteApiUrl && store.remoteToken)
-        : Boolean(store.setupComplete)
+      setupComplete: Boolean(store.setupComplete && store.remoteApiUrl && store.remoteToken)
     };
   }
 
@@ -1436,7 +1432,7 @@ export class LocalOpenLeashServer {
     }
     try {
       const parsed = JSON.parse(fs.readFileSync(this.legacyStorePath, "utf8")) as Store;
-      const parsedClientMode = parsed.clientMode ?? "personal";
+      const parsedClientMode = parsed.clientMode === "custom" ? "custom" : "cloud";
       this.store = {
         token: parsed.token || `ol_personal_${crypto.randomBytes(18).toString("base64url")}`,
         setupComplete: parsedClientMode === "cloud" || parsedClientMode === "custom"
@@ -1452,6 +1448,7 @@ export class LocalOpenLeashServer {
         apiProvider: parsed.apiProvider,
         apiKey: parsed.apiKey,
         promptTransforms: normalizePromptTransformConfig(parsed.promptTransforms),
+        plugins: bundledPluginCatalog(),
         policies: parsed.policies?.length ? parsed.policies : defaultPolicies(),
         history: Array.isArray(parsed.history) ? parsed.history : []
       };
@@ -2529,6 +2526,13 @@ function normalizeHookPrompt(raw: any) {
     raw?.message,
     raw?.input_text,
     raw?.inputText,
+    raw?.prompt_response,
+    raw?.promptResponse,
+    raw?.agent_response,
+    raw?.agentResponse,
+    raw?.response,
+    raw?.output_text,
+    raw?.outputText,
     raw?.body,
     raw?.text,
     raw?.context?.content,
@@ -2592,6 +2596,13 @@ function nativeHookDecision(agent: string, eventName: string, decision: { decisi
     return { continue: decision.decision !== "deny", stopReason: reason, suppressOutput: true };
   }
   return { decision: decision.decision === "deny" ? "block" : decision.decision, reason };
+}
+
+function backendUnavailableHookDecision(agent: string, eventName: string) {
+  return nativeHookDecision(agent, eventName, {
+    decision: "deny",
+    summary: "OpenLeash backend is unavailable. Connect to OpenLeash Cloud or your Private Cloud API before continuing."
+  });
 }
 
 function promptTransformHookDecision(agent: string, eventName: string, prompt: string, summary: string) {

@@ -8,11 +8,14 @@ import {
   claudeSettingsPath,
   codexConfigPath,
   codexHooksPath,
+  cursorHooksPath,
+  geminiSettingsPath,
+  openCodePluginPath,
   nanoClawSettingsPath,
   openClawOpenLeashHookDir
 } from "./paths.js";
 
-type HookAgent = "claude" | "codex" | "cursor" | "openclaw" | "nanoclaw";
+type HookAgent = "claude" | "codex" | "cursor" | "gemini" | "opencode" | "openclaw" | "nanoclaw";
 type HookEventName = "UserPromptSubmit" | "PreToolUse" | "PostToolUse" | "Stop";
 
 async function hookCommand(agent: HookAgent, event: HookEventName) {
@@ -165,6 +168,78 @@ export async function uninstallCodexHooks() {
   }
 }
 
+export async function installGeminiHooks() {
+  await fs.mkdir(path.dirname(geminiSettingsPath), { recursive: true });
+  const existing = await readJsonObject(geminiSettingsPath);
+  const hooks = existing.hooks && typeof existing.hooks === "object" ? existing.hooks as Record<string, unknown> : {};
+  const metadata = openLeashMetadata(existing);
+  metadata.gemini = {
+    installedAt: new Date().toISOString(),
+    hooks: snapshotNamedHookEntries(hooks, ["BeforeAgent", "BeforeTool", "AfterTool", "AfterAgent"])
+  };
+  existing.__openleash = metadata;
+  existing.hooks = {
+    ...hooks,
+    BeforeAgent: [await geminiHookGroup("UserPromptSubmit")],
+    BeforeTool: [await geminiHookGroup("PreToolUse", ".*")],
+    AfterTool: [await geminiHookGroup("PostToolUse", ".*")],
+    AfterAgent: [await geminiHookGroup("Stop")]
+  };
+  await fs.writeFile(geminiSettingsPath, `${JSON.stringify(existing, null, 2)}\n`);
+}
+
+export async function uninstallGeminiHooks() {
+  const existing = await readJsonObject(geminiSettingsPath);
+  const metadata = openLeashMetadata(existing);
+  const hooks = existing.hooks && typeof existing.hooks === "object" ? existing.hooks as Record<string, unknown> : {};
+  restoreNamedHookEntries(hooks, metadata.gemini?.hooks, ["BeforeAgent", "BeforeTool", "AfterTool", "AfterAgent"], "/v1/hooks/gemini/");
+  existing.hooks = hooks;
+  delete metadata.gemini;
+  if (Object.keys(metadata).length > 0) existing.__openleash = metadata;
+  else delete existing.__openleash;
+  await fs.writeFile(geminiSettingsPath, `${JSON.stringify(existing, null, 2)}\n`);
+}
+
+export async function installCursorHooks() {
+  await fs.mkdir(path.dirname(cursorHooksPath), { recursive: true });
+  const existing = await readJsonObject(cursorHooksPath);
+  const metadata = openLeashMetadata(existing);
+  const hookKeys = cursorHookKeys();
+  metadata.cursor = {
+    installedAt: new Date().toISOString(),
+    hooks: snapshotNamedHookEntries(existing, hookKeys)
+  };
+  existing.__openleash = metadata;
+  existing.beforeSubmitPrompt = [await cursorHook("UserPromptSubmit")];
+  existing.beforeShellExecution = [await cursorHook("PreToolUse")];
+  existing.beforeReadFile = [await cursorHook("PreToolUse")];
+  existing.afterFileEdit = [await cursorHook("PostToolUse")];
+  existing.afterAgentResponse = [await cursorHook("PostToolUse")];
+  existing.beforeMCPExecution = [await cursorHook("PreToolUse")];
+  existing.afterMCPExecution = [await cursorHook("PostToolUse")];
+  existing.stop = [await cursorHook("Stop")];
+  await fs.writeFile(cursorHooksPath, `${JSON.stringify(existing, null, 2)}\n`);
+}
+
+export async function uninstallCursorHooks() {
+  const existing = await readJsonObject(cursorHooksPath);
+  const metadata = openLeashMetadata(existing);
+  restoreNamedHookEntries(existing, metadata.cursor?.hooks, cursorHookKeys(), "/v1/hooks/cursor/");
+  delete metadata.cursor;
+  if (Object.keys(metadata).length > 0) existing.__openleash = metadata;
+  else delete existing.__openleash;
+  await fs.writeFile(cursorHooksPath, `${JSON.stringify(existing, null, 2)}\n`);
+}
+
+export async function installOpenCodeHooks() {
+  await fs.mkdir(path.dirname(openCodePluginPath), { recursive: true });
+  await fs.writeFile(openCodePluginPath, await openCodePluginSource());
+}
+
+export async function uninstallOpenCodeHooks() {
+  await fs.rm(openCodePluginPath, { force: true });
+}
+
 async function readJsonObject(file: string): Promise<Record<string, unknown>> {
   try {
     return JSON.parse(await fs.readFile(file, "utf8")) as Record<string, unknown>;
@@ -190,6 +265,26 @@ function restoreHookEntries(hooks: Record<string, unknown>, backup?: Record<stri
     const item = backup?.[event];
     if (item?.existed) hooks[event] = item.value;
     else delete hooks[event];
+  }
+}
+
+function snapshotNamedHookEntries(hooks: Record<string, unknown>, events: string[]) {
+  return Object.fromEntries(events.map((event) => [event, {
+    existed: Object.prototype.hasOwnProperty.call(hooks, event),
+    value: hooks[event]
+  }]));
+}
+
+function restoreNamedHookEntries(
+  hooks: Record<string, unknown>,
+  backup: Record<string, { existed?: boolean; value?: unknown }> | undefined,
+  events: string[],
+  managedNeedle: string
+) {
+  for (const event of events) {
+    const item = backup?.[event];
+    if (item?.existed) hooks[event] = item.value;
+    else if (JSON.stringify(hooks[event] ?? {}).includes(managedNeedle)) delete hooks[event];
   }
 }
 
@@ -226,6 +321,96 @@ async function codexHookGroup(event: HookEventName) {
   return {
     hooks: [{ type: "command", command: await hookCommand("codex", event) }]
   };
+}
+
+async function geminiHookGroup(event: HookEventName, matcher?: string) {
+  return {
+    ...(matcher ? { matcher } : {}),
+    hooks: [{ type: "command", command: await hookCommand("gemini", event), name: "OpenLeash", timeout: 120000 }]
+  };
+}
+
+async function cursorHook(event: HookEventName) {
+  return { command: await hookCommand("cursor", event), name: "OpenLeash", timeout: 120000 };
+}
+
+function cursorHookKeys() {
+  return [
+    "beforeSubmitPrompt",
+    "beforeShellExecution",
+    "beforeReadFile",
+    "afterFileEdit",
+    "afterAgentResponse",
+    "beforeMCPExecution",
+    "afterMCPExecution",
+    "stop"
+  ];
+}
+
+async function openCodePluginSource() {
+  const preToolUrl = await hookEndpoint("opencode", "PreToolUse");
+  const postToolUrl = await hookEndpoint("opencode", "PostToolUse");
+  const stopUrl = await hookEndpoint("opencode", "Stop");
+  const headers = {
+    "content-type": "application/json",
+    ...apiVersionHeaders("localHookEvaluate")
+  };
+  return `const headers = ${JSON.stringify(headers, null, 2)};
+
+async function evaluate(url, payload) {
+  const response = await fetch(url, {
+    method: "POST",
+    headers,
+    body: JSON.stringify({
+      ...payload,
+      cwd: payload.cwd || process.cwd(),
+      session_id: payload.session_id || payload.sessionID || payload.session?.id
+    })
+  });
+  if (!response.ok) return;
+  const decision = await response.json().catch(() => ({}));
+  if (decision.decision === "deny" || decision.decision === "block") {
+    throw new Error(decision.reason || "OpenLeash denied this action.");
+  }
+}
+
+export const OpenLeash = async () => ({
+  "tool.execute.before": async (input, output) => {
+    await evaluate(${JSON.stringify(preToolUrl)}, {
+      tool_name: input?.tool,
+      tool_input: output?.args || input?.args || input,
+      session_id: input?.sessionID || input?.session?.id,
+      cwd: input?.cwd
+    });
+  },
+  "tool.execute.after": async (input, output) => {
+    await evaluate(${JSON.stringify(postToolUrl)}, {
+      tool_name: input?.tool,
+      tool_input: input?.args,
+      tool_response: output,
+      session_id: input?.sessionID || input?.session?.id,
+      cwd: input?.cwd
+    });
+  },
+  "session.idle": async (input) => {
+    await evaluate(${JSON.stringify(stopUrl)}, {
+      session_id: input?.sessionID || input?.session?.id,
+      prompt_response: input?.message || input?.summary
+    });
+  }
+});
+`;
+}
+
+async function hookEndpoint(agent: HookAgent, event: HookEventName) {
+  const config = await readConfig();
+  const endpoint = new URL(`/v1/hooks/${agent}/${event}`, config.apiUrl.replace(/\/+$/, ""));
+  endpoint.searchParams.set("user_token", config.token);
+  endpoint.searchParams.set("hostname", config.computer?.hostname ?? os.hostname());
+  endpoint.searchParams.set("platform", os.platform());
+  endpoint.searchParams.set("os_release", os.release());
+  if (config.clientVersion) endpoint.searchParams.set("client_version", config.clientVersion);
+  return endpoint.toString();
 }
 
 function openClawHookMetadata() {

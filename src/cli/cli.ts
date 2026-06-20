@@ -7,11 +7,17 @@ import { discoverAgents } from "./discovery.js";
 import {
   installClaudeHooks,
   installCodexHooks,
+  installCursorHooks,
+  installGeminiHooks,
   installNanoClawHooks,
+  installOpenCodeHooks,
   installOpenClawHooks,
   uninstallClaudeHooks,
   uninstallCodexHooks,
+  uninstallCursorHooks,
+  uninstallGeminiHooks,
   uninstallNanoClawHooks,
+  uninstallOpenCodeHooks,
   uninstallOpenClawHooks
 } from "./install.js";
 import { runHook } from "./hook.js";
@@ -91,14 +97,20 @@ program
   .command("install-hooks")
   .option("--claude", "install Claude Code hooks")
   .option("--codex", "install Codex hooks")
+  .option("--gemini", "install Gemini CLI hooks")
+  .option("--opencode", "install OpenCode hooks")
+  .option("--cursor", "install Cursor hooks")
   .option("--openclaw", "install OpenClaw hooks")
   .option("--nanoclaw", "install NanoClaw hooks")
   .option("--all", "install every production-ready hook", true)
   .action(async (options) => {
     if (options.all || options.claude) await installClaudeHooks();
-    if (options.codex) await installCodexHooks();
-    if (options.openclaw) await installOpenClawHooks();
-    if (options.nanoclaw) await installNanoClawHooks();
+    if (options.all || options.codex) await installCodexHooks();
+    if (options.all || options.gemini) await installGeminiHooks();
+    if (options.all || options.opencode) await installOpenCodeHooks();
+    if (options.all || options.cursor) await installCursorHooks();
+    if (options.all || options.openclaw) await installOpenClawHooks();
+    if (options.all || options.nanoclaw) await installNanoClawHooks();
     console.log("OpenLeash hooks installed.");
   });
 
@@ -106,12 +118,18 @@ program
   .command("uninstall-hooks")
   .option("--claude", "remove Claude Code hooks")
   .option("--codex", "remove Codex hooks")
+  .option("--gemini", "remove Gemini CLI hooks")
+  .option("--opencode", "remove OpenCode hooks")
+  .option("--cursor", "remove Cursor hooks")
   .option("--openclaw", "remove OpenClaw hooks")
   .option("--nanoclaw", "remove NanoClaw hooks")
   .option("--all", "remove every reversible hook", true)
   .action(async (options) => {
     if (options.all || options.claude) await uninstallClaudeHooks();
-    if (options.codex) await uninstallCodexHooks();
+    if (options.all || options.codex) await uninstallCodexHooks();
+    if (options.all || options.gemini) await uninstallGeminiHooks();
+    if (options.all || options.opencode) await uninstallOpenCodeHooks();
+    if (options.all || options.cursor) await uninstallCursorHooks();
     if (options.all || options.openclaw) await uninstallOpenClawHooks();
     if (options.all || options.nanoclaw) await uninstallNanoClawHooks();
     console.log("OpenLeash hooks removed.");
@@ -119,7 +137,7 @@ program
 
 program
   .command("hook")
-  .requiredOption("--agent <agent>", "claude, codex, openclaw, or nanoclaw")
+  .requiredOption("--agent <agent>", "claude, codex, gemini, opencode, cursor, openclaw, or nanoclaw")
   .requiredOption("--event <event>", "hook event name")
   .action(async (options) => {
     await runHook(options.agent, options.event);

@@ -13,6 +13,7 @@ import {
   OPENLEASH_PUBLIC_CLOUD_API_URL,
   OPENLEASH_PUBLIC_CLOUD_DASHBOARD_URL
 } from "./public-config";
+import type { PluginCatalogItem } from "./plugin-catalog";
 
 type PendingDecision = {
   id: string;
@@ -193,6 +194,7 @@ let noticeWindow: BrowserWindow | undefined;
 let latestPending: PendingDecision[] = [];
 let latestAgents: AgentStatus[] = [];
 let latestSessionMetrics: SessionMetrics = {};
+let latestPlugins: PluginCatalogItem[] = [];
 let localProtections: LocalAgentProtection[] = [];
 let localProtectionCheckedAt = 0;
 
@@ -560,7 +562,7 @@ ipcMain.handle("openleash:list", () => ({
   mode: localServer?.setupComplete ? "settings" : "setup",
   setupComplete: localServer?.setupComplete ?? false,
   introSeen: localServer?.introSeen ?? false,
-  clientMode: localServer?.clientMode ?? "personal",
+  clientMode: localServer?.clientMode ?? "cloud",
   remoteApiUrl: localServer?.remoteApiUrl,
   remoteOrganization: localServer?.remoteOrganization,
   remoteUser: localServer?.remoteUser,
@@ -568,6 +570,7 @@ ipcMain.handle("openleash:list", () => ({
     apiKeySet: localServer?.apiKeySet ?? false,
     agentDoneSound: localServer?.agentDoneSound ?? false,
     promptTransforms: localServer?.promptTransforms,
+    plugins: latestPlugins.length > 0 ? latestPlugins : localServer?.plugins ?? [],
     pending: latestPending,
   agents: latestAgents,
   sessionMetrics: latestSessionMetrics,
@@ -778,17 +781,17 @@ ipcMain.handle("openleash:setup", async (_event, payload: {
   remoteUser?: string;
   skipDashboardOpen?: boolean;
 }) => {
-  const clientMode = payload.clientMode ?? "personal";
+	  const clientMode = payload.clientMode === "custom" ? "custom" : "cloud";
   const audience = payload.audience === "organization" ? "organization" : "individual";
   const apiKey = String(payload.apiKey ?? "").trim();
   let remoteToken = payload.remoteToken || desktopAuthSession?.token;
   const remoteApiUrl = normalizeRemoteApiUrl(payload.remoteApiUrl || desktopAuthSession?.apiUrl || cloudApiUrl);
-  if (clientMode !== "personal" && !remoteToken) return { ok: false, error: "Sign in before installing protection." };
+	  if (!remoteToken) return { ok: false, error: "Sign in before installing protection." };
   if (clientMode === "cloud" && audience === "organization" && isPersonalEmailDomain(payload.remoteUser || desktopAuthSession?.userEmail)) {
     return { ok: false, error: "Use your company Google Workspace or Microsoft 365 account, not a personal email address." };
   }
   let enrolledRemoteUser = payload.remoteUser || desktopAuthSession?.userName || desktopAuthSession?.userEmail;
-  if (clientMode !== "personal" && desktopAuthSession?.token && remoteToken === desktopAuthSession.token) {
+	  if (desktopAuthSession?.token && remoteToken === desktopAuthSession.token) {
     await refreshLocalProtections(true);
     const enrollment = await enrollDesktopEndpoint(remoteApiUrl, desktopAuthSession.token, payload.agents ?? []);
     if (!enrollment.ok) return { ok: false, error: enrollment.error };
@@ -796,7 +799,7 @@ ipcMain.handle("openleash:setup", async (_event, payload: {
     enrolledRemoteUser = enrollment.user?.display_name || enrollment.user?.email || enrolledRemoteUser;
   }
   const basePolicies = Array.isArray(payload.policies)
-    ? normalizePolicies(payload.policies, localServer.policies, clientMode !== "personal")
+	    ? normalizePolicies(payload.policies, localServer.policies, true)
     : localServer.policies;
   const policies = basePolicies.map((policy) => ({
     ...policy,
@@ -881,10 +884,8 @@ ipcMain.handle("openleash:uninstall-agent-protection", async (_event, kind: stri
   return { ok: true };
 });
 ipcMain.handle("openleash:save-settings", (_event, payload: { apiProvider?: "openai" | "anthropic"; apiKey?: string; agentDoneSound?: boolean }) => {
-  const provider = payload.apiProvider === "anthropic" ? "anthropic" : "openai";
-  const apiKey = String(payload.apiKey ?? "").trim();
-  localServer.updateSettings(provider, apiKey || undefined, typeof payload.agentDoneSound === "boolean" ? payload.agentDoneSound : undefined);
-  return { ok: true, apiProvider: provider, apiKeySet: localServer.apiKeySet, agentDoneSound: localServer.agentDoneSound };
+  localServer.updateSettings("openai", undefined, typeof payload.agentDoneSound === "boolean" ? payload.agentDoneSound : undefined);
+  return { ok: true, apiProvider: "openai", apiKeySet: false, agentDoneSound: localServer.agentDoneSound };
 });
 ipcMain.handle("openleash:save-prompt-transforms", (_event, payload: { config?: unknown }) => {
   const config = localServer.updatePromptTransforms(payload.config ?? payload);
@@ -985,7 +986,7 @@ ipcMain.handle("openleash:resolve", async (_event, id: string, resolution: "allo
   closeNoticeWithoutOpeningMainWindow();
   latestPending = latestPending.filter((item) => !idsToResolve.includes(item.id));
   refreshMenu();
-  window?.webContents.send("openleash:update", { apiUrl, pending: latestPending, agents: latestAgents, sessionMetrics: latestSessionMetrics, history: localServer.history, mcpServers: localServer.mcpServers, skills: localServer.skills });
+  window?.webContents.send("openleash:update", { apiUrl, pending: latestPending, agents: latestAgents, sessionMetrics: latestSessionMetrics, plugins: latestPlugins, history: localServer.history, mcpServers: localServer.mcpServers, skills: localServer.skills });
   void Promise.all(idsToResolve.map((decisionId) => syncRemoteDecision(decisionId, resolution, resolutionGuidance))).catch((error) => {
     startupLog(`remote approval resolve failed: ${error instanceof Error ? error.stack || error.message : String(error)}`);
   }).finally(() => {
@@ -1009,6 +1010,7 @@ async function poll() {
     latestPending = body.pending.filter((item) => !resolvingDecisionIds.has(item.id) && !suppressedNoticeKeys.has(`ask:${pendingNoticeKey(item)}`));
     latestAgents = body.agents;
     latestSessionMetrics = body.sessionMetrics ?? {};
+    latestPlugins = body.plugins;
     setTrayStatus(latestPending.length > 0 ? "pending" : "ok");
     refreshMenu();
     window?.webContents.send("openleash:update", {
@@ -1024,6 +1026,7 @@ async function poll() {
       apiProvider: localServer.apiProvider ?? "openai",
       apiKeySet: localServer.apiKeySet,
       agentDoneSound: localServer.agentDoneSound,
+      plugins: latestPlugins,
       pending: latestPending,
       agents: latestAgents,
       sessionMetrics: latestSessionMetrics,
@@ -1050,20 +1053,22 @@ async function poll() {
   }
 }
 
-async function fetchTrayState(): Promise<{ pending: PendingDecision[]; agents: AgentStatus[]; sessionMetrics?: SessionMetrics } | undefined> {
+async function fetchTrayState(): Promise<{ pending: PendingDecision[]; agents: AgentStatus[]; sessionMetrics?: SessionMetrics; plugins: PluginCatalogItem[] } | undefined> {
   const localState = await fetchLocalTrayState();
-  if (localServer.clientMode === "personal") return localState;
 
   const remoteApiUrl = localServer.remoteApiUrl;
   const remoteToken = localServer.effectiveToken;
   if (!remoteApiUrl || !remoteToken) return localState;
 
   try {
-    const response = await fetch(new URL("/v1/mobile/state", remoteApiUrl), {
-      headers: { authorization: `Bearer ${remoteToken}`, ...apiVersionHeaders("mobileState") }
-    });
-    if (!response.ok) return localState;
-    return mergeTrayState(localState, mapRemoteMobileState(await response.json() as RemoteMobileState));
+    const [stateResponse, plugins] = await Promise.all([
+      fetch(new URL("/v1/mobile/state", remoteApiUrl), {
+        headers: { authorization: `Bearer ${remoteToken}`, ...apiVersionHeaders("mobileState") }
+      }),
+      fetchRemotePluginCatalog(remoteApiUrl, remoteToken, localState?.plugins ?? [])
+    ]);
+    if (!stateResponse.ok) return localState ? { ...localState, plugins } : undefined;
+    return mergeTrayState(localState, mapRemoteMobileState(await stateResponse.json() as RemoteMobileState), plugins);
   } catch {
     return localState;
   }
@@ -1073,18 +1078,33 @@ async function fetchLocalTrayState() {
   const response = await fetch(`${apiUrl}/admin/tray-status`, { headers: apiVersionHeaders("tenantTrayStatus") });
   if (!response.ok) return undefined;
   const body = await response.json() as { pending: PendingDecision[]; agents: AgentStatus[]; session_metrics?: SessionMetrics; sessionMetrics?: SessionMetrics };
-  return { pending: body.pending, agents: body.agents, sessionMetrics: body.session_metrics ?? body.sessionMetrics };
+  return { pending: body.pending, agents: body.agents, sessionMetrics: body.session_metrics ?? body.sessionMetrics, plugins: localServer.plugins };
+}
+
+async function fetchRemotePluginCatalog(remoteApiUrl: string, remoteToken: string, fallback: PluginCatalogItem[]) {
+  try {
+    const response = await fetch(new URL("/v1/plugins", remoteApiUrl), {
+      headers: { authorization: `Bearer ${remoteToken}`, ...apiVersionHeaders("tenantPluginsRead") }
+    });
+    if (!response.ok) return fallback;
+    const body = await response.json() as { plugins?: PluginCatalogItem[] };
+    return Array.isArray(body.plugins) ? body.plugins : fallback;
+  } catch {
+    return fallback;
+  }
 }
 
 function mergeTrayState(
-  localState: { pending: PendingDecision[]; agents: AgentStatus[]; sessionMetrics?: SessionMetrics } | undefined,
-  remoteState: { pending: PendingDecision[]; agents: AgentStatus[]; sessionMetrics?: SessionMetrics }
+  localState: { pending: PendingDecision[]; agents: AgentStatus[]; sessionMetrics?: SessionMetrics; plugins: PluginCatalogItem[] } | undefined,
+  remoteState: { pending: PendingDecision[]; agents: AgentStatus[]; sessionMetrics?: SessionMetrics },
+  plugins: PluginCatalogItem[]
 ) {
-  if (!localState) return remoteState;
+  if (!localState) return { ...remoteState, plugins };
   return {
     pending: dedupePending([...localState.pending, ...remoteState.pending]),
     agents: dedupeById([...localState.agents, ...remoteState.agents]),
-    sessionMetrics: remoteState.sessionMetrics ?? localState.sessionMetrics
+    sessionMetrics: remoteState.sessionMetrics ?? localState.sessionMetrics,
+    plugins
   };
 }
 
@@ -1212,7 +1232,6 @@ function mapRemoteSessionMetrics(metrics: Record<string, unknown> | undefined): 
 
 async function syncRemoteDecision(id: string, resolution: "allow" | "deny", resolutionGuidance?: string) {
   const guidance = resolution === "deny" ? cleanResolutionGuidance(resolutionGuidance) : undefined;
-  if (localServer.clientMode === "personal") return;
 
   const remoteApiUrl = localServer.remoteApiUrl;
   const remoteToken = localServer.effectiveToken;
@@ -1758,7 +1777,6 @@ async function refreshLocalProtections(force = false) {
 }
 
 async function syncRemoteAgentInventory() {
-  if (localServer.clientMode === "personal") return;
   const remoteApiUrl = localServer.remoteApiUrl;
   const token = localServer.effectiveToken;
   if (!remoteApiUrl || !token || localProtections.length === 0) return;
@@ -2102,7 +2120,7 @@ async function sendRemoteSkillObservation({ target, skillPath, content, observat
   content: string;
   observation: { assessment?: { riskScore?: number; reasons?: Array<{ reason: string; quote?: string }>; malicious?: boolean }; suspicious?: boolean; unchanged?: boolean; purposeSummary?: string };
 }) {
-  if (observation.unchanged || localServer.clientMode === "personal") return;
+  if (observation.unchanged || !pluginEnabled("openleash.skill-scanner")) return;
   const remoteApiUrl = localServer.remoteApiUrl;
   const token = localServer.effectiveToken;
   if (!remoteApiUrl || !token) return;
@@ -2133,6 +2151,11 @@ async function sendRemoteSkillObservation({ target, skillPath, content, observat
   } catch (error) {
     startupLog(`could not send skill observation: ${error instanceof Error ? error.message : String(error)}`);
   }
+}
+
+function pluginEnabled(pluginId: string) {
+  const plugin = (latestPlugins.length > 0 ? latestPlugins : localServer.plugins).find((item) => item.id === pluginId);
+  return plugin?.settings?.enabled ?? true;
 }
 
 async function repairProtectedAgent(kind: string, reason: string) {
@@ -2172,7 +2195,7 @@ function showMainWindow(mode: "setup" | "settings" = localServer?.setupComplete 
       mode,
       setupComplete: localServer?.setupComplete ?? false,
       introSeen: localServer?.introSeen ?? false,
-      clientMode: localServer?.clientMode ?? "personal",
+      clientMode: localServer?.clientMode ?? "cloud",
       remoteApiUrl: localServer?.remoteApiUrl,
       remoteOrganization: localServer?.remoteOrganization,
       remoteUser: localServer?.remoteUser,
@@ -2517,7 +2540,7 @@ async function configureLocalAgent() {
   fs.writeFileSync(path.join(dir, "config.json"), `${JSON.stringify({
     apiUrl,
     token: localServer.token,
-    mode: localServer.clientMode === "personal" ? "community" : localServer.clientMode,
+    mode: localServer.clientMode,
     remoteApiUrl: localServer.remoteApiUrl,
     clientVersion: app.getVersion(),
     enrolledAt: new Date().toISOString(),

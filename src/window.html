@@ -1258,6 +1258,7 @@
           <button data-view="rules">Rules</button>
           <button data-view="compression">Compression</button>
           <button data-view="dlp">DLP</button>
+          <button data-view="plugins">Plugins</button>
           <button data-view="skills">Skills</button>
           <button data-view="mcps">MCP</button>
           <button data-view="settings">Settings</button>
@@ -1402,18 +1403,10 @@
         const orgCloud = setupAudience === "organization" && cloud;
         const ruleSteps = setupRuleGroups(state.rules).map((group) => ({
           title: group.title,
-          subtitle: personal ? "Choose which rules OpenLeash enforces." : "Review dashboard-managed rules.",
+          subtitle: "Review backend-managed rules.",
           ruleGroup: group
         }));
-        const steps = personal
-          ? [
-              { title: "Account", subtitle: "Tell us who is setting this up." },
-              { title: "Connect", subtitle: "Pick how OpenLeash runs." },
-              { title: "Model key", subtitle: "Add an optional local evaluator key." },
-              { title: "Agents", subtitle: "Choose agents to protect." },
-              ...ruleSteps
-            ]
-          : cloud
+        const steps = cloud
             ? [
                 { title: "Account", subtitle: "Tell us who is setting this up." },
                 { title: "Connect", subtitle: "Pick how OpenLeash runs." },
@@ -1466,7 +1459,7 @@
               </div>
               <div class="welcomeActions">
                 <button class="primary" id="setupNext">Next</button>
-                <span class="welcomeFootnote">Works locally, in OpenLeash Cloud, or in your private cloud.</span>
+                <span class="welcomeFootnote">Works with OpenLeash Cloud or your private OpenLeash backend.</span>
               </div>
             </section>
           `;
@@ -1495,7 +1488,7 @@
                 <h2>Who is OpenLeash for?</h2>
                 <p>This shapes the setup options you see next.</p>
                 <div class="cardList">
-                  ${audienceChoice("individual", "Individual", "Use OpenLeash for your own local AI agents.")}
+                  ${audienceChoice("individual", "Individual", "Use OpenLeash Cloud for your own AI agents.")}
                   ${audienceChoice("organization", "Organization", "Set up OpenLeash for a company or team.")}
                 </div>
               </section>
@@ -1507,54 +1500,20 @@
                 <div class="cardList">
                   ${connectionChoice("cloud", "OpenLeash Cloud", setupAudience === "organization" ? "Use the OpenLeash-hosted API and dashboard." : "Use the OpenLeash-hosted account and sync.", "cloud")}
                   ${setupAudience === "organization" ? connectionChoice("custom", "Private Cloud", "Use your private OpenLeash deployment.", "dns") : ""}
-                  ${setupAudience === "individual" ? connectionChoice("personal", "Local mode", "Run local evaluation on this computer. No account, no web.", "devices") : ""}
                 </div>
               </section>
             ` : ""}
             ${currentId === "api" ? `
               <section class="setupSection">
                 <h2>API configuration</h2>
-                ${personal ? `
-                  <div class="card">
-                    <strong>Local API</strong>
-                    <p>Used by standalone mode.</p>
-                    <div class="fieldRow" style="margin-top:14px">
-                      <strong>Endpoint</strong>
-                      <input id="remoteApiUrl" value="${escapeHtml(setupRemoteApiUrl || state.apiUrl || "http://127.0.0.1:9317")}" placeholder="http://127.0.0.1:9317">
-                    </div>
-                  </div>
-                ` : `
-                  <div class="card">
-                    <strong>Managed API</strong>
-                    <p>Your OpenLeash Cloud or Private Cloud endpoint.</p>
-                    <div class="fieldRow" style="margin-top:14px">
-                      <strong>API URL</strong>
-                      <input id="remoteApiUrl" value="${escapeHtml(setupRemoteApiUrl === (state.cloudApiUrl || "https://api.openleash.com") ? "" : setupRemoteApiUrl)}" placeholder="https://openleash.your-company.com">
-                    </div>
-                    <div id="remoteSetupError" class="error">${escapeHtml(setupRemoteError)}</div>
-                  </div>
-                `}
-              </section>
-            ` : ""}
-            ${currentId === "model key" ? `
-              <section class="setupSection">
-                <h2>Model key</h2>
                 <div class="card">
-                  <strong>Optional local evaluation</strong>
-                  <p>Local mode can start immediately. Add a key now only if you want local LLM-backed risk evaluation on this Mac.</p>
-                  <div class="fieldRow">
-                    <strong>Provider</strong>
-                    <div class="segmented">
-                      <label><input type="radio" name="provider" value="openai" ${setupProvider !== "anthropic" ? "checked" : ""}>OpenAI</label>
-                      <label><input type="radio" name="provider" value="anthropic" ${setupProvider === "anthropic" ? "checked" : ""}>Claude</label>
-                    </div>
-                  </div>
+                  <strong>Managed API</strong>
+                  <p>Your OpenLeash Cloud or Private Cloud endpoint.</p>
                   <div class="fieldRow" style="margin-top:14px">
-                    <strong>API key</strong>
-                    <input id="apiKey" class="secret" type="password" value="${escapeHtml(setupApiKey)}" placeholder="Paste your API key (optional)">
+                    <strong>API URL</strong>
+                    <input id="remoteApiUrl" value="${escapeHtml(setupRemoteApiUrl === (state.cloudApiUrl || "https://api.openleash.com") ? "" : setupRemoteApiUrl)}" placeholder="https://openleash.your-company.com">
                   </div>
-                  <p style="margin-top:12px">Stored locally on this Mac. You can add or change it later.</p>
-                  <div id="setupError" class="error"></div>
+                  <div id="remoteSetupError" class="error">${escapeHtml(setupRemoteError)}</div>
                 </div>
               </section>
             ` : ""}
@@ -1938,6 +1897,7 @@
       function enforceAudienceMode() {
         if (setupAudience === "individual" && setupClientMode === "custom") setupClientMode = "cloud";
         if (setupAudience === "organization" && setupClientMode === "personal") setupClientMode = "cloud";
+        if (setupClientMode === "personal") setupClientMode = "cloud";
       }
 
       function bindAudienceSelection() {
@@ -1960,9 +1920,6 @@
             setupClientMode = input.value;
             if (setupClientMode === "cloud") {
               setupRemoteApiUrl = state.cloudApiUrl || "https://api.openleash.com";
-              setupOrganizationSlug = "";
-            } else if (setupClientMode === "personal") {
-              setupRemoteApiUrl = state.apiUrl || "http://127.0.0.1:9317";
               setupOrganizationSlug = "";
             } else if (setupClientMode === "custom" && setupRemoteApiUrl === (state.cloudApiUrl || "https://api.openleash.com")) {
               setupRemoteApiUrl = "";
@@ -2125,6 +2082,7 @@
         if (view === "rules") return renderRules();
         if (view === "compression") return renderCompression();
         if (view === "dlp") return renderDlp();
+        if (view === "plugins") return renderPlugins();
         if (view === "agents") return renderAgents();
         if (view === "mcps") return renderMcps();
         if (view === "skills") return renderSkills();
@@ -3305,25 +3263,10 @@
       function renderSettings() {
         root.innerHTML = `
           <div class="head">
-            <div><h1>Settings</h1><p>Manage the model key OpenLeash uses for local rule checks.</p></div>
+            <div><h1>Settings</h1><p>Manage desktop preferences for this Mac.</p></div>
           </div>
           ${state.desktopMessage ? `<div class="desktopToast">${escapeHtml(state.desktopMessage)}</div>` : ""}
           <div class="grid">
-            <div class="card">
-              <div class="fieldRow">
-                <strong>Provider</strong>
-                <div class="segmented">
-                  <label><input type="radio" name="settingsProvider" value="openai" ${state.apiProvider !== "anthropic" ? "checked" : ""}>OpenAI</label>
-                  <label><input type="radio" name="settingsProvider" value="anthropic" ${state.apiProvider === "anthropic" ? "checked" : ""}>Claude</label>
-                </div>
-              </div>
-              <div class="fieldRow" style="margin-top:14px">
-                <strong>API key</strong>
-                <input id="settingsApiKey" class="secret" type="password" placeholder="${state.apiKeySet ? "Saved key is set. Paste a new key to replace it." : "Paste your API key"}">
-              </div>
-              <p style="margin-top:12px">The key stays on this Mac and can be replaced any time.</p>
-              <div id="settingsMessage" class="notice"></div>
-            </div>
             <div class="card">
               <div class="fieldRow">
                 <div>
@@ -3335,6 +3278,7 @@
                   <span>Sound on finish</span>
                 </label>
               </div>
+              <div id="settingsMessage" class="notice"></div>
             </div>
             <div class="card dangerZone">
               <div class="dangerGrid">
@@ -3345,7 +3289,7 @@
                 <div class="dangerRow">
                   <div>
                     <strong>Delete data and settings</strong>
-                    <p>Clear local history, approvals, recorded agent activity, setup, selected agents, rules, provider choice, and saved API key.</p>
+                    <p>Clear local cache, setup state, selected agents, and desktop preferences.</p>
                   </div>
                   <button class="secondary dangerButton" id="deleteDataAndSettings">Delete data and settings</button>
                 </div>
@@ -3358,29 +3302,25 @@
         agentDoneSoundInput.onchange = async () => {
           const nextAgentDoneSound = agentDoneSoundInput.checked;
           state.agentDoneSound = nextAgentDoneSound;
-          const apiProvider = root.querySelector("[name=settingsProvider]:checked").value;
-          const result = await window.openleash.saveSettings({ apiProvider, agentDoneSound: nextAgentDoneSound });
+          const result = await window.openleash.saveSettings({ agentDoneSound: nextAgentDoneSound });
           if (!result?.ok) {
             state.agentDoneSound = !nextAgentDoneSound;
             agentDoneSoundInput.checked = state.agentDoneSound;
             return;
           }
-          state.apiProvider = result.apiProvider;
-          state.apiKeySet = result.apiKeySet;
+          state.apiProvider = "openai";
+          state.apiKeySet = false;
           state.agentDoneSound = result.agentDoneSound;
           agentDoneSoundInput.checked = state.agentDoneSound;
           document.getElementById("settingsMessage").textContent = "Settings saved.";
         };
         document.getElementById("saveSettings").onclick = async () => {
-          const apiProvider = root.querySelector("[name=settingsProvider]:checked").value;
-          const apiKey = document.getElementById("settingsApiKey").value.trim();
           const agentDoneSound = document.getElementById("agentDoneSound").checked;
-          const result = await window.openleash.saveSettings({ apiProvider, apiKey, agentDoneSound });
+          const result = await window.openleash.saveSettings({ agentDoneSound });
           if (result?.ok) {
-            state.apiProvider = result.apiProvider;
-            state.apiKeySet = result.apiKeySet;
+            state.apiProvider = "openai";
+            state.apiKeySet = false;
             state.agentDoneSound = result.agentDoneSound;
-            document.getElementById("settingsApiKey").value = "";
             document.getElementById("settingsMessage").textContent = "Settings saved.";
           }
         };
@@ -3424,6 +3364,40 @@
             selectedRules.set(input.dataset.rule, Boolean(input.checked));
           };
         });
+      }
+
+      function renderPlugins() {
+        const plugins = state.plugins || [];
+        root.innerHTML = `
+          <div class="head">
+            <div><h1>Plugins</h1><p>Organization-managed pipeline plugins installed for this desktop.</p></div>
+          </div>
+          <div class="grid">
+            ${plugins.map((plugin) => `
+              <article class="card">
+                <div class="fieldRow">
+                  <div>
+                    <strong>${escapeHtml(plugin.name || plugin.id)}</strong>
+                    <p>${escapeHtml(plugin.description || "")}</p>
+                  </div>
+                  <span class="tag ${plugin.settings?.enabled ? "good" : "bad"}">${plugin.settings?.enabled ? "installed" : "disabled"}</span>
+                </div>
+                <div class="eventMeta" style="margin-top:12px">
+                  <span>v${escapeHtml(plugin.version || "0.0.0")}</span>
+                  <span>${escapeHtml(plugin.publisher || "unknown")}</span>
+                  <span>${escapeHtml(plugin.runtime || "runtime")}</span>
+                </div>
+                <div class="eventMeta" style="margin-top:10px">
+                  ${(plugin.stages || []).map((stage) => `<span>${escapeHtml(stage)}</span>`).join("")}
+                </div>
+                <div class="eventMeta" style="margin-top:10px">
+                  ${(plugin.permissions || []).map((permission) => `<span>${escapeHtml(permission)}</span>`).join("")}
+                </div>
+                <pre style="margin-top:12px">${escapeHtml(JSON.stringify(plugin.settings?.config || {}, null, 2))}</pre>
+              </article>
+            `).join("") || `<div class="card"><strong>No plugins installed</strong><p>No plugin catalog has been received yet.</p></div>`}
+          </div>
+        `;
       }
 
       function bindModelSelection() {
