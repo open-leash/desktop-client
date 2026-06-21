@@ -1635,8 +1635,7 @@
         const orgCloud = setupAudience === "organization" && cloud;
         initializePluginSetupState();
         const pluginSteps = [
-          { title: "Plugins", subtitle: "Choose plugins to add during setup." },
-          { title: "Plugin settings", subtitle: "Tune the plugins you selected." }
+          { title: "Plugins", subtitle: "Choose plugins to add during setup." }
         ];
         const steps = individualCloud
           ? [
@@ -1822,13 +1821,6 @@
                 <h2>Plugins</h2>
         <p>Search the OpenLeash plugin catalog and add reviewed plugins that should run on this device. Changes apply when you finish setup.</p>
                 ${setupPluginInstallCards()}
-              </section>
-            ` : ""}
-            ${currentId === "plugin settings" ? `
-              <section class="setupSection">
-                <h2>Plugin settings</h2>
-                <p>These settings sync with your OpenLeash account and apply on every desktop or mobile surface connected to it.</p>
-                ${setupPluginSettingsCards()}
               </section>
             ` : ""}
             ${setupStep >= steps.length ? `<div id="setupError" class="error"></div>` : ""}
