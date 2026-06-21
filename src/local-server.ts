@@ -10,7 +10,11 @@ import {
   OPENLEASH_API_VERSION_HEADER,
   type OpenLeashApiFunction
 } from "./api-contract";
-import { OPENLEASH_DESKTOP_AUTH_CALLBACK_URI, OPENLEASH_DESKTOP_GOOGLE_REDIRECT_URI } from "./public-config";
+import {
+  OPENLEASH_DESKTOP_AUTH_CALLBACK_URI,
+  OPENLEASH_DESKTOP_GOOGLE_REDIRECT_URI,
+  OPENLEASH_DESKTOP_MICROSOFT_REDIRECT_URI
+} from "./public-config";
 import { bundledPluginCatalog, type PluginCatalogItem } from "./plugin-catalog";
 
 const ACTION_PURPOSE_CONTEXT_MESSAGES = Number(process.env.OPENLEASH_ACTION_PURPOSE_MESSAGES ?? 5);
@@ -234,9 +238,58 @@ type LocalServerOptions = {
   onAgentStop?: (event: { agent: string; eventName: string; body: unknown }) => void;
 };
 
+function desktopExchangeRedirectUri(pathname: string) {
+  if (pathname === "/v1/auth/google/callback") return OPENLEASH_DESKTOP_GOOGLE_REDIRECT_URI;
+  if (pathname === "/v1/auth/microsoft/callback") return OPENLEASH_DESKTOP_MICROSOFT_REDIRECT_URI;
+  return undefined;
+}
+
+function desktopAuthReturnPage(callbackUrl: string) {
+  const encodedUrl = JSON.stringify(callbackUrl);
+  const href = escapeHtml(callbackUrl);
+  return `<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Return to OpenLeash</title>
+    <style>
+      body { margin: 0; min-height: 100vh; display: grid; place-items: center; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; color: #111827; background: #f8fafc; }
+      main { max-width: 460px; padding: 32px; text-align: center; }
+      h1 { margin: 0 0 10px; font-size: 24px; }
+      p { margin: 0 0 20px; color: #64748b; line-height: 1.5; }
+      a { color: #4f46e5; font-weight: 700; }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>Returning to OpenLeash</h1>
+      <p>Your sign-in is complete. This tab can be closed after OpenLeash opens.</p>
+      <a href="${href}">Open OpenLeash</a>
+    </main>
+    <script>
+      const callbackUrl = ${encodedUrl};
+      window.location.href = callbackUrl;
+      setTimeout(() => window.close(), 1200);
+    </script>
+  </body>
+</html>`;
+}
+
+function escapeHtml(value: string) {
+  return value.replace(/[&<>"']/g, (char) => ({
+    "&": "&amp;",
+    "<": "&lt;",
+    ">": "&gt;",
+    '"': "&quot;",
+    "'": "&#39;"
+  }[char] ?? char));
+}
+
 export class LocalOpenLeashServer {
   readonly apiUrl = "http://127.0.0.1:9317";
   private server?: http.Server;
+  private legacyAuthServer?: http.Server;
   private db: Database.Database;
   private store!: Store;
 
@@ -391,6 +444,11 @@ export class LocalOpenLeashServer {
       this.server?.once("error", reject);
       this.server?.listen(9317, "127.0.0.1", () => resolve());
     });
+    this.legacyAuthServer = http.createServer((req, res) => void this.routeLegacyAuth(req, res));
+    this.legacyAuthServer.once("error", () => {
+      this.legacyAuthServer = undefined;
+    });
+    this.legacyAuthServer.listen(4317, "127.0.0.1");
   }
 
   completeSetup(policies: Policy[], config: SetupConfig) {
@@ -483,16 +541,7 @@ export class LocalOpenLeashServer {
       if (functionName && !applyLocalContract(req, res, functionName)) return;
       if (req.method === "GET" && req.url === "/health") return json(res, { ok: true, mode: this.clientMode });
       const oauthCallback = new URL(req.url ?? "/", this.apiUrl);
-      if (req.method === "GET" && oauthCallback.pathname === "/v1/auth/google/callback") {
-        const redirect = new URL(OPENLEASH_DESKTOP_AUTH_CALLBACK_URI);
-        for (const key of ["code", "state", "error", "error_description"]) {
-          const value = oauthCallback.searchParams.get(key);
-          if (value) redirect.searchParams.set(key, value);
-        }
-        redirect.searchParams.set("exchangeRedirectUri", OPENLEASH_DESKTOP_GOOGLE_REDIRECT_URI);
-        res.writeHead(302, { location: redirect.toString() });
-        return res.end();
-      }
+      if (req.method === "GET" && this.redirectOAuthCallback(oauthCallback, res)) return;
       if (req.method === "GET" && req.url === "/admin/tray-status") return json(res, this.trayStatus());
       if (req.method === "GET" && req.url === "/personal/state") {
         return json(res, {
@@ -553,6 +602,34 @@ export class LocalOpenLeashServer {
       res.writeHead(500, { "content-type": "application/json" });
       res.end(JSON.stringify({ error: error instanceof Error ? error.message : "unknown error" }));
     }
+  }
+
+  private async routeLegacyAuth(req: http.IncomingMessage, res: http.ServerResponse) {
+    try {
+      if (req.method === "GET") {
+        const oauthCallback = new URL(req.url ?? "/", "http://localhost:4317");
+        if (this.redirectOAuthCallback(oauthCallback, res)) return;
+      }
+      res.writeHead(404, { "content-type": "application/json" });
+      return res.end(JSON.stringify({ error: "not found" }));
+    } catch (error) {
+      res.writeHead(500, { "content-type": "application/json" });
+      return res.end(JSON.stringify({ error: "internal_error", detail: error instanceof Error ? error.message : String(error) }));
+    }
+  }
+
+  private redirectOAuthCallback(oauthCallback: URL, res: http.ServerResponse) {
+    const exchangeRedirectUri = desktopExchangeRedirectUri(oauthCallback.pathname);
+    if (!exchangeRedirectUri) return false;
+    const redirect = new URL(OPENLEASH_DESKTOP_AUTH_CALLBACK_URI);
+    for (const key of ["code", "state", "error", "error_description"]) {
+      const value = oauthCallback.searchParams.get(key);
+      if (value) redirect.searchParams.set(key, value);
+    }
+    redirect.searchParams.set("exchangeRedirectUri", exchangeRedirectUri);
+    res.writeHead(200, { "content-type": "text/html; charset=utf-8" });
+    res.end(desktopAuthReturnPage(redirect.toString()));
+    return true;
   }
 
   private async evaluate(request: EvaluationRequest) {
@@ -2599,9 +2676,12 @@ function nativeHookDecision(agent: string, eventName: string, decision: { decisi
 }
 
 function backendUnavailableHookDecision(agent: string, eventName: string) {
+  const unavailableDecision = process.env.OPENLEASH_BACKEND_UNAVAILABLE_DECISION === "deny" ? "deny" : "allow";
   return nativeHookDecision(agent, eventName, {
-    decision: "deny",
-    summary: "OpenLeash backend is unavailable. Connect to OpenLeash Cloud or your Private Cloud API before continuing."
+    decision: unavailableDecision,
+    summary: unavailableDecision === "deny"
+      ? "OpenLeash backend is unavailable. Connect to OpenLeash Cloud or your Private Cloud API before continuing."
+      : "OpenLeash backend is unavailable. OpenLeash allowed this action without remote policy evaluation."
   });
 }
 

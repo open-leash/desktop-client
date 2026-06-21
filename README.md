@@ -57,7 +57,10 @@ CLI examples:
 ```bash
 npm run desktop-cli -- discover
 npm run desktop-cli -- install-hooks --all
-npm run desktop-cli -- configure --token "$OPENLEASH_TOKEN" --api-url http://127.0.0.1:9317
+npm run desktop-cli -- plugins list --search token
+npm run desktop-cli -- plugins install token-saver sec-evaluator
+npm run desktop-cli -- plugins uninstall token-saver sec-evaluator
+npm run desktop-cli -- configure --token "$OPENLEASH_TOKEN" --api-url http://127.0.0.1:9317 --remote-api-url http://127.0.0.1:9319
 ```
 
 ---

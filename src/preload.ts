@@ -13,6 +13,7 @@ contextBridge.exposeInMainWorld("openleash", {
   markIntroSeen: () => ipcRenderer.invoke("openleash:mark-intro-seen"),
   setup: (payload: unknown) => ipcRenderer.invoke("openleash:setup", payload),
   saveSettings: (payload: unknown) => ipcRenderer.invoke("openleash:save-settings", payload),
+  savePluginSettings: (payload: unknown) => ipcRenderer.invoke("openleash:save-plugin-settings", payload),
   savePromptTransforms: (payload: unknown) => ipcRenderer.invoke("openleash:save-prompt-transforms", payload),
   deleteData: () => ipcRenderer.invoke("openleash:delete-data"),
   deleteSettings: () => ipcRenderer.invoke("openleash:delete-settings"),

@@ -599,9 +599,20 @@ ipcMain.handle("openleash:start-remote-auth", async (_event, payload: { apiUrl?:
   try {
     const remoteApiUrl = normalizeRemoteApiUrl(payload.apiUrl || cloudApiUrl);
     const providerType = payload.providerType || "google";
-    const result = await startMobileAuth(remoteApiUrl, providerType, payload);
+    const audience = payload.audience === "organization" ? "organization" : "individual";
+    const result = await startMobileAuth(remoteApiUrl, providerType, {
+      ...payload,
+      audience,
+      organizationId: audience === "organization" ? payload.organizationId : undefined,
+      organizationSlug: audience === "organization" ? payload.organizationSlug : undefined
+    });
     if (result.ok || app.isPackaged || remoteApiUrl !== OPENLEASH_PUBLIC_CLOUD_API_URL) return result;
-    return startMobileAuth(localDevCloudApiUrl, providerType, payload);
+    return startMobileAuth(localDevCloudApiUrl, providerType, {
+      ...payload,
+      audience,
+      organizationId: audience === "organization" ? payload.organizationId : undefined,
+      organizationSlug: audience === "organization" ? payload.organizationSlug : undefined
+    });
   } catch (error) {
     const remoteApiUrl = normalizeRemoteApiUrl(payload.apiUrl || cloudApiUrl);
     return { ok: false, error: remoteApiError(error, remoteApiUrl, "Could not start sign-in.") };
@@ -754,6 +765,32 @@ ipcMain.handle("openleash:remote-state", async (_event, payload: { apiUrl?: stri
   if (!response.ok) return { ok: false, error: body.error || "Could not load managed OpenLeash state." };
   return { ok: true, ...body };
 });
+ipcMain.handle("openleash:save-plugin-settings", async (_event, payload: {
+  apiUrl?: string;
+  token?: string;
+  pluginId?: string;
+  enabled?: boolean;
+  config?: Record<string, unknown>;
+  orderingPriority?: number | null;
+}) => {
+  const token = payload.token || desktopAuthSession?.token;
+  if (!token) return { ok: false, error: "Sign in before saving plugin settings." };
+  const pluginId = String(payload.pluginId ?? "").trim();
+  if (!pluginId) return { ok: false, error: "Plugin id is required." };
+  const remoteApiUrl = normalizeRemoteApiUrl(payload.apiUrl || desktopAuthSession?.apiUrl || cloudApiUrl);
+  const response = await fetch(new URL(`/v1/plugins/${encodeURIComponent(pluginId)}/settings`, remoteApiUrl), {
+    method: "POST",
+    headers: { "content-type": "application/json", authorization: `Bearer ${token}` },
+    body: JSON.stringify({
+      enabled: payload.enabled !== false,
+      config: payload.config ?? {},
+      orderingPriority: payload.orderingPriority ?? undefined
+    })
+  });
+  const body = await response.json().catch(() => ({}));
+  if (!response.ok) return { ok: false, error: body.error || "Could not save plugin settings." };
+  return { ok: true, ...body };
+});
 ipcMain.handle("openleash:docker-status", async () => {
   selfHostedRuntime = await checkSelfHostedRuntime();
   return selfHostedRuntime;
@@ -866,10 +903,7 @@ ipcMain.handle("openleash:setup", async (_event, payload: {
 });
 
 ipcMain.handle("openleash:uninstall-agent-protection", async (_event, kind: string) => {
-  enforcedAgentKinds.delete(kind);
-  await uninstallAgentProtection(kind);
-  await refreshLocalProtections(true);
-  startProtectionIntegrityGuard();
+  await unprotectAgentKind(kind);
   refreshMenu();
   window?.webContents.send("openleash:update", {
     apiUrl,
@@ -1390,8 +1424,7 @@ async function handleCliClientConfig() {
   if (args.includes("--uninstall-hooks") || args.includes("--unhook")) {
     const agents = selectedAgents.length > 0 ? selectedAgents : ["claude-code", "codex", "nanoclaw", "openclaw"];
     for (const agent of agents) {
-      enforcedAgentKinds.delete(agent);
-      await uninstallAgentProtection(agent);
+      await unprotectAgentKind(agent);
     }
   }
   console.log(`OpenLeash Client configured for ${clientApiUrl}.`);
@@ -1813,6 +1846,24 @@ function startProtectionIntegrityGuard() {
   protectionAuditTimer ??= setInterval(() => {
     scheduleProtectionRepair("periodic-audit");
   }, 5 * 60 * 1000);
+}
+
+async function protectAgentKind(kind: string) {
+  await installAgentProtection(kind, hookInstallContext());
+  enforcedAgentKinds.add(kind);
+  await refreshLocalProtections(true);
+  startProtectionIntegrityGuard();
+}
+
+async function unprotectAgentKind(kind: string) {
+  enforcedAgentKinds.delete(kind);
+  const pending = pendingProtectionRepairs.get(kind);
+  if (pending) clearTimeout(pending);
+  pendingProtectionRepairs.delete(kind);
+  syncProtectionWatchers();
+  await uninstallAgentProtection(kind);
+  await refreshLocalProtections(true);
+  syncProtectionWatchers();
 }
 
 function syncProtectionWatchers() {
@@ -2792,10 +2843,7 @@ function agentProtectionMenuItem(agent: LocalAgentProtection): MenuItemConstruct
             checked: agent.protected,
             click: async () => {
               if (agent.protected) return;
-              await installAgentProtection(agent.kind, hookInstallContext());
-              enforcedAgentKinds.add(agent.kind);
-              await refreshLocalProtections(true);
-              startProtectionIntegrityGuard();
+              await protectAgentKind(agent.kind);
               refreshMenu(true);
             }
           },
@@ -2805,10 +2853,7 @@ function agentProtectionMenuItem(agent: LocalAgentProtection): MenuItemConstruct
             checked: !agent.protected,
             click: async () => {
               if (!agent.protected) return;
-              enforcedAgentKinds.delete(agent.kind);
-              await uninstallAgentProtection(agent.kind);
-              await refreshLocalProtections(true);
-              startProtectionIntegrityGuard();
+              await unprotectAgentKind(agent.kind);
               refreshMenu(true);
             }
           }

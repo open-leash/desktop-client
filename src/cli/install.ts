@@ -100,6 +100,7 @@ async function installClaudeCompatibleHooks(settingsPath: string, agent: "claude
 }
 
 async function uninstallClaudeCompatibleHooks(settingsPath: string, agent: "claude" | "nanoclaw") {
+  await fs.mkdir(path.dirname(settingsPath), { recursive: true });
   const existing = await readJsonObject(settingsPath);
   const metadata = openLeashMetadata(existing);
   const backup = metadata[agent];
@@ -161,9 +162,13 @@ export async function installCodexHooks() {
 }
 
 export async function uninstallCodexHooks() {
-  await fs.writeFile(codexConfigPath, disableCodexApprovalHandoff(await fs.readFile(codexConfigPath, "utf8").catch(() => "")));
+  await fs.mkdir(path.dirname(codexConfigPath), { recursive: true });
+  const config = await fs.readFile(codexConfigPath, "utf8").catch(() => "");
   const hooks = await readJsonObject(codexHooksPath);
-  if (hooks.hooks && JSON.stringify(hooks.hooks).includes("/v1/hooks/codex/")) {
+  const hadOpenLeashHooks = Boolean(hooks.hooks && JSON.stringify(hooks.hooks).includes("/v1/hooks/codex/"));
+  const nextConfig = disableCodexHooksIfNoManagedHooks(removeCodexOpenLeashHookTrust(disableCodexApprovalHandoff(config)), hooks);
+  await fs.writeFile(codexConfigPath, nextConfig);
+  if (hadOpenLeashHooks) {
     await fs.rm(codexHooksPath, { force: true });
   }
 }
@@ -189,6 +194,7 @@ export async function installGeminiHooks() {
 }
 
 export async function uninstallGeminiHooks() {
+  await fs.mkdir(path.dirname(geminiSettingsPath), { recursive: true });
   const existing = await readJsonObject(geminiSettingsPath);
   const metadata = openLeashMetadata(existing);
   const hooks = existing.hooks && typeof existing.hooks === "object" ? existing.hooks as Record<string, unknown> : {};
@@ -222,6 +228,7 @@ export async function installCursorHooks() {
 }
 
 export async function uninstallCursorHooks() {
+  await fs.mkdir(path.dirname(cursorHooksPath), { recursive: true });
   const existing = await readJsonObject(cursorHooksPath);
   const metadata = openLeashMetadata(existing);
   restoreNamedHookEntries(existing, metadata.cursor?.hooks, cursorHookKeys(), "/v1/hooks/cursor/");
@@ -507,6 +514,28 @@ function disableCodexApprovalHandoff(config: string) {
   if (typeof sandbox === "string") restored.push(`sandbox_mode = ${JSON.stringify(sandbox)}`);
   const clean = config.replace(match[0], "").trimStart();
   return `${restored.length ? `${restored.join("\n")}\n` : ""}${clean}`;
+}
+
+function removeCodexOpenLeashHookTrust(config: string) {
+  const hookPath = path.resolve(codexHooksPath);
+  const escapedHookPath = escapeRegExp(hookPath);
+  const withoutHookTables = config.replace(
+    new RegExp(`\\n?\\[hooks\\.state\\."${escapedHookPath}:[^"]+"\\]\\ntrusted_hash\\s*=\\s*"[^"]*"\\n?`, "g"),
+    "\n"
+  );
+  return withoutHookTables.replace(/\n{3,}/g, "\n\n").trimEnd() + "\n";
+}
+
+function disableCodexHooksIfNoManagedHooks(config: string, hooks: Record<string, unknown>) {
+  const hookText = JSON.stringify(hooks.hooks ?? {});
+  const hasHookEntries = hookText !== "{}" && hookText !== "[]";
+  if (hasHookEntries && !hookText.includes("/v1/hooks/codex/")) return config;
+  const withoutEmptyState = config.replace(/\n?\[hooks\.state\]\s*(?=\n\s*\[|$)/g, "\n");
+  if (!/^\s*\[features\]\s*$/m.test(withoutEmptyState)) return withoutEmptyState;
+  return withoutEmptyState
+    .replace(/(^\s*\[features\]\s*\n(?:[^\[]*\n)*?)^\s*hooks\s*=\s*true\s*$/m, (_match, prefix: string) => `${prefix}hooks = false`)
+    .replace(/\n{3,}/g, "\n\n")
+    .trimEnd() + "\n";
 }
 
 function stripCodexHandoff(config: string) {

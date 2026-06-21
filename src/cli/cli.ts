@@ -24,12 +24,29 @@ import { runHook } from "./hook.js";
 
 const program = new Command();
 
+type PluginListing = {
+  id: string;
+  slug?: string;
+  name?: string;
+  developerName?: string;
+  reviewStatus?: string;
+  rating?: number;
+  installCount?: number;
+  downloadCount?: number;
+  weeklyDownloadCount?: number;
+  trendPercent?: number;
+  installed?: boolean;
+  mandatory?: boolean;
+  installable?: boolean;
+};
+
 program.name("openleash").description("OpenLeash Desktop Client CLI and hook installer");
 
 program
   .command("configure")
   .requiredOption("--token <token>", "OpenLeash user token")
   .option("--api-url <url>", "OpenLeash local desktop API URL", defaultDesktopApiUrl)
+  .option("--remote-api-url <url>", "OpenLeash Cloud or Private Cloud client API URL")
   .option("--mode <mode>", "community, cloud, or enterprise", "community")
   .option("--email <email>", "User email")
   .option("--display-name <name>", "Display name")
@@ -37,6 +54,7 @@ program
     await writeConfig({
       token: options.token,
       apiUrl: options.apiUrl,
+      remoteApiUrl: options.remoteApiUrl,
       mode: options.mode,
       enrolledAt: new Date().toISOString(),
       clientVersion: "0.1.0",
@@ -102,15 +120,16 @@ program
   .option("--cursor", "install Cursor hooks")
   .option("--openclaw", "install OpenClaw hooks")
   .option("--nanoclaw", "install NanoClaw hooks")
-  .option("--all", "install every production-ready hook", true)
+  .option("--all", "install every production-ready hook")
   .action(async (options) => {
-    if (options.all || options.claude) await installClaudeHooks();
-    if (options.all || options.codex) await installCodexHooks();
-    if (options.all || options.gemini) await installGeminiHooks();
-    if (options.all || options.opencode) await installOpenCodeHooks();
-    if (options.all || options.cursor) await installCursorHooks();
-    if (options.all || options.openclaw) await installOpenClawHooks();
-    if (options.all || options.nanoclaw) await installNanoClawHooks();
+    const all = options.all || noHookAgentSelected(options);
+    if (all || options.claude) await installClaudeHooks();
+    if (all || options.codex) await installCodexHooks();
+    if (all || options.gemini) await installGeminiHooks();
+    if (all || options.opencode) await installOpenCodeHooks();
+    if (all || options.cursor) await installCursorHooks();
+    if (all || options.openclaw) await installOpenClawHooks();
+    if (all || options.nanoclaw) await installNanoClawHooks();
     console.log("OpenLeash hooks installed.");
   });
 
@@ -123,15 +142,16 @@ program
   .option("--cursor", "remove Cursor hooks")
   .option("--openclaw", "remove OpenClaw hooks")
   .option("--nanoclaw", "remove NanoClaw hooks")
-  .option("--all", "remove every reversible hook", true)
+  .option("--all", "remove every reversible hook")
   .action(async (options) => {
-    if (options.all || options.claude) await uninstallClaudeHooks();
-    if (options.all || options.codex) await uninstallCodexHooks();
-    if (options.all || options.gemini) await uninstallGeminiHooks();
-    if (options.all || options.opencode) await uninstallOpenCodeHooks();
-    if (options.all || options.cursor) await uninstallCursorHooks();
-    if (options.all || options.openclaw) await uninstallOpenClawHooks();
-    if (options.all || options.nanoclaw) await uninstallNanoClawHooks();
+    const all = options.all || noHookAgentSelected(options);
+    if (all || options.claude) await uninstallClaudeHooks();
+    if (all || options.codex) await uninstallCodexHooks();
+    if (all || options.gemini) await uninstallGeminiHooks();
+    if (all || options.opencode) await uninstallOpenCodeHooks();
+    if (all || options.cursor) await uninstallCursorHooks();
+    if (all || options.openclaw) await uninstallOpenClawHooks();
+    if (all || options.nanoclaw) await uninstallNanoClawHooks();
     console.log("OpenLeash hooks removed.");
   });
 
@@ -146,6 +166,47 @@ program
 program.command("desktop").action(() => {
   console.log("Run `npm run desktop-client` from the OpenLeash repo to start the desktop app.");
 });
+
+const plugins = program.command("plugins").description("Search, install, and remove OpenLeash plugins");
+
+plugins
+  .command("list")
+  .description("List plugins available to this user")
+  .option("--search <query>", "filter plugins by package name, developer, or description")
+  .option("--json", "print raw JSON")
+  .action(async (options) => {
+    try {
+      const config = await readConfig();
+      const listings = await fetchPluginListings(config, options.search);
+      if (options.json) {
+        console.log(JSON.stringify(listings, null, 2));
+        return;
+      }
+      printPluginListings(listings);
+    } catch (error) {
+      console.error(`OpenLeash plugins list failed: ${errorMessage(error)}`);
+      process.exitCode = 1;
+    }
+  });
+
+plugins
+  .command("install")
+  .description("Install one or more plugins by package slug or plugin id")
+  .argument("<plugins...>", "plugin slugs or ids, for example token-saver sec-evaluator")
+  .option("--json", "print raw JSON results")
+  .action(async (pluginInputs: string[], options) => {
+    await mutatePlugins("install", pluginInputs, options);
+  });
+
+plugins
+  .command("uninstall")
+  .alias("remove")
+  .description("Uninstall one or more optional plugins by package slug or plugin id")
+  .argument("<plugins...>", "plugin slugs or ids, for example token-saver sec-evaluator")
+  .option("--json", "print raw JSON results")
+  .action(async (pluginInputs: string[], options) => {
+    await mutatePlugins("uninstall", pluginInputs, options);
+  });
 
 program.command("status").action(async () => {
   try {
@@ -182,7 +243,152 @@ program
 
 void program.parseAsync();
 
+function configuredRemoteApiUrl(config: { remoteApiUrl?: string; tenantUrl?: string; apiUrl?: string }) {
+  const candidate =
+    config.remoteApiUrl ??
+    config.tenantUrl ??
+    (config.apiUrl && !isLocalDesktopApiUrl(config.apiUrl) ? config.apiUrl : defaultCloudApiUrl);
+  const apiUrl = /^https?:\/\//i.test(candidate) ? candidate : tenantToApiUrl(candidate);
+  return apiUrl.replace(/\/+$/, "");
+}
+
+function isLocalDesktopApiUrl(apiUrl: string) {
+  try {
+    const url = new URL(apiUrl);
+    return ["127.0.0.1", "localhost", "::1"].includes(url.hostname) && url.port === "9317";
+  } catch {
+    return false;
+  }
+}
+
+function authHeaders(config: { token: string }, functionName: "tenantPluginsRead" | "adminPluginsWrite") {
+  return {
+    authorization: `Bearer ${config.token}`,
+    ...apiVersionHeaders(functionName)
+  };
+}
+
+async function fetchPluginListings(config: { token: string; remoteApiUrl?: string; tenantUrl?: string; apiUrl?: string }, search = "") {
+  const baseUrl = configuredRemoteApiUrl(config);
+  const url = new URL(`${baseUrl}/v1/plugin-marketplace`);
+  if (search.trim()) url.searchParams.set("search", search.trim());
+  const response = await fetch(url, { headers: authHeaders(config, "tenantPluginsRead") });
+  const body = await readJsonResponse(response);
+  if (!response.ok) throw new Error(apiError(body, response.statusText));
+  if (body && typeof body === "object" && "listings" in body && Array.isArray(body.listings)) return body.listings as PluginListing[];
+  return Array.isArray(body) ? (body as PluginListing[]) : [];
+}
+
+async function mutatePlugins(action: "install" | "uninstall", pluginInputs: string[], options: { json?: boolean }) {
+  try {
+    const config = await readConfig();
+    const listings = await fetchPluginListings(config);
+    const results = [];
+    let failed = false;
+    for (const input of pluginInputs) {
+      try {
+        const plugin = resolvePluginInput(input, listings);
+        const pluginId = plugin?.id ?? input;
+        const result = await mutatePlugin(config, pluginId, action);
+        const label = plugin?.slug ?? plugin?.id ?? input;
+        results.push({ input, plugin: label, ok: true, result });
+        if (!options.json) console.log(`${label}: ${action === "install" ? "installed" : "removed"}`);
+      } catch (error) {
+        failed = true;
+        results.push({ input, ok: false, error: errorMessage(error) });
+        if (!options.json) console.error(`${input}: ${errorMessage(error)}`);
+      }
+    }
+    if (options.json) console.log(JSON.stringify(results, null, 2));
+    if (failed) process.exitCode = 1;
+  } catch (error) {
+    console.error(`OpenLeash plugins ${action} failed: ${errorMessage(error)}`);
+    process.exitCode = 1;
+  }
+}
+
+async function mutatePlugin(
+  config: { token: string; remoteApiUrl?: string; tenantUrl?: string; apiUrl?: string },
+  pluginId: string,
+  action: "install" | "uninstall"
+) {
+  const baseUrl = configuredRemoteApiUrl(config);
+  const response = await fetch(`${baseUrl}/v1/plugins/${encodeURIComponent(pluginId)}/${action}`, {
+    method: "POST",
+    headers: authHeaders(config, "adminPluginsWrite")
+  });
+  const body = await readJsonResponse(response);
+  if (!response.ok) throw new Error(apiError(body, response.statusText));
+  return body;
+}
+
+function resolvePluginInput(input: string, listings: PluginListing[]) {
+  const normalized = input.trim().toLowerCase();
+  const matches = listings.filter((plugin) => {
+    return (
+      plugin.id.toLowerCase() === normalized ||
+      plugin.slug?.toLowerCase() === normalized ||
+      plugin.name?.toLowerCase() === normalized
+    );
+  });
+  if (matches.length > 1) {
+    throw new Error(`ambiguous plugin "${input}"; use one of ${matches.map((plugin) => plugin.slug ?? plugin.id).join(", ")}`);
+  }
+  return matches[0];
+}
+
+function printPluginListings(listings: PluginListing[]) {
+  if (!listings.length) {
+    console.log("No plugins found.");
+    return;
+  }
+  console.table(
+    listings.map((plugin) => ({
+      package: plugin.slug ?? plugin.id,
+      by: plugin.developerName ?? "",
+      rating: plugin.rating ? plugin.rating.toFixed(1) : "",
+      installs: typeof plugin.installCount === "number" ? plugin.installCount : "",
+      downloads: typeof plugin.downloadCount === "number" ? plugin.downloadCount : "",
+      weekly: typeof plugin.weeklyDownloadCount === "number" ? plugin.weeklyDownloadCount : "",
+      trend: typeof plugin.trendPercent === "number" ? `${plugin.trendPercent >= 0 ? "+" : ""}${plugin.trendPercent}%` : "",
+      status: plugin.mandatory ? "mandatory" : plugin.installed ? "installed" : plugin.installable === false ? "blocked" : "available"
+    }))
+  );
+}
+
+async function readJsonResponse(response: Response) {
+  const text = await response.text();
+  if (!text) return null;
+  try {
+    return JSON.parse(text) as unknown;
+  } catch {
+    return text;
+  }
+}
+
+function apiError(body: unknown, fallback: string) {
+  if (body && typeof body === "object" && "error" in body && typeof body.error === "string") return body.error;
+  if (typeof body === "string" && body.trim()) return body.trim();
+  return fallback;
+}
+
+function errorMessage(error: unknown) {
+  return error instanceof Error ? error.message : "unknown error";
+}
+
 function tenantToApiUrl(tenant: string) {
   if (/^https?:\/\//i.test(tenant)) return tenant.replace(/\/+$/, "");
   return `https://${tenant.replace(/\/+$/, "")}`;
+}
+
+function noHookAgentSelected(options: Record<string, unknown>) {
+  return !(
+    options.claude ||
+    options.codex ||
+    options.gemini ||
+    options.opencode ||
+    options.cursor ||
+    options.openclaw ||
+    options.nanoclaw
+  );
 }

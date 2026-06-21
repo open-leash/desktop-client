@@ -507,8 +507,10 @@ function installCodexProtection(context: InstallContext) {
 function uninstallCodexProtection() {
   const configPath = path.join(os.homedir(), ".codex", "config.toml");
   const hooksPath = path.join(os.homedir(), ".codex", "hooks.json");
-  fs.writeFileSync(configPath, disableCodexApprovalHandoff(readText(configPath)));
+  fs.mkdirSync(path.dirname(configPath), { recursive: true });
   const hooks = readJson(hooksPath) as { hooks?: Record<string, unknown> } | undefined;
+  const config = removeCodexOpenLeashHookTrust(disableCodexApprovalHandoff(readText(configPath)), hooksPath);
+  fs.writeFileSync(configPath, disableCodexHooksIfNoManagedHooks(config, hooks ?? {}));
   if (hooks?.hooks && JSON.stringify(hooks.hooks).includes("/v1/hooks/codex/")) {
     fs.rmSync(hooksPath, { force: true });
   }
@@ -747,6 +749,27 @@ function disableCodexApprovalHandoff(config: string) {
   if (typeof sandbox === "string") restored.push(`sandbox_mode = ${JSON.stringify(sandbox)}`);
   const clean = config.replace(match[0], "").trimStart();
   return `${restored.length ? `${restored.join("\n")}\n` : ""}${clean}`;
+}
+
+function removeCodexOpenLeashHookTrust(config: string, hooksPath: string) {
+  const escapedHookPath = escapeRegExp(path.resolve(hooksPath));
+  const withoutHookTables = config.replace(
+    new RegExp(`\\n?\\[hooks\\.state\\."${escapedHookPath}:[^"]+"\\]\\ntrusted_hash\\s*=\\s*"[^"]*"\\n?`, "g"),
+    "\n"
+  );
+  return withoutHookTables.replace(/\n{3,}/g, "\n\n").trimEnd() + "\n";
+}
+
+function disableCodexHooksIfNoManagedHooks(config: string, hooks: Record<string, unknown>) {
+  const hookText = JSON.stringify(hooks.hooks ?? {});
+  const hasHookEntries = hookText !== "{}" && hookText !== "[]";
+  if (hasHookEntries && !hookText.includes("/v1/hooks/codex/")) return config;
+  const withoutEmptyState = config.replace(/\n?\[hooks\.state\]\s*(?=\n\s*\[|$)/g, "\n");
+  if (!/^\s*\[features\]\s*$/m.test(withoutEmptyState)) return withoutEmptyState;
+  return withoutEmptyState
+    .replace(/(^\s*\[features\]\s*\n(?:[^\[]*\n)*?)^\s*hooks\s*=\s*true\s*$/m, (_match, prefix: string) => `${prefix}hooks = false`)
+    .replace(/\n{3,}/g, "\n\n")
+    .trimEnd() + "\n";
 }
 
 function stripCodexHandoff(config: string) {

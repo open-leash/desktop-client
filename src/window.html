@@ -6,20 +6,26 @@
     <title>OpenLeash</title>
     <style>
       :root {
-        --ink: #101318;
-        --ink-2: #3d4450;
-        --muted: #8b909b;
-        --line: #e6e8ee;
-        --soft: #f5f6f8;
+        --ink: #0c0c0a;
+        --ink-2: #2a2a26;
+        --muted: #6b6b63;
+        --line: #e8e5dd;
+        --line-2: #d8d3c7;
+        --soft: #f3f2ec;
         --panel: #ffffff;
-        --accent: #c8d6ff;
-        --green: #22b981;
-        --red: #e7574f;
+        --accent: #5b4fe5;
+        --accent-2: #ec4899;
+        --accent-soft: #efedfd;
+        --green: #18a558;
+        --green-soft: #e6f5ed;
+        --red: #e94e3a;
+        --shadow-sm: 0 1px 2px rgba(12, 12, 10, .04), 0 1px 1px rgba(12, 12, 10, .03);
+        --shadow-md: 0 2px 4px rgba(12, 12, 10, .04), 0 8px 24px -8px rgba(12, 12, 10, .08);
       }
       * { box-sizing: border-box; }
       body {
         margin: 0;
-        background: #eef0f4;
+        background: var(--soft);
         color: var(--ink);
         font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
         -webkit-font-smoothing: antialiased;
@@ -97,6 +103,7 @@
       body.setup-locked main {
         width: min(1120px, calc(100vw - 28px));
         margin: 0 auto;
+        box-shadow: var(--shadow-md);
       }
       body.intro-active main {
         height: calc(100vh - 28px);
@@ -154,13 +161,13 @@
       .setupProgressBar {
         height: 8px;
         border-radius: 999px;
-        background: var(--soft);
+        background: rgba(216, 211, 199, .42);
         overflow: hidden;
       }
       .setupProgressFill {
         height: 100%;
         border-radius: 999px;
-        background: var(--accent);
+        background: linear-gradient(90deg, var(--accent), var(--accent-2));
       }
       .welcomeHero {
         position: relative;
@@ -345,6 +352,7 @@
         border-radius: 14px;
         background: white;
         padding: 16px;
+        box-shadow: var(--shadow-sm);
       }
       .choiceCard {
         display: grid;
@@ -500,6 +508,224 @@
         align-items: center;
         gap: 12px;
       }
+      .pluginInstallLine {
+        position: relative;
+        display: grid;
+        grid-template-columns: 48px minmax(0, 1fr) auto;
+        align-items: flex-start;
+        gap: 16px;
+        min-height: 126px;
+        padding: 18px;
+        cursor: default;
+        overflow: hidden;
+        transition: border-color .16s ease, background .16s ease, box-shadow .16s ease, transform .16s ease;
+      }
+      .pluginInstallLine::before {
+        content: "";
+        position: absolute;
+        inset: 0;
+        background:
+          radial-gradient(ellipse 360px 180px at 14% -20%, rgba(91, 79, 229, .08), transparent 68%),
+          radial-gradient(ellipse 260px 160px at 98% 0%, rgba(236, 72, 153, .06), transparent 64%);
+        opacity: 0;
+        pointer-events: none;
+        transition: opacity .16s ease;
+      }
+      .pluginInstallLine:hover {
+        border-color: var(--line-2);
+        box-shadow: var(--shadow-md);
+        transform: translateY(-1px);
+      }
+      .pluginInstallLine.selected {
+        border-color: rgba(91, 79, 229, .36);
+        background: linear-gradient(180deg, #ffffff 0%, #fbfaff 100%);
+      }
+      .pluginInstallLine.selected::before {
+        opacity: 1;
+      }
+      .pluginInstallLine > * {
+        position: relative;
+        z-index: 1;
+      }
+      .pluginInstallLine .agentIcon {
+        width: 48px;
+        height: 48px;
+        flex-basis: 48px;
+        border: 1px solid var(--line);
+        background: #fafaf6;
+        color: var(--ink);
+        font-size: 14px;
+        letter-spacing: 0;
+      }
+      .pluginInstallLine.selected .agentIcon {
+        border-color: rgba(91, 79, 229, .2);
+        background: var(--accent-soft);
+        color: var(--accent);
+      }
+      .pluginInstallLine [data-plugin-expand] {
+        cursor: pointer;
+      }
+      .pluginInstallLine .pluginCopy {
+        display: grid;
+        gap: 7px;
+        min-width: 0;
+      }
+      .pluginInstallLine .pluginCopy strong {
+        font-size: 17px;
+        letter-spacing: 0;
+      }
+      .pluginInstallLine .pluginCopy > span:not(.pluginMeta) {
+        color: var(--ink-2);
+        line-height: 1.45;
+      }
+      .pluginInstallLine .pluginStats {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 7px;
+        margin-top: 2px;
+      }
+      .pluginInstallLine .pluginStats .tag {
+        padding: 5px 10px;
+        border: 1px solid rgba(216, 211, 199, .7);
+        background: rgba(255, 255, 255, .76);
+        color: var(--ink-2);
+        font-size: 11px;
+        font-weight: 800;
+      }
+      .pluginInstallLine .pluginDetails {
+        display: grid;
+        gap: 8px;
+        margin-top: 6px;
+        padding-top: 12px;
+        border-top: 1px solid rgba(216, 211, 199, .72);
+      }
+      .pluginInstallLine .pluginDetails p {
+        color: var(--ink-2);
+        font-size: 13px;
+      }
+      .pluginInstallLine .pluginDetailsMeta {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 7px;
+      }
+      .pluginInstallLine .pluginDetailsMeta span {
+        border-radius: 999px;
+        padding: 4px 9px;
+        background: var(--soft);
+        color: var(--muted);
+        font-size: 11px;
+        font-weight: 850;
+      }
+      .pluginMarketplaceTools {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        align-items: center;
+        gap: 12px;
+        margin-bottom: 14px;
+      }
+      .pluginMarketplaceTools input {
+        min-height: 44px;
+        border: 1px solid var(--line);
+        border-radius: 999px;
+        padding: 0 16px;
+        background: #fff;
+        color: var(--ink);
+        font: inherit;
+        font-weight: 750;
+        box-shadow: var(--shadow-sm);
+      }
+      .pluginMarketplaceTools span {
+        color: var(--muted);
+        font-size: 13px;
+        font-weight: 850;
+        white-space: nowrap;
+      }
+      .pluginAction {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        min-width: 118px;
+        min-height: 40px;
+        border-radius: 999px;
+        padding: 8px 14px;
+        border: 1px solid var(--line);
+        background: rgba(255, 255, 255, .86);
+        color: var(--ink-2);
+        box-shadow: var(--shadow-sm);
+        font-weight: 900;
+        white-space: nowrap;
+        transition: border-color .16s ease, background .16s ease, color .16s ease;
+      }
+      .pluginActionIcon {
+        display: grid;
+        place-items: center;
+        width: 18px;
+        height: 18px;
+        border-radius: 50%;
+        background: var(--soft);
+        color: var(--ink);
+        font-size: 14px;
+        line-height: 1;
+      }
+      .pluginChoice {
+        display: inline-flex;
+        align-items: center;
+        justify-content: flex-end;
+      }
+      .pluginChoice input {
+        position: absolute;
+        opacity: 0;
+        pointer-events: none;
+      }
+      .pluginChoice input:focus-visible + .pluginAction {
+        outline: 3px solid rgba(91, 79, 229, .22);
+        outline-offset: 2px;
+      }
+      .pluginChoice input:not(:checked) + .pluginAction {
+        border-color: var(--ink);
+        background: var(--ink);
+        color: #fafaf6;
+      }
+      .pluginChoice input:not(:checked) + .pluginAction .pluginActionIcon {
+        background: rgba(250, 250, 246, .16);
+        color: #fafaf6;
+      }
+      .pluginChoice input:checked + .pluginAction:hover {
+        border-color: rgba(233, 78, 58, .32);
+        color: #b33424;
+      }
+      .pluginChoice input:checked + .pluginAction:hover .pluginActionIcon {
+        background: #fdeae6;
+        color: #b33424;
+      }
+      .pluginSettingsGrid {
+        display: grid;
+        gap: 14px;
+      }
+      .pluginSettingCard {
+        display: grid;
+        gap: 14px;
+      }
+      .pluginSettingFields {
+        display: grid;
+        gap: 12px;
+      }
+      .checkboxGrid {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+      }
+      .checkboxPill {
+        display: inline-flex;
+        align-items: center;
+        gap: 7px;
+        border: 1px solid var(--line);
+        border-radius: 999px;
+        padding: 8px 10px;
+        background: #fff;
+        font-weight: 800;
+      }
       strong { display: block; }
       small { color: var(--muted); font-weight: 700; }
       .tag {
@@ -510,7 +736,7 @@
         font-size: 12px;
         font-weight: 900;
       }
-      .tag.good { background: #e9f8f1; color: #11795f; }
+      .tag.good { background: var(--green-soft); color: #0d7650; }
       .tag.bad { background: #fdeced; color: #bd2d3f; }
       .switch {
         position: relative;
@@ -556,7 +782,7 @@
         opacity: .45;
         cursor: default;
       }
-      .primary { background: var(--accent); color: var(--ink); }
+      .primary { background: var(--ink); color: #fafaf6; }
       .secondary { background: var(--soft); color: var(--ink); }
       .dangerButton { background: #fee7e7; color: #af2626; }
       .actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 24px; }
@@ -1271,6 +1497,10 @@
       let state = { rules: [], history: [], localProtections: [], setupComplete: false, introSeen: false, promptTransforms: defaultPromptTransforms() };
       let selectedAgents;
       let selectedRules;
+      let selectedPlugins;
+      let pluginSetupConfigs = {};
+      let setupPluginSearch = "";
+      let expandedSetupPlugins = new Set();
       let setupStep = 0;
       let setupAudience = "individual";
       let setupClientMode = "cloud";
@@ -1322,6 +1552,7 @@
         if (!selectedRules && (state.rules || []).length > 0) {
           selectedRules = new Map((state.rules || []).map((rule) => [rule.id, rule.locked ? true : Boolean(rule.enabled)]));
         }
+        initializePluginSetupState();
         updateModeFoot();
         document.body.classList.toggle("setup-locked", isSetupLocked());
         document.body.classList.toggle("intro-active", isIntroLocked());
@@ -1402,17 +1633,17 @@
         const cloud = setupClientMode === "cloud";
         const individualCloud = setupAudience === "individual" && cloud;
         const orgCloud = setupAudience === "organization" && cloud;
-        const ruleSteps = setupRuleGroups(state.rules).map((group) => ({
-          title: group.title,
-          subtitle: "Review backend-managed rules.",
-          ruleGroup: group
-        }));
+        initializePluginSetupState();
+        const pluginSteps = [
+          { title: "Plugins", subtitle: "Choose plugins to add during setup." },
+          { title: "Plugin settings", subtitle: "Tune the plugins you selected." }
+        ];
         const steps = individualCloud
           ? [
               { title: "Account", subtitle: "Tell us who is setting this up." },
               { title: "Sign in", subtitle: "Sign in to OpenLeash Cloud." },
-              { title: "Agents", subtitle: "Choose agents to protect." },
-              ...ruleSteps
+              { title: "Agents", subtitle: "Choose agents to manage." },
+              ...pluginSteps
             ]
           : cloud
             ? [
@@ -1422,8 +1653,8 @@
                   { title: "Sign in", subtitle: "Continue onboarding in the dashboard." }
                 ] : [
                   { title: "Sign in", subtitle: "Sign in to OpenLeash Cloud." },
-                  { title: "Agents", subtitle: "Choose agents to protect." },
-                  ...ruleSteps
+                  { title: "Agents", subtitle: "Choose agents to manage." },
+                  ...pluginSteps
                 ])
               ]
           : [
@@ -1431,8 +1662,8 @@
               { title: "Connect", subtitle: "Pick how OpenLeash runs." },
               { title: "API", subtitle: "Add your company API." },
               { title: "Sign in", subtitle: "Sign in with your company." },
-              { title: "Agents", subtitle: "Choose agents to protect." },
-              ...ruleSteps
+              { title: "Agents", subtitle: "Choose agents to manage." },
+              ...pluginSteps
             ];
         const current = steps[Math.max(0, setupStep - 1)] || steps[0];
         const currentId = current.title.toLowerCase();
@@ -1533,7 +1764,7 @@
                     <div class="authSummary">
                       <div>
                         <strong>${escapeHtml(setupRemoteAuth.userName || setupRemoteAuth.userEmail || "Signed in")}</strong>
-                        <small>${escapeHtml(setupRemoteAuth.organizationName || setupRemoteAuth.organizationSlug || setupRemoteApiUrl)}</small>
+                        ${setupRemoteAuthSubtitle() ? `<small>${escapeHtml(setupRemoteAuthSubtitle())}</small>` : ""}
                       </div>
                       <span class="tag good">Connected</span>
                     </div>
@@ -1582,16 +1813,22 @@
             ${currentId === "agents" ? `
               <section class="setupSection">
                 <h2>Agents</h2>
-                <p>Select agents to protect.</p>
+                <p>Select agents to manage.</p>
                 ${agentCards({ selectable: true })}
               </section>
             ` : ""}
-            ${current.ruleGroup ? `
+            ${currentId === "plugins" ? `
               <section class="setupSection">
-                <h2>${escapeHtml(current.ruleGroup.title)}</h2>
-                <p>${personal ? escapeHtml(current.ruleGroup.description) : "These rules are managed by your OpenLeash administrator. Mandatory rules cannot be disabled on this device."}</p>
-                ${personal && current.ruleGroup.first ? importRulesPanel({ setup: true }) : ""}
-                ${ruleCards(current.ruleGroup.rules, { setup: true, managed: !personal })}
+                <h2>Plugins</h2>
+        <p>Search the OpenLeash plugin catalog and add reviewed plugins that should run on this device. Changes apply when you finish setup.</p>
+                ${setupPluginInstallCards()}
+              </section>
+            ` : ""}
+            ${currentId === "plugin settings" ? `
+              <section class="setupSection">
+                <h2>Plugin settings</h2>
+                <p>These settings sync with your OpenLeash account and apply on every desktop or mobile surface connected to it.</p>
+                ${setupPluginSettingsCards()}
               </section>
             ` : ""}
             ${setupStep >= steps.length ? `<div id="setupError" class="error"></div>` : ""}
@@ -1600,7 +1837,7 @@
             <button class="secondary" id="setupBack">Back</button>
             ${setupStep < steps.length
               ? `<button class="primary" id="setupNext">Next</button>`
-              : `<button class="primary" id="finish" ${setupFinishing ? "disabled" : ""}>${setupFinishing ? "Installing..." : "Install and start protecting"}</button>`}
+              : `<button class="primary" id="finish" ${setupFinishing ? "disabled" : ""}>${setupFinishing ? "Installing..." : "Install and start managing"}</button>`}
           </div>
         `;
         const back = document.getElementById("setupBack");
@@ -1633,6 +1870,10 @@
         if (finish) finish.onclick = finishSetup;
         bindAgentSelection();
         bindRuleSelection();
+        bindPluginExpansion();
+        bindPluginSelection();
+        bindPluginMarketplaceSearch();
+        bindPluginSettingInputs();
         bindAudienceSelection();
         bindConnectionSelection();
         bindModelSelection();
@@ -1688,6 +1929,21 @@
           if (!selectedRules) selectedRules = new Map();
           selectedRules.set(input.dataset.rule, Boolean(input.checked));
         });
+        root.querySelectorAll("[data-plugin-install]").forEach((input) => {
+          if (!selectedPlugins) selectedPlugins = new Set();
+          input.checked ? selectedPlugins.add(input.dataset.pluginInstall) : selectedPlugins.delete(input.dataset.pluginInstall);
+          ensurePluginSetupConfig(input.dataset.pluginInstall).enabled = Boolean(input.checked);
+        });
+        (state.plugins || []).forEach((plugin) => {
+          if (plugin.organizationPolicy?.mandatory) {
+            if (!selectedPlugins) selectedPlugins = new Set();
+            selectedPlugins.add(plugin.id);
+            ensurePluginSetupConfig(plugin.id).enabled = true;
+          }
+        });
+        root.querySelectorAll("[data-plugin-setting]").forEach((input) => {
+          updatePluginSettingFromInput(input);
+        });
         const provider = root.querySelector("[name=provider]:checked");
         if (provider) setupProvider = provider.value;
         const key = document.getElementById("apiKey");
@@ -1708,6 +1964,13 @@
         setupRemoteNotice = setupRemoteAuth ? "Installing OpenLeash on this Mac..." : setupRemoteNotice;
         renderSetup();
         const agents = [...(selectedAgents || new Set())];
+        const pluginSave = await saveSelectedPluginSettings();
+        if (!pluginSave.ok) {
+          setupFinishing = false;
+          setupRemoteError = pluginSave.error || "Could not save plugin settings.";
+          renderSetup();
+          return;
+        }
         const rules = (state.rules || []).map((rule) => ({
           ...rule,
           enabled: rule.locked ? true : (selectedRules?.get(rule.id) ?? Boolean(rule.enabled))
@@ -1993,13 +2256,13 @@
         const provider = setupClientMode === "cloud"
           ? { type: setupRemoteProvider }
           : (setupRemoteBootstrap.providers || [])[0] || { type: "sso" };
-        const organization = setupRemoteBootstrap.organization || {};
+        const organization = setupAudience === "organization" ? setupRemoteBootstrap.organization || {} : {};
         const result = await window.openleash.startRemoteAuth({
           apiUrl: setupRemoteApiUrl,
           audience: setupAudience,
           providerType: provider.type || provider.providerType || "google",
-          organizationId: organization.id,
-          organizationSlug: setupOrganizationSlug || organization.slug
+          organizationId: setupAudience === "organization" ? organization.id : undefined,
+          organizationSlug: setupAudience === "organization" ? setupOrganizationSlug || organization.slug : undefined
         }).catch((error) => ({
           ok: false,
           error: error?.message || "Could not start sign-in."
@@ -2014,23 +2277,35 @@
         }
       }
 
+      function setupRemoteAuthSubtitle() {
+        if (!setupRemoteAuth) return "";
+        if (setupAudience === "individual") return "";
+        return setupRemoteAuth.organizationName || setupRemoteAuth.organizationSlug || setupRemoteApiUrl;
+      }
+
       async function loadManagedRules() {
         if (!setupRemoteAuth?.token || setupClientMode === "personal") return;
         const result = await window.openleash.remoteState({
           apiUrl: setupRemoteApiUrl,
           token: setupRemoteAuth.token
         }).catch(() => undefined);
-        if (!result?.ok || !Array.isArray(result.policies)) return;
-        state.rules = result.policies.map((policy) => ({
-          id: policy.id,
-          name: policy.name,
-          category: categoryForManagedRule(policy),
-          description: policy.description || policy.natural_language_rule || "Managed OpenLeash rule.",
-          enabled: Boolean(policy.enabled || policy.locked),
-          locked: Boolean(policy.locked),
-          managedByOrganization: Boolean(policy.managedByOrganization || policy.managed_by_organization)
-        }));
-        selectedRules = new Map((state.rules || []).map((rule) => [rule.id, rule.locked ? true : Boolean(rule.enabled)]));
+        if (!result?.ok) return;
+        if (Array.isArray(result.policies)) {
+          state.rules = result.policies.map((policy) => ({
+            id: policy.id,
+            name: policy.name,
+            category: categoryForManagedRule(policy),
+            description: policy.description || policy.natural_language_rule || "Managed OpenLeash rule.",
+            enabled: Boolean(policy.enabled || policy.locked),
+            locked: Boolean(policy.locked),
+            managedByOrganization: Boolean(policy.managedByOrganization || policy.managed_by_organization)
+          }));
+          selectedRules = new Map((state.rules || []).map((rule) => [rule.id, rule.locked ? true : Boolean(rule.enabled)]));
+        }
+        if (Array.isArray(result.plugins)) {
+          state.plugins = result.plugins;
+          initializePluginSetupState(true);
+        }
       }
 
       function shouldAutoFinishAfterRemoteAuth() {
@@ -3374,6 +3649,369 @@
         });
       }
 
+      function initializePluginSetupState(force = false) {
+        const plugins = state.plugins || [];
+        if ((force || !selectedPlugins) && plugins.length > 0) {
+          selectedPlugins = new Set(plugins.filter((plugin) => plugin.settings?.enabled !== false).map((plugin) => plugin.id));
+        }
+        for (const plugin of plugins) {
+          if (!pluginSetupConfigs[plugin.id] || force) {
+            pluginSetupConfigs[plugin.id] = {
+              ...(plugin.defaultConfig || {}),
+              ...(plugin.settings?.config || {}),
+              enabled: plugin.settings?.enabled !== false
+            };
+          }
+        }
+      }
+
+      function pluginEvents(plugin) {
+        return plugin.events || plugin.stages || [];
+      }
+
+      function pluginName(plugin) {
+        return plugin.id === "openleash.prompt-compression" ? "Token Saver" : (plugin.name || plugin.id);
+      }
+
+      function pluginPackageName(plugin) {
+        return plugin.slug || plugin.marketplace?.slug || String(plugin.id || "").split(".").pop() || pluginName(plugin);
+      }
+
+      function compactNumber(value) {
+        const count = Number(value || 0);
+        if (count >= 1000) {
+          const rounded = Math.round(count / 100) / 10;
+          return `${Number.isInteger(rounded) ? rounded.toFixed(0) : rounded}k`;
+        }
+        return String(count);
+      }
+
+      function pluginValueLine(plugin) {
+        const lines = {
+          "openleash.prompt-compression": "Compress prompts before submission so agents burn fewer tokens.",
+          "openleash.security-evaluator": "Evaluate prompts, responses, and tool use against your active policies.",
+          "openleash.dlp": "Mask or block sensitive data before it leaves the agent.",
+          "openleash.skill-scanner": "Inventory and review agent skills when they appear or change.",
+          "openleash.mcp-scanner": "Track MCP tools and calls for audit and risk review."
+        };
+        return lines[plugin.id] || plugin.description || "";
+      }
+
+      function pluginIconText(plugin) {
+        if (plugin.marketplace?.iconText) return plugin.marketplace.iconText;
+        if (plugin.id === "openleash.prompt-compression") return "TS";
+        if (plugin.id === "openleash.security-evaluator") return "SE";
+        if (plugin.id === "openleash.dlp") return "DL";
+        if (plugin.id === "openleash.skill-scanner") return "SK";
+        if (plugin.id === "openleash.mcp-scanner") return "MC";
+        return "OL";
+      }
+
+      function ensurePluginSetupConfig(pluginId) {
+        if (!pluginSetupConfigs[pluginId]) {
+          const plugin = (state.plugins || []).find((item) => item.id === pluginId) || {};
+          pluginSetupConfigs[pluginId] = {
+            ...(plugin.defaultConfig || {}),
+            ...(plugin.settings?.config || {}),
+            enabled: plugin.settings?.enabled !== false
+          };
+        }
+        return pluginSetupConfigs[pluginId];
+      }
+
+      function setupPluginInstallCards() {
+        const query = setupPluginSearch.trim().toLowerCase();
+        const allPlugins = state.plugins || [];
+        const plugins = query
+          ? allPlugins.filter((plugin) => pluginSearchText(plugin).includes(query))
+          : allPlugins;
+        if (plugins.length === 0) return `<div class="card empty">No plugin catalog has been received yet.</div>`;
+        return `
+          <div class="pluginMarketplaceTools">
+            <input id="pluginMarketplaceSearch" value="${escapeHtml(setupPluginSearch)}" placeholder="Search plugins, developers, tags...">
+            <span>${plugins.length} of ${allPlugins.length} shown</span>
+          </div>
+          <div class="cardList">
+            ${plugins.map((plugin) => {
+              const checked = selectedPlugins?.has(plugin.id) ?? plugin.settings?.enabled !== false;
+              const mandatory = Boolean(plugin.organizationPolicy?.mandatory);
+              const developer = plugin.marketplace?.developerName || (plugin.publisher === "openleash" ? "OpenLeash" : plugin.publisher || "Unknown");
+              const installCount = Number(plugin.marketplace?.installCount || 0);
+              const downloadCount = Number(plugin.marketplace?.downloadCount || 0);
+              const weeklyDownloadCount = Number(plugin.marketplace?.weeklyDownloadCount || 0);
+              const trendPercent = Number(plugin.marketplace?.trendPercent || 0);
+              const expanded = expandedSetupPlugins.has(plugin.id);
+              const source = plugin.marketplace?.source === "first_party" ? "OpenLeash" : plugin.marketplace?.source === "private" ? "Private" : "Community";
+              const tags = (plugin.marketplace?.tags || plugin.tags || []).slice(0, 4);
+              return `
+                <article class="card pluginInstallLine ${checked ? "selected" : ""} ${expanded ? "expanded" : ""}">
+                  <span class="agentIcon" data-plugin-expand="${escapeHtml(plugin.id)}">${escapeHtml(pluginIconText(plugin))}</span>
+                  <span class="pluginCopy" data-plugin-expand="${escapeHtml(plugin.id)}">
+                    <strong>${escapeHtml(pluginPackageName(plugin))}</strong>
+                    <small>${escapeHtml(pluginName(plugin))}</small>
+                    <span>${escapeHtml(plugin.marketplace?.shortDescription || pluginValueLine(plugin))}</span>
+                    <span class="pluginStats">
+                      <span class="tag">By ${escapeHtml(developer)}</span>
+                      <span class="tag">${escapeHtml(compactNumber(installCount))} installs</span>
+                      <span class="tag">${escapeHtml(compactNumber(downloadCount))} downloads</span>
+                      <span class="tag">${escapeHtml(compactNumber(weeklyDownloadCount))}/wk</span>
+                      <span class="tag">${trendPercent >= 0 ? "+" : ""}${escapeHtml(String(trendPercent))}% trend</span>
+                      <span class="tag">${plugin.marketplace?.rating ? escapeHtml(Number(plugin.marketplace.rating).toFixed(1)) : "New"} rating</span>
+                    </span>
+                    ${expanded ? `
+                      <span class="pluginDetails">
+                        <p>${escapeHtml(plugin.marketplace?.longDescription || plugin.description || pluginValueLine(plugin))}</p>
+                        <span class="pluginDetailsMeta">
+                          <span>${escapeHtml(source)}</span>
+                          <span>${escapeHtml(plugin.marketplace?.reviewStatus?.replace("_", " ") || "reviewed")}</span>
+                          <span>v${escapeHtml(plugin.version || plugin.marketplace?.version || "1.0.0")}</span>
+                          ${tags.map((tag) => `<span>${escapeHtml(tag)}</span>`).join("")}
+                        </span>
+                      </span>
+                    ` : ""}
+                    <small>${expanded ? "Click to collapse" : "Click for details"}</small>
+                  </span>
+                  <span class="pluginChoice">
+                    <label>
+                      <input data-plugin-install="${escapeHtml(plugin.id)}" aria-label="Install ${escapeHtml(pluginName(plugin))}" type="checkbox" ${checked ? "checked" : ""} ${mandatory ? "disabled" : ""}>
+                      <span class="pluginAction" aria-hidden="true">
+                        <span class="pluginActionIcon">${checked ? "-" : "+"}</span>
+                        <span class="pluginActionText">${mandatory ? "Required" : checked ? "Remove" : "Add"}</span>
+                      </span>
+                    </label>
+                  </span>
+                </article>
+              `;
+            }).join("")}
+          </div>
+        `;
+      }
+
+      function pluginSearchText(plugin) {
+        return [
+          plugin.id,
+          plugin.slug,
+          plugin.name,
+          plugin.description,
+          plugin.marketplace?.developerName,
+          plugin.marketplace?.shortDescription,
+          plugin.marketplace?.longDescription,
+          ...(plugin.marketplace?.tags || []),
+          ...(plugin.tags || [])
+        ].filter(Boolean).join(" ").toLowerCase();
+      }
+
+      function setupPluginSettingsCards() {
+        const plugins = (state.plugins || []).filter((plugin) => selectedPlugins?.has(plugin.id));
+        if (plugins.length === 0) return `<div class="card empty">No plugins selected yet. Go back and install at least one plugin.</div>`;
+        return `
+          <div class="pluginSettingsGrid">
+            ${plugins.map((plugin) => setupPluginSettingsCard(plugin)).join("")}
+          </div>
+        `;
+      }
+
+      function setupPluginSettingsCard(plugin) {
+        const config = ensurePluginSetupConfig(plugin.id);
+        return `
+          <article class="card pluginSettingCard">
+            <div class="fieldRow">
+              <div>
+                <strong>${escapeHtml(pluginName(plugin))}</strong>
+                <p>${escapeHtml(pluginValueLine(plugin))}</p>
+              </div>
+              <span class="tag good">OpenLeash</span>
+            </div>
+            <div class="pluginSettingFields">
+              ${pluginSettingsFields(plugin, config)}
+            </div>
+          </article>
+        `;
+      }
+
+      function pluginSettingsFields(plugin, config) {
+        if (plugin.id === "openleash.prompt-compression") {
+          return `
+            <div class="fieldRow">
+              <strong>Compression level</strong>
+              <select data-plugin-setting="${escapeHtml(plugin.id)}" data-setting-key="level">
+                ${["light", "standard", "maximum"].map((level) => `<option value="${level}" ${config.level === level ? "selected" : ""}>${level}</option>`).join("")}
+              </select>
+            </div>
+            <label class="fieldRow">
+              <span><strong>Concise responses</strong><small>Add a short-response instruction after compression.</small></span>
+              <span class="switch"><input data-plugin-setting="${escapeHtml(plugin.id)}" data-setting-key="conciseResponse" type="checkbox" ${config.conciseResponse ? "checked" : ""}><span></span></span>
+            </label>
+          `;
+        }
+        if (plugin.id === "openleash.dlp") {
+          const categories = ["pii", "phi", "tokens", "keys", "credentials"];
+          const selected = Array.isArray(config.categories) ? config.categories : categories;
+          return `
+            <div class="fieldRow">
+              <strong>When sensitive data appears</strong>
+              <select data-plugin-setting="${escapeHtml(plugin.id)}" data-setting-key="action">
+                <option value="mask" ${config.action !== "block" ? "selected" : ""}>Mask it</option>
+                <option value="block" ${config.action === "block" ? "selected" : ""}>Block it</option>
+              </select>
+            </div>
+            <div>
+              <strong>Categories</strong>
+              <div class="checkboxGrid" style="margin-top:10px">
+                ${categories.map((category) => `
+                  <label class="checkboxPill">
+                    <input data-plugin-setting="${escapeHtml(plugin.id)}" data-setting-key="categories" value="${category}" type="checkbox" ${selected.includes(category) ? "checked" : ""}>
+                    ${escapeHtml(category)}
+                  </label>
+                `).join("")}
+              </div>
+            </div>
+          `;
+        }
+        if (plugin.id === "openleash.skill-scanner") {
+          return `
+            <div class="fieldRow">
+              <span><strong>Review threshold</strong><small>Flag skills at or above this risk score.</small></span>
+              <input data-plugin-setting="${escapeHtml(plugin.id)}" data-setting-key="suspiciousRiskThreshold" type="number" min="0" max="100" value="${escapeHtml(config.suspiciousRiskThreshold ?? 50)}">
+            </div>
+          `;
+        }
+        if (plugin.id === "openleash.mcp-scanner") {
+          return `
+            <label class="fieldRow">
+              <span><strong>Redact secrets in audit data</strong><small>Keep MCP inventory useful without storing sensitive values.</small></span>
+              <span class="switch"><input data-plugin-setting="${escapeHtml(plugin.id)}" data-setting-key="redactSecrets" type="checkbox" ${config.redactSecrets !== false ? "checked" : ""}><span></span></span>
+            </label>
+          `;
+        }
+        if (plugin.id === "openleash.security-evaluator") {
+          return `
+            <div class="fieldRow">
+              <span><strong>Policy set</strong><small>Use the active policies synced with this account.</small></span>
+              <select data-plugin-setting="${escapeHtml(plugin.id)}" data-setting-key="policySet">
+                <option value="active" ${config.policySet !== "strict" ? "selected" : ""}>Active</option>
+                <option value="strict" ${config.policySet === "strict" ? "selected" : ""}>Strict</option>
+              </select>
+            </div>
+          `;
+        }
+        return `<p>No initial settings needed.</p>`;
+      }
+
+      function bindPluginSelection() {
+        root.querySelectorAll("[data-plugin-install]").forEach((input) => {
+          input.onchange = () => {
+            if (!selectedPlugins) selectedPlugins = new Set();
+            const plugin = (state.plugins || []).find((item) => item.id === input.dataset.pluginInstall);
+            if (plugin?.organizationPolicy?.mandatory) {
+              input.checked = true;
+              selectedPlugins.add(input.dataset.pluginInstall);
+              return;
+            }
+            input.checked ? selectedPlugins.add(input.dataset.pluginInstall) : selectedPlugins.delete(input.dataset.pluginInstall);
+            ensurePluginSetupConfig(input.dataset.pluginInstall).enabled = Boolean(input.checked);
+            const actionIcon = input.parentElement?.querySelector(".pluginActionIcon");
+            const actionText = input.parentElement?.querySelector(".pluginActionText");
+            if (actionIcon) actionIcon.textContent = input.checked ? "-" : "+";
+            if (actionText) actionText.textContent = input.checked ? "Remove" : "Add";
+            input.closest(".pluginInstallLine")?.classList.toggle("selected", Boolean(input.checked));
+          };
+        });
+      }
+
+      function bindPluginExpansion() {
+        root.querySelectorAll("[data-plugin-expand]").forEach((element) => {
+          element.onclick = () => {
+            const pluginId = element.dataset.pluginExpand;
+            if (!pluginId) return;
+            if (expandedSetupPlugins.has(pluginId)) expandedSetupPlugins.delete(pluginId);
+            else expandedSetupPlugins.add(pluginId);
+            renderSetup();
+          };
+        });
+      }
+
+      function bindPluginMarketplaceSearch() {
+        const search = document.getElementById("pluginMarketplaceSearch");
+        if (!search) return;
+        search.oninput = () => {
+          setupPluginSearch = search.value;
+          renderSetup();
+          const nextSearch = document.getElementById("pluginMarketplaceSearch");
+          if (nextSearch) {
+            nextSearch.focus();
+            nextSearch.setSelectionRange(nextSearch.value.length, nextSearch.value.length);
+          }
+        };
+      }
+
+      function bindPluginSettingInputs() {
+        root.querySelectorAll("[data-plugin-setting]").forEach((input) => {
+          input.onchange = () => updatePluginSettingFromInput(input);
+          input.oninput = () => updatePluginSettingFromInput(input);
+        });
+      }
+
+      function updatePluginSettingFromInput(input) {
+        const pluginId = input.dataset.pluginSetting;
+        const key = input.dataset.settingKey;
+        if (!pluginId || !key) return;
+        const config = ensurePluginSetupConfig(pluginId);
+        if (key === "categories") {
+          config.categories = [...root.querySelectorAll(`[data-plugin-setting="${cssEscape(pluginId)}"][data-setting-key="categories"]:checked`)].map((item) => item.value);
+          return;
+        }
+        if (input.type === "checkbox") {
+          config[key] = Boolean(input.checked);
+          return;
+        }
+        if (input.type === "number") {
+          config[key] = Math.max(0, Math.min(100, Number(input.value || 0)));
+          return;
+        }
+        config[key] = input.value;
+      }
+
+      function selectedPluginSettingsPayloads() {
+        return (state.plugins || []).map((plugin) => {
+          const enabled = selectedPlugins?.has(plugin.id) ?? plugin.settings?.enabled !== false;
+          const config = {
+            ...(plugin.defaultConfig || {}),
+            ...(plugin.settings?.config || {}),
+            ...ensurePluginSetupConfig(plugin.id),
+            enabled
+          };
+          return {
+            pluginId: plugin.id,
+            enabled,
+            config,
+            orderingPriority: plugin.settings?.orderingPriority ?? plugin.ordering?.priority ?? null
+          };
+        });
+      }
+
+      async function saveSelectedPluginSettings() {
+        const payloads = selectedPluginSettingsPayloads();
+        if (payloads.length === 0 || !setupRemoteAuth?.token) return { ok: true };
+        const updated = [];
+        for (const payload of payloads) {
+          const result = await window.openleash.savePluginSettings({
+            apiUrl: setupRemoteApiUrl,
+            token: setupRemoteAuth.token,
+            ...payload
+          }).catch((error) => ({ ok: false, error: error?.message || "Could not save plugin settings." }));
+          if (!result?.ok) return { ok: false, error: result?.error || `Could not save ${payload.pluginId}.` };
+          updated.push(result);
+        }
+        const settingsById = new Map(updated.map((item) => [item.pluginId, item.settings]));
+        state.plugins = (state.plugins || []).map((plugin) => ({
+          ...plugin,
+          settings: settingsById.get(plugin.id) || plugin.settings
+        }));
+        initializePluginSetupState(true);
+        return { ok: true };
+      }
+
       function renderPlugins() {
         const plugins = state.plugins || [];
         root.innerHTML = `
@@ -3385,7 +4023,7 @@
               <article class="card">
                 <div class="fieldRow">
                   <div>
-                    <strong>${escapeHtml(plugin.name || plugin.id)}</strong>
+                    <strong>${escapeHtml(pluginName(plugin))}</strong>
                     <p>${escapeHtml(plugin.description || "")}</p>
                   </div>
                   <span class="tag ${plugin.settings?.enabled ? "good" : "bad"}">${plugin.settings?.enabled ? "installed" : "disabled"}</span>
@@ -3396,7 +4034,7 @@
                   <span>${escapeHtml(plugin.runtime || "runtime")}</span>
                 </div>
                 <div class="eventMeta" style="margin-top:10px">
-                  ${(plugin.stages || []).map((stage) => `<span>${escapeHtml(stage)}</span>`).join("")}
+                  ${pluginEvents(plugin).map((event) => `<span>${escapeHtml(event)}</span>`).join("")}
                 </div>
                 <div class="eventMeta" style="margin-top:10px">
                   ${(plugin.permissions || []).map((permission) => `<span>${escapeHtml(permission)}</span>`).join("")}
@@ -3655,7 +4293,7 @@
           setupRemoteError = "";
           setupRemoteNotice = "";
           setupRemoteBusy = false;
-          const signedInStep = setupClientMode === "custom" ? 4 : setupAudience === "organization" ? 3 : 2;
+          const signedInStep = setupClientMode === "custom" ? 5 : setupAudience === "organization" ? 3 : 3;
           setupStep = Math.max(setupStep, signedInStep);
           void loadManagedRules().then(() => {
             if (shouldAutoFinishAfterRemoteAuth()) {

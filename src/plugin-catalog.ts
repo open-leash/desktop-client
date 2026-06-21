@@ -6,7 +6,7 @@ export type BundledPluginManifest = {
   publisher: string;
   runtime: "openleash-core" | "node";
   entrypoint: string;
-  stages: string[];
+  events: string[];
   permissions: string[];
   effects: string[];
   ordering?: { priority?: number; before?: string[]; after?: string[] };
@@ -28,13 +28,13 @@ export type PluginCatalogItem = BundledPluginManifest & {
 export const bundledFirstPartyPlugins: BundledPluginManifest[] = [
   {
     id: "openleash.prompt-compression",
-    name: "Prompt Compression",
-    description: "Compresses user prompts before they reach the agent model to reduce token usage.",
+    name: "Token Saver",
+    description: "Compresses prompts before they reach agent models to reduce token usage and cost.",
     version: "1.0.0",
     publisher: "openleash",
     runtime: "openleash-core",
     entrypoint: "plugins/prompt-compression",
-    stages: ["prompt.beforeSubmit"],
+    events: ["prompt.beforeSubmit"],
     permissions: ["event:read", "prompt:read", "prompt:write", "model:invoke", "audit:write"],
     effects: ["transform", "observe"],
     ordering: { priority: 100, before: ["openleash.dlp"] },
@@ -49,7 +49,7 @@ export const bundledFirstPartyPlugins: BundledPluginManifest[] = [
     publisher: "openleash",
     runtime: "openleash-core",
     entrypoint: "plugins/skill-scanner",
-    stages: ["openleash.startup", "agent.detected", "skill.changed"],
+    events: ["openleash.startup", "agent.detected", "skill.changed"],
     permissions: ["event:read", "filesystem:read", "decision:write", "model:invoke", "audit:write", "notification:send"],
     effects: ["observe", "ask", "inventory"],
     ordering: { priority: 150 },
@@ -64,7 +64,7 @@ export const bundledFirstPartyPlugins: BundledPluginManifest[] = [
     publisher: "openleash",
     runtime: "openleash-core",
     entrypoint: "plugins/dlp",
-    stages: ["prompt.beforeSubmit"],
+    events: ["prompt.beforeSubmit"],
     permissions: ["event:read", "prompt:read", "prompt:write", "decision:write", "model:invoke", "audit:write"],
     effects: ["transform", "deny", "observe"],
     ordering: { priority: 200, after: ["openleash.prompt-compression"] },
@@ -79,7 +79,7 @@ export const bundledFirstPartyPlugins: BundledPluginManifest[] = [
     publisher: "openleash",
     runtime: "openleash-core",
     entrypoint: "plugins/security-evaluator",
-    stages: ["prompt.beforeSubmit", "agent.response", "tool.beforeUse", "tool.afterUse"],
+    events: ["prompt.beforeSubmit", "agent.response", "tool.beforeUse", "tool.afterUse"],
     permissions: ["event:read", "prompt:read", "tool:read", "decision:write", "model:invoke", "audit:write", "notification:send"],
     effects: ["observe", "ask", "deny"],
     ordering: { priority: 300, after: ["openleash.dlp"] },
@@ -94,7 +94,7 @@ export const bundledFirstPartyPlugins: BundledPluginManifest[] = [
     publisher: "openleash",
     runtime: "openleash-core",
     entrypoint: "plugins/mcp-scanner",
-    stages: ["tool.beforeUse", "tool.afterUse"],
+    events: ["tool.beforeUse", "tool.afterUse"],
     permissions: ["event:read", "tool:read", "audit:write"],
     effects: ["observe", "inventory"],
     ordering: { priority: 400, after: ["openleash.security-evaluator"] },
