@@ -1400,13 +1400,21 @@
         enforceAudienceMode();
         const personal = setupClientMode === "personal";
         const cloud = setupClientMode === "cloud";
+        const individualCloud = setupAudience === "individual" && cloud;
         const orgCloud = setupAudience === "organization" && cloud;
         const ruleSteps = setupRuleGroups(state.rules).map((group) => ({
           title: group.title,
           subtitle: "Review backend-managed rules.",
           ruleGroup: group
         }));
-        const steps = cloud
+        const steps = individualCloud
+          ? [
+              { title: "Account", subtitle: "Tell us who is setting this up." },
+              { title: "Sign in", subtitle: "Sign in to OpenLeash Cloud." },
+              { title: "Agents", subtitle: "Choose agents to protect." },
+              ...ruleSteps
+            ]
+          : cloud
             ? [
                 { title: "Account", subtitle: "Tell us who is setting this up." },
                 { title: "Connect", subtitle: "Pick how OpenLeash runs." },
@@ -3647,7 +3655,8 @@
           setupRemoteError = "";
           setupRemoteNotice = "";
           setupRemoteBusy = false;
-          setupStep = Math.max(setupStep, setupClientMode === "cloud" && setupAudience === "organization" ? 3 : 1);
+          const signedInStep = setupClientMode === "custom" ? 4 : setupAudience === "organization" ? 3 : 2;
+          setupStep = Math.max(setupStep, signedInStep);
           void loadManagedRules().then(() => {
             if (shouldAutoFinishAfterRemoteAuth()) {
               setupSkipDashboardOpenAfterInstall = true;
