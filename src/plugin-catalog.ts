@@ -29,7 +29,7 @@ export const bundledFirstPartyPlugins: BundledPluginManifest[] = [
   {
     id: "openleash.prompt-compression",
     name: "Token Saver",
-    description: "Compresses prompts before they reach agent models to reduce token usage and cost.",
+    description: "Trim noisy context before every model call.",
     version: "1.0.0",
     publisher: "openleash",
     runtime: "openleash-core",
@@ -44,7 +44,7 @@ export const bundledFirstPartyPlugins: BundledPluginManifest[] = [
   {
     id: "openleash.skill-scanner",
     name: "Skill Scanner",
-    description: "Scans agent skills for suspicious instructions and records skill inventory.",
+    description: "Catch suspicious instructions before they spread.",
     version: "1.0.0",
     publisher: "openleash",
     runtime: "openleash-core",
@@ -59,7 +59,7 @@ export const bundledFirstPartyPlugins: BundledPluginManifest[] = [
   {
     id: "openleash.dlp",
     name: "Data Leakage Prevention",
-    description: "Masks or blocks sensitive prompt data before submission.",
+    description: "Mask secrets before agents send them.",
     version: "1.0.0",
     publisher: "openleash",
     runtime: "openleash-core",
@@ -74,7 +74,7 @@ export const bundledFirstPartyPlugins: BundledPluginManifest[] = [
   {
     id: "openleash.security-evaluator",
     name: "Security Evaluator",
-    description: "Evaluates prompts, agent responses, and tool actions against organization policy.",
+    description: "Approve, deny, or log risky agent actions.",
     version: "1.0.0",
     publisher: "openleash",
     runtime: "openleash-core",
@@ -89,7 +89,7 @@ export const bundledFirstPartyPlugins: BundledPluginManifest[] = [
   {
     id: "openleash.mcp-scanner",
     name: "MCP Scanner",
-    description: "Discovers and inventories MCP tool calls for audit and risk review.",
+    description: "See every MCP server, tool, and call.",
     version: "1.0.0",
     publisher: "openleash",
     runtime: "openleash-core",
