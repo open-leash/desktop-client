@@ -258,19 +258,29 @@ function desktopAuthReturnPage(callbackUrl: string) {
       main { max-width: 460px; padding: 32px; text-align: center; }
       h1 { margin: 0 0 10px; font-size: 24px; }
       p { margin: 0 0 20px; color: #64748b; line-height: 1.5; }
-      a { color: #4f46e5; font-weight: 700; }
+      a, button { color: #4f46e5; font-weight: 700; }
+      button { border: 1px solid #e2e8f0; border-radius: 999px; background: white; padding: 10px 16px; font: inherit; cursor: pointer; }
     </style>
   </head>
   <body>
     <main>
-      <h1>Returning to OpenLeash</h1>
-      <p>Your sign-in is complete. This tab can be closed after OpenLeash opens.</p>
+      <h1 id="title">Returning to OpenLeash</h1>
+      <p id="message">Your sign-in is complete. OpenLeash should continue automatically.</p>
       <a href="${href}">Open OpenLeash</a>
+      <p style="margin-top:18px"><button id="closeButton" type="button">Close this tab</button></p>
     </main>
     <script>
       const callbackUrl = ${encodedUrl};
-      window.location.href = callbackUrl;
-      setTimeout(() => window.close(), 1200);
+      const title = document.getElementById("title");
+      const message = document.getElementById("message");
+      const closeButton = document.getElementById("closeButton");
+      closeButton.onclick = () => window.close();
+      window.location.replace(callbackUrl);
+      setTimeout(() => {
+        title.textContent = "Sign-in complete";
+        message.textContent = "You can close this tab and return to OpenLeash.";
+        window.close();
+      }, 900);
     </script>
   </body>
 </html>`;

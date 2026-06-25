@@ -10,6 +10,8 @@ import { apiVersionHeaders } from "./api-contract";
 import {
   OPENLEASH_DESKTOP_API_URL,
   OPENLEASH_DESKTOP_AUTH_CALLBACK_URI,
+  OPENLEASH_DESKTOP_GOOGLE_REDIRECT_URI,
+  OPENLEASH_DESKTOP_MICROSOFT_REDIRECT_URI,
   OPENLEASH_PUBLIC_CLOUD_API_URL,
   OPENLEASH_PUBLIC_CLOUD_DASHBOARD_URL
 } from "./public-config";
@@ -180,6 +182,8 @@ const cloudDashboardUrl = process.env.OPENLEASH_CLOUD_DASHBOARD_URL ?? OPENLEASH
 const cloudDevAuth = process.env.OPENLEASH_MOBILE_DEV_AUTH === "1";
 const cloudDevAuthEmail = process.env.OPENLEASH_MOBILE_DEV_EMAIL ?? "mobile.user@openleash.com";
 const desktopRedirectUri = OPENLEASH_DESKTOP_AUTH_CALLBACK_URI;
+const desktopGoogleRedirectUri = OPENLEASH_DESKTOP_GOOGLE_REDIRECT_URI;
+const desktopMicrosoftRedirectUri = OPENLEASH_DESKTOP_MICROSOFT_REDIRECT_URI;
 const here = __dirname;
 const defaultUpdateFeedUrl = app.isPackaged ? `${OPENLEASH_PUBLIC_CLOUD_API_URL}/api/updates/check` : "";
 const updateCheckIntervalMs = 24 * 60 * 60 * 1000;
@@ -655,11 +659,14 @@ async function startMobileAuth(
   payload: { organizationId?: string; organizationSlug?: string; audience?: "individual" | "organization" }
 ) {
   try {
+    const browserRedirectUri = providerType === "azure_ad" || providerType === "microsoft"
+      ? desktopMicrosoftRedirectUri
+      : desktopGoogleRedirectUri;
     const response = await fetch(new URL("/v1/mobile/auth/start", remoteApiUrl), {
       method: "POST",
       headers: { "content-type": "application/json", ...apiVersionHeaders("mobileAuthStart") },
       body: JSON.stringify({
-        redirectUri: desktopRedirectUri,
+        redirectUri: browserRedirectUri,
         audience: payload.audience === "organization" ? "organization" : "individual",
         providerType,
         organizationId: payload.organizationId,

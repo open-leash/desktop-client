@@ -169,6 +169,12 @@
         border-radius: 999px;
         background: linear-gradient(90deg, var(--accent), var(--accent-2));
       }
+      .setupGreeting {
+        margin-top: 10px;
+        color: var(--ink-2);
+        font-size: 16px;
+        font-weight: 800;
+      }
       .welcomeHero {
         position: relative;
         min-height: calc(100vh - 128px);
@@ -623,6 +629,29 @@
         gap: 12px;
         margin-bottom: 14px;
       }
+      .pluginCategoryFilters {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        margin-bottom: 12px;
+      }
+      .pluginCategoryFilters button {
+        min-height: 34px;
+        border: 1px solid var(--line);
+        border-radius: 999px;
+        padding: 7px 12px;
+        background: white;
+        color: var(--ink-2);
+        font: inherit;
+        font-size: 13px;
+        font-weight: 900;
+        cursor: pointer;
+      }
+      .pluginCategoryFilters button.active {
+        border-color: var(--accent);
+        background: var(--accent);
+        color: #fafaf6;
+      }
       .pluginMarketplaceTools input {
         min-height: 44px;
         border: 1px solid var(--line);
@@ -656,6 +685,12 @@
         font-weight: 900;
         white-space: nowrap;
         transition: border-color .16s ease, background .16s ease, color .16s ease;
+        cursor: pointer;
+      }
+      .pluginInstallLine.justChanged .pluginAction {
+        border-color: rgba(24, 165, 88, .34);
+        background: #e6f5ed;
+        color: #0d7650;
       }
       .pluginActionIcon {
         display: grid;
@@ -1500,6 +1535,7 @@
       let selectedPlugins;
       let pluginSetupConfigs = {};
       let setupPluginSearch = "";
+      let setupPluginCategory = "all";
       let expandedSetupPlugins = new Set();
       let setupStep = 0;
       let setupAudience = "individual";
@@ -1710,6 +1746,7 @@
           <div class="head">
             <div>
               <h1>Set up OpenLeash</h1>
+              ${setupGreeting() ? `<div class="setupGreeting">${escapeHtml(setupGreeting())}</div>` : ""}
               <p>${escapeHtml(current.subtitle)}</p>
             </div>
           </div>
@@ -1837,6 +1874,7 @@
           rememberSetupInputs();
           setupStep = Math.max(0, setupStep - 1);
           renderSetup();
+          scrollSetupTop();
         };
         const next = document.getElementById("setupNext");
         if (next) next.onclick = async () => {
@@ -1857,6 +1895,7 @@
           }
           setupStep = Math.min(steps.length, setupStep + 1);
           renderSetup();
+          scrollSetupTop();
         };
         const finish = document.getElementById("finish");
         if (finish) finish.onclick = finishSetup;
@@ -2273,6 +2312,17 @@
         if (!setupRemoteAuth) return "";
         if (setupAudience === "individual") return "";
         return setupRemoteAuth.organizationName || setupRemoteAuth.organizationSlug || setupRemoteApiUrl;
+      }
+
+      function setupGreeting() {
+        if (!setupRemoteAuth) return "";
+        const label = setupRemoteAuth.userName || setupRemoteAuth.userEmail || "";
+        if (!label) return "";
+        return `Hi, ${label}`;
+      }
+
+      function scrollSetupTop() {
+        document.querySelector("main")?.scrollTo({ top: 0, behavior: "smooth" });
       }
 
       async function loadManagedRules() {
@@ -3724,14 +3774,26 @@
       function setupPluginInstallCards() {
         const query = setupPluginSearch.trim().toLowerCase();
         const allPlugins = [...(state.plugins || [])].sort(comparePluginPopularity);
+        const category = setupPluginCategory || "all";
+        const categoryFiltered = category === "all"
+          ? allPlugins
+          : allPlugins.filter((plugin) => pluginCategory(plugin).toLowerCase() === category);
         const plugins = query
-          ? allPlugins.filter((plugin) => pluginSearchText(plugin).includes(query))
-          : allPlugins;
-        if (plugins.length === 0) return `<div class="card empty">No plugin catalog has been received yet.</div>`;
+          ? categoryFiltered.filter((plugin) => pluginSearchText(plugin).includes(query))
+          : categoryFiltered;
+        if (allPlugins.length === 0) return `<div class="card empty">No plugin catalog has been received yet.</div>`;
+        const categories = pluginCategorySummary(allPlugins);
         return `
+          <div class="pluginCategoryFilters">
+            ${categories.map((item) => `
+              <button type="button" data-plugin-category="${escapeHtml(item.id)}" class="${category === item.id ? "active" : ""}">
+                ${escapeHtml(item.label)} ${escapeHtml(String(item.count))}
+              </button>
+            `).join("")}
+          </div>
           <div class="pluginMarketplaceTools">
-            <input id="pluginMarketplaceSearch" value="${escapeHtml(setupPluginSearch)}" placeholder="Search plugins, developers, tags...">
-            <span>${plugins.length} of ${allPlugins.length} shown</span>
+            <input id="pluginMarketplaceSearch" value="${escapeHtml(setupPluginSearch)}" placeholder="Search plugins, categories, developers, tags...">
+            <span>${plugins.length} of ${categoryFiltered.length} shown</span>
           </div>
           <div class="cardList">
             ${plugins.map((plugin) => {
@@ -3745,6 +3807,7 @@
               const expanded = expandedSetupPlugins.has(plugin.id);
               const source = plugin.marketplace?.source === "first_party" ? "OpenLeash" : plugin.marketplace?.source === "private" ? "Private" : "Community";
               const tags = (plugin.marketplace?.tags || plugin.tags || []).slice(0, 4);
+              const category = pluginCategory(plugin);
               return `
                 <article class="card pluginInstallLine ${checked ? "selected" : ""} ${expanded ? "expanded" : ""}">
                   <span class="agentIcon" data-plugin-expand="${escapeHtml(plugin.id)}">${escapeHtml(pluginIconText(plugin))}</span>
@@ -3759,12 +3822,14 @@
                       <span class="tag">${escapeHtml(compactNumber(weeklyDownloadCount))}/wk</span>
                       <span class="tag">${trendPercent >= 0 ? "+" : ""}${escapeHtml(String(trendPercent))}% trend</span>
                       <span class="tag">${plugin.marketplace?.rating ? escapeHtml(Number(plugin.marketplace.rating).toFixed(1)) : "New"} rating</span>
+                      <span class="tag">${escapeHtml(category)}</span>
                     </span>
                     ${expanded ? `
                       <span class="pluginDetails">
                         <p>${escapeHtml(plugin.marketplace?.longDescription || plugin.description || pluginValueLine(plugin))}</p>
                         <span class="pluginDetailsMeta">
                           <span>${escapeHtml(source)}</span>
+                          <span>${escapeHtml(category)}</span>
                           <span>${escapeHtml(plugin.marketplace?.reviewStatus?.replace("_", " ") || "reviewed")}</span>
                           <span>v${escapeHtml(plugin.version || plugin.marketplace?.version || "1.0.0")}</span>
                           ${tags.map((tag) => `<span>${escapeHtml(tag)}</span>`).join("")}
@@ -3784,7 +3849,7 @@
                   </span>
                 </article>
               `;
-            }).join("")}
+            }).join("") || `<div class="card empty">No plugins match this filter.</div>`}
           </div>
         `;
       }
@@ -3795,12 +3860,37 @@
           plugin.slug,
           plugin.name,
           plugin.description,
+          pluginCategory(plugin),
           plugin.marketplace?.developerName,
           plugin.marketplace?.shortDescription,
           plugin.marketplace?.longDescription,
           ...(plugin.marketplace?.tags || []),
           ...(plugin.tags || [])
         ].filter(Boolean).join(" ").toLowerCase();
+      }
+
+      function pluginCategory(plugin) {
+        const raw = plugin.marketplace?.category || plugin.category || plugin.manifest?.category || "";
+        const text = String(raw || `${plugin.id || ""} ${plugin.name || ""} ${plugin.description || ""} ${(plugin.marketplace?.tags || []).join(" ")}`).toLowerCase();
+        if (/cost|token|prompt|compression|usage|budget|spend/.test(text)) return "Cost";
+        if (/security|policy|guard|skill|prompt-injection|risk|approval|dlp|leak|sensitive|secret|credential/.test(text)) return "Security";
+        if (/observability|observe|log|mcp|siem|audit|telemetry|monitor/.test(text)) return "Observability";
+        return "Utility";
+      }
+
+      function pluginCategorySummary(plugins) {
+        const counts = new Map([["all", plugins.length]]);
+        for (const plugin of plugins) {
+          const key = pluginCategory(plugin).toLowerCase();
+          counts.set(key, (counts.get(key) || 0) + 1);
+        }
+        return [
+          { id: "all", label: "All", count: counts.get("all") || 0 },
+          { id: "cost", label: "Cost", count: counts.get("cost") || 0 },
+          { id: "security", label: "Security", count: counts.get("security") || 0 },
+          { id: "observability", label: "Observability", count: counts.get("observability") || 0 },
+          { id: "utility", label: "Utility", count: counts.get("utility") || 0 }
+        ];
       }
 
       function setupPluginSettingsCards() {
@@ -3902,23 +3992,45 @@
 
       function bindPluginSelection() {
         root.querySelectorAll("[data-plugin-install]").forEach((input) => {
-          input.onchange = () => {
-            if (!selectedPlugins) selectedPlugins = new Set();
-            const plugin = (state.plugins || []).find((item) => item.id === input.dataset.pluginInstall);
-            if (plugin?.organizationPolicy?.mandatory) {
-              input.checked = true;
-              selectedPlugins.add(input.dataset.pluginInstall);
-              return;
-            }
-            input.checked ? selectedPlugins.add(input.dataset.pluginInstall) : selectedPlugins.delete(input.dataset.pluginInstall);
-            ensurePluginSetupConfig(input.dataset.pluginInstall).enabled = Boolean(input.checked);
-            const actionIcon = input.parentElement?.querySelector(".pluginActionIcon");
-            const actionText = input.parentElement?.querySelector(".pluginActionText");
-            if (actionIcon) actionIcon.textContent = input.checked ? "-" : "+";
-            if (actionText) actionText.textContent = input.checked ? "Remove" : "Add";
-            input.closest(".pluginInstallLine")?.classList.toggle("selected", Boolean(input.checked));
+          const label = input.closest("label");
+          if (label) {
+            label.onclick = (event) => {
+              event.preventDefault();
+              setPluginSelected(input, !input.checked, true);
+            };
           };
+          input.onchange = () => setPluginSelected(input, input.checked, true);
         });
+      }
+
+      function setPluginSelected(input, checked, flash = false) {
+        if (!selectedPlugins) selectedPlugins = new Set();
+        const pluginId = input.dataset.pluginInstall;
+        if (!pluginId) return;
+        const plugin = (state.plugins || []).find((item) => item.id === pluginId);
+        if (plugin?.organizationPolicy?.mandatory) {
+          input.checked = true;
+          selectedPlugins.add(pluginId);
+          return;
+        }
+        input.checked = Boolean(checked);
+        input.checked ? selectedPlugins.add(pluginId) : selectedPlugins.delete(pluginId);
+        ensurePluginSetupConfig(pluginId).enabled = Boolean(input.checked);
+        const actionIcon = input.parentElement?.querySelector(".pluginActionIcon");
+        const actionText = input.parentElement?.querySelector(".pluginActionText");
+        if (actionIcon) actionIcon.textContent = input.checked ? "-" : "+";
+        if (actionText) actionText.textContent = input.checked ? "Added" : "Add";
+        const card = input.closest(".pluginInstallLine");
+        card?.classList.toggle("selected", Boolean(input.checked));
+        if (flash && card) {
+          card.classList.add("justChanged");
+          setTimeout(() => {
+            card.classList.remove("justChanged");
+            if (actionText) actionText.textContent = input.checked ? "Remove" : "Add";
+          }, 650);
+        } else if (actionText) {
+          actionText.textContent = input.checked ? "Remove" : "Add";
+        }
       }
 
       function bindPluginExpansion() {
@@ -3935,16 +4047,23 @@
 
       function bindPluginMarketplaceSearch() {
         const search = document.getElementById("pluginMarketplaceSearch");
-        if (!search) return;
-        search.oninput = () => {
-          setupPluginSearch = search.value;
-          renderSetup();
-          const nextSearch = document.getElementById("pluginMarketplaceSearch");
-          if (nextSearch) {
-            nextSearch.focus();
-            nextSearch.setSelectionRange(nextSearch.value.length, nextSearch.value.length);
-          }
+        if (search) {
+          search.oninput = () => {
+            setupPluginSearch = search.value;
+            renderSetup();
+            const nextSearch = document.getElementById("pluginMarketplaceSearch");
+            if (nextSearch) {
+              nextSearch.focus();
+              nextSearch.setSelectionRange(nextSearch.value.length, nextSearch.value.length);
+            }
+          };
         };
+        root.querySelectorAll("[data-plugin-category]").forEach((button) => {
+          button.onclick = () => {
+            setupPluginCategory = button.dataset.pluginCategory || "all";
+            renderSetup();
+          };
+        });
       }
 
       function bindPluginSettingInputs() {
