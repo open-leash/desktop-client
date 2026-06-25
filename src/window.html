@@ -636,20 +636,71 @@
         margin-bottom: 12px;
       }
       .pluginCategoryFilters button {
+        display: inline-flex;
+        align-items: center;
+        gap: 7px;
         min-height: 34px;
-        border: 1px solid var(--line);
+        border: 1px solid #dedfd2;
         border-radius: 999px;
         padding: 7px 12px;
         background: white;
-        color: var(--ink-2);
+        color: #3a3a30;
         font: inherit;
         font-size: 13px;
         font-weight: 900;
         cursor: pointer;
       }
-      .pluginCategoryFilters button.active {
-        border-color: var(--accent);
-        background: var(--accent);
+      .pluginCategoryFilters button.cost {
+        border-color: #d8d0f3;
+        background: #e9e4fa;
+        color: #5b47e0;
+      }
+      .pluginCategoryFilters button.security {
+        border-color: #cce6dc;
+        background: #ddefe8;
+        color: #0b7968;
+      }
+      .pluginCategoryFilters button.observability {
+        border-color: #cdddf3;
+        background: #dfeaf8;
+        color: #2a63d8;
+      }
+      .pluginCategoryFilters button.utility {
+        border-color: #ead9bb;
+        background: #f4e9d5;
+        color: #a15b12;
+      }
+      .pluginCategoryFilters button svg,
+      .pluginMetaPill svg,
+      .pluginCategoryTag svg,
+      .pluginDetailsMeta svg {
+        width: 15px;
+        height: 15px;
+        fill: none;
+        stroke: currentColor;
+        stroke-width: 2.4;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+      }
+      .pluginCategoryFilters button.active,
+      .pluginCategoryFilters button.cost.active {
+        border-color: #5b47e0;
+        background: #5b47e0;
+        color: #fafaf6;
+      }
+      .pluginCategoryFilters button.security.active {
+        border-color: #0b7968;
+        background: #0b7968;
+        color: #fafaf6;
+      }
+      .pluginCategoryFilters button.observability.active {
+        border-color: #2a63d8;
+        background: #2a63d8;
+        color: #fafaf6;
+      }
+      .pluginCategoryFilters button.utility.active {
+        border-color: #a15b12;
+        background: #a15b12;
         color: #fafaf6;
       }
       .pluginMarketplaceTools input {
@@ -691,6 +742,40 @@
         border-color: rgba(24, 165, 88, .34);
         background: #e6f5ed;
         color: #0d7650;
+      }
+      .pluginMetaPill,
+      .pluginCategoryTag {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        min-height: 28px;
+        border-radius: 999px;
+        padding: 5px 10px;
+        border: 1px solid rgba(216, 211, 199, .7);
+        background: rgba(255, 255, 255, .76);
+        color: var(--ink-2);
+        font-size: 11px;
+        font-weight: 850;
+      }
+      .pluginCategoryTag.cost {
+        border-color: transparent;
+        background: #e9e4fa;
+        color: #5b47e0;
+      }
+      .pluginCategoryTag.security {
+        border-color: transparent;
+        background: #ddefe8;
+        color: #0b7968;
+      }
+      .pluginCategoryTag.observability {
+        border-color: transparent;
+        background: #dfeaf8;
+        color: #2a63d8;
+      }
+      .pluginCategoryTag.utility {
+        border-color: transparent;
+        background: #f4e9d5;
+        color: #a15b12;
       }
       .pluginActionIcon {
         display: grid;
@@ -1545,6 +1630,7 @@
       let setupRemoteBootstrap;
       let setupRemoteAuth;
       let setupRemoteError = "";
+      let setupFinishError = "";
       let setupRemoteNotice = "";
       let setupRemoteBusy = false;
       let setupRemoteProvider = "google";
@@ -1570,7 +1656,7 @@
       const nav = [...document.querySelectorAll("nav button")];
       const modeFoot = document.getElementById("modeFoot");
 
-      function render(payload) {
+      function render(payload = {}) {
         const incomingRules = payload.policies || payload.rules || state.rules;
         state = { ...state, ...payload, rules: importedRules || incomingRules };
         if (payload.desktopMessage) {
@@ -1860,7 +1946,7 @@
                 ${setupPluginInstallCards()}
               </section>
             ` : ""}
-            ${setupStep >= steps.length ? `<div id="setupError" class="error"></div>` : ""}
+            ${setupStep >= steps.length ? `<div id="setupError" class="error">${escapeHtml(setupFinishError)}</div>` : ""}
           </div>
           <div class="actions">
             <button class="secondary" id="setupBack">Back</button>
@@ -1868,6 +1954,9 @@
               ? `<button class="primary" id="setupNext">Next</button>`
               : `<button class="primary" id="finish" ${setupFinishing ? "disabled" : ""}>${setupFinishing ? "Installing..." : "Install and start managing"}</button>`}
           </div>
+          ${setupStep >= steps.length && (setupRemoteNotice || setupFinishError) ? `
+            <div class="inlineNotice ${setupFinishError ? "error" : ""}">${escapeHtml(setupFinishError || setupRemoteNotice)}</div>
+          ` : ""}
         `;
         const back = document.getElementById("setupBack");
         if (back) back.onclick = () => {
@@ -1898,7 +1987,11 @@
           scrollSetupTop();
         };
         const finish = document.getElementById("finish");
-        if (finish) finish.onclick = finishSetup;
+        if (finish) finish.onclick = () => {
+          finish.disabled = true;
+          finish.textContent = "Installing...";
+          void finishSetup();
+        };
         bindAgentSelection();
         bindRuleSelection();
         bindPluginExpansion();
@@ -1984,6 +2077,7 @@
       async function finishSetup() {
         if (setupFinishing) return;
         rememberSetupInputs();
+        setupFinishError = "";
         if (setupClientMode === "cloud" && setupAudience === "organization" && isPersonalEmail(setupRemoteAuth?.userEmail)) {
           setupRemoteError = "Use your company Google Workspace or Microsoft 365 account, not a personal email address.";
           setupRemoteAuth = undefined;
@@ -1992,16 +2086,20 @@
           return;
         }
         setupFinishing = true;
+        setupFinishError = "";
         setupRemoteNotice = setupRemoteAuth ? "Installing OpenLeash on this Mac..." : setupRemoteNotice;
         renderSetup();
         const agents = [...(selectedAgents || new Set())];
         const pluginSave = await saveSelectedPluginSettings();
         if (!pluginSave.ok) {
           setupFinishing = false;
-          setupRemoteError = pluginSave.error || "Could not save plugin settings.";
+          setupFinishError = pluginSave.error || "Could not save plugin settings.";
+          setupRemoteNotice = "";
           renderSetup();
           return;
         }
+        setupRemoteNotice = "Installing agent protection...";
+        renderSetup();
         const rules = (state.rules || []).map((rule) => ({
           ...rule,
           enabled: rule.locked ? true : (selectedRules?.get(rule.id) ?? Boolean(rule.enabled))
@@ -2018,12 +2116,16 @@
           remoteOrganization: setupRemoteAuth?.organizationName || setupRemoteAuth?.organizationSlug,
           remoteUser: setupRemoteAuth?.userName || setupRemoteAuth?.userEmail,
           skipDashboardOpen: setupSkipDashboardOpenAfterInstall
-        });
+        }).catch((error) => ({ ok: false, error: error?.message || "Setup could not be completed." }));
         if (result && result.ok === false) {
           setupFinishing = false;
-          const error = document.getElementById("setupError");
-          if (error) error.textContent = result.error || "Setup could not be completed.";
+          setupFinishError = result.error || "Setup could not be completed.";
           renderSetup();
+        } else if (result?.ok) {
+          setupFinishing = false;
+          state = { ...state, ...result, setupComplete: true, mode: result.mode || "settings" };
+          view = "overview";
+          render(result);
         }
       }
 
@@ -2322,7 +2424,14 @@
       }
 
       function scrollSetupTop() {
-        document.querySelector("main")?.scrollTo({ top: 0, behavior: "smooth" });
+        const main = document.querySelector("main");
+        if (!main) return;
+        main.scrollTop = 0;
+        root.scrollTop = 0;
+        requestAnimationFrame(() => {
+          main.scrollTop = 0;
+          root.scrollTop = 0;
+        });
       }
 
       async function loadManagedRules() {
@@ -3786,8 +3895,9 @@
         return `
           <div class="pluginCategoryFilters">
             ${categories.map((item) => `
-              <button type="button" data-plugin-category="${escapeHtml(item.id)}" class="${category === item.id ? "active" : ""}">
-                ${escapeHtml(item.label)} ${escapeHtml(String(item.count))}
+              <button type="button" data-plugin-category="${escapeHtml(item.id)}" class="${escapeHtml(item.id)} ${category === item.id ? "active" : ""}">
+                ${categoryIcon(item.label)}
+                <span>${escapeHtml(item.label)} ${escapeHtml(String(item.count))}</span>
               </button>
             `).join("")}
           </div>
@@ -3800,14 +3910,10 @@
               const checked = selectedPlugins?.has(plugin.id) ?? Boolean(plugin.organizationPolicy?.mandatory || plugin.settings?.enabled === true);
               const mandatory = Boolean(plugin.organizationPolicy?.mandatory);
               const developer = plugin.marketplace?.developerName || (plugin.publisher === "openleash" ? "OpenLeash" : plugin.publisher || "Unknown");
-              const installCount = Number(plugin.marketplace?.installCount || 0);
               const downloadCount = Number(plugin.marketplace?.downloadCount || 0);
-              const weeklyDownloadCount = Number(plugin.marketplace?.weeklyDownloadCount || 0);
-              const trendPercent = Number(plugin.marketplace?.trendPercent || 0);
               const expanded = expandedSetupPlugins.has(plugin.id);
-              const source = plugin.marketplace?.source === "first_party" ? "OpenLeash" : plugin.marketplace?.source === "private" ? "Private" : "Community";
-              const tags = (plugin.marketplace?.tags || plugin.tags || []).slice(0, 4);
               const category = pluginCategory(plugin);
+              const categoryClass = pluginCategoryClass(category);
               return `
                 <article class="card pluginInstallLine ${checked ? "selected" : ""} ${expanded ? "expanded" : ""}">
                   <span class="agentIcon" data-plugin-expand="${escapeHtml(plugin.id)}">${escapeHtml(pluginIconText(plugin))}</span>
@@ -3816,24 +3922,13 @@
                     <small>${escapeHtml(pluginName(plugin))}</small>
                     <span>${escapeHtml(plugin.marketplace?.shortDescription || pluginValueLine(plugin))}</span>
                     <span class="pluginStats">
-                      <span class="tag">By ${escapeHtml(developer)}</span>
-                      <span class="tag">${escapeHtml(compactNumber(installCount))} installs</span>
-                      <span class="tag">${escapeHtml(compactNumber(downloadCount))} downloads</span>
-                      <span class="tag">${escapeHtml(compactNumber(weeklyDownloadCount))}/wk</span>
-                      <span class="tag">${trendPercent >= 0 ? "+" : ""}${escapeHtml(String(trendPercent))}% trend</span>
-                      <span class="tag">${plugin.marketplace?.rating ? escapeHtml(Number(plugin.marketplace.rating).toFixed(1)) : "New"} rating</span>
-                      <span class="tag">${escapeHtml(category)}</span>
+                      <span class="pluginMetaPill">${metaIcon("author")} ${escapeHtml(developer)}</span>
+                      <span class="pluginMetaPill">${metaIcon("downloads")} ${escapeHtml(compactNumber(downloadCount))} downloads</span>
+                      <span class="pluginCategoryTag ${categoryClass}">${categoryIcon(category)} ${escapeHtml(category)}</span>
                     </span>
                     ${expanded ? `
                       <span class="pluginDetails">
                         <p>${escapeHtml(plugin.marketplace?.longDescription || plugin.description || pluginValueLine(plugin))}</p>
-                        <span class="pluginDetailsMeta">
-                          <span>${escapeHtml(source)}</span>
-                          <span>${escapeHtml(category)}</span>
-                          <span>${escapeHtml(plugin.marketplace?.reviewStatus?.replace("_", " ") || "reviewed")}</span>
-                          <span>v${escapeHtml(plugin.version || plugin.marketplace?.version || "1.0.0")}</span>
-                          ${tags.map((tag) => `<span>${escapeHtml(tag)}</span>`).join("")}
-                        </span>
                       </span>
                     ` : ""}
                     <small>${expanded ? "Click to collapse" : "Click for details"}</small>
@@ -3891,6 +3986,34 @@
           { id: "observability", label: "Observability", count: counts.get("observability") || 0 },
           { id: "utility", label: "Utility", count: counts.get("utility") || 0 }
         ];
+      }
+
+      function pluginCategoryClass(category) {
+        return String(category || "utility").toLowerCase();
+      }
+
+      function categoryIcon(category) {
+        const normalized = String(category || "").toLowerCase();
+        if (normalized === "security") {
+          return `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3.5 19 6v5.2c0 4.4-2.8 7.7-7 9.3-4.2-1.6-7-4.9-7-9.3V6z"></path></svg>`;
+        }
+        if (normalized === "observability") {
+          return `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2.8 12s3.4-6 9.2-6 9.2 6 9.2 6-3.4 6-9.2 6-9.2-6-9.2-6z"></path><circle cx="12" cy="12" r="2.8"></circle></svg>`;
+        }
+        if (normalized === "utility") {
+          return `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m13 2-8 11h6l-1 9 9-12h-6z"></path></svg>`;
+        }
+        if (normalized === "all") {
+          return `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16M4 12h16M4 19h16"></path></svg>`;
+        }
+        return `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h5l2.5 10 2-7H20"></path></svg>`;
+      }
+
+      function metaIcon(kind) {
+        if (kind === "downloads") {
+          return `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12"></path><path d="m7 10 5 5 5-5"></path><path d="M5 20h14"></path></svg>`;
+        }
+        return `<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="3.5"></circle><path d="M5.5 20c1.1-4 3.3-6 6.5-6s5.4 2 6.5 6"></path></svg>`;
       }
 
       function setupPluginSettingsCards() {
@@ -4094,7 +4217,7 @@
       }
 
       function selectedPluginSettingsPayloads() {
-        return (state.plugins || []).map((plugin) => {
+        return (state.plugins || []).filter((plugin) => plugin.organizationPolicy?.mandatory || selectedPlugins?.has(plugin.id)).map((plugin) => {
           const enabled = Boolean(plugin.organizationPolicy?.mandatory || selectedPlugins?.has(plugin.id));
           const config = {
             ...(plugin.defaultConfig || {}),
@@ -4121,7 +4244,7 @@
             token: setupRemoteAuth.token,
             ...payload
           }).catch((error) => ({ ok: false, error: error?.message || "Could not save plugin settings." }));
-          if (!result?.ok) return { ok: false, error: result?.error || `Could not save ${payload.pluginId}.` };
+          if (!result?.ok) return { ok: false, error: result?.error || `Could not save ${payload.pluginId}.`, pluginId: payload.pluginId };
           updated.push(result);
         }
         const settingsById = new Map(updated.map((item) => [item.pluginId, item.settings]));

@@ -877,7 +877,7 @@ ipcMain.handle("openleash:setup", async (_event, payload: {
   await refreshLocalProtections(true);
   startProtectionIntegrityGuard();
   refreshMenu();
-  window?.webContents.send("openleash:update", {
+  const setupState = {
     apiUrl,
     cloudApiUrl,
     mode: "settings",
@@ -900,7 +900,8 @@ ipcMain.handle("openleash:setup", async (_event, payload: {
     mcpServers: localServer.mcpServers,
     skills: localServer.skills,
     desktopMessage
-  });
+  };
+  window?.webContents.send("openleash:update", setupState);
   showDecisionNotice({
     kind: "sample",
     agentName: "Claude Code",
@@ -908,7 +909,7 @@ ipcMain.handle("openleash:setup", async (_event, payload: {
     policy: "Credential files access",
     project: "Example project"
   });
-  return { ok: true };
+  return { ok: true, ...setupState };
 });
 
 ipcMain.handle("openleash:uninstall-agent-protection", async (_event, kind: string) => {
