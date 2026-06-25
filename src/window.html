@@ -3644,14 +3644,14 @@
       function initializePluginSetupState(force = false) {
         const plugins = state.plugins || [];
         if ((force || !selectedPlugins) && plugins.length > 0) {
-          selectedPlugins = new Set(plugins.filter((plugin) => plugin.settings?.enabled !== false).map((plugin) => plugin.id));
+          selectedPlugins = new Set(plugins.filter((plugin) => plugin.organizationPolicy?.mandatory || plugin.settings?.enabled === true).map((plugin) => plugin.id));
         }
         for (const plugin of plugins) {
           if (!pluginSetupConfigs[plugin.id] || force) {
             pluginSetupConfigs[plugin.id] = {
               ...(plugin.defaultConfig || {}),
               ...(plugin.settings?.config || {}),
-              enabled: plugin.settings?.enabled !== false
+              enabled: plugin.organizationPolicy?.mandatory || plugin.settings?.enabled === true
             };
           }
         }
@@ -3705,15 +3705,25 @@
           pluginSetupConfigs[pluginId] = {
             ...(plugin.defaultConfig || {}),
             ...(plugin.settings?.config || {}),
-            enabled: plugin.settings?.enabled !== false
+            enabled: plugin.organizationPolicy?.mandatory || plugin.settings?.enabled === true
           };
         }
         return pluginSetupConfigs[pluginId];
       }
 
+      function pluginPopularity(plugin) {
+        return Number(plugin.marketplace?.installCount || plugin.marketplace?.downloadCount || plugin.marketplace?.weeklyDownloadCount || 0);
+      }
+
+      function comparePluginPopularity(left, right) {
+        return pluginPopularity(right) - pluginPopularity(left)
+          || Number(left.marketplace?.featuredRank ?? left.featuredRank ?? 9999) - Number(right.marketplace?.featuredRank ?? right.featuredRank ?? 9999)
+          || pluginPackageName(left).localeCompare(pluginPackageName(right));
+      }
+
       function setupPluginInstallCards() {
         const query = setupPluginSearch.trim().toLowerCase();
-        const allPlugins = state.plugins || [];
+        const allPlugins = [...(state.plugins || [])].sort(comparePluginPopularity);
         const plugins = query
           ? allPlugins.filter((plugin) => pluginSearchText(plugin).includes(query))
           : allPlugins;
@@ -3725,7 +3735,7 @@
           </div>
           <div class="cardList">
             ${plugins.map((plugin) => {
-              const checked = selectedPlugins?.has(plugin.id) ?? plugin.settings?.enabled !== false;
+              const checked = selectedPlugins?.has(plugin.id) ?? Boolean(plugin.organizationPolicy?.mandatory || plugin.settings?.enabled === true);
               const mandatory = Boolean(plugin.organizationPolicy?.mandatory);
               const developer = plugin.marketplace?.developerName || (plugin.publisher === "openleash" ? "OpenLeash" : plugin.publisher || "Unknown");
               const installCount = Number(plugin.marketplace?.installCount || 0);
@@ -3795,10 +3805,10 @@
 
       function setupPluginSettingsCards() {
         const plugins = (state.plugins || []).filter((plugin) => selectedPlugins?.has(plugin.id));
-        if (plugins.length === 0) return `<div class="card empty">No plugins selected yet. Go back and install at least one plugin.</div>`;
+        if (plugins.length === 0) return `<div class="card empty">No plugins selected. OpenLeash will finish setup without adding pipeline plugins.</div>`;
         return `
           <div class="pluginSettingsGrid">
-            ${plugins.map((plugin) => setupPluginSettingsCard(plugin)).join("")}
+            ${plugins.sort(comparePluginPopularity).map((plugin) => setupPluginSettingsCard(plugin)).join("")}
           </div>
         `;
       }
@@ -3966,7 +3976,7 @@
 
       function selectedPluginSettingsPayloads() {
         return (state.plugins || []).map((plugin) => {
-          const enabled = selectedPlugins?.has(plugin.id) ?? plugin.settings?.enabled !== false;
+          const enabled = Boolean(plugin.organizationPolicy?.mandatory || selectedPlugins?.has(plugin.id));
           const config = {
             ...(plugin.defaultConfig || {}),
             ...(plugin.settings?.config || {}),

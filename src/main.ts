@@ -15,6 +15,8 @@ import {
 } from "./public-config";
 import type { PluginCatalogItem } from "./plugin-catalog";
 
+const APP_DISPLAY_NAME = app.isPackaged ? "OpenLeash" : "OpenLeash (Dev)";
+
 type PendingDecision = {
   id: string;
   question?: string;
@@ -433,7 +435,7 @@ function syncInstallIdentity() {
 startupLog(`main loaded argv=${process.argv.join(" ")}`);
 app.setName("OpenLeash");
 app.setAsDefaultProtocolClient("openleash");
-app.setAboutPanelOptions({ applicationName: "OpenLeash" });
+app.setAboutPanelOptions({ applicationName: APP_DISPLAY_NAME });
 
 const singleInstanceLock = app.requestSingleInstanceLock();
 if (!singleInstanceLock) {
@@ -471,7 +473,7 @@ app.whenReady().then(async () => {
   app.setLoginItemSettings({
     openAtLogin: true,
     openAsHidden: true,
-    name: "OpenLeash"
+    name: APP_DISPLAY_NAME
   });
   startupLog("login item set");
   localServer = new LocalOpenLeashServer(app.getPath("userData"), { onAgentStop: playAgentDoneSound });
@@ -857,7 +859,7 @@ ipcMain.handle("openleash:setup", async (_event, payload: {
     await installAgentProtection(agentKind, hookInstallContext());
     enforcedAgentKinds.add(agentKind);
   }
-  app.setLoginItemSettings({ openAtLogin: true, openAsHidden: true, name: "OpenLeash" });
+  app.setLoginItemSettings({ openAtLogin: true, openAsHidden: true, name: APP_DISPLAY_NAME });
   let desktopMessage: string | undefined;
   if (clientMode === "cloud" && audience === "organization" && !payload.skipDashboardOpen) {
     const dashboardUrl = new URL(cloudDashboardUrl.replace(/\/$/, "") || "http://localhost:9300");
@@ -1375,7 +1377,7 @@ async function handleCliEnrollment() {
         enforcedAgentKinds.add(agent);
       }
     }
-    app.setLoginItemSettings({ openAtLogin: true, openAsHidden: true, name: "OpenLeash" });
+    app.setLoginItemSettings({ openAtLogin: true, openAsHidden: true, name: APP_DISPLAY_NAME });
     console.log(`OpenLeash Client enrolled ${os.hostname()} with ${body.tenantUrl ?? tenant}.`);
     return { ok: true, exitAfter: args.includes("--no-ui") || args.includes("--quit-after-configure") };
   } catch (error) {
@@ -1666,7 +1668,7 @@ function versionParts(value: string) {
 
 function setDisconnected() {
   setTrayStatus("down");
-  ensureTray("down").setToolTip("OpenLeash API unavailable");
+  ensureTray("down").setToolTip(`${APP_DISPLAY_NAME} API unavailable`);
   refreshMenu();
 }
 
@@ -1707,10 +1709,10 @@ function setTrayStatus(status: "ok" | "pending" | "down") {
 
 function trayTooltip(status: "ok" | "pending" | "down") {
   return status === "ok"
-    ? "OpenLeash agent defense"
+    ? `${APP_DISPLAY_NAME} agent defense`
     : status === "pending"
-      ? `${latestPending.length} OpenLeash approval${latestPending.length === 1 ? "" : "s"} waiting`
-      : "OpenLeash API unavailable";
+      ? `${latestPending.length} ${APP_DISPLAY_NAME} approval${latestPending.length === 1 ? "" : "s"} waiting`
+      : `${APP_DISPLAY_NAME} API unavailable`;
 }
 
 function refreshMenu(open = false) {
@@ -1755,7 +1757,7 @@ function refreshMenu(open = false) {
   const menu = Menu.buildFromTemplate([
       { label: "Settings", click: () => showMainWindow("settings") },
       { type: "separator" },
-      { label: "OpenLeash", enabled: false },
+      { label: APP_DISPLAY_NAME, enabled: false },
       { label: protectionLabel, submenu: protectionItems },
       { type: "separator" },
       { label: agentLabel, submenu: activeAgentItems },
@@ -1775,17 +1777,17 @@ function installApplicationMenu() {
   const template: MenuItemConstructorOptions[] = process.platform === "darwin"
     ? [
         {
-          label: "OpenLeash",
+          label: APP_DISPLAY_NAME,
           submenu: [
-            { role: "about", label: "About OpenLeash" },
+            { role: "about", label: `About ${APP_DISPLAY_NAME}` },
             { type: "separator" },
             { role: "services" },
             { type: "separator" },
-            { role: "hide", label: "Hide OpenLeash" },
+            { role: "hide", label: `Hide ${APP_DISPLAY_NAME}` },
             { role: "hideOthers" },
             { role: "unhide" },
             { type: "separator" },
-            { label: "Quit OpenLeash", accelerator: "Command+Q", click: quitOpenLeash }
+            { label: `Quit ${APP_DISPLAY_NAME}`, accelerator: "Command+Q", click: quitOpenLeash }
           ]
         },
         { label: "File", submenu: [{ label: "Settings", accelerator: "Command+,", click: () => showMainWindow("settings") }] },
@@ -2274,7 +2276,7 @@ function showMainWindow(mode: "setup" | "settings" = localServer?.setupComplete 
       frame: true,
       movable: true,
       resizable: true,
-      title: "OpenLeash",
+      title: APP_DISPLAY_NAME,
       webPreferences: {
         contextIsolation: true,
         nodeIntegration: false,
@@ -2303,7 +2305,7 @@ function showMainWindow(mode: "setup" | "settings" = localServer?.setupComplete 
       if (window === mainWindow) window = undefined;
     });
   }
-  window.setTitle("OpenLeash");
+  window.setTitle(APP_DISPLAY_NAME);
   if (window.isMinimized()) window.restore();
   if (mode === "setup" || !localServer?.setupComplete) {
     fitMainWindowOnLargestDisplay(window);

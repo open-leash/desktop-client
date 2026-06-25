@@ -107,7 +107,7 @@ export function bundledPluginCatalog(): PluginCatalogItem[] {
   return bundledFirstPartyPlugins.map((plugin) => ({
     ...plugin,
     settings: {
-      enabled: true,
+      enabled: false,
       config: plugin.defaultConfig ?? {},
       orderingPriority: plugin.ordering?.priority ?? null
     }
