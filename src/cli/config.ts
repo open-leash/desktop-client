@@ -23,6 +23,10 @@ export type LocalConfig = {
 export const defaultDesktopApiUrl = OPENLEASH_DESKTOP_API_URL;
 export const defaultCloudApiUrl = OPENLEASH_PUBLIC_CLOUD_API_URL;
 
+export function hookApiUrl(config: Pick<LocalConfig, "apiUrl" | "remoteApiUrl">) {
+  return (config.remoteApiUrl || config.apiUrl).replace(/\/+$/, "");
+}
+
 export async function readConfig(): Promise<LocalConfig> {
   const raw = await fs.readFile(openLeashConfigPath, "utf8");
   return JSON.parse(raw) as LocalConfig;

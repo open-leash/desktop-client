@@ -73,7 +73,11 @@
         font-weight: 900;
       }
       .brand img { width: 28px; height: 28px; border-radius: 7px; object-fit: contain; }
-      nav { display: grid; gap: 8px; }
+      nav { display: grid; gap: 12px; }
+      .navSection {
+        display: grid;
+        gap: 6px;
+      }
       nav button {
         width: 100%;
         border: 0;
@@ -86,7 +90,84 @@
         font-weight: 800;
         cursor: pointer;
       }
+      nav button {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        min-width: 0;
+      }
+      nav button span {
+        min-width: 0;
+      }
+      nav button .navLabel {
+        flex: 1 1 auto;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
       nav button.active { background: var(--soft); color: var(--ink); }
+      nav button svg {
+        width: 15px;
+        height: 15px;
+        flex: 0 0 15px;
+        fill: none;
+        stroke: currentColor;
+        stroke-width: 2.4;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+      }
+      .navCategory {
+        border: 1px solid transparent;
+      }
+      .navCategory.cost {
+        background: #e9e4fa;
+        color: #5b47e0;
+      }
+      .navCategory.security {
+        background: #ddefe8;
+        color: #0b7968;
+      }
+      .navCategory.observability {
+        background: #dfeaf8;
+        color: #2a63d8;
+      }
+      .navCategory.utility {
+        background: #f4e9d5;
+        color: #a15b12;
+      }
+      .navCategory.active {
+        box-shadow: inset 0 0 0 1px currentColor;
+      }
+      .navCount {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-width: 22px;
+        height: 22px;
+        border-radius: 999px;
+        padding: 0 7px;
+        background: rgba(255, 255, 255, .62);
+        font-size: 12px;
+        font-weight: 900;
+      }
+      .navSubmenu {
+        display: grid;
+        gap: 4px;
+        margin: 0 0 4px 16px;
+        padding-left: 10px;
+        border-left: 1px solid var(--line);
+      }
+      nav button.navPlugin {
+        min-height: 34px;
+        border-radius: 10px;
+        padding: 8px 10px;
+        color: var(--ink-2);
+        font-size: 13px;
+      }
+      nav button.navPlugin.active {
+        background: rgba(91, 79, 229, .1);
+        color: var(--accent);
+      }
       body.setup-locked nav {
         display: none;
       }
@@ -776,6 +857,78 @@
         border-color: transparent;
         background: #f4e9d5;
         color: #a15b12;
+      }
+      .pluginOutcomeCard {
+        position: relative;
+        display: grid;
+        gap: 14px;
+        padding: 18px;
+        cursor: pointer;
+        overflow: hidden;
+        transition: border-color .16s ease, background .16s ease, box-shadow .16s ease, transform .16s ease;
+      }
+      .pluginOutcomeCard::before {
+        content: "";
+        position: absolute;
+        inset: 0;
+        background:
+          radial-gradient(ellipse 360px 180px at 14% -20%, rgba(91, 79, 229, .08), transparent 68%),
+          radial-gradient(ellipse 260px 160px at 98% 0%, rgba(236, 72, 153, .05), transparent 64%);
+        opacity: 0;
+        pointer-events: none;
+        transition: opacity .16s ease;
+      }
+      .pluginOutcomeCard:hover {
+        border-color: rgba(91, 79, 229, .28);
+        box-shadow: var(--shadow-md);
+        transform: translateY(-1px);
+      }
+      .pluginOutcomeCard:hover::before {
+        opacity: 1;
+      }
+      .pluginOutcomeCard > * {
+        position: relative;
+        z-index: 1;
+      }
+      .pluginOutcomeMain {
+        display: grid;
+        grid-template-columns: 48px minmax(0, 1fr) auto;
+        align-items: flex-start;
+        gap: 14px;
+      }
+      .pluginOutcomeCard .agentIcon {
+        width: 48px;
+        height: 48px;
+        border: 1px solid rgba(91, 79, 229, .2);
+        background: var(--accent-soft);
+        color: var(--accent);
+        font-size: 14px;
+      }
+      .pluginOutcomeCopy {
+        display: grid;
+        gap: 7px;
+        min-width: 0;
+      }
+      .pluginOutcomeCopy strong {
+        font-size: 18px;
+        overflow-wrap: anywhere;
+      }
+      .pluginOutcomeCopy p {
+        max-width: 58ch;
+        color: var(--ink-2);
+      }
+      .pluginOutcomeMeta {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 7px;
+      }
+      .pluginOutcomeLatest {
+        border-radius: 14px;
+        padding: 12px;
+        background: rgba(243, 242, 236, .72);
+      }
+      .pluginOutcomeLatest strong {
+        margin-bottom: 4px;
       }
       .pluginActionIcon {
         display: grid;
@@ -1596,27 +1749,13 @@
           <img src="openleash-icon.png" alt="" />
           OpenLeash
         </div>
-        <nav>
-          <button class="active" data-view="overview">Overview</button>
-          <button data-view="usage">Usage</button>
-          <button data-view="history">History</button>
-          <button data-view="agents">Agents</button>
-          <button data-view="rules">Rules</button>
-          <button data-view="plugins" data-plugin-view-category="all">Plugins</button>
-          <button data-view="plugins" data-plugin-view-category="cost">Cost</button>
-          <button data-view="plugins" data-plugin-view-category="security">Security</button>
-          <button data-view="plugins" data-plugin-view-category="observability">Observability</button>
-          <button data-view="plugins" data-plugin-view-category="utility">Utility</button>
-          <button data-view="skills">Skills</button>
-          <button data-view="mcps">MCP</button>
-          <button data-view="settings">Settings</button>
-        </nav>
+        <nav id="sideNav"></nav>
         <div class="foot" id="modeFoot">Personal mode runs fully on this Mac. Rules, history, approvals, and agent protection stay local.</div>
       </aside>
       <main id="root"></main>
     </div>
     <script>
-      let state = { rules: [], history: [], localProtections: [], setupComplete: false, introSeen: false, promptTransforms: defaultPromptTransforms() };
+      let state = { rules: [], history: [], localProtections: [], setupComplete: false, introSeen: false };
       let selectedAgents;
       let selectedRules;
       let selectedPlugins;
@@ -1657,7 +1796,7 @@
       const skillDocScrollTops = new Map();
       let selectedAgentSessionId = "";
       const root = document.getElementById("root");
-      const nav = [...document.querySelectorAll("nav button")];
+      const sideNav = document.getElementById("sideNav");
       const modeFoot = document.getElementById("modeFoot");
 
       function render(payload = {}) {
@@ -2513,19 +2652,10 @@
       }
 
       function renderView() {
-        const activeView = view === "skill-detail" ? "skills" : view === "plugin-detail" ? "plugins" : view;
-        nav.forEach((button) => {
-          const category = button.dataset.pluginViewCategory;
-          const active = category
-            ? activeView === "plugins" && category === pluginViewCategory
-            : button.dataset.view === activeView;
-          button.classList.toggle("active", active);
-        });
+        renderNavigation();
         if (view === "overview") return renderOverview();
         if (view === "usage") return renderUsage();
         if (view === "rules") return renderRules();
-        if (view === "compression") return renderCompression();
-        if (view === "dlp") return renderDlp();
         if (view === "plugins") return renderPlugins();
         if (view === "plugin-detail") return renderPluginDetail();
         if (view === "agents") return renderAgents();
@@ -2536,6 +2666,89 @@
         if (view === "event") return renderEventDetail();
         if (view === "agent-session") return renderAgentSessionDetail();
         renderHistory();
+      }
+
+      function renderNavigation() {
+        const fixedItems = [
+          { view: "overview", label: "Overview" },
+          { view: "usage", label: "Usage" },
+          { view: "history", label: "History" },
+          { view: "agents", label: "Agents" },
+          { view: "rules", label: "Rules" },
+          { view: "settings", label: "Settings" }
+        ];
+        const plugins = installedPlugins().sort(comparePluginPopularity);
+        const categoryItems = ["cost", "security", "observability", "utility"].map((id) => {
+          const label = categoryLabel(id);
+          const items = plugins.filter((plugin) => pluginCategory(plugin).toLowerCase() === id);
+          return { id, label, plugins: items };
+        });
+        sideNav.innerHTML = `
+          <div class="navSection">
+            ${fixedItems.map((item) => `
+              <button type="button" data-view="${escapeHtml(item.view)}" class="${view === item.view ? "active" : ""}">
+                <span class="navLabel">${escapeHtml(item.label)}</span>
+              </button>
+            `).join("")}
+          </div>
+          <div class="navSection">
+            ${categoryItems.map((item) => `
+              <button type="button" data-view="plugins" data-plugin-view-category="${escapeHtml(item.id)}" class="navCategory ${escapeHtml(item.id)} ${isPluginCategoryActive(item.id) ? "active" : ""}">
+                ${categoryIcon(item.label)}
+                <span class="navLabel">${escapeHtml(item.label)}</span>
+                <span class="navCount">${escapeHtml(String(item.plugins.length))}</span>
+              </button>
+              ${item.plugins.length > 0 ? `
+                <div class="navSubmenu">
+                  ${item.plugins.map((plugin) => `
+                    <button type="button" class="navPlugin ${view === "plugin-detail" && selectedPluginId === plugin.id ? "active" : ""}" data-plugin-nav-id="${escapeHtml(plugin.id)}" data-plugin-view-category="${escapeHtml(item.id)}">
+                      <span class="navLabel">${escapeHtml(pluginPackageName(plugin))}</span>
+                    </button>
+                  `).join("")}
+                </div>
+              ` : ""}
+            `).join("")}
+          </div>
+        `;
+        bindNavigation();
+      }
+
+      function installedPlugins() {
+        return (state.plugins || []).filter((plugin) => plugin.settings?.enabled === true);
+      }
+
+      function categoryLabel(id) {
+        if (id === "cost") return "Cost";
+        if (id === "security") return "Security";
+        if (id === "observability") return "Observability";
+        if (id === "utility") return "Utility";
+        return "All";
+      }
+
+      function isPluginCategoryActive(category) {
+        return (view === "plugins" || view === "plugin-detail") && pluginViewCategory === category;
+      }
+
+      function bindNavigation() {
+        sideNav.querySelectorAll("button").forEach((button) => {
+          button.onclick = () => {
+            if (isSetupLocked()) return renderSetup();
+            if (button.dataset.pluginNavId) {
+              selectedPluginId = button.dataset.pluginNavId;
+              const plugin = (state.plugins || []).find((item) => item.id === selectedPluginId);
+              pluginViewCategory = button.dataset.pluginViewCategory || (plugin ? pluginCategory(plugin).toLowerCase() : "all");
+              view = "plugin-detail";
+              renderView();
+              return;
+            }
+            if (button.dataset.pluginViewCategory) {
+              pluginViewCategory = button.dataset.pluginViewCategory;
+              selectedPluginId = "";
+            }
+            view = button.dataset.view || "overview";
+            renderView();
+          };
+        });
       }
 
       function renderOverview() {
@@ -2942,112 +3155,6 @@
         flushParagraph();
         flushList();
         return parts.join("") || `<p>No readable content.</p>`;
-      }
-
-      function renderCompression() {
-        const config = promptTransforms();
-        root.innerHTML = `
-          <div class="head">
-            <div><h1>Compression</h1><p>Reduce prompt size before provider submission.</p></div>
-            ${modeTag()}
-          </div>
-          <div class="grid">
-            <div class="card">
-              <div class="fieldRow">
-                <div>
-                  <strong>Prompt compression</strong>
-                  <p>Runs on the before-submit prompt hook when enabled.</p>
-                </div>
-                <label class="toggleRow">
-                  <input id="compressionEnabled" type="checkbox" ${config.compression.enabled ? "checked" : ""}>
-                  <span>Enabled</span>
-                </label>
-              </div>
-              <div class="settingsGrid">
-                <label><strong>Level</strong><select id="compressionLevel">
-                  <option value="light" ${config.compression.level === "light" ? "selected" : ""}>Light</option>
-                  <option value="standard" ${config.compression.level === "standard" ? "selected" : ""}>Standard</option>
-                  <option value="maximum" ${config.compression.level === "maximum" ? "selected" : ""}>Maximum</option>
-                </select></label>
-                <label><strong>Model</strong><input id="compressionModel" value="${escapeHtml(config.compression.model)}"></label>
-              </div>
-              <label class="toggleRow subtleToggle">
-                <input id="conciseResponse" type="checkbox" ${config.compression.conciseResponse ? "checked" : ""}>
-                <span>Also ask the model to answer concisely</span>
-              </label>
-              <div id="transformMessage" class="notice"></div>
-            </div>
-          </div>
-          <div class="actions"><button class="primary" id="saveCompression">Save compression</button></div>
-        `;
-        document.getElementById("saveCompression").onclick = async () => {
-          const next = promptTransforms();
-          next.compression = {
-            enabled: document.getElementById("compressionEnabled").checked,
-            level: document.getElementById("compressionLevel").value,
-            conciseResponse: document.getElementById("conciseResponse").checked,
-            model: document.getElementById("compressionModel").value.trim() || "gpt-4.1-nano"
-          };
-          await savePromptTransforms(next);
-        };
-      }
-
-      function renderDlp() {
-        const config = promptTransforms();
-        const categories = [
-          ["pii", "PII", "Emails, SSNs, personal identifiers."],
-          ["phi", "PHI", "Patient and health-data context."],
-          ["tokens", "Tokens", "API and access tokens."],
-          ["keys", "Keys", "Private keys and key material."],
-          ["credentials", "Credentials", "Passwords, secrets, API-key assignments."]
-        ];
-        root.innerHTML = `
-          <div class="head">
-            <div><h1>DLP</h1><p>Mask or block sensitive data before prompts leave this Mac.</p></div>
-            ${modeTag()}
-          </div>
-          <div class="grid">
-            <div class="card">
-              <div class="fieldRow">
-                <div>
-                  <strong>DLP funnel</strong>
-                  <p>Runs after compression on the same before-submit prompt hook.</p>
-                </div>
-                <label class="toggleRow">
-                  <input id="dlpEnabled" type="checkbox" ${config.dlp.enabled ? "checked" : ""}>
-                  <span>Enabled</span>
-                </label>
-              </div>
-              <div class="settingsGrid">
-                <label><strong>Action</strong><select id="dlpAction">
-                  <option value="mask" ${config.dlp.action === "mask" ? "selected" : ""}>Mask and continue</option>
-                  <option value="block" ${config.dlp.action === "block" ? "selected" : ""}>Block submission</option>
-                </select></label>
-                <label><strong>Model</strong><input id="dlpModel" value="${escapeHtml(config.dlp.model)}"></label>
-              </div>
-              <div class="categoryGrid">
-                ${categories.map(([id, label, detail]) => `
-                  <label class="categoryCard">
-                    <input data-dlp-category="${id}" type="checkbox" ${config.dlp.categories.includes(id) ? "checked" : ""}>
-                    <span><strong>${label}</strong><small>${detail}</small></span>
-                  </label>
-                `).join("")}
-              </div>
-              <div id="transformMessage" class="notice"></div>
-            </div>
-          </div>
-          <div class="actions"><button class="primary" id="saveDlp">Save DLP</button></div>
-        `;
-        document.getElementById("saveDlp").onclick = async () => {
-          const next = promptTransforms();
-          next.dlp = {
-            enabled: document.getElementById("dlpEnabled").checked,
-            action: document.getElementById("dlpAction").value,
-            categories: [...root.querySelectorAll("[data-dlp-category]:checked")].map((input) => input.dataset.dlpCategory),
-            model: document.getElementById("dlpModel").value.trim() || "gpt-4.1-nano"
-          };
-          await savePromptTransforms(next);
-        };
       }
 
       function overviewAgentInventory() {
@@ -3849,24 +3956,14 @@
       }
 
       function pluginValueLine(plugin) {
-        const lines = {
-          "openleash.prompt-compression": "Compress prompts before submission so agents burn fewer tokens.",
-          "openleash.security-evaluator": "Evaluate prompts, responses, and tool use against your active policies.",
-          "openleash.dlp": "Mask or block sensitive data before it leaves the agent.",
-          "openleash.skill-scanner": "Inventory and review agent skills when they appear or change.",
-          "openleash.mcp-scanner": "Track MCP tools and calls for audit and risk review."
-        };
-        return lines[plugin.id] || plugin.description || "";
+        return plugin.marketplace?.shortDescription || plugin.description || "";
       }
 
       function pluginIconText(plugin) {
         if (plugin.marketplace?.iconText) return plugin.marketplace.iconText;
-        if (plugin.id === "openleash.prompt-compression") return "TS";
-        if (plugin.id === "openleash.security-evaluator") return "SE";
-        if (plugin.id === "openleash.dlp") return "DL";
-        if (plugin.id === "openleash.skill-scanner") return "SK";
-        if (plugin.id === "openleash.mcp-scanner") return "MC";
-        return "OL";
+        const source = pluginPackageName(plugin) || pluginName(plugin) || plugin.id || "plugin";
+        const parts = String(source).split(/[^a-z0-9]+/i).filter(Boolean);
+        return (parts.length > 1 ? parts.slice(0, 2).map((part) => part[0]).join("") : String(source).slice(0, 2)).toUpperCase();
       }
 
       function ensurePluginSetupConfig(pluginId) {
@@ -4056,72 +4153,88 @@
       }
 
       function pluginSettingsFields(plugin, config) {
-        if (plugin.id === "openleash.prompt-compression") {
+        const fields = pluginSettingDefinitions(plugin, config);
+        if (fields.length === 0) return `<p>No initial settings needed.</p>`;
+        return fields.map((field) => pluginSettingField(plugin, config, field)).join("");
+      }
+
+      function pluginSettingDefinitions(plugin, config) {
+        const properties = plugin.configSchema?.properties && typeof plugin.configSchema.properties === "object"
+          ? plugin.configSchema.properties
+          : {};
+        const keys = new Set([
+          ...Object.keys(plugin.defaultConfig || {}),
+          ...Object.keys(config || {}),
+          ...Object.keys(properties)
+        ]);
+        keys.delete("enabled");
+        return [...keys].sort().map((key) => ({
+          key,
+          schema: properties[key] && typeof properties[key] === "object" ? properties[key] : {},
+          defaultValue: plugin.defaultConfig?.[key]
+        }));
+      }
+
+      function pluginSettingField(plugin, config, field) {
+        const value = config[field.key] ?? field.defaultValue;
+        const schema = field.schema || {};
+        const label = settingLabel(field.key);
+        if (Array.isArray(schema.enum)) {
           return `
             <div class="fieldRow">
-              <strong>Compression level</strong>
-              <select data-plugin-setting="${escapeHtml(plugin.id)}" data-setting-key="level">
-                ${["light", "standard", "maximum"].map((level) => `<option value="${level}" ${config.level === level ? "selected" : ""}>${level}</option>`).join("")}
+              <strong>${escapeHtml(label)}</strong>
+              <select data-plugin-setting="${escapeHtml(plugin.id)}" data-setting-key="${escapeHtml(field.key)}">
+                ${schema.enum.map((option) => `<option value="${escapeHtml(option)}" ${String(value) === String(option) ? "selected" : ""}>${escapeHtml(settingLabel(option))}</option>`).join("")}
               </select>
             </div>
-            <label class="fieldRow">
-              <span><strong>Concise responses</strong><small>Add a short-response instruction after compression.</small></span>
-              <span class="switch"><input data-plugin-setting="${escapeHtml(plugin.id)}" data-setting-key="conciseResponse" type="checkbox" ${config.conciseResponse ? "checked" : ""}><span></span></span>
-            </label>
           `;
         }
-        if (plugin.id === "openleash.dlp") {
-          const categories = ["pii", "phi", "tokens", "keys", "credentials"];
-          const selected = Array.isArray(config.categories) ? config.categories : categories;
+        if (schema.type === "array" && Array.isArray(schema.items?.enum)) {
+          const selected = Array.isArray(value) ? value.map(String) : [];
           return `
-            <div class="fieldRow">
-              <strong>When sensitive data appears</strong>
-              <select data-plugin-setting="${escapeHtml(plugin.id)}" data-setting-key="action">
-                <option value="mask" ${config.action !== "block" ? "selected" : ""}>Mask it</option>
-                <option value="block" ${config.action === "block" ? "selected" : ""}>Block it</option>
-              </select>
-            </div>
             <div>
-              <strong>Categories</strong>
+              <strong>${escapeHtml(label)}</strong>
               <div class="checkboxGrid" style="margin-top:10px">
-                ${categories.map((category) => `
+                ${schema.items.enum.map((option) => `
                   <label class="checkboxPill">
-                    <input data-plugin-setting="${escapeHtml(plugin.id)}" data-setting-key="categories" value="${category}" type="checkbox" ${selected.includes(category) ? "checked" : ""}>
-                    ${escapeHtml(category)}
+                    <input data-plugin-setting="${escapeHtml(plugin.id)}" data-setting-key="${escapeHtml(field.key)}" data-setting-kind="array" value="${escapeHtml(option)}" type="checkbox" ${selected.includes(String(option)) ? "checked" : ""}>
+                    ${escapeHtml(settingLabel(option))}
                   </label>
                 `).join("")}
               </div>
             </div>
           `;
         }
-        if (plugin.id === "openleash.skill-scanner") {
-          return `
-            <div class="fieldRow">
-              <span><strong>Review threshold</strong><small>Flag skills at or above this risk score.</small></span>
-              <input data-plugin-setting="${escapeHtml(plugin.id)}" data-setting-key="suspiciousRiskThreshold" type="number" min="0" max="100" value="${escapeHtml(config.suspiciousRiskThreshold ?? 50)}">
-            </div>
-          `;
-        }
-        if (plugin.id === "openleash.mcp-scanner") {
+        if (schema.type === "boolean" || typeof value === "boolean") {
           return `
             <label class="fieldRow">
-              <span><strong>Redact secrets in audit data</strong><small>Keep MCP inventory useful without storing sensitive values.</small></span>
-              <span class="switch"><input data-plugin-setting="${escapeHtml(plugin.id)}" data-setting-key="redactSecrets" type="checkbox" ${config.redactSecrets !== false ? "checked" : ""}><span></span></span>
+              <span><strong>${escapeHtml(label)}</strong></span>
+              <span class="switch"><input data-plugin-setting="${escapeHtml(plugin.id)}" data-setting-key="${escapeHtml(field.key)}" type="checkbox" ${value ? "checked" : ""}><span></span></span>
             </label>
           `;
         }
-        if (plugin.id === "openleash.security-evaluator") {
+        if (schema.type === "number" || schema.type === "integer" || typeof value === "number") {
           return `
             <div class="fieldRow">
-              <span><strong>Policy set</strong><small>Use the active policies synced with this account.</small></span>
-              <select data-plugin-setting="${escapeHtml(plugin.id)}" data-setting-key="policySet">
-                <option value="active" ${config.policySet !== "strict" ? "selected" : ""}>Active</option>
-                <option value="strict" ${config.policySet === "strict" ? "selected" : ""}>Strict</option>
-              </select>
+              <strong>${escapeHtml(label)}</strong>
+              <input data-plugin-setting="${escapeHtml(plugin.id)}" data-setting-key="${escapeHtml(field.key)}" type="number" value="${escapeHtml(value ?? 0)}">
             </div>
           `;
         }
-        return `<p>No initial settings needed.</p>`;
+        return `
+          <div class="fieldRow">
+            <strong>${escapeHtml(label)}</strong>
+            <input data-plugin-setting="${escapeHtml(plugin.id)}" data-setting-key="${escapeHtml(field.key)}" value="${escapeHtml(value ?? "")}">
+          </div>
+        `;
+      }
+
+      function settingLabel(value) {
+        return String(value || "")
+          .replace(/[_-]+/g, " ")
+          .replace(/([a-z0-9])([A-Z])/g, "$1 $2")
+          .trim()
+          .replace(/\b\w/g, (char) => char.toUpperCase());
       }
 
       function bindPluginSelection() {
@@ -4212,8 +4325,8 @@
         const key = input.dataset.settingKey;
         if (!pluginId || !key) return;
         const config = ensurePluginSetupConfig(pluginId);
-        if (key === "categories") {
-          config.categories = [...root.querySelectorAll(`[data-plugin-setting="${cssEscape(pluginId)}"][data-setting-key="categories"]:checked`)].map((item) => item.value);
+        if (input.dataset.settingKind === "array") {
+          config[key] = [...root.querySelectorAll(`[data-plugin-setting="${cssEscape(pluginId)}"][data-setting-key="${cssEscape(key)}"]:checked`)].map((item) => item.value);
           return;
         }
         if (input.type === "checkbox") {
@@ -4268,24 +4381,16 @@
       }
 
       function renderPlugins() {
-        const plugins = (state.plugins || []).filter((plugin) => plugin.settings?.enabled === true);
+        const plugins = installedPlugins();
         const category = pluginViewCategory || "all";
         const filtered = category === "all"
           ? plugins
           : plugins.filter((plugin) => pluginCategory(plugin).toLowerCase() === category);
-        const categories = pluginCategorySummary(plugins);
+        const title = category === "all" ? "Plugins" : categoryLabel(category);
         root.innerHTML = `
           <div class="head">
-            <div><h1>Plugins</h1><p>Installed plugins and the outcomes they report to OpenLeash.</p></div>
+            <div><h1>${escapeHtml(title)}</h1><p>Installed plugins and the outcomes they report to OpenLeash.</p></div>
             ${modeTag()}
-          </div>
-          <div class="pluginCategoryFilters">
-            ${categories.map((item) => `
-              <button type="button" data-plugin-page-category="${escapeHtml(item.id)}" class="${escapeHtml(item.id)} ${category === item.id ? "active" : ""}">
-                ${categoryIcon(item.label)}
-                <span>${escapeHtml(item.label)} ${escapeHtml(String(item.count))}</span>
-              </button>
-            `).join("")}
           </div>
           <div class="grid">
             ${filtered.map((plugin) => {
@@ -4294,15 +4399,16 @@
               const categoryLabel = pluginCategory(plugin);
               const categoryClass = pluginCategoryClass(categoryLabel);
               return `
-              <article class="card pluginInstallLine selected" data-open-plugin="${escapeHtml(plugin.id)}">
-                <div class="fieldRow">
+              <article class="card pluginOutcomeCard" data-open-plugin="${escapeHtml(plugin.id)}">
+                <div class="pluginOutcomeMain">
                   <span class="agentIcon">${escapeHtml(pluginIconText(plugin))}</span>
-                  <div class="pluginCopy">
-                    <strong>${escapeHtml(pluginName(plugin))}</strong>
+                  <div class="pluginOutcomeCopy">
+                    <strong>${escapeHtml(pluginPackageName(plugin))}</strong>
                     <p>${escapeHtml(plugin.marketplace?.shortDescription || plugin.description || "")}</p>
-                    <span class="pluginStats">
+                    <span class="pluginOutcomeMeta">
                       <span class="pluginCategoryTag ${categoryClass}">${categoryIcon(categoryLabel)} ${escapeHtml(categoryLabel)}</span>
                       <span class="pluginMetaPill">${metaIcon("author")} ${escapeHtml(plugin.publisher === "openleash" ? "OpenLeash" : plugin.publisher || "Unknown")}</span>
+                      <span class="pluginMetaPill">${metaIcon("downloads")} ${escapeHtml(compactNumber(Number(plugin.marketplace?.downloadCount || 0)))} downloads</span>
                     </span>
                   </div>
                   <span class="tag good">installed</span>
@@ -4313,7 +4419,7 @@
                   ${latest ? `<span>${escapeHtml(formatTime(latest.occurredAt || latest.createdAt))}</span>` : ""}
                 </div>
                 ${latest ? `
-                  <div class="notice" style="margin-top:12px">
+                  <div class="pluginOutcomeLatest">
                     <strong>${escapeHtml(latest.title || "Latest outcome")}</strong>
                     <p>${escapeHtml(latest.summary || latest.status || "")}</p>
                   </div>
@@ -4339,7 +4445,7 @@
           <div class="head">
             <div>
               <button id="backPlugins" class="secondary">Back</button>
-              <h1>${escapeHtml(pluginName(plugin))}</h1>
+              <h1>${escapeHtml(pluginPackageName(plugin))}</h1>
               <p>${escapeHtml(plugin.marketplace?.shortDescription || plugin.description || "")}</p>
             </div>
             <span class="pluginCategoryTag ${categoryClass}">${categoryIcon(categoryLabel)} ${escapeHtml(categoryLabel)}</span>
@@ -4378,16 +4484,11 @@
       }
 
       function bindPluginPageControls() {
-        root.querySelectorAll("[data-plugin-page-category]").forEach((button) => {
-          button.onclick = () => {
-            pluginViewCategory = button.dataset.pluginPageCategory || "all";
-            selectedPluginId = "";
-            renderView();
-          };
-        });
         root.querySelectorAll("[data-open-plugin]").forEach((card) => {
           card.onclick = () => {
             selectedPluginId = card.dataset.openPlugin || "";
+            const plugin = (state.plugins || []).find((item) => item.id === selectedPluginId);
+            pluginViewCategory = plugin ? pluginCategory(plugin).toLowerCase() : pluginViewCategory;
             view = "plugin-detail";
             renderView();
           };
@@ -4588,45 +4689,6 @@
         return escapeHtml(String(agent.displayName || "AI").split(/\s+/).slice(0, 2).map((part) => part[0]).join("").toUpperCase());
       }
 
-      function defaultPromptTransforms() {
-        return {
-          compression: { enabled: false, level: "standard", conciseResponse: false, model: "gpt-4.1-nano" },
-          dlp: { enabled: false, action: "mask", categories: ["pii", "phi", "tokens", "keys", "credentials"], model: "gpt-4.1-nano" }
-        };
-      }
-
-      function promptTransforms() {
-        const defaults = defaultPromptTransforms();
-        const input = state.promptTransforms || {};
-        const compression = input.compression || {};
-        const dlp = input.dlp || {};
-        return {
-          compression: {
-            enabled: Boolean(compression.enabled),
-            level: ["light", "standard", "maximum"].includes(compression.level) ? compression.level : defaults.compression.level,
-            conciseResponse: Boolean(compression.conciseResponse),
-            model: String(compression.model || defaults.compression.model)
-          },
-          dlp: {
-            enabled: Boolean(dlp.enabled),
-            action: dlp.action === "block" ? "block" : "mask",
-            categories: Array.isArray(dlp.categories) ? dlp.categories.filter((item) => defaults.dlp.categories.includes(item)) : defaults.dlp.categories,
-            model: String(dlp.model || defaults.dlp.model)
-          }
-        };
-      }
-
-      async function savePromptTransforms(config) {
-        const result = await window.openleash.savePromptTransforms({ config });
-        const message = document.getElementById("transformMessage");
-        if (result?.ok) {
-          state.promptTransforms = result.config;
-          if (message) message.textContent = "Saved.";
-          return;
-        }
-        if (message) message.textContent = result?.error || "Could not save settings.";
-      }
-
       function escapeHtml(value) {
         return String(value ?? "").replace(/[&<>"']/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#039;" }[char]));
       }
@@ -4659,15 +4721,6 @@
         ]).has(domain);
       }
 
-      nav.forEach((button) => button.onclick = () => {
-        if (isSetupLocked()) return renderSetup();
-        if (button.dataset.pluginViewCategory) {
-          pluginViewCategory = button.dataset.pluginViewCategory;
-          selectedPluginId = "";
-        }
-        view = button.dataset.view;
-        renderView();
-      });
       window.openleash.onUpdate(render);
       window.openleash.onAuth((payload) => {
         if (payload?.ok) {

@@ -2,7 +2,7 @@
 import { Command } from "commander";
 import os from "node:os";
 import { apiVersionHeaders } from "./api-contract.js";
-import { defaultCloudApiUrl, defaultDesktopApiUrl, readConfig, writeConfig } from "./config.js";
+import { defaultCloudApiUrl, defaultDesktopApiUrl, hookApiUrl, readConfig, writeConfig } from "./config.js";
 import { discoverAgents } from "./discovery.js";
 import {
   installClaudeHooks,
@@ -45,8 +45,8 @@ program.name("openleash").description("OpenLeash Desktop Client CLI and hook ins
 program
   .command("configure")
   .requiredOption("--token <token>", "OpenLeash user token")
-  .option("--api-url <url>", "OpenLeash local desktop API URL", defaultDesktopApiUrl)
-  .option("--remote-api-url <url>", "OpenLeash Cloud or Private Cloud client API URL")
+  .option("--api-url <url>", "OpenLeash desktop local API URL used by local-only desktop commands", defaultDesktopApiUrl)
+  .option("--remote-api-url <url>", "OpenLeash Cloud or Private Cloud client API URL used by installed agent hooks", defaultCloudApiUrl)
   .option("--mode <mode>", "community, cloud, or enterprise", "community")
   .option("--email <email>", "User email")
   .option("--display-name <name>", "Display name")
@@ -211,10 +211,12 @@ plugins
 program.command("status").action(async () => {
   try {
     const config = await readConfig();
-    const response = await fetch(`${config.apiUrl}/health`, { headers: apiVersionHeaders("health") }).catch(() => undefined);
+    const api = hookApiUrl(config);
+    const response = await fetch(`${api}/health`, { headers: apiVersionHeaders("health") }).catch(() => undefined);
     console.table({
       mode: config.mode ?? "cloud",
       apiUrl: config.apiUrl,
+      hookApiUrl: api,
       tenantUrl: config.tenantUrl ?? "",
       enrolledAt: config.enrolledAt ?? "",
       user: config.user?.email ?? "",

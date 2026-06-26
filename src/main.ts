@@ -2681,7 +2681,13 @@ function localHookInstallContext() {
 }
 
 function hookInstallContext() {
-  return localHookInstallContext();
+  return {
+    apiUrl: localServer.remoteApiUrl || apiUrl,
+    token: localServer.effectiveToken,
+    clientVersion: app.getVersion(),
+    apiFunction: "localHookEvaluate",
+    apiVersion: "2026-05-22.local-hook-evaluate.v1"
+  };
 }
 
 function normalizeRemoteApiUrl(value: string) {

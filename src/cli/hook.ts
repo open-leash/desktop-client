@@ -1,6 +1,6 @@
 import os from "node:os";
 import { apiVersionHeaders } from "./api-contract.js";
-import { readConfig } from "./config.js";
+import { hookApiUrl, readConfig } from "./config.js";
 
 type HookAgent = "claude" | "codex" | "cursor" | "gemini" | "opencode" | "openclaw" | "nanoclaw";
 type HookEventName = "SessionStart" | "UserPromptSubmit" | "PreToolUse" | "PostToolUse" | "SubagentStart" | "SubagentStop" | "Notification" | "SessionEnd" | "Stop";
@@ -8,7 +8,7 @@ type HookEventName = "SessionStart" | "UserPromptSubmit" | "PreToolUse" | "PostT
 export async function runHook(agent: HookAgent, eventName: HookEventName) {
   const raw = await readStdin();
   const config = await readConfig();
-  const endpoint = new URL(`/v1/hooks/${agent}/${eventName}`, config.apiUrl.replace(/\/+$/, ""));
+  const endpoint = new URL(`/v1/hooks/${agent}/${eventName}`, hookApiUrl(config));
   endpoint.searchParams.set("user_token", config.token);
   endpoint.searchParams.set("hostname", config.computer?.hostname ?? os.hostname());
   endpoint.searchParams.set("platform", os.platform());

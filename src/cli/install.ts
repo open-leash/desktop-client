@@ -3,7 +3,7 @@ import path from "node:path";
 import { spawnSync } from "node:child_process";
 import os from "node:os";
 import { apiVersionHeaders } from "./api-contract.js";
-import { readConfig } from "./config.js";
+import { hookApiUrl, readConfig } from "./config.js";
 import {
   claudeSettingsPath,
   codexConfigPath,
@@ -20,7 +20,7 @@ type HookEventName = "UserPromptSubmit" | "PreToolUse" | "PostToolUse" | "Stop";
 
 async function hookCommand(agent: HookAgent, event: HookEventName) {
   const config = await readConfig();
-  const endpoint = new URL(`/v1/hooks/${agent}/${event}`, config.apiUrl.replace(/\/+$/, ""));
+  const endpoint = new URL(`/v1/hooks/${agent}/${event}`, hookApiUrl(config));
   endpoint.searchParams.set("user_token", config.token);
   endpoint.searchParams.set("hostname", config.computer?.hostname ?? os.hostname());
   endpoint.searchParams.set("platform", os.platform());
@@ -411,7 +411,7 @@ export const OpenLeash = async () => ({
 
 async function hookEndpoint(agent: HookAgent, event: HookEventName) {
   const config = await readConfig();
-  const endpoint = new URL(`/v1/hooks/${agent}/${event}`, config.apiUrl.replace(/\/+$/, ""));
+  const endpoint = new URL(`/v1/hooks/${agent}/${event}`, hookApiUrl(config));
   endpoint.searchParams.set("user_token", config.token);
   endpoint.searchParams.set("hostname", config.computer?.hostname ?? os.hostname());
   endpoint.searchParams.set("platform", os.platform());

@@ -16,15 +16,15 @@
 
 ## ✨ What this app is
 
-`desktop-client` is the installed OpenLeash client: tray app, local hook relay API, approval UI, hook installer, update checks, and deployment CLI.
+`desktop-client` is the installed OpenLeash client: tray app, local helper API, approval UI, hook installer, update checks, and deployment CLI.
 
-Installed hooks call the desktop local API first:
+Installed hooks call the configured managed OpenLeash API:
 
 ```text
-http://127.0.0.1:9317/v1/hooks/:agent/:event
+https://api.openleash.com/v1/hooks/:agent/:event
 ```
 
-The desktop client forwards hook traffic to an OpenLeash backend: either OpenLeash Cloud or a customer-hosted Private Cloud `client-api`. If the backend is unavailable, enforcement fails closed instead of running a fully local SQLite-backed product mode.
+Private Cloud installs use the customer-hosted `client-api` URL. The desktop local API still exists for setup, tray state, OAuth callbacks, local cache, local development, and legacy/dev relay behavior. If the managed backend is unavailable, enforcement fails closed instead of running a fully local SQLite-backed product mode.
 
 ---
 
@@ -32,8 +32,8 @@ The desktop client forwards hook traffic to an OpenLeash backend: either OpenLea
 
 | Mode | Behavior |
 | --- | --- |
-| 🏢 Private Cloud | Local API forwards to customer-hosted `client-api`. |
-| ☁️ OpenLeash Cloud | Local API forwards to OpenLeash-hosted cloud APIs. |
+| 🏢 Private Cloud | Hooks target customer-hosted `client-api`; desktop receives state and approvals from that backend. |
+| ☁️ OpenLeash Cloud | Hooks target OpenLeash-hosted cloud APIs; desktop receives state and approvals from OpenLeash Cloud. |
 
 ---
 
@@ -60,14 +60,14 @@ npm run desktop-cli -- install-hooks --all
 npm run desktop-cli -- plugins list --search token
 npm run desktop-cli -- plugins install token-saver sec-evaluator
 npm run desktop-cli -- plugins uninstall token-saver sec-evaluator
-npm run desktop-cli -- configure --token "$OPENLEASH_TOKEN" --api-url http://127.0.0.1:9317 --remote-api-url http://127.0.0.1:9319
+npm run desktop-cli -- configure --token "$OPENLEASH_TOKEN" --remote-api-url https://api.openleash.com
 ```
 
 ---
 
 ## 🪝 Hook philosophy
 
-- Hooks enter through the local desktop relay.
+- Hooks enter through the managed OpenLeash API so local and provider-cloud agent runs use the same URL.
 - Install changes are explicit and reversible.
 - Backend outages fail closed with a clear reason.
 - Users should see what changed and how to undo it.
