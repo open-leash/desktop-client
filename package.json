@@ -15,6 +15,7 @@
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
+    "@openleash/shared": "0.1.0",
     "better-sqlite3": "^12.10.0",
     "commander": "^12.1.0",
     "electron": "^33.4.11"

@@ -12,6 +12,7 @@ import {
 } from "./api-contract";
 import {
   OPENLEASH_DESKTOP_AUTH_CALLBACK_URI,
+  OPENLEASH_DESKTOP_GITHUB_REDIRECT_URI,
   OPENLEASH_DESKTOP_GOOGLE_REDIRECT_URI,
   OPENLEASH_DESKTOP_MICROSOFT_REDIRECT_URI
 } from "./public-config";
@@ -241,6 +242,7 @@ type LocalServerOptions = {
 function desktopExchangeRedirectUri(pathname: string) {
   if (pathname === "/v1/auth/google/callback") return OPENLEASH_DESKTOP_GOOGLE_REDIRECT_URI;
   if (pathname === "/v1/auth/microsoft/callback") return OPENLEASH_DESKTOP_MICROSOFT_REDIRECT_URI;
+  if (pathname === "/v1/auth/github/callback") return OPENLEASH_DESKTOP_GITHUB_REDIRECT_URI;
   return undefined;
 }
 

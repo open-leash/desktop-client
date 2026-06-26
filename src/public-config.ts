@@ -3,6 +3,7 @@ export const OPENLEASH_PUBLIC_CLOUD_DASHBOARD_URL = "https://dashboard.openleash
 export const OPENLEASH_DESKTOP_API_URL = "http://127.0.0.1:9317";
 export const OPENLEASH_DESKTOP_GOOGLE_REDIRECT_URI = "http://localhost:9317/v1/auth/google/callback";
 export const OPENLEASH_DESKTOP_MICROSOFT_REDIRECT_URI = "http://localhost:9317/v1/auth/microsoft/callback";
+export const OPENLEASH_DESKTOP_GITHUB_REDIRECT_URI = "http://localhost:9317/v1/auth/github/callback";
 export const OPENLEASH_DESKTOP_AUTH_CALLBACK_URI = "openleash://auth/callback";
 
 // OAuth client IDs and URL schemes are public identifiers. The Google client

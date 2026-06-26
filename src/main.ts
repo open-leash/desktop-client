@@ -10,12 +10,14 @@ import { apiVersionHeaders } from "./api-contract";
 import {
   OPENLEASH_DESKTOP_API_URL,
   OPENLEASH_DESKTOP_AUTH_CALLBACK_URI,
+  OPENLEASH_DESKTOP_GITHUB_REDIRECT_URI,
   OPENLEASH_DESKTOP_GOOGLE_REDIRECT_URI,
   OPENLEASH_DESKTOP_MICROSOFT_REDIRECT_URI,
   OPENLEASH_PUBLIC_CLOUD_API_URL,
   OPENLEASH_PUBLIC_CLOUD_DASHBOARD_URL
 } from "./public-config";
 import type { PluginCatalogItem } from "./plugin-catalog";
+import type { OpenLeashClientViewModel, OpenLeashOutcomeRecord } from "@openleash/shared";
 
 const APP_DISPLAY_NAME = app.isPackaged ? "OpenLeash" : "OpenLeash (Dev)";
 
@@ -148,34 +150,7 @@ type RemoteMobileState = {
   sessionMetrics?: Record<string, unknown>;
 };
 
-type PluginOutcome = {
-  id: string;
-  domain?: string;
-  title?: string;
-  summary?: string | null;
-  severity?: string;
-  status?: string;
-  decision?: string | null;
-  occurredAt?: string;
-  createdAt?: string;
-  source?: {
-    pluginId?: string;
-    label?: string;
-    kind?: string;
-  };
-  agent?: {
-    kind?: string | null;
-    name?: string | null;
-    hostname?: string | null;
-  };
-  context?: {
-    eventName?: string | null;
-    toolName?: string | null;
-    projectPath?: string | null;
-  };
-  evidence?: Array<{ label?: string; value?: string; kind?: string; sensitive?: boolean }>;
-  details?: Record<string, unknown>;
-};
+type PluginOutcome = OpenLeashOutcomeRecord;
 
 type TriggeredPolicy = {
   policy_name: string;
@@ -213,6 +188,7 @@ const cloudDevAuthEmail = process.env.OPENLEASH_MOBILE_DEV_EMAIL ?? "mobile.user
 const desktopRedirectUri = OPENLEASH_DESKTOP_AUTH_CALLBACK_URI;
 const desktopGoogleRedirectUri = OPENLEASH_DESKTOP_GOOGLE_REDIRECT_URI;
 const desktopMicrosoftRedirectUri = OPENLEASH_DESKTOP_MICROSOFT_REDIRECT_URI;
+const desktopGithubRedirectUri = OPENLEASH_DESKTOP_GITHUB_REDIRECT_URI;
 const here = __dirname;
 const defaultUpdateFeedUrl = app.isPackaged ? `${OPENLEASH_PUBLIC_CLOUD_API_URL}/api/updates/check` : "";
 const updateCheckIntervalMs = 24 * 60 * 60 * 1000;
@@ -231,6 +207,7 @@ let latestAgents: AgentStatus[] = [];
 let latestSessionMetrics: SessionMetrics = {};
 let latestPlugins: PluginCatalogItem[] = [];
 let latestOutcomes: PluginOutcome[] = [];
+let latestViewModel: OpenLeashClientViewModel | undefined;
 let localProtections: LocalAgentProtection[] = [];
 let localProtectionCheckedAt = 0;
 
@@ -608,6 +585,7 @@ ipcMain.handle("openleash:list", () => ({
     promptTransforms: localServer?.promptTransforms,
     plugins: latestPlugins.length > 0 ? latestPlugins : localServer?.plugins ?? [],
     outcomes: latestOutcomes,
+    viewModel: latestViewModel,
     pending: latestPending,
   agents: latestAgents,
   sessionMetrics: latestSessionMetrics,
@@ -692,6 +670,8 @@ async function startMobileAuth(
   try {
     const browserRedirectUri = providerType === "azure_ad" || providerType === "microsoft"
       ? desktopMicrosoftRedirectUri
+      : providerType === "github"
+        ? desktopGithubRedirectUri
       : desktopGoogleRedirectUri;
     const response = await fetch(new URL("/v1/mobile/auth/start", remoteApiUrl), {
       method: "POST",
@@ -924,6 +904,7 @@ ipcMain.handle("openleash:setup", async (_event, payload: {
       promptTransforms: localServer.promptTransforms,
       plugins: latestPlugins,
       outcomes: latestOutcomes,
+      viewModel: latestViewModel,
       pending: latestPending,
     agents: latestAgents,
     sessionMetrics: latestSessionMetrics,
@@ -955,6 +936,7 @@ ipcMain.handle("openleash:uninstall-agent-protection", async (_event, kind: stri
     sessionMetrics: latestSessionMetrics,
     plugins: latestPlugins,
     outcomes: latestOutcomes,
+    viewModel: latestViewModel,
     history: localServer.history,
     mcpServers: localServer.mcpServers,
     skills: localServer.skills,
@@ -1065,7 +1047,7 @@ ipcMain.handle("openleash:resolve", async (_event, id: string, resolution: "allo
   closeNoticeWithoutOpeningMainWindow();
   latestPending = latestPending.filter((item) => !idsToResolve.includes(item.id));
   refreshMenu();
-  window?.webContents.send("openleash:update", { apiUrl, pending: latestPending, agents: latestAgents, sessionMetrics: latestSessionMetrics, plugins: latestPlugins, outcomes: latestOutcomes, history: localServer.history, mcpServers: localServer.mcpServers, skills: localServer.skills });
+  window?.webContents.send("openleash:update", { apiUrl, pending: latestPending, agents: latestAgents, sessionMetrics: latestSessionMetrics, plugins: latestPlugins, outcomes: latestOutcomes, viewModel: latestViewModel, history: localServer.history, mcpServers: localServer.mcpServers, skills: localServer.skills });
   void Promise.all(idsToResolve.map((decisionId) => syncRemoteDecision(decisionId, resolution, resolutionGuidance))).catch((error) => {
     startupLog(`remote approval resolve failed: ${error instanceof Error ? error.stack || error.message : String(error)}`);
   }).finally(() => {
@@ -1091,6 +1073,7 @@ async function poll() {
     latestSessionMetrics = body.sessionMetrics ?? {};
     latestPlugins = body.plugins;
     latestOutcomes = body.outcomes ?? [];
+    latestViewModel = body.viewModel ?? latestViewModel;
     setTrayStatus(latestPending.length > 0 ? "pending" : "ok");
     refreshMenu();
     window?.webContents.send("openleash:update", {
@@ -1108,6 +1091,7 @@ async function poll() {
       agentDoneSound: localServer.agentDoneSound,
       plugins: latestPlugins,
       outcomes: latestOutcomes,
+      viewModel: latestViewModel,
       pending: latestPending,
       agents: latestAgents,
       sessionMetrics: latestSessionMetrics,
@@ -1134,7 +1118,7 @@ async function poll() {
   }
 }
 
-async function fetchTrayState(): Promise<{ pending: PendingDecision[]; agents: AgentStatus[]; sessionMetrics?: SessionMetrics; plugins: PluginCatalogItem[]; outcomes?: PluginOutcome[] } | undefined> {
+async function fetchTrayState(): Promise<{ pending: PendingDecision[]; agents: AgentStatus[]; sessionMetrics?: SessionMetrics; plugins: PluginCatalogItem[]; outcomes?: PluginOutcome[]; viewModel?: OpenLeashClientViewModel } | undefined> {
   const localState = await fetchLocalTrayState();
 
   const remoteApiUrl = localServer.remoteApiUrl;
@@ -1160,7 +1144,7 @@ async function fetchLocalTrayState() {
   const response = await fetch(`${apiUrl}/admin/tray-status`, { headers: apiVersionHeaders("tenantTrayStatus") });
   if (!response.ok) return undefined;
   const body = await response.json() as { pending: PendingDecision[]; agents: AgentStatus[]; session_metrics?: SessionMetrics; sessionMetrics?: SessionMetrics };
-  return { pending: body.pending, agents: body.agents, sessionMetrics: body.session_metrics ?? body.sessionMetrics, plugins: localServer.plugins, outcomes: latestOutcomes };
+  return { pending: body.pending, agents: body.agents, sessionMetrics: body.session_metrics ?? body.sessionMetrics, plugins: localServer.plugins, outcomes: latestOutcomes, viewModel: latestViewModel };
 }
 
 async function fetchRemotePluginCatalog(remoteApiUrl: string, remoteToken: string, fallback: PluginCatalogItem[]) {
@@ -1184,7 +1168,8 @@ async function fetchRemotePluginOutcomes(remoteApiUrl: string, remoteToken: stri
       headers: { authorization: `Bearer ${remoteToken}`, ...apiVersionHeaders("authAccountOutcomes") }
     });
     if (!response.ok) return latestOutcomes;
-    const body = await response.json() as { outcomes?: PluginOutcome[] };
+    const body = await response.json() as { outcomes?: PluginOutcome[]; viewModel?: OpenLeashClientViewModel };
+    latestViewModel = body.viewModel ?? latestViewModel;
     return Array.isArray(body.outcomes) ? body.outcomes : latestOutcomes;
   } catch {
     return latestOutcomes;
@@ -1192,18 +1177,19 @@ async function fetchRemotePluginOutcomes(remoteApiUrl: string, remoteToken: stri
 }
 
 function mergeTrayState(
-  localState: { pending: PendingDecision[]; agents: AgentStatus[]; sessionMetrics?: SessionMetrics; plugins: PluginCatalogItem[]; outcomes?: PluginOutcome[] } | undefined,
+  localState: { pending: PendingDecision[]; agents: AgentStatus[]; sessionMetrics?: SessionMetrics; plugins: PluginCatalogItem[]; outcomes?: PluginOutcome[]; viewModel?: OpenLeashClientViewModel } | undefined,
   remoteState: { pending: PendingDecision[]; agents: AgentStatus[]; sessionMetrics?: SessionMetrics },
   plugins: PluginCatalogItem[],
   outcomes: PluginOutcome[] = []
 ) {
-  if (!localState) return { ...remoteState, plugins, outcomes };
+  if (!localState) return { ...remoteState, plugins, outcomes, viewModel: latestViewModel };
   return {
     pending: dedupePending([...localState.pending, ...remoteState.pending]),
     agents: dedupeById([...localState.agents, ...remoteState.agents]),
     sessionMetrics: remoteState.sessionMetrics ?? localState.sessionMetrics,
     plugins,
-    outcomes
+    outcomes,
+    viewModel: latestViewModel ?? localState.viewModel
   };
 }
 
@@ -2198,6 +2184,7 @@ async function scanSkillDirectory(target: { dir: string; agentKind: string; agen
         sessionMetrics: latestSessionMetrics,
         plugins: latestPlugins,
         outcomes: latestOutcomes,
+        viewModel: latestViewModel,
         history: localServer.history,
         mcpServers: localServer.mcpServers,
         skills: localServer.skills,
@@ -2294,6 +2281,7 @@ async function repairProtectedAgent(kind: string, reason: string) {
       sessionMetrics: latestSessionMetrics,
       plugins: latestPlugins,
       outcomes: latestOutcomes,
+      viewModel: latestViewModel,
       history: localServer.history,
       mcpServers: localServer.mcpServers,
       skills: localServer.skills,
@@ -2327,6 +2315,7 @@ function showMainWindow(mode: "setup" | "settings" = localServer?.setupComplete 
       sessionMetrics: latestSessionMetrics,
       plugins: latestPlugins,
       outcomes: latestOutcomes,
+      viewModel: latestViewModel,
       localProtections,
       policies: localServer?.policies ?? [],
       history: localServer?.history ?? [],
@@ -2864,7 +2853,7 @@ async function handleDesktopAuthCallback(rawUrl: string) {
       expiresAt: body.tokens?.expiresAt,
       organizationName: body.organization?.name || body.session?.organization?.name,
       organizationSlug: body.organization?.slug || body.session?.organization?.slug || pendingDesktopAuth.organizationSlug,
-      userName: body.user?.name || body.session?.user?.name,
+      userName: body.user?.display_name || body.user?.name || body.session?.user?.display_name || body.session?.user?.name,
       userEmail: body.user?.email || body.session?.user?.email
     };
     pendingDesktopAuth = undefined;

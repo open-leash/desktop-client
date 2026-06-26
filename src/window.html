@@ -2034,7 +2034,7 @@
                       <span class="tag good">Connected</span>
                     </div>
                   ` : `
-                    <strong>${setupClientMode === "cloud" ? (setupAudience === "organization" ? (state.cloudDevAuth ? "Use local dev sign-in" : "Continue with work identity") : "Continue with Google") : "Sign in with your company"}</strong>
+                    <strong>${setupClientMode === "cloud" ? (setupAudience === "organization" ? (state.cloudDevAuth ? "Use local dev sign-in" : "Continue with work identity") : "Continue with Google or GitHub") : "Sign in with your company"}</strong>
                     <p>${setupClientMode === "cloud" ? (setupAudience === "organization" ? (state.cloudDevAuth ? `This local run will use ${escapeHtml(state.cloudDevAuthEmail || "mobile.user@openleash.com")} and will not open a real Google or Microsoft account picker.` : "Use Google Workspace or Microsoft 365. OpenLeash will detect or create your company workspace from your work email domain.") : "Create or access your personal OpenLeash Cloud account here.") : "Your API chooses the identity provider."}</p>
                     <div class="actions left" style="margin-top:16px">
                       ${orgCloud && state.cloudDevAuth ? `
@@ -2066,6 +2066,7 @@
                           </svg>
                           <span>${setupRemoteBusy && setupRemoteProvider === "google" ? "Opening..." : setupAudience === "organization" ? "Google Workspace" : "Sign in with Google"}</span>
                         </button>
+                        ${setupAudience === "individual" ? `<button class="googleSignIn" id="remoteSignInGithub" ${setupRemoteBusy ? "disabled" : ""}><svg viewBox="0 0 24 24" aria-hidden="true"><path fill="#24292f" d="M12 2a10 10 0 0 0-3.16 19.49c.5.09.68-.22.68-.48v-1.68c-2.78.6-3.37-1.34-3.37-1.34-.45-1.16-1.1-1.47-1.1-1.47-.9-.62.07-.61.07-.61 1 .07 1.53 1.03 1.53 1.03.89 1.52 2.34 1.08 2.91.82.09-.64.35-1.08.63-1.33-2.22-.25-4.55-1.11-4.55-4.94 0-1.09.39-1.98 1.03-2.68-.1-.25-.45-1.27.1-2.65 0 0 .84-.27 2.75 1.02A9.6 9.6 0 0 1 12 5.85c.85 0 1.71.11 2.51.34 1.9-1.29 2.74-1.02 2.74-1.02.55 1.38.2 2.4.1 2.65.64.7 1.03 1.59 1.03 2.68 0 3.84-2.34 4.69-4.57 4.93.36.31.68.92.68 1.85V21c0 .26.18.57.69.48A10 10 0 0 0 12 2z"/></svg><span>${setupRemoteBusy && setupRemoteProvider === "github" ? "Opening..." : "Sign in with GitHub"}</span></button>` : ""}
                         ${setupAudience === "organization" ? `<button class="googleSignIn" id="remoteSignInMicrosoft" ${setupRemoteBusy ? "disabled" : ""}><span style="font-weight:900;color:#2563eb">M</span><span>${setupRemoteBusy && setupRemoteProvider === "azure_ad" ? "Opening..." : "Microsoft 365"}</span></button>` : ""}
                       ` : `<button class="primary" id="remoteSignIn" ${setupRemoteBusy ? "disabled" : ""}>${setupRemoteBusy ? "Opening..." : "Sign in"}</button>`}
                     </div>
@@ -2147,6 +2148,8 @@
         bindRuleImport({ setup: true });
         const signIn = document.getElementById("remoteSignIn");
         if (signIn) signIn.onclick = () => startRemoteSignIn("google");
+        const signInGithub = document.getElementById("remoteSignInGithub");
+        if (signInGithub) signInGithub.onclick = () => startRemoteSignIn("github");
         const signInMicrosoft = document.getElementById("remoteSignInMicrosoft");
         if (signInMicrosoft) signInMicrosoft.onclick = () => startRemoteSignIn("azure_ad");
         const orgCloudGoogle = document.getElementById("orgCloudGoogle");
@@ -2677,12 +2680,7 @@
           { view: "rules", label: "Rules" },
           { view: "settings", label: "Settings" }
         ];
-        const plugins = installedPlugins().sort(comparePluginPopularity);
-        const categoryItems = ["cost", "security", "observability", "utility"].map((id) => {
-          const label = categoryLabel(id);
-          const items = plugins.filter((plugin) => pluginCategory(plugin).toLowerCase() === id);
-          return { id, label, plugins: items };
-        });
+        const categoryItems = clientPluginCategories();
         sideNav.innerHTML = `
           <div class="navSection">
             ${fixedItems.map((item) => `
@@ -2702,7 +2700,7 @@
                 <div class="navSubmenu">
                   ${item.plugins.map((plugin) => `
                     <button type="button" class="navPlugin ${view === "plugin-detail" && selectedPluginId === plugin.id ? "active" : ""}" data-plugin-nav-id="${escapeHtml(plugin.id)}" data-plugin-view-category="${escapeHtml(item.id)}">
-                      <span class="navLabel">${escapeHtml(pluginPackageName(plugin))}</span>
+                      <span class="navLabel">${escapeHtml(plugin.packageId || pluginPackageName(plugin))}</span>
                     </button>
                   `).join("")}
                 </div>
@@ -2715,6 +2713,48 @@
 
       function installedPlugins() {
         return (state.plugins || []).filter((plugin) => plugin.settings?.enabled === true);
+      }
+
+      function clientPluginCategories() {
+        const fromViewModel = state.viewModel?.pluginCategories;
+        if (Array.isArray(fromViewModel) && fromViewModel.length > 0) {
+          return fromViewModel.map((category) => ({
+            id: category.id,
+            label: category.label || categoryLabel(category.id),
+            plugins: Array.isArray(category.plugins) ? category.plugins : [],
+            count: Number(category.count || category.plugins?.length || 0)
+          }));
+        }
+        const plugins = installedPlugins().sort(comparePluginPopularity);
+        return ["cost", "security", "observability", "utility"].map((id) => {
+          const label = categoryLabel(id);
+          const items = plugins.filter((plugin) => pluginCategory(plugin).toLowerCase() === id);
+          return { id, label, plugins: items, count: items.length };
+        });
+      }
+
+      function clientPluginCatalogItem(pluginView) {
+        const plugin = (state.plugins || []).find((item) => item.id === pluginView?.id);
+        if (plugin) return plugin;
+        return {
+          id: pluginView?.id || "",
+          slug: pluginView?.packageId || pluginView?.id || "",
+          name: pluginView?.displayName || pluginView?.packageId || pluginView?.id || "plugin",
+          description: pluginView?.description || "",
+          publisher: pluginView?.author || "Unknown",
+          settings: pluginView?.settings || { enabled: Boolean(pluginView?.installed), config: {} },
+          organizationPolicy: pluginView?.organizationPolicy,
+          defaultConfig: pluginView?.defaultConfig,
+          configSchema: pluginView?.configSchema,
+          marketplace: {
+            slug: pluginView?.packageId || pluginView?.id || "",
+            shortDescription: pluginView?.description || "",
+            developerName: pluginView?.author || "Unknown",
+            iconText: pluginView?.iconText,
+            downloadCount: pluginView?.downloadCount || 0,
+            category: pluginView?.category
+          }
+        };
       }
 
       function categoryLabel(id) {
@@ -4381,12 +4421,13 @@
       }
 
       function renderPlugins() {
-        const plugins = installedPlugins();
         const category = pluginViewCategory || "all";
-        const filtered = category === "all"
-          ? plugins
-          : plugins.filter((plugin) => pluginCategory(plugin).toLowerCase() === category);
-        const title = category === "all" ? "Plugins" : categoryLabel(category);
+        const categories = clientPluginCategories();
+        const viewPlugins = category === "all"
+          ? categories.flatMap((item) => item.plugins || [])
+          : (categories.find((item) => item.id === category)?.plugins || []);
+        const filtered = (state.viewModel?.pluginCategories ? viewPlugins.map(clientPluginCatalogItem) : viewPlugins).filter(Boolean);
+        const title = category === "all" ? "Plugins" : (categories.find((item) => item.id === category)?.label || categoryLabel(category));
         root.innerHTML = `
           <div class="head">
             <div><h1>${escapeHtml(title)}</h1><p>Installed plugins and the outcomes they report to OpenLeash.</p></div>
