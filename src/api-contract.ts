@@ -11,6 +11,7 @@ export const OPENLEASH_API_CONTRACTS = {
   tenantTrayStatus: "2026-05-16.tenant-tray-status.v1",
   tenantSkillObservation: "2026-05-27.tenant-skill-observation.v1",
   tenantPluginsRead: "2026-06-20.tenant-plugins-read.v1",
+  authAccountOutcomes: "2026-06-24.auth-account-outcomes.v1",
   adminPromptTransformsRead: "2026-06-06.admin-prompt-transforms-read.v1",
   adminPromptTransformsWrite: "2026-06-06.admin-prompt-transforms-write.v1",
   desktopEnroll: "2026-06-03.desktop-enroll.v1",

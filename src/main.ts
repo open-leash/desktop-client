@@ -148,6 +148,35 @@ type RemoteMobileState = {
   sessionMetrics?: Record<string, unknown>;
 };
 
+type PluginOutcome = {
+  id: string;
+  domain?: string;
+  title?: string;
+  summary?: string | null;
+  severity?: string;
+  status?: string;
+  decision?: string | null;
+  occurredAt?: string;
+  createdAt?: string;
+  source?: {
+    pluginId?: string;
+    label?: string;
+    kind?: string;
+  };
+  agent?: {
+    kind?: string | null;
+    name?: string | null;
+    hostname?: string | null;
+  };
+  context?: {
+    eventName?: string | null;
+    toolName?: string | null;
+    projectPath?: string | null;
+  };
+  evidence?: Array<{ label?: string; value?: string; kind?: string; sensitive?: boolean }>;
+  details?: Record<string, unknown>;
+};
+
 type TriggeredPolicy = {
   policy_name: string;
   status: "failed" | "needs_question";
@@ -201,6 +230,7 @@ let latestPending: PendingDecision[] = [];
 let latestAgents: AgentStatus[] = [];
 let latestSessionMetrics: SessionMetrics = {};
 let latestPlugins: PluginCatalogItem[] = [];
+let latestOutcomes: PluginOutcome[] = [];
 let localProtections: LocalAgentProtection[] = [];
 let localProtectionCheckedAt = 0;
 
@@ -577,6 +607,7 @@ ipcMain.handle("openleash:list", () => ({
     agentDoneSound: localServer?.agentDoneSound ?? false,
     promptTransforms: localServer?.promptTransforms,
     plugins: latestPlugins.length > 0 ? latestPlugins : localServer?.plugins ?? [],
+    outcomes: latestOutcomes,
     pending: latestPending,
   agents: latestAgents,
   sessionMetrics: latestSessionMetrics,
@@ -891,6 +922,8 @@ ipcMain.handle("openleash:setup", async (_event, payload: {
       apiKeySet: localServer.apiKeySet,
       agentDoneSound: localServer.agentDoneSound,
       promptTransforms: localServer.promptTransforms,
+      plugins: latestPlugins,
+      outcomes: latestOutcomes,
       pending: latestPending,
     agents: latestAgents,
     sessionMetrics: latestSessionMetrics,
@@ -920,6 +953,8 @@ ipcMain.handle("openleash:uninstall-agent-protection", async (_event, kind: stri
     pending: latestPending,
     agents: latestAgents,
     sessionMetrics: latestSessionMetrics,
+    plugins: latestPlugins,
+    outcomes: latestOutcomes,
     history: localServer.history,
     mcpServers: localServer.mcpServers,
     skills: localServer.skills,
@@ -1030,7 +1065,7 @@ ipcMain.handle("openleash:resolve", async (_event, id: string, resolution: "allo
   closeNoticeWithoutOpeningMainWindow();
   latestPending = latestPending.filter((item) => !idsToResolve.includes(item.id));
   refreshMenu();
-  window?.webContents.send("openleash:update", { apiUrl, pending: latestPending, agents: latestAgents, sessionMetrics: latestSessionMetrics, plugins: latestPlugins, history: localServer.history, mcpServers: localServer.mcpServers, skills: localServer.skills });
+  window?.webContents.send("openleash:update", { apiUrl, pending: latestPending, agents: latestAgents, sessionMetrics: latestSessionMetrics, plugins: latestPlugins, outcomes: latestOutcomes, history: localServer.history, mcpServers: localServer.mcpServers, skills: localServer.skills });
   void Promise.all(idsToResolve.map((decisionId) => syncRemoteDecision(decisionId, resolution, resolutionGuidance))).catch((error) => {
     startupLog(`remote approval resolve failed: ${error instanceof Error ? error.stack || error.message : String(error)}`);
   }).finally(() => {
@@ -1055,6 +1090,7 @@ async function poll() {
     latestAgents = body.agents;
     latestSessionMetrics = body.sessionMetrics ?? {};
     latestPlugins = body.plugins;
+    latestOutcomes = body.outcomes ?? [];
     setTrayStatus(latestPending.length > 0 ? "pending" : "ok");
     refreshMenu();
     window?.webContents.send("openleash:update", {
@@ -1071,6 +1107,7 @@ async function poll() {
       apiKeySet: localServer.apiKeySet,
       agentDoneSound: localServer.agentDoneSound,
       plugins: latestPlugins,
+      outcomes: latestOutcomes,
       pending: latestPending,
       agents: latestAgents,
       sessionMetrics: latestSessionMetrics,
@@ -1097,7 +1134,7 @@ async function poll() {
   }
 }
 
-async function fetchTrayState(): Promise<{ pending: PendingDecision[]; agents: AgentStatus[]; sessionMetrics?: SessionMetrics; plugins: PluginCatalogItem[] } | undefined> {
+async function fetchTrayState(): Promise<{ pending: PendingDecision[]; agents: AgentStatus[]; sessionMetrics?: SessionMetrics; plugins: PluginCatalogItem[]; outcomes?: PluginOutcome[] } | undefined> {
   const localState = await fetchLocalTrayState();
 
   const remoteApiUrl = localServer.remoteApiUrl;
@@ -1105,14 +1142,15 @@ async function fetchTrayState(): Promise<{ pending: PendingDecision[]; agents: A
   if (!remoteApiUrl || !remoteToken) return localState;
 
   try {
-    const [stateResponse, plugins] = await Promise.all([
+    const [stateResponse, plugins, outcomes] = await Promise.all([
       fetch(new URL("/v1/mobile/state", remoteApiUrl), {
         headers: { authorization: `Bearer ${remoteToken}`, ...apiVersionHeaders("mobileState") }
       }),
-      fetchRemotePluginCatalog(remoteApiUrl, remoteToken, localState?.plugins ?? [])
+      fetchRemotePluginCatalog(remoteApiUrl, remoteToken, localState?.plugins ?? []),
+      fetchRemotePluginOutcomes(remoteApiUrl, remoteToken)
     ]);
-    if (!stateResponse.ok) return localState ? { ...localState, plugins } : undefined;
-    return mergeTrayState(localState, mapRemoteMobileState(await stateResponse.json() as RemoteMobileState), plugins);
+    if (!stateResponse.ok) return localState ? { ...localState, plugins, outcomes } : undefined;
+    return mergeTrayState(localState, mapRemoteMobileState(await stateResponse.json() as RemoteMobileState), plugins, outcomes);
   } catch {
     return localState;
   }
@@ -1122,7 +1160,7 @@ async function fetchLocalTrayState() {
   const response = await fetch(`${apiUrl}/admin/tray-status`, { headers: apiVersionHeaders("tenantTrayStatus") });
   if (!response.ok) return undefined;
   const body = await response.json() as { pending: PendingDecision[]; agents: AgentStatus[]; session_metrics?: SessionMetrics; sessionMetrics?: SessionMetrics };
-  return { pending: body.pending, agents: body.agents, sessionMetrics: body.session_metrics ?? body.sessionMetrics, plugins: localServer.plugins };
+  return { pending: body.pending, agents: body.agents, sessionMetrics: body.session_metrics ?? body.sessionMetrics, plugins: localServer.plugins, outcomes: latestOutcomes };
 }
 
 async function fetchRemotePluginCatalog(remoteApiUrl: string, remoteToken: string, fallback: PluginCatalogItem[]) {
@@ -1138,17 +1176,34 @@ async function fetchRemotePluginCatalog(remoteApiUrl: string, remoteToken: strin
   }
 }
 
+async function fetchRemotePluginOutcomes(remoteApiUrl: string, remoteToken: string) {
+  try {
+    const url = new URL("/v1/outcomes", remoteApiUrl);
+    url.searchParams.set("limit", "80");
+    const response = await fetch(url, {
+      headers: { authorization: `Bearer ${remoteToken}`, ...apiVersionHeaders("authAccountOutcomes") }
+    });
+    if (!response.ok) return latestOutcomes;
+    const body = await response.json() as { outcomes?: PluginOutcome[] };
+    return Array.isArray(body.outcomes) ? body.outcomes : latestOutcomes;
+  } catch {
+    return latestOutcomes;
+  }
+}
+
 function mergeTrayState(
-  localState: { pending: PendingDecision[]; agents: AgentStatus[]; sessionMetrics?: SessionMetrics; plugins: PluginCatalogItem[] } | undefined,
+  localState: { pending: PendingDecision[]; agents: AgentStatus[]; sessionMetrics?: SessionMetrics; plugins: PluginCatalogItem[]; outcomes?: PluginOutcome[] } | undefined,
   remoteState: { pending: PendingDecision[]; agents: AgentStatus[]; sessionMetrics?: SessionMetrics },
-  plugins: PluginCatalogItem[]
+  plugins: PluginCatalogItem[],
+  outcomes: PluginOutcome[] = []
 ) {
-  if (!localState) return { ...remoteState, plugins };
+  if (!localState) return { ...remoteState, plugins, outcomes };
   return {
     pending: dedupePending([...localState.pending, ...remoteState.pending]),
     agents: dedupeById([...localState.agents, ...remoteState.agents]),
     sessionMetrics: remoteState.sessionMetrics ?? localState.sessionMetrics,
-    plugins
+    plugins,
+    outcomes
   };
 }
 
@@ -2141,6 +2196,8 @@ async function scanSkillDirectory(target: { dir: string; agentKind: string; agen
         pending: latestPending,
         agents: latestAgents,
         sessionMetrics: latestSessionMetrics,
+        plugins: latestPlugins,
+        outcomes: latestOutcomes,
         history: localServer.history,
         mcpServers: localServer.mcpServers,
         skills: localServer.skills,
@@ -2235,6 +2292,8 @@ async function repairProtectedAgent(kind: string, reason: string) {
       pending: latestPending,
       agents: latestAgents,
       sessionMetrics: latestSessionMetrics,
+      plugins: latestPlugins,
+      outcomes: latestOutcomes,
       history: localServer.history,
       mcpServers: localServer.mcpServers,
       skills: localServer.skills,
@@ -2266,6 +2325,8 @@ function showMainWindow(mode: "setup" | "settings" = localServer?.setupComplete 
       pending: latestPending,
       agents: latestAgents,
       sessionMetrics: latestSessionMetrics,
+      plugins: latestPlugins,
+      outcomes: latestOutcomes,
       localProtections,
       policies: localServer?.policies ?? [],
       history: localServer?.history ?? [],

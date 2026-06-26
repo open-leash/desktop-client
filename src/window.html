@@ -1602,9 +1602,11 @@
           <button data-view="history">History</button>
           <button data-view="agents">Agents</button>
           <button data-view="rules">Rules</button>
-          <button data-view="compression">Compression</button>
-          <button data-view="dlp">DLP</button>
-          <button data-view="plugins">Plugins</button>
+          <button data-view="plugins" data-plugin-view-category="all">Plugins</button>
+          <button data-view="plugins" data-plugin-view-category="cost">Cost</button>
+          <button data-view="plugins" data-plugin-view-category="security">Security</button>
+          <button data-view="plugins" data-plugin-view-category="observability">Observability</button>
+          <button data-view="plugins" data-plugin-view-category="utility">Utility</button>
           <button data-view="skills">Skills</button>
           <button data-view="mcps">MCP</button>
           <button data-view="settings">Settings</button>
@@ -1650,6 +1652,8 @@
       let selectedEventId = "";
       let selectedMcpServerId = "";
       let selectedSkillPath = "";
+      let pluginViewCategory = "all";
+      let selectedPluginId = "";
       const skillDocScrollTops = new Map();
       let selectedAgentSessionId = "";
       const root = document.getElementById("root");
@@ -2509,14 +2513,21 @@
       }
 
       function renderView() {
-        const activeView = view === "skill-detail" ? "skills" : view;
-        nav.forEach((button) => button.classList.toggle("active", button.dataset.view === activeView));
+        const activeView = view === "skill-detail" ? "skills" : view === "plugin-detail" ? "plugins" : view;
+        nav.forEach((button) => {
+          const category = button.dataset.pluginViewCategory;
+          const active = category
+            ? activeView === "plugins" && category === pluginViewCategory
+            : button.dataset.view === activeView;
+          button.classList.toggle("active", active);
+        });
         if (view === "overview") return renderOverview();
         if (view === "usage") return renderUsage();
         if (view === "rules") return renderRules();
         if (view === "compression") return renderCompression();
         if (view === "dlp") return renderDlp();
         if (view === "plugins") return renderPlugins();
+        if (view === "plugin-detail") return renderPluginDetail();
         if (view === "agents") return renderAgents();
         if (view === "mcps") return renderMcps();
         if (view === "skills") return renderSkills();
@@ -3821,7 +3832,7 @@
       }
 
       function pluginName(plugin) {
-        return plugin.id === "openleash.prompt-compression" ? "Token Saver" : (plugin.name || plugin.id);
+        return plugin.slug || plugin.marketplace?.slug || plugin.name || String(plugin.id || "").split(".").pop() || plugin.id;
       }
 
       function pluginPackageName(plugin) {
@@ -4257,37 +4268,168 @@
       }
 
       function renderPlugins() {
-        const plugins = state.plugins || [];
+        const plugins = (state.plugins || []).filter((plugin) => plugin.settings?.enabled === true);
+        const category = pluginViewCategory || "all";
+        const filtered = category === "all"
+          ? plugins
+          : plugins.filter((plugin) => pluginCategory(plugin).toLowerCase() === category);
+        const categories = pluginCategorySummary(plugins);
         root.innerHTML = `
           <div class="head">
-            <div><h1>Plugins</h1><p>Organization-managed pipeline plugins installed for this desktop.</p></div>
+            <div><h1>Plugins</h1><p>Installed plugins and the outcomes they report to OpenLeash.</p></div>
+            ${modeTag()}
+          </div>
+          <div class="pluginCategoryFilters">
+            ${categories.map((item) => `
+              <button type="button" data-plugin-page-category="${escapeHtml(item.id)}" class="${escapeHtml(item.id)} ${category === item.id ? "active" : ""}">
+                ${categoryIcon(item.label)}
+                <span>${escapeHtml(item.label)} ${escapeHtml(String(item.count))}</span>
+              </button>
+            `).join("")}
           </div>
           <div class="grid">
-            ${plugins.map((plugin) => `
-              <article class="card">
+            ${filtered.map((plugin) => {
+              const outcomes = pluginOutcomes(plugin.id);
+              const latest = outcomes[0];
+              const categoryLabel = pluginCategory(plugin);
+              const categoryClass = pluginCategoryClass(categoryLabel);
+              return `
+              <article class="card pluginInstallLine selected" data-open-plugin="${escapeHtml(plugin.id)}">
                 <div class="fieldRow">
-                  <div>
+                  <span class="agentIcon">${escapeHtml(pluginIconText(plugin))}</span>
+                  <div class="pluginCopy">
                     <strong>${escapeHtml(pluginName(plugin))}</strong>
-                    <p>${escapeHtml(plugin.description || "")}</p>
+                    <p>${escapeHtml(plugin.marketplace?.shortDescription || plugin.description || "")}</p>
+                    <span class="pluginStats">
+                      <span class="pluginCategoryTag ${categoryClass}">${categoryIcon(categoryLabel)} ${escapeHtml(categoryLabel)}</span>
+                      <span class="pluginMetaPill">${metaIcon("author")} ${escapeHtml(plugin.publisher === "openleash" ? "OpenLeash" : plugin.publisher || "Unknown")}</span>
+                    </span>
                   </div>
-                  <span class="tag ${plugin.settings?.enabled ? "good" : "bad"}">${plugin.settings?.enabled ? "installed" : "disabled"}</span>
+                  <span class="tag good">installed</span>
                 </div>
-                <div class="eventMeta" style="margin-top:12px">
-                  <span>v${escapeHtml(plugin.version || "0.0.0")}</span>
-                  <span>${escapeHtml(plugin.publisher || "unknown")}</span>
-                  <span>${escapeHtml(plugin.runtime || "runtime")}</span>
+                <div class="eventMeta" style="margin-top:14px">
+                  <span>${escapeHtml(String(outcomes.length))} outcomes</span>
+                  <span>${escapeHtml(pluginEvents(plugin).slice(0, 2).join(", ") || "plugin events")}</span>
+                  ${latest ? `<span>${escapeHtml(formatTime(latest.occurredAt || latest.createdAt))}</span>` : ""}
                 </div>
-                <div class="eventMeta" style="margin-top:10px">
-                  ${pluginEvents(plugin).map((event) => `<span>${escapeHtml(event)}</span>`).join("")}
-                </div>
-                <div class="eventMeta" style="margin-top:10px">
-                  ${(plugin.permissions || []).map((permission) => `<span>${escapeHtml(permission)}</span>`).join("")}
-                </div>
-                <pre style="margin-top:12px">${escapeHtml(JSON.stringify(plugin.settings?.config || {}, null, 2))}</pre>
+                ${latest ? `
+                  <div class="notice" style="margin-top:12px">
+                    <strong>${escapeHtml(latest.title || "Latest outcome")}</strong>
+                    <p>${escapeHtml(latest.summary || latest.status || "")}</p>
+                  </div>
+                ` : `<div class="empty" style="margin-top:12px">No outcomes reported yet.</div>`}
               </article>
-            `).join("") || `<div class="card"><strong>No plugins installed</strong><p>No plugin catalog has been received yet.</p></div>`}
+            `}).join("") || `<div class="card empty">No installed plugins in this category.</div>`}
           </div>
         `;
+        bindPluginPageControls();
+      }
+
+      function renderPluginDetail() {
+        const plugin = (state.plugins || []).find((item) => item.id === selectedPluginId) || (state.plugins || []).find((item) => item.settings?.enabled);
+        if (!plugin) {
+          view = "plugins";
+          return renderPlugins();
+        }
+        selectedPluginId = plugin.id;
+        const outcomes = pluginOutcomes(plugin.id);
+        const categoryLabel = pluginCategory(plugin);
+        const categoryClass = pluginCategoryClass(categoryLabel);
+        root.innerHTML = `
+          <div class="head">
+            <div>
+              <button id="backPlugins" class="secondary">Back</button>
+              <h1>${escapeHtml(pluginName(plugin))}</h1>
+              <p>${escapeHtml(plugin.marketplace?.shortDescription || plugin.description || "")}</p>
+            </div>
+            <span class="pluginCategoryTag ${categoryClass}">${categoryIcon(categoryLabel)} ${escapeHtml(categoryLabel)}</span>
+          </div>
+          <div class="grid two">
+            <div class="card">
+              <div class="fieldRow">
+                <div>
+                  <strong>Outcomes</strong>
+                  <p>Events this plugin has reported for your account.</p>
+                </div>
+                <span class="tag good">${escapeHtml(String(outcomes.length))}</span>
+              </div>
+              <div class="cardList" style="margin-top:14px">
+                ${outcomes.map((outcome) => pluginOutcomeCard(outcome)).join("") || `<div class="empty">No outcomes reported yet.</div>`}
+              </div>
+            </div>
+            <div class="card">
+              <strong>Settings</strong>
+              <p>${plugin.organizationPolicy?.configLocked ? "Managed by your organization." : "Config applied to this user."}</p>
+              <div class="eventMeta" style="margin-top:12px">
+                <span>v${escapeHtml(plugin.version || "0.0.0")}</span>
+                <span>${escapeHtml(plugin.runtime || "runtime")}</span>
+                <span>${escapeHtml(plugin.organizationPolicy?.mandatory ? "required" : "optional")}</span>
+              </div>
+              <div class="settingsGrid" style="margin-top:14px">
+                ${pluginConfigRows(plugin.settings?.config || {})}
+              </div>
+            </div>
+          </div>
+        `;
+        document.getElementById("backPlugins").onclick = () => {
+          view = "plugins";
+          renderView();
+        };
+      }
+
+      function bindPluginPageControls() {
+        root.querySelectorAll("[data-plugin-page-category]").forEach((button) => {
+          button.onclick = () => {
+            pluginViewCategory = button.dataset.pluginPageCategory || "all";
+            selectedPluginId = "";
+            renderView();
+          };
+        });
+        root.querySelectorAll("[data-open-plugin]").forEach((card) => {
+          card.onclick = () => {
+            selectedPluginId = card.dataset.openPlugin || "";
+            view = "plugin-detail";
+            renderView();
+          };
+        });
+      }
+
+      function pluginOutcomes(pluginId) {
+        return (state.outcomes || [])
+          .filter((outcome) => outcome?.source?.pluginId === pluginId)
+          .sort((a, b) => new Date(b.occurredAt || b.createdAt || 0) - new Date(a.occurredAt || a.createdAt || 0));
+      }
+
+      function pluginOutcomeCard(outcome) {
+        const severity = String(outcome.severity || "info").toLowerCase();
+        const statusClass = severity === "critical" || severity === "high" || outcome.status === "blocked" ? "bad" : outcome.status === "resolved" || outcome.status === "allowed" ? "good" : "";
+        const context = [outcome.agent?.name, outcome.context?.toolName, outcome.context?.projectPath ? projectTag(outcome.context.projectPath) : ""].filter(Boolean).join(" · ");
+        return `
+          <article class="card">
+            <div class="fieldRow">
+              <div>
+                <strong>${escapeHtml(outcome.title || "Plugin outcome")}</strong>
+                <p>${escapeHtml(outcome.summary || context || "")}</p>
+              </div>
+              <span class="tag ${statusClass}">${escapeHtml(outcome.status || severity)}</span>
+            </div>
+            <div class="eventMeta" style="margin-top:10px">
+              <span>${escapeHtml(formatTime(outcome.occurredAt || outcome.createdAt))}</span>
+              ${context ? `<span>${escapeHtml(context)}</span>` : ""}
+            </div>
+          </article>
+        `;
+      }
+
+      function pluginConfigRows(config) {
+        const entries = Object.entries(config || {}).filter(([key]) => key !== "enabled");
+        if (entries.length === 0) return `<div class="empty">No settings exposed.</div>`;
+        return entries.map(([key, value]) => `
+          <label>
+            <strong>${escapeHtml(key)}</strong>
+            <input value="${escapeHtml(Array.isArray(value) ? value.join(", ") : String(value))}" disabled>
+          </label>
+        `).join("");
       }
 
       function bindModelSelection() {
@@ -4519,6 +4661,10 @@
 
       nav.forEach((button) => button.onclick = () => {
         if (isSetupLocked()) return renderSetup();
+        if (button.dataset.pluginViewCategory) {
+          pluginViewCategory = button.dataset.pluginViewCategory;
+          selectedPluginId = "";
+        }
         view = button.dataset.view;
         renderView();
       });
