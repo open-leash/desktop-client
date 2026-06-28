@@ -1,5 +1,6 @@
 export type BundledPluginManifest = {
   id: string;
+  slug?: string;
   name: string;
   description: string;
   version: string;
@@ -10,6 +11,7 @@ export type BundledPluginManifest = {
   permissions: string[];
   effects: string[];
   ordering?: { priority?: number; before?: string[]; after?: string[] };
+  configSchema?: Record<string, unknown>;
   defaultConfig?: Record<string, unknown>;
   tags?: string[];
 };
@@ -28,7 +30,8 @@ export type PluginCatalogItem = BundledPluginManifest & {
 export const bundledFirstPartyPlugins: BundledPluginManifest[] = [
   {
     id: "openleash.prompt-compression",
-    name: "Token Saver",
+    slug: "token-saver",
+    name: "token-saver",
     description: "Trim noisy context before every model call.",
     version: "1.0.0",
     publisher: "openleash",
@@ -38,12 +41,23 @@ export const bundledFirstPartyPlugins: BundledPluginManifest[] = [
     permissions: ["event:read", "prompt:read", "prompt:write", "model:invoke", "audit:write"],
     effects: ["transform", "observe"],
     ordering: { priority: 100, before: ["openleash.dlp"] },
+    configSchema: {
+      type: "object",
+      additionalProperties: false,
+      properties: {
+        enabled: { type: "boolean" },
+        level: { enum: ["light", "standard", "maximum"] },
+        conciseResponse: { type: "boolean" },
+        model: { type: "string" }
+      }
+    },
     defaultConfig: { enabled: false, level: "standard", conciseResponse: false },
     tags: ["tokens", "cost", "prompt"]
   },
   {
     id: "openleash.skill-scanner",
-    name: "Skill Scanner",
+    slug: "skill-scanner",
+    name: "skill-scanner",
     description: "Catch suspicious instructions before they spread.",
     version: "1.0.0",
     publisher: "openleash",
@@ -53,12 +67,21 @@ export const bundledFirstPartyPlugins: BundledPluginManifest[] = [
     permissions: ["event:read", "filesystem:read", "decision:write", "model:invoke", "audit:write", "notification:send"],
     effects: ["observe", "ask", "inventory"],
     ordering: { priority: 150 },
+    configSchema: {
+      type: "object",
+      additionalProperties: false,
+      properties: {
+        enabled: { type: "boolean" },
+        suspiciousRiskThreshold: { type: "number" }
+      }
+    },
     defaultConfig: { enabled: true, suspiciousRiskThreshold: 50 },
     tags: ["skills", "security", "inventory"]
   },
   {
     id: "openleash.dlp",
-    name: "Data Leakage Prevention",
+    slug: "data-leakage-prevention",
+    name: "data-leakage-prevention",
     description: "Mask secrets before agents send them.",
     version: "1.0.0",
     publisher: "openleash",
@@ -68,27 +91,60 @@ export const bundledFirstPartyPlugins: BundledPluginManifest[] = [
     permissions: ["event:read", "prompt:read", "prompt:write", "decision:write", "model:invoke", "audit:write"],
     effects: ["transform", "deny", "observe"],
     ordering: { priority: 200, after: ["openleash.prompt-compression"] },
+    configSchema: {
+      type: "object",
+      additionalProperties: false,
+      properties: {
+        enabled: { type: "boolean" },
+        action: { enum: ["mask", "block"] },
+        categories: {
+          type: "array",
+          items: { enum: ["pii", "phi", "tokens", "keys", "credentials"] }
+        },
+        model: { type: "string" }
+      }
+    },
     defaultConfig: { enabled: false, action: "mask", categories: ["pii", "phi", "tokens", "keys", "credentials"] },
     tags: ["security", "privacy", "prompt"]
   },
   {
-    id: "openleash.security-evaluator",
-    name: "Security Evaluator",
-    description: "Approve, deny, or log risky agent actions.",
+    id: "openleash.rules-enforcer",
+    slug: "rules-enforcer",
+    name: "rules-enforcer",
+    description: "Watch agent conversations and pause when configured rules are violated.",
     version: "1.0.0",
     publisher: "openleash",
     runtime: "openleash-core",
-    entrypoint: "plugins/security-evaluator",
+    entrypoint: "plugins/rules-enforcer",
     events: ["prompt.beforeSubmit", "agent.response", "tool.beforeUse", "tool.afterUse"],
     permissions: ["event:read", "prompt:read", "tool:read", "decision:write", "model:invoke", "audit:write", "notification:send"],
     effects: ["observe", "ask", "deny"],
     ordering: { priority: 300, after: ["openleash.dlp"] },
-    defaultConfig: { enabled: true, policySet: "active" },
-    tags: ["security", "policy", "approval"]
+    configSchema: {
+      type: "object",
+      additionalProperties: false,
+      properties: {
+        enabled: { type: "boolean" },
+        rules: {
+          type: "array",
+          items: {
+            type: "object",
+            additionalProperties: false,
+            properties: {
+              text: { type: "string" },
+              action: { type: "string", enum: ["ask", "block"] }
+            }
+          }
+        }
+      }
+    },
+    defaultConfig: { enabled: true, rules: [] },
+    tags: ["security", "rules", "policy", "approval"]
   },
   {
     id: "openleash.mcp-scanner",
-    name: "MCP Scanner",
+    slug: "mcp-scanner",
+    name: "mcp-scanner",
     description: "See every MCP server, tool, and call.",
     version: "1.0.0",
     publisher: "openleash",
@@ -97,7 +153,15 @@ export const bundledFirstPartyPlugins: BundledPluginManifest[] = [
     events: ["tool.beforeUse", "tool.afterUse"],
     permissions: ["event:read", "tool:read", "audit:write"],
     effects: ["observe", "inventory"],
-    ordering: { priority: 400, after: ["openleash.security-evaluator"] },
+    ordering: { priority: 400, after: ["openleash.rules-enforcer"] },
+    configSchema: {
+      type: "object",
+      additionalProperties: false,
+      properties: {
+        enabled: { type: "boolean" },
+        redactSecrets: { type: "boolean" }
+      }
+    },
     defaultConfig: { enabled: true, redactSecrets: true },
     tags: ["mcp", "inventory", "audit"]
   }

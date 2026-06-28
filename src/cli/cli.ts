@@ -7,6 +7,7 @@ import { discoverAgents } from "./discovery.js";
 import {
   installClaudeHooks,
   installCodexHooks,
+  installCopilotHooks,
   installCursorHooks,
   installGeminiHooks,
   installNanoClawHooks,
@@ -14,6 +15,7 @@ import {
   installOpenClawHooks,
   uninstallClaudeHooks,
   uninstallCodexHooks,
+  uninstallCopilotHooks,
   uninstallCursorHooks,
   uninstallGeminiHooks,
   uninstallNanoClawHooks,
@@ -115,6 +117,7 @@ program
   .command("install-hooks")
   .option("--claude", "install Claude Code hooks")
   .option("--codex", "install Codex hooks")
+  .option("--copilot", "install GitHub Copilot hooks")
   .option("--gemini", "install Gemini CLI hooks")
   .option("--opencode", "install OpenCode hooks")
   .option("--cursor", "install Cursor hooks")
@@ -125,6 +128,7 @@ program
     const all = options.all || noHookAgentSelected(options);
     if (all || options.claude) await installClaudeHooks();
     if (all || options.codex) await installCodexHooks();
+    if (all || options.copilot) await installCopilotHooks();
     if (all || options.gemini) await installGeminiHooks();
     if (all || options.opencode) await installOpenCodeHooks();
     if (all || options.cursor) await installCursorHooks();
@@ -137,6 +141,7 @@ program
   .command("uninstall-hooks")
   .option("--claude", "remove Claude Code hooks")
   .option("--codex", "remove Codex hooks")
+  .option("--copilot", "remove GitHub Copilot hooks")
   .option("--gemini", "remove Gemini CLI hooks")
   .option("--opencode", "remove OpenCode hooks")
   .option("--cursor", "remove Cursor hooks")
@@ -147,6 +152,7 @@ program
     const all = options.all || noHookAgentSelected(options);
     if (all || options.claude) await uninstallClaudeHooks();
     if (all || options.codex) await uninstallCodexHooks();
+    if (all || options.copilot) await uninstallCopilotHooks();
     if (all || options.gemini) await uninstallGeminiHooks();
     if (all || options.opencode) await uninstallOpenCodeHooks();
     if (all || options.cursor) await uninstallCursorHooks();
@@ -157,7 +163,7 @@ program
 
 program
   .command("hook")
-  .requiredOption("--agent <agent>", "claude, codex, gemini, opencode, cursor, openclaw, or nanoclaw")
+  .requiredOption("--agent <agent>", "claude, codex, copilot, gemini, opencode, cursor, openclaw, or nanoclaw")
   .requiredOption("--event <event>", "hook event name")
   .action(async (options) => {
     await runHook(options.agent, options.event);
@@ -192,7 +198,7 @@ plugins
 plugins
   .command("install")
   .description("Install one or more plugins by package slug or plugin id")
-  .argument("<plugins...>", "plugin slugs or ids, for example token-saver sec-evaluator")
+  .argument("<plugins...>", "plugin slugs or ids, for example token-saver rules-enforcer")
   .option("--json", "print raw JSON results")
   .action(async (pluginInputs: string[], options) => {
     await mutatePlugins("install", pluginInputs, options);
@@ -202,7 +208,7 @@ plugins
   .command("uninstall")
   .alias("remove")
   .description("Uninstall one or more optional plugins by package slug or plugin id")
-  .argument("<plugins...>", "plugin slugs or ids, for example token-saver sec-evaluator")
+  .argument("<plugins...>", "plugin slugs or ids, for example token-saver rules-enforcer")
   .option("--json", "print raw JSON results")
   .action(async (pluginInputs: string[], options) => {
     await mutatePlugins("uninstall", pluginInputs, options);
@@ -387,6 +393,7 @@ function noHookAgentSelected(options: Record<string, unknown>) {
   return !(
     options.claude ||
     options.codex ||
+    options.copilot ||
     options.gemini ||
     options.opencode ||
     options.cursor ||

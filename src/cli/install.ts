@@ -8,6 +8,7 @@ import {
   claudeSettingsPath,
   codexConfigPath,
   codexHooksPath,
+  copilotOpenLeashHooksPath,
   cursorHooksPath,
   geminiSettingsPath,
   openCodePluginPath,
@@ -15,8 +16,8 @@ import {
   openClawOpenLeashHookDir
 } from "./paths.js";
 
-type HookAgent = "claude" | "codex" | "cursor" | "gemini" | "opencode" | "openclaw" | "nanoclaw";
-type HookEventName = "UserPromptSubmit" | "PreToolUse" | "PostToolUse" | "Stop";
+type HookAgent = "claude" | "codex" | "copilot" | "cursor" | "gemini" | "opencode" | "openclaw" | "nanoclaw";
+type HookEventName = "SessionStart" | "UserPromptSubmit" | "PreToolUse" | "PostToolUse" | "Stop";
 
 async function hookCommand(agent: HookAgent, event: HookEventName) {
   const config = await readConfig();
@@ -171,6 +172,15 @@ export async function uninstallCodexHooks() {
   if (hadOpenLeashHooks) {
     await fs.rm(codexHooksPath, { force: true });
   }
+}
+
+export async function installCopilotHooks() {
+  await fs.mkdir(path.dirname(copilotOpenLeashHooksPath), { recursive: true });
+  await fs.writeFile(copilotOpenLeashHooksPath, `${JSON.stringify(await copilotHooksConfig(), null, 2)}\n`);
+}
+
+export async function uninstallCopilotHooks() {
+  await fs.rm(copilotOpenLeashHooksPath, { force: true });
 }
 
 export async function installGeminiHooks() {
@@ -339,6 +349,28 @@ async function geminiHookGroup(event: HookEventName, matcher?: string) {
 
 async function cursorHook(event: HookEventName) {
   return { command: await hookCommand("cursor", event), name: "OpenLeash", timeout: 120000 };
+}
+
+async function copilotHooksConfig() {
+  return {
+    version: 1,
+    hooks: {
+      SessionStart: [await copilotCommandHook("SessionStart")],
+      UserPromptSubmit: [await copilotCommandHook("UserPromptSubmit")],
+      PreToolUse: [await copilotCommandHook("PreToolUse", "*")],
+      PostToolUse: [await copilotCommandHook("PostToolUse", "*")],
+      Stop: [await copilotCommandHook("Stop")]
+    }
+  };
+}
+
+async function copilotCommandHook(event: HookEventName, matcher?: string) {
+  return {
+    type: "command",
+    ...(matcher ? { matcher } : {}),
+    command: await hookCommand("copilot", event),
+    timeoutSec: 120
+  };
 }
 
 function cursorHookKeys() {

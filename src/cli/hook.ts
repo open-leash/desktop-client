@@ -2,7 +2,7 @@ import os from "node:os";
 import { apiVersionHeaders } from "./api-contract.js";
 import { hookApiUrl, readConfig } from "./config.js";
 
-type HookAgent = "claude" | "codex" | "cursor" | "gemini" | "opencode" | "openclaw" | "nanoclaw";
+type HookAgent = "claude" | "codex" | "copilot" | "cursor" | "gemini" | "opencode" | "openclaw" | "nanoclaw";
 type HookEventName = "SessionStart" | "UserPromptSubmit" | "PreToolUse" | "PostToolUse" | "SubagentStart" | "SubagentStop" | "Notification" | "SessionEnd" | "Stop";
 
 export async function runHook(agent: HookAgent, eventName: HookEventName) {

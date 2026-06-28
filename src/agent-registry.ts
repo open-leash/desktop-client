@@ -85,6 +85,16 @@ const genericAgents = [
     protected: detectCursorProtected
   },
   {
+    kind: "github-copilot",
+    displayName: "GitHub Copilot",
+    icon: "copilot",
+    binaries: ["copilot"],
+    configPaths: [".copilot"],
+    install: installCopilotProtection,
+    uninstall: uninstallCopilotProtection,
+    protected: detectCopilotProtected
+  },
+  {
     kind: "windsurf",
     displayName: "Windsurf",
     icon: "windsurf",
@@ -189,6 +199,11 @@ export function protectionWatchTargets() {
       paths: [path.join(home, ".cursor", "hooks.json")]
     },
     {
+      kind: "github-copilot",
+      displayName: "GitHub Copilot",
+      paths: [copilotOpenLeashHooksPath()]
+    },
+    {
       kind: "openclaw",
       displayName: "OpenClaw",
       paths: [
@@ -203,6 +218,7 @@ export function agentIconFor(name: string) {
   const text = name.toLowerCase();
   const base = "https://cdn.jsdelivr.net/npm/simple-icons@latest/icons";
   if (text.includes("claude")) return `${base}/claude.svg`;
+  if (text.includes("github copilot")) return `${base}/githubcopilot.svg`;
   if (text.includes("salesforce") || text.includes("agentforce")) return `${base}/salesforce.svg`;
   if (text.includes("azure") || text.includes("foundry")) return `${base}/microsoftazure.svg`;
   if (text.includes("copilot") || text.includes("agent 365")) return `${base}/microsoftcopilot.svg`;
@@ -607,6 +623,46 @@ function cursorHook(context: InstallContext, event: string) {
   return { command: hookCommand(context, "cursor", event), name: "OpenLeash", timeout: 120000 };
 }
 
+function installCopilotProtection(context: InstallContext) {
+  const hooksPath = copilotOpenLeashHooksPath();
+  fs.mkdirSync(path.dirname(hooksPath), { recursive: true });
+  fs.writeFileSync(hooksPath, `${JSON.stringify(copilotHooksConfig(context), null, 2)}\n`);
+}
+
+function uninstallCopilotProtection() {
+  fs.rmSync(copilotOpenLeashHooksPath(), { force: true });
+}
+
+function detectCopilotProtected() {
+  return JSON.stringify(readJson(copilotOpenLeashHooksPath()) ?? {}).includes("/v1/hooks/copilot/");
+}
+
+function copilotOpenLeashHooksPath() {
+  return path.join(process.env.COPILOT_HOME || path.join(os.homedir(), ".copilot"), "hooks", "openleash.json");
+}
+
+function copilotHooksConfig(context: InstallContext) {
+  return {
+    version: 1,
+    hooks: {
+      SessionStart: [copilotCommandHook(context, "SessionStart")],
+      UserPromptSubmit: [copilotCommandHook(context, "UserPromptSubmit")],
+      PreToolUse: [copilotCommandHook(context, "PreToolUse", "*")],
+      PostToolUse: [copilotCommandHook(context, "PostToolUse", "*")],
+      Stop: [copilotCommandHook(context, "Stop")]
+    }
+  };
+}
+
+function copilotCommandHook(context: InstallContext, event: string, matcher?: string) {
+  return {
+    type: "command",
+    ...(matcher ? { matcher } : {}),
+    command: hookCommand(context, "copilot", event),
+    timeoutSec: 120
+  };
+}
+
 function installOpenCodeProtection(context: InstallContext) {
   const pluginDir = path.join(os.homedir(), ".config", "opencode", "plugins");
   fs.mkdirSync(pluginDir, { recursive: true });
@@ -811,7 +867,7 @@ function trustCodexHooks(configPath: string, hooksPath: string, appVersion: stri
   fs.writeFileSync(configPath, config);
 }
 
-type LocalHookAgent = "claude" | "codex" | "gemini" | "opencode" | "cursor" | "openclaw" | "nanoclaw";
+type LocalHookAgent = "claude" | "codex" | "copilot" | "gemini" | "opencode" | "cursor" | "openclaw" | "nanoclaw";
 
 function hookCommand(context: InstallContext, agent: LocalHookAgent, event: string) {
   const endpoint = new URL(`/v1/hooks/${agent}/${event}`, context.apiUrl.replace(/\/+$/, ""));

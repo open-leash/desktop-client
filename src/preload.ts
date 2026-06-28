@@ -21,6 +21,7 @@ contextBridge.exposeInMainWorld("openleash", {
   copyText: (text: string) => ipcRenderer.invoke("openleash:copy-text", text),
   savePolicies: (policies: unknown) => ipcRenderer.invoke("openleash:save-policies", policies),
   importRules: (payload: unknown) => ipcRenderer.invoke("openleash:import-rules", payload),
+  discoverInstructionRules: () => ipcRenderer.invoke("openleash:discover-instruction-rules"),
   resolve: (id: string, resolution: "allow" | "deny", resolutionGuidance?: string) => ipcRenderer.invoke("openleash:resolve", id, resolution, resolutionGuidance),
   dismissNotice: () => ipcRenderer.invoke("openleash:dismiss-notice"),
   onUpdate: (callback: (payload: unknown) => void) => {

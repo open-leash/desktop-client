@@ -752,11 +752,13 @@
         color: #a15b12;
       }
       .pluginCategoryFilters button svg,
+      .eventMeta svg,
       .pluginMetaPill svg,
       .pluginCategoryTag svg,
       .pluginDetailsMeta svg {
         width: 15px;
         height: 15px;
+        flex: 0 0 15px;
         fill: none;
         stroke: currentColor;
         stroke-width: 2.4;
@@ -1109,6 +1111,169 @@
         grid-template-columns: repeat(2, minmax(0, 1fr));
         gap: 14px;
         margin-top: 18px;
+      }
+      .pluginDetailGrid {
+        display: grid;
+        gap: 14px;
+        margin-top: 24px;
+      }
+      .pluginDetailSettings {
+        display: grid;
+        gap: 18px;
+      }
+      .pluginDetailHeader {
+        display: flex;
+        justify-content: space-between;
+        gap: 14px;
+        align-items: flex-start;
+      }
+      .pluginDetailSetting {
+        display: grid;
+        gap: 10px;
+      }
+      .pluginDetailSettingHead {
+        display: flex;
+        justify-content: space-between;
+        gap: 14px;
+        align-items: center;
+      }
+      .pluginDetailSettingHead strong {
+        color: var(--ink);
+        font-size: 14px;
+        text-transform: none;
+      }
+      .pluginDetailSettingHead small {
+        max-width: 44ch;
+        text-align: right;
+      }
+      .choicePills {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+      }
+      .choicePill {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        min-height: 36px;
+        border: 1px solid var(--line);
+        border-radius: 999px;
+        padding: 8px 12px;
+        background: white;
+        color: var(--ink-2);
+        font-weight: 900;
+        cursor: pointer;
+      }
+      .choicePill input {
+        width: 16px;
+        height: 16px;
+        accent-color: var(--accent);
+      }
+      .choicePill:has(input:checked) {
+        border-color: rgba(91, 79, 229, .22);
+        background: var(--accent-soft);
+        color: var(--accent);
+      }
+      .detailSettingInput {
+        min-height: 44px;
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        padding: 0 12px;
+        background: white;
+        color: var(--ink);
+        font: inherit;
+        font-weight: 800;
+      }
+      textarea.detailSettingInput {
+        min-height: 180px;
+        padding: 12px;
+        line-height: 1.45;
+        resize: vertical;
+      }
+      .ruleListEditor {
+        display: grid;
+        gap: 12px;
+      }
+      .ruleListRows {
+        display: grid;
+        gap: 10px;
+      }
+      .ruleListRow {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) 124px 36px;
+        gap: 10px;
+        align-items: center;
+        border: 1px solid rgba(21, 24, 17, .1);
+        border-radius: 16px;
+        background:
+          linear-gradient(180deg, rgba(255,255,255,.98), rgba(250,250,246,.96));
+        box-shadow: 0 12px 30px rgba(26, 25, 20, .05);
+        padding: 10px;
+      }
+      .ruleListRow textarea {
+        min-height: 48px;
+        max-height: none;
+        overflow: hidden;
+        border: 0;
+        border-radius: 10px;
+        padding: 4px 4px;
+        background: transparent;
+        color: var(--ink);
+        font: inherit;
+        font-weight: 800;
+        line-height: 1.38;
+        resize: none;
+        outline: none;
+      }
+      .ruleListRow:focus-within {
+        border-color: rgba(91, 79, 229, .35);
+        background: #fbfbff;
+        box-shadow: 0 0 0 3px rgba(91, 79, 229, .1), 0 18px 40px rgba(26, 25, 20, .07);
+      }
+      .ruleListRemove {
+        display: grid;
+        place-items: center;
+        width: 32px;
+        height: 32px;
+        border-radius: 999px;
+        border: 1px solid rgba(21, 24, 17, .1);
+        background: #f2f1ec;
+        color: var(--ink-2);
+        font-weight: 950;
+        cursor: pointer;
+      }
+      .ruleListRemove:hover {
+        background: #fff3f1;
+        color: #b53f31;
+        border-color: rgba(181, 63, 49, .22);
+      }
+      .ruleActionSelect {
+        height: 36px;
+        border: 1px solid rgba(21, 24, 17, .1);
+        border-radius: 999px;
+        padding: 0 12px;
+        background: #f8f7f2;
+        color: var(--ink);
+        font: inherit;
+        font-size: 12px;
+        font-weight: 950;
+        outline: none;
+      }
+      .ruleActionSelect:focus {
+        border-color: rgba(91, 79, 229, .35);
+        box-shadow: 0 0 0 3px rgba(91, 79, 229, .1);
+      }
+      .ruleListActions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        padding-top: 2px;
+      }
+      .detailSettingStatus {
+        min-height: 18px;
+        color: var(--muted);
+        font-size: 12px;
+        font-weight: 850;
       }
       .settingsGrid label {
         display: grid;
@@ -1829,6 +1994,7 @@
         if (isSetupLocked()) return renderSetup();
         importedRules = undefined;
         renderView();
+        autosizeRuleTextareas();
       }
 
       function modeLabel() {
@@ -2656,9 +2822,13 @@
 
       function renderView() {
         renderNavigation();
+        if (view === "rules") {
+          selectedPluginId = "openleash.rules-enforcer";
+          pluginViewCategory = "security";
+          view = "plugin-detail";
+        }
         if (view === "overview") return renderOverview();
         if (view === "usage") return renderUsage();
-        if (view === "rules") return renderRules();
         if (view === "plugins") return renderPlugins();
         if (view === "plugin-detail") return renderPluginDetail();
         if (view === "agents") return renderAgents();
@@ -2677,7 +2847,6 @@
           { view: "usage", label: "Usage" },
           { view: "history", label: "History" },
           { view: "agents", label: "Agents" },
-          { view: "rules", label: "Rules" },
           { view: "settings", label: "Settings" }
         ];
         const categoryItems = clientPluginCategories();
@@ -3208,6 +3377,7 @@
         const catalog = [
           { kind: "claude-code", displayName: "Claude Code", icon: "claude" },
           { kind: "codex", displayName: "OpenAI Codex", icon: "openai" },
+          { kind: "github-copilot", displayName: "GitHub Copilot", icon: "copilot" },
           { kind: "gemini", displayName: "Google Gemini CLI", icon: "gemini" },
           { kind: "cursor", displayName: "Cursor", icon: "cursor" },
           { kind: "windsurf", displayName: "Windsurf", icon: "windsurf" },
@@ -4115,9 +4285,9 @@
       function pluginCategory(plugin) {
         const raw = plugin.marketplace?.category || plugin.category || plugin.manifest?.category || "";
         const text = String(raw || `${plugin.id || ""} ${plugin.name || ""} ${plugin.description || ""} ${(plugin.marketplace?.tags || []).join(" ")}`).toLowerCase();
-        if (/cost|token|prompt|compression|usage|budget|spend/.test(text)) return "Cost";
         if (/security|policy|guard|skill|prompt-injection|risk|approval|dlp|leak|sensitive|secret|credential/.test(text)) return "Security";
         if (/observability|observe|log|mcp|siem|audit|telemetry|monitor/.test(text)) return "Observability";
+        if (/cost|token|compression|usage|budget|spend/.test(text)) return "Cost";
         return "Utility";
       }
 
@@ -4245,6 +4415,23 @@
             </div>
           `;
         }
+        if (plugin.id === "openleash.rules-enforcer" && field.key === "rules") {
+          const rulesText = normalizeRuleEditorValues(value).map((rule) => rule.text).join("\n");
+          return `
+            <div>
+              <strong>${escapeHtml(label)}</strong>
+              <textarea class="detailSettingInput" style="margin-top:10px; width:100%" data-plugin-setting="${escapeHtml(plugin.id)}" data-setting-key="${escapeHtml(field.key)}" data-setting-kind="string-array">${escapeHtml(rulesText)}</textarea>
+            </div>
+          `;
+        }
+        if ((schema.type === "array" && schema.items?.type === "string") || isStringArraySetting(value) || field.key === "rules") {
+          return `
+            <div>
+              <strong>${escapeHtml(label)}</strong>
+              <textarea class="detailSettingInput" style="margin-top:10px; width:100%" data-plugin-setting="${escapeHtml(plugin.id)}" data-setting-key="${escapeHtml(field.key)}" data-setting-kind="string-array">${escapeHtml(Array.isArray(value) ? value.join("\n") : String(value ?? ""))}</textarea>
+            </div>
+          `;
+        }
         if (schema.type === "boolean" || typeof value === "boolean") {
           return `
             <label class="fieldRow">
@@ -4369,6 +4556,13 @@
           config[key] = [...root.querySelectorAll(`[data-plugin-setting="${cssEscape(pluginId)}"][data-setting-key="${cssEscape(key)}"]:checked`)].map((item) => item.value);
           return;
         }
+        if (input.dataset.settingKind === "string-array") {
+          config[key] = String(input.value || "")
+            .split(/\r?\n/g)
+            .map((line) => line.replace(/^[-*]\s+/, "").trim())
+            .filter(Boolean);
+          return;
+        }
         if (input.type === "checkbox") {
           config[key] = Boolean(input.checked);
           return;
@@ -4482,6 +4676,7 @@
         const outcomes = pluginOutcomes(plugin.id);
         const categoryLabel = pluginCategory(plugin);
         const categoryClass = pluginCategoryClass(categoryLabel);
+        const locked = Boolean(plugin.organizationPolicy?.configLocked);
         root.innerHTML = `
           <div class="head">
             <div>
@@ -4491,7 +4686,28 @@
             </div>
             <span class="pluginCategoryTag ${categoryClass}">${categoryIcon(categoryLabel)} ${escapeHtml(categoryLabel)}</span>
           </div>
-          <div class="grid two">
+          <div class="pluginDetailGrid">
+            <div class="card">
+              <div class="pluginDetailHeader">
+                <div>
+                  <strong>Settings</strong>
+                  <p>${locked ? "Managed by your organization." : "Config applied to this user."}</p>
+                </div>
+                <span class="tag ${locked ? "" : "good"}">${escapeHtml(locked ? "locked" : "editable")}</span>
+              </div>
+              <div class="eventMeta" style="margin-top:12px">
+                <span class="pluginMetaPill">${metaIcon("author")} ${escapeHtml(plugin.publisher === "openleash" ? "OpenLeash" : plugin.publisher || "Unknown")}</span>
+                <span>v${escapeHtml(plugin.version || "0.0.0")}</span>
+                <span>${escapeHtml(plugin.organizationPolicy?.mandatory ? "required" : "optional")}</span>
+              </div>
+              <div class="pluginDetailSettings" style="margin-top:18px">
+                ${pluginDetailSettingsFields(plugin)}
+              </div>
+              <div class="actions">
+                <span id="pluginDetailSaveStatus" class="detailSettingStatus"></span>
+                <button id="savePluginDetailSettings" class="primary" ${locked ? "disabled" : ""}>Save settings</button>
+              </div>
+            </div>
             <div class="card">
               <div class="fieldRow">
                 <div>
@@ -4504,24 +4720,13 @@
                 ${outcomes.map((outcome) => pluginOutcomeCard(outcome)).join("") || `<div class="empty">No outcomes reported yet.</div>`}
               </div>
             </div>
-            <div class="card">
-              <strong>Settings</strong>
-              <p>${plugin.organizationPolicy?.configLocked ? "Managed by your organization." : "Config applied to this user."}</p>
-              <div class="eventMeta" style="margin-top:12px">
-                <span>v${escapeHtml(plugin.version || "0.0.0")}</span>
-                <span>${escapeHtml(plugin.runtime || "runtime")}</span>
-                <span>${escapeHtml(plugin.organizationPolicy?.mandatory ? "required" : "optional")}</span>
-              </div>
-              <div class="settingsGrid" style="margin-top:14px">
-                ${pluginConfigRows(plugin.settings?.config || {})}
-              </div>
-            </div>
           </div>
         `;
         document.getElementById("backPlugins").onclick = () => {
           view = "plugins";
           renderView();
         };
+        bindPluginDetailSettings(plugin);
       }
 
       function bindPluginPageControls() {
@@ -4563,15 +4768,326 @@
         `;
       }
 
-      function pluginConfigRows(config) {
-        const entries = Object.entries(config || {}).filter(([key]) => key !== "enabled");
-        if (entries.length === 0) return `<div class="empty">No settings exposed.</div>`;
-        return entries.map(([key, value]) => `
-          <label>
-            <strong>${escapeHtml(key)}</strong>
-            <input value="${escapeHtml(Array.isArray(value) ? value.join(", ") : String(value))}" disabled>
-          </label>
-        `).join("");
+      function pluginDetailSettingsFields(plugin) {
+        const config = effectivePluginConfig(plugin);
+        const fields = pluginSettingDefinitions(plugin, config);
+        if (fields.length === 0) return `<div class="empty">No settings exposed.</div>`;
+        return fields.map((field) => pluginDetailSettingField(plugin, config, field)).join("");
+      }
+
+      function pluginDetailSettingField(plugin, config, field) {
+        const value = config[field.key] ?? field.defaultValue;
+        const schema = field.schema || {};
+        const disabled = plugin.organizationPolicy?.configLocked ? "disabled" : "";
+        const label = settingLabel(field.key);
+        const hint = pluginSettingHint(field.key);
+        const head = `
+          <div class="pluginDetailSettingHead">
+            <strong>${escapeHtml(label)}</strong>
+            ${hint ? `<small>${escapeHtml(hint)}</small>` : ""}
+          </div>
+        `;
+        if (Array.isArray(schema.enum)) {
+          return `
+            <div class="pluginDetailSetting">
+              ${head}
+              <div class="segmented" style="grid-template-columns: repeat(${schema.enum.length}, minmax(0, 1fr)); width: fit-content">
+                ${schema.enum.map((option) => `
+                  <label>
+                    <input data-plugin-detail-setting="${escapeHtml(plugin.id)}" data-setting-key="${escapeHtml(field.key)}" type="radio" name="plugin-detail-${escapeHtml(plugin.id)}-${escapeHtml(field.key)}" value="${escapeHtml(option)}" ${String(value) === String(option) ? "checked" : ""} ${disabled}>
+                    ${escapeHtml(settingLabel(option))}
+                  </label>
+                `).join("")}
+              </div>
+            </div>
+          `;
+        }
+        if (schema.type === "array" && Array.isArray(schema.items?.enum)) {
+          const selected = Array.isArray(value) ? value.map(String) : [];
+          return `
+            <div class="pluginDetailSetting">
+              ${head}
+              <div class="choicePills">
+                ${schema.items.enum.map((option) => `
+                  <label class="choicePill">
+                    <input data-plugin-detail-setting="${escapeHtml(plugin.id)}" data-setting-key="${escapeHtml(field.key)}" data-setting-kind="array" value="${escapeHtml(option)}" type="checkbox" ${selected.includes(String(option)) ? "checked" : ""} ${disabled}>
+                    ${escapeHtml(settingLabel(option))}
+                  </label>
+                `).join("")}
+              </div>
+            </div>
+          `;
+        }
+        if (plugin.id === "openleash.rules-enforcer" && field.key === "rules") {
+          const rules = normalizeRuleEditorValues(value);
+          return `
+            <div class="pluginDetailSetting">
+              ${head}
+              <div class="ruleListEditor" data-plugin-detail-setting="${escapeHtml(plugin.id)}" data-setting-key="${escapeHtml(field.key)}" data-setting-kind="rule-list">
+                <div class="ruleListRows" data-rule-list="${escapeHtml(plugin.id)}" data-setting-key="${escapeHtml(field.key)}">
+                  ${rules.map((rule) => ruleEditorRow(plugin.id, field.key, rule, disabled)).join("")}
+                </div>
+                ${!disabled ? `
+                  <div class="ruleListActions">
+                    <button type="button" class="secondary" id="addPluginRule">Add rule</button>
+                    <button type="button" class="secondary" id="scanPluginRules">Scan agent instruction files</button>
+                    <button type="button" class="secondary" id="importPluginRules">Import from CLAUDE.md or rules file</button>
+                  </div>
+                ` : ""}
+              </div>
+            </div>
+          `;
+        }
+        if ((schema.type === "array" && schema.items?.type === "string") || isStringArraySetting(value)) {
+          return `
+            <div class="pluginDetailSetting">
+              ${head}
+              <textarea class="detailSettingInput" data-plugin-detail-setting="${escapeHtml(plugin.id)}" data-setting-key="${escapeHtml(field.key)}" data-setting-kind="string-array" ${disabled}>${escapeHtml(Array.isArray(value) ? value.join("\n") : String(value ?? ""))}</textarea>
+            </div>
+          `;
+        }
+        if (schema.type === "boolean" || typeof value === "boolean") {
+          return `
+            <label class="pluginDetailSetting">
+              ${head}
+              <span class="switch"><input data-plugin-detail-setting="${escapeHtml(plugin.id)}" data-setting-key="${escapeHtml(field.key)}" type="checkbox" ${value ? "checked" : ""} ${disabled}><span></span></span>
+            </label>
+          `;
+        }
+        if (schema.type === "number" || schema.type === "integer" || typeof value === "number") {
+          return `
+            <div class="pluginDetailSetting">
+              ${head}
+              <input class="detailSettingInput" data-plugin-detail-setting="${escapeHtml(plugin.id)}" data-setting-key="${escapeHtml(field.key)}" type="number" value="${escapeHtml(value ?? 0)}" ${disabled}>
+            </div>
+          `;
+        }
+        return `
+          <div class="pluginDetailSetting">
+            ${head}
+            <input class="detailSettingInput" data-plugin-detail-setting="${escapeHtml(plugin.id)}" data-setting-key="${escapeHtml(field.key)}" value="${escapeHtml(value ?? "")}" placeholder="Default" ${disabled}>
+          </div>
+        `;
+      }
+
+      function pluginSettingHint(key) {
+        if (key === "action") return "Choose whether sensitive data is masked or blocked.";
+        if (key === "categories") return "Sensitive data families this plugin should inspect.";
+        if (key === "level") return "How aggressively prompts are compressed.";
+        if (key === "conciseResponse") return "Ask the model to keep responses tighter.";
+        if (key === "model") return "Optional model override. Leave blank for the default.";
+        if (key === "suspiciousRiskThreshold") return "Higher values reduce skill-scanner alerts.";
+        if (key === "policySet") return "Policy group used by this evaluator.";
+        if (key === "redactSecrets") return "Hide secrets in MCP observations.";
+        if (key === "rules") return "One enforceable instruction per line. Violations can pause the agent and notify your clients.";
+        return "";
+      }
+
+      function isStringArraySetting(value) {
+        return Array.isArray(value) && value.every((item) => typeof item === "string");
+      }
+
+      function normalizeRuleEditorValues(value) {
+        if (Array.isArray(value)) {
+          return value
+            .map((item) => normalizeRuleEditorValue(item))
+            .filter((item) => item.text);
+        }
+        return String(value ?? "")
+          .split(/\r?\n/g)
+          .map((line) => line.trim())
+          .filter(Boolean)
+          .map((text) => ({ text, action: "ask" }));
+      }
+
+      function normalizeRuleEditorValue(value) {
+        if (typeof value === "string") return { text: value.trim(), action: "ask" };
+        if (value && typeof value === "object") {
+          return {
+            text: String(value.text || value.rule || value.description || "").trim(),
+            action: value.action === "block" ? "block" : "ask"
+          };
+        }
+        return { text: "", action: "ask" };
+      }
+
+      function ruleEditorRow(pluginId, key, value = "", disabled = "") {
+        const rule = normalizeRuleEditorValue(value);
+        return `
+          <div class="ruleListRow">
+            <textarea data-rule-item="${escapeHtml(pluginId)}" data-setting-key="${escapeHtml(key)}" placeholder="Ask before..." ${disabled}>${escapeHtml(rule.text)}</textarea>
+            <select class="ruleActionSelect" data-rule-action="${escapeHtml(pluginId)}" data-setting-key="${escapeHtml(key)}" ${disabled}>
+              <option value="ask" ${rule.action !== "block" ? "selected" : ""}>Ask</option>
+              <option value="block" ${rule.action === "block" ? "selected" : ""}>Block</option>
+            </select>
+            ${disabled ? "" : `<button type="button" class="ruleListRemove" data-rule-remove="${escapeHtml(pluginId)}" title="Remove rule">-</button>`}
+          </div>
+        `;
+      }
+
+      function autosizeRuleTextareas(scope = root) {
+        scope.querySelectorAll("[data-rule-item]").forEach((textarea) => {
+          textarea.style.height = "auto";
+          textarea.style.height = `${textarea.scrollHeight}px`;
+          textarea.oninput = () => {
+            textarea.style.height = "auto";
+            textarea.style.height = `${textarea.scrollHeight}px`;
+          };
+        });
+      }
+
+      function effectivePluginConfig(plugin) {
+        const config = {
+          ...(plugin.defaultConfig || {}),
+          ...(plugin.settings?.config || {})
+        };
+        if (plugin.id === "openleash.rules-enforcer" && (!Array.isArray(config.rules) || config.rules.length === 0)) {
+          config.rules = (state.rules || [])
+            .filter((rule) => rule.enabled || rule.locked)
+            .map((rule) => rule.description || rule.natural_language_rule || rule.name)
+            .filter(Boolean);
+        }
+        return config;
+      }
+
+      function collectPluginDetailConfig(plugin) {
+        const config = effectivePluginConfig(plugin);
+        root.querySelectorAll(`[data-plugin-detail-setting="${cssEscape(plugin.id)}"]`).forEach((input) => {
+          const key = input.dataset.settingKey;
+          if (!key) return;
+          if (input.dataset.settingKind === "array") {
+            config[key] = [...root.querySelectorAll(`[data-plugin-detail-setting="${cssEscape(plugin.id)}"][data-setting-key="${cssEscape(key)}"]:checked`)].map((item) => item.value);
+            return;
+          }
+          if (input.dataset.settingKind === "string-array") {
+            config[key] = String(input.value || "")
+              .split(/\r?\n/g)
+              .map((line) => line.replace(/^[-*]\s+/, "").trim())
+              .filter(Boolean);
+            return;
+          }
+          if (input.dataset.settingKind === "rule-list") {
+            config[key] = [...root.querySelectorAll(`[data-rule-item="${cssEscape(plugin.id)}"][data-setting-key="${cssEscape(key)}"]`)]
+              .map((item) => {
+                const row = item.closest(".ruleListRow");
+                return {
+                  text: String(item.value || "").replace(/^[-*]\s+/, "").trim(),
+                  action: row?.querySelector("[data-rule-action]")?.value === "block" ? "block" : "ask"
+                };
+              })
+              .filter((item) => item.text);
+            return;
+          }
+          if (input.type === "radio") {
+            if (input.checked) config[key] = input.value;
+            return;
+          }
+          if (input.type === "checkbox") {
+            config[key] = Boolean(input.checked);
+            return;
+          }
+          if (input.type === "number") {
+            config[key] = Number(input.value || 0);
+            return;
+          }
+          config[key] = input.value;
+        });
+        return config;
+      }
+
+      function bindPluginDetailSettings(plugin) {
+        const button = document.getElementById("savePluginDetailSettings");
+        const status = document.getElementById("pluginDetailSaveStatus");
+        if (!button || plugin.organizationPolicy?.configLocked) return;
+        const importRules = document.getElementById("importPluginRules");
+        const addRule = document.getElementById("addPluginRule");
+        const scanRules = document.getElementById("scanPluginRules");
+        root.querySelectorAll(`[data-rule-remove="${cssEscape(plugin.id)}"]`).forEach((removeButton) => {
+          removeButton.onclick = () => removeButton.closest(".ruleListRow")?.remove();
+        });
+        autosizeRuleTextareas();
+        if (addRule) {
+          addRule.onclick = () => {
+            const list = root.querySelector(`[data-rule-list="${cssEscape(plugin.id)}"][data-setting-key="rules"]`);
+            if (list) {
+              list.insertAdjacentHTML("beforeend", ruleEditorRow(plugin.id, "rules", ""));
+              const row = list.lastElementChild;
+              const removeButton = row?.querySelector("[data-rule-remove]");
+              if (removeButton) removeButton.onclick = () => removeButton.closest(".ruleListRow")?.remove();
+              autosizeRuleTextareas(row || root);
+              row?.querySelector("textarea")?.focus();
+            }
+          };
+        }
+        if (scanRules) {
+          scanRules.onclick = async () => {
+            status.textContent = "Scanning agent instruction files...";
+            const result = await window.openleash.discoverInstructionRules();
+            if (!result?.ok) {
+              status.textContent = result?.error || "Could not scan agent instruction files.";
+              return;
+            }
+            const rules = (result.policies || []).map((rule) => rule.description || rule.natural_language_rule || rule.name).filter(Boolean);
+            if (rules.length === 0) {
+              status.textContent = "No agent instruction rules found.";
+              return;
+            }
+            const list = root.querySelector(`[data-rule-list="${cssEscape(plugin.id)}"][data-setting-key="rules"]`);
+            if (list) {
+              list.innerHTML = rules.map((rule) => ruleEditorRow(plugin.id, "rules", { text: rule, action: "ask" })).join("");
+              root.querySelectorAll(`[data-rule-remove="${cssEscape(plugin.id)}"]`).forEach((removeButton) => {
+                removeButton.onclick = () => removeButton.closest(".ruleListRow")?.remove();
+              });
+              autosizeRuleTextareas(list);
+              const sourceCount = Array.isArray(result.sources) ? result.sources.length : 0;
+              status.textContent = `Found ${rules.length} candidate rule${rules.length === 1 ? "" : "s"} from ${sourceCount} instruction file${sourceCount === 1 ? "" : "s"}. Review and save.`;
+            }
+          };
+        }
+        if (importRules) {
+          importRules.onclick = async () => {
+            const result = await window.openleash.importRules({ replace: true, save: false, currentRules: [] });
+            if (!result?.ok) {
+              status.textContent = result?.canceled ? "" : result?.error || "Could not import rules.";
+              return;
+            }
+            const list = root.querySelector(`[data-rule-list="${cssEscape(plugin.id)}"][data-setting-key="rules"]`);
+            if (list) {
+              list.innerHTML = (result.policies || [])
+                .map((rule) => rule.description || rule.natural_language_rule || rule.name)
+                .filter(Boolean)
+                .map((rule) => ruleEditorRow(plugin.id, "rules", { text: rule, action: "ask" }))
+                .join("");
+              root.querySelectorAll(`[data-rule-remove="${cssEscape(plugin.id)}"]`).forEach((removeButton) => {
+                removeButton.onclick = () => removeButton.closest(".ruleListRow")?.remove();
+              });
+              autosizeRuleTextareas(list);
+              status.textContent = `Imported ${(result.policies || []).length} rules. Review and save.`;
+            }
+          };
+        }
+        button.onclick = async () => {
+          button.disabled = true;
+          status.textContent = "Saving...";
+          const config = collectPluginDetailConfig(plugin);
+          const result = await window.openleash.savePluginSettings({
+            pluginId: plugin.id,
+            enabled: plugin.settings?.enabled !== false,
+            config,
+            orderingPriority: plugin.settings?.orderingPriority ?? plugin.ordering?.priority ?? null
+          }).catch((error) => ({ ok: false, error: error?.message || "Could not save plugin settings." }));
+          if (!result?.ok) {
+            status.textContent = result?.error || "Could not save settings.";
+            button.disabled = false;
+            return;
+          }
+          state.plugins = (state.plugins || []).map((item) => item.id === plugin.id
+            ? { ...item, settings: result.settings || { ...(item.settings || {}), config } }
+            : item
+          );
+          status.textContent = "Settings saved.";
+          button.disabled = false;
+        };
       }
 
       function bindModelSelection() {

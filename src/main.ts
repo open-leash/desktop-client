@@ -1017,18 +1017,50 @@ ipcMain.handle("openleash:import-rules", async (_event, payload: { replace?: boo
     title: "Import OpenLeash rules",
     buttonLabel: "Import rules",
     properties: ["openFile"],
-    filters: [{ name: "JSON", extensions: ["json"] }]
+    filters: [
+      { name: "Rules files", extensions: ["json", "md", "markdown", "txt", "rules"] },
+      { name: "All files", extensions: ["*"] }
+    ]
   };
   const selected = window ? await dialog.showOpenDialog(window, options) : await dialog.showOpenDialog(options);
   if (selected.canceled || !selected.filePaths[0]) return { ok: false, canceled: true };
   try {
-    const imported = JSON.parse(fs.readFileSync(selected.filePaths[0], "utf8")) as unknown;
+    const filePath = selected.filePaths[0];
+    const content = fs.readFileSync(filePath, "utf8");
+    const imported = parseRulesImport(content, filePath);
     const base = Array.isArray(payload.currentRules) ? payload.currentRules : localServer.policies;
     const policies = normalizePolicies(imported, base, Boolean(payload.replace));
     if (payload.save) localServer.updatePolicies(policies);
-    return { ok: true, policies, count: policies.length, path: selected.filePaths[0] };
+    return { ok: true, policies, count: policies.length, path: filePath };
   } catch (error) {
     return { ok: false, error: error instanceof Error ? error.message : "Could not import rules." };
+  }
+});
+ipcMain.handle("openleash:discover-instruction-rules", async () => {
+  try {
+    const sources = discoverAgentInstructionFiles();
+    const importedRules = [];
+    for (const source of sources) {
+      try {
+        const content = fs.readFileSync(source.path, "utf8");
+        const parsed = parseRulesImport(content, source.path);
+        const rules = Array.isArray((parsed as { rules?: unknown[] }).rules) ? (parsed as { rules: unknown[] }).rules : [];
+        for (const rule of rules) {
+          if (!rule || typeof rule !== "object") continue;
+          importedRules.push({
+            ...(rule as Record<string, unknown>),
+            category: `${source.agent} instructions`,
+            source: source.path
+          });
+        }
+      } catch (error) {
+        startupLog(`instruction discovery skipped ${source.path}: ${error instanceof Error ? error.message : String(error)}`);
+      }
+    }
+    const policies = normalizePolicies({ rules: importedRules }, [], true);
+    return { ok: true, policies, sources, count: policies.length };
+  } catch (error) {
+    return { ok: false, error: error instanceof Error ? error.message : "Could not scan agent instruction files." };
   }
 });
 ipcMain.handle("openleash:resolve", async (_event, id: string, resolution: "allow" | "deny", resolutionGuidance?: string) => {
@@ -2766,6 +2798,129 @@ async function waitForReachable(url: string, timeoutMs: number) {
 
 function localRulesConfigPath() {
   return path.join(os.homedir(), ".openleash", "rules.json");
+}
+
+type InstructionRuleSource = {
+  agent: string;
+  scope: "global" | "project";
+  label: string;
+  path: string;
+};
+
+function discoverAgentInstructionFiles(): InstructionRuleSource[] {
+  const home = os.homedir();
+  const appData = process.env.APPDATA || path.join(home, "AppData", "Roaming");
+  const sources: InstructionRuleSource[] = [
+    { agent: "Claude Code", scope: "global", label: "Global CLAUDE.md", path: path.join(home, ".claude", "CLAUDE.md") },
+    { agent: "Codex CLI", scope: "global", label: "Global AGENTS.md", path: path.join(home, ".codex", "AGENTS.md") },
+    { agent: "Cline", scope: "global", label: "Global AGENTS.md", path: path.join(home, ".agents", "AGENTS.md") },
+    { agent: "OpenCode", scope: "global", label: "Global AGENTS.md", path: path.join(process.platform === "win32" ? appData : path.join(home, ".config"), "opencode", "AGENTS.md") },
+    { agent: "Windsurf", scope: "global", label: "Global rules", path: path.join(home, ".codeium", "windsurf", "memories", "global_rules.md") },
+    { agent: "GitHub Copilot", scope: "global", label: "CLI instructions", path: path.join(home, ".copilot", "copilot-instructions.md") },
+  ];
+
+  for (const root of projectInstructionRoots()) {
+    sources.push(
+      { agent: "Claude Code", scope: "project", label: "Project CLAUDE.md", path: path.join(root, "CLAUDE.md") },
+      { agent: "Claude Code", scope: "project", label: "Project .claude/CLAUDE.md", path: path.join(root, ".claude", "CLAUDE.md") },
+      { agent: "Codex/OpenCode/Cline/Cursor/Copilot", scope: "project", label: "Project AGENTS.md", path: path.join(root, "AGENTS.md") },
+      { agent: "Cursor", scope: "project", label: "Legacy .cursorrules", path: path.join(root, ".cursorrules") },
+      { agent: "Cline", scope: "project", label: "Legacy .clinerules", path: path.join(root, ".clinerules") },
+      { agent: "Windsurf", scope: "project", label: "Project .windsurfrules", path: path.join(root, ".windsurfrules") },
+      { agent: "GitHub Copilot", scope: "project", label: "Copilot instructions", path: path.join(root, ".github", "copilot-instructions.md") },
+    );
+    for (const filePath of filesInDirectory(path.join(root, ".cursor", "rules"), /\.(mdc|md|markdown|txt)$/i)) {
+      sources.push({ agent: "Cursor", scope: "project", label: "Cursor rule", path: filePath });
+    }
+    for (const filePath of filesInDirectory(path.join(root, ".clinerules"), /\.(md|markdown|txt|rules)$/i)) {
+      sources.push({ agent: "Cline", scope: "project", label: "Cline rule", path: filePath });
+    }
+    for (const filePath of filesInDirectory(path.join(root, ".windsurf", "rules"), /\.(md|markdown|txt|rules)$/i)) {
+      sources.push({ agent: "Windsurf", scope: "project", label: "Windsurf rule", path: filePath });
+    }
+    for (const filePath of filesInDirectory(path.join(root, ".github", "instructions"), /\.instructions\.md$/i)) {
+      sources.push({ agent: "GitHub Copilot", scope: "project", label: "Path-specific Copilot instruction", path: filePath });
+    }
+  }
+
+  const byPath = new Map<string, InstructionRuleSource>();
+  for (const source of sources) {
+    if (!fs.existsSync(source.path)) continue;
+    const resolved = path.resolve(source.path);
+    if (!byPath.has(resolved)) byPath.set(resolved, { ...source, path: resolved });
+  }
+  return [...byPath.values()];
+}
+
+function projectInstructionRoots() {
+  const candidates = [
+    process.env.OPENLEASH_PROJECT_ROOT,
+    process.env.PWD,
+    process.cwd(),
+  ].filter((value): value is string => Boolean(value));
+  const roots = new Set<string>();
+  for (const candidate of candidates) {
+    let current = path.resolve(candidate);
+    if (!fs.existsSync(current)) continue;
+    if (!fs.statSync(current).isDirectory()) current = path.dirname(current);
+    roots.add(current);
+    const gitRoot = nearestGitRoot(current);
+    if (gitRoot) roots.add(gitRoot);
+  }
+  return [...roots];
+}
+
+function nearestGitRoot(start: string) {
+  let current = path.resolve(start);
+  while (true) {
+    if (fs.existsSync(path.join(current, ".git"))) return current;
+    const parent = path.dirname(current);
+    if (parent === current) return undefined;
+    current = parent;
+  }
+}
+
+function filesInDirectory(directory: string, pattern: RegExp) {
+  try {
+    return fs.readdirSync(directory, { withFileTypes: true })
+      .filter((entry) => entry.isFile() && pattern.test(entry.name))
+      .map((entry) => path.join(directory, entry.name));
+  } catch {
+    return [];
+  }
+}
+
+function parseRulesImport(content: string, filePath: string) {
+  if (path.extname(filePath).toLowerCase() === ".json") return JSON.parse(content) as unknown;
+  const rules = content
+    .replace(/```[\s\S]*?```/g, "")
+    .split(/\r?\n/g)
+    .map((line) => line
+      .replace(/^#{1,6}\s+/, "")
+      .replace(/^\s*(?:[-*]|\d+[.)])\s+/, "")
+      .trim()
+    )
+    .filter((line) => line.length >= 8)
+    .filter((line) => !/^(rules|instructions|guidelines|notes?|overview|context)$/i.test(line))
+    .map((line) => ({
+      id: `imported-${crypto.createHash("sha1").update(line).digest("hex").slice(0, 12)}`,
+      name: importedRuleTitle(line),
+      category: "Imported rules",
+      description: line,
+      enabled: true,
+      match: [line]
+    }));
+  return { rules };
+}
+
+function importedRuleTitle(rule: string) {
+  const cleaned = rule
+    .replace(/[^\w\s.+/#-]/g, " ")
+    .replace(/\b(do not|don't|never|always|must|should|the|a|an|to|from|that|which|any|before)\b/gi, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  const title = (cleaned || "Imported rule").split(/\s+/).slice(0, 7).join(" ");
+  return title.charAt(0).toUpperCase() + title.slice(1);
 }
 
 function ensureLocalRulesConfig() {
