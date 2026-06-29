@@ -148,7 +148,10 @@ const agentDefinitions: AgentDefinition[] = [
 ];
 
 export function detectLocalAgentProtections(context: DetectionContext) {
-  return agentDefinitions.map((definition) => definition.detect(context)).filter((agent) => agent.installed);
+  return agentDefinitions
+    .map((definition) => definition.detect(context))
+    .filter((agent) => agent.installed)
+    .sort(compareLocalAgentProtection);
 }
 
 export async function installAgentProtection(kind: string, context: InstallContext) {
@@ -236,6 +239,26 @@ export function agentIconFor(name: string) {
   return undefined;
 }
 
+const canonicalAgentOrder = [
+  "claude-code",
+  "github-copilot",
+  "gemini",
+  "opencode",
+  "codex",
+  "cline",
+  "cursor",
+  "windsurf"
+];
+
+function compareLocalAgentProtection(left: LocalAgentProtection, right: LocalAgentProtection) {
+  const leftIndex = canonicalAgentOrder.indexOf(left.kind);
+  const rightIndex = canonicalAgentOrder.indexOf(right.kind);
+  const normalizedLeft = leftIndex < 0 ? canonicalAgentOrder.length : leftIndex;
+  const normalizedRight = rightIndex < 0 ? canonicalAgentOrder.length : rightIndex;
+  if (normalizedLeft !== normalizedRight) return normalizedLeft - normalizedRight;
+  return left.displayName.localeCompare(right.displayName);
+}
+
 function genericAgentDefinition(agent: (typeof genericAgents)[number]): AgentDefinition {
   return {
     kind: agent.kind,
@@ -269,8 +292,8 @@ function detectClaudeProtection(): LocalAgentProtection {
     approvalHandoff,
     detail: installed
       ? protectedEvents.length >= 2
-        ? approvalHandoff ? "Protection active, OpenLeash approvals primary" : "Protection active"
-        : "Needs setup"
+        ? "Active"
+        : "Unmonitored"
       : "Not installed"
   });
 }
@@ -293,7 +316,7 @@ function detectOpenClawProtection(): LocalAgentProtection {
     protected: protectedByOpenLeash,
     executablePath,
     supportsInstall: true,
-    detail: installed ? protectedByOpenLeash ? "Protection active" : "Needs setup" : "Not installed"
+    detail: installed ? protectedByOpenLeash ? "Active" : "Unmonitored" : "Not installed"
   });
 }
 
@@ -315,7 +338,7 @@ function detectNanoClawProtection(): LocalAgentProtection {
     executablePath,
     supportsInstall: true,
     approvalHandoff,
-    detail: installed ? protectedEvents.length >= 2 ? "Protection active" : "Needs setup" : "Not installed"
+    detail: installed ? protectedEvents.length >= 2 ? "Active" : "Unmonitored" : "Not installed"
   });
 }
 
@@ -343,10 +366,10 @@ function detectCodexProtection(context: DetectionContext): LocalAgentProtection 
     approvalHandoff,
     detail: installed
       ? allTrusted
-        ? approvalHandoff ? "Protection active, OpenLeash approvals primary" : "Protection active"
+        ? "Active"
         : hooksFileLooksInstalled
           ? "Needs confirmation in Codex"
-          : "Needs setup"
+          : "Unmonitored"
       : "Not installed"
   });
 }
@@ -365,7 +388,7 @@ function detectGenericAgent(agent: (typeof genericAgents)[number]): LocalAgentPr
     displayName: agent.displayName,
     installed,
     protected: protectedByOpenLeash,
-    detail: installed ? protectedByOpenLeash ? "Protection active" : supportsInstall ? "Needs setup" : "Support coming soon" : "Not installed",
+    detail: installed ? protectedByOpenLeash ? "Active" : supportsInstall ? "Unmonitored" : "Support coming soon" : "Not installed",
     executablePath,
     icon: agent.icon,
     supportsInstall

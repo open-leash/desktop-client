@@ -132,6 +132,10 @@ type RemoteMobileState = {
     display_name?: string;
     hostname?: string;
     platform?: string;
+    installed?: boolean;
+    protected?: boolean;
+    desired_monitored?: boolean;
+    desiredMonitored?: boolean;
     last_seen_at?: string;
     event_name?: string;
     tool_name?: string;
@@ -748,6 +752,17 @@ function enrollmentAgents(agentKinds: string[]) {
   });
 }
 
+function desktopInventoryAgents() {
+  return localProtections.map((agent) => ({
+    kind: agent.kind,
+    displayName: agent.displayName,
+    executablePath: agent.executablePath ?? "",
+    installed: agent.installed,
+    protected: agent.protected,
+    detail: agent.detail
+  }));
+}
+
 function agentDisplayName(kind: string) {
   if (kind === "claude-code") return "Claude Code";
   if (kind === "codex") return "OpenAI Codex";
@@ -793,11 +808,11 @@ ipcMain.handle("openleash:save-plugin-settings", async (_event, payload: {
   config?: Record<string, unknown>;
   orderingPriority?: number | null;
 }) => {
-  const token = payload.token || desktopAuthSession?.token;
+  const token = payload.token || localServer.effectiveToken || desktopAuthSession?.token;
   if (!token) return { ok: false, error: "Sign in before saving plugin settings." };
   const pluginId = String(payload.pluginId ?? "").trim();
   if (!pluginId) return { ok: false, error: "Plugin id is required." };
-  const remoteApiUrl = normalizeRemoteApiUrl(payload.apiUrl || desktopAuthSession?.apiUrl || cloudApiUrl);
+  const remoteApiUrl = normalizeRemoteApiUrl(payload.apiUrl || localServer.remoteApiUrl || desktopAuthSession?.apiUrl || cloudApiUrl);
   const response = await fetch(new URL(`/v1/plugins/${encodeURIComponent(pluginId)}/settings`, remoteApiUrl), {
     method: "POST",
     headers: { "content-type": "application/json", authorization: `Bearer ${token}` },
@@ -843,7 +858,7 @@ ipcMain.handle("openleash:setup", async (_event, payload: {
   const apiKey = String(payload.apiKey ?? "").trim();
   let remoteToken = payload.remoteToken || desktopAuthSession?.token;
   const remoteApiUrl = normalizeRemoteApiUrl(payload.remoteApiUrl || desktopAuthSession?.apiUrl || cloudApiUrl);
-	  if (!remoteToken) return { ok: false, error: "Sign in before installing protection." };
+	  if (!remoteToken) return { ok: false, error: "Sign in before installing OpenLeash." };
   if (clientMode === "cloud" && audience === "organization" && isPersonalEmailDomain(payload.remoteUser || desktopAuthSession?.userEmail)) {
     return { ok: false, error: "Use your company Google Workspace or Microsoft 365 account, not a personal email address." };
   }
@@ -944,6 +959,39 @@ ipcMain.handle("openleash:uninstall-agent-protection", async (_event, kind: stri
   });
   return { ok: true };
 });
+
+ipcMain.handle("openleash:set-agent-monitoring", async (_event, payload: { kind?: string; monitored?: boolean }) => {
+  const kind = String(payload?.kind ?? "").trim().toLowerCase();
+  if (!kind) return { ok: false, error: "Agent kind is required." };
+  const monitored = Boolean(payload?.monitored);
+  const remoteApiUrl = localServer.remoteApiUrl;
+  const token = localServer.effectiveToken;
+  if (remoteApiUrl && token) {
+    const saved = await saveRemoteAgentMonitoring(remoteApiUrl, token, kind, monitored);
+    if (!saved.ok) return saved;
+  }
+  if (monitored) {
+    await protectAgentKind(kind);
+  } else {
+    await unprotectAgentKind(kind);
+  }
+  refreshMenu();
+  window?.webContents.send("openleash:update", {
+    apiUrl,
+    pending: latestPending,
+    agents: latestAgents,
+    sessionMetrics: latestSessionMetrics,
+    plugins: latestPlugins,
+    outcomes: latestOutcomes,
+    viewModel: latestViewModel,
+    history: localServer.history,
+    mcpServers: localServer.mcpServers,
+    skills: localServer.skills,
+    localProtections
+  });
+  return { ok: true, localProtections };
+});
+
 ipcMain.handle("openleash:save-settings", (_event, payload: { apiProvider?: "openai" | "anthropic"; apiKey?: string; agentDoneSound?: boolean }) => {
   localServer.updateSettings("openai", undefined, typeof payload.agentDoneSound === "boolean" ? payload.agentDoneSound : undefined);
   return { ok: true, apiProvider: "openai", apiKeySet: false, agentDoneSound: localServer.agentDoneSound };
@@ -1036,10 +1084,32 @@ ipcMain.handle("openleash:import-rules", async (_event, payload: { replace?: boo
     return { ok: false, error: error instanceof Error ? error.message : "Could not import rules." };
   }
 });
+ipcMain.handle("openleash:import-rule-list-json", async () => {
+  const options: OpenDialogOptions = {
+    title: "Import JSON rules",
+    buttonLabel: "Import JSON",
+    properties: ["openFile"],
+    filters: [
+      { name: "JSON rules", extensions: ["json"] },
+      { name: "All files", extensions: ["*"] }
+    ]
+  };
+  const selected = window ? await dialog.showOpenDialog(window, options) : await dialog.showOpenDialog(options);
+  if (selected.canceled || !selected.filePaths[0]) return { ok: false, canceled: true };
+  try {
+    const filePath = selected.filePaths[0];
+    const content = fs.readFileSync(filePath, "utf8");
+    const rules = parsePluginRulesJsonImport(content);
+    return { ok: true, rules, count: rules.length, path: filePath };
+  } catch (error) {
+    return { ok: false, error: error instanceof Error ? error.message : "Could not import JSON rules." };
+  }
+});
 ipcMain.handle("openleash:discover-instruction-rules", async () => {
   try {
     const sources = discoverAgentInstructionFiles();
     const importedRules = [];
+    const candidates = [];
     for (const source of sources) {
       try {
         const content = fs.readFileSync(source.path, "utf8");
@@ -1052,13 +1122,25 @@ ipcMain.handle("openleash:discover-instruction-rules", async () => {
             category: `${source.agent} instructions`,
             source: source.path
           });
+          const record = rule as Record<string, unknown>;
+          const text = String(record.description ?? record.natural_language_rule ?? record.name ?? "").trim();
+          if (text) {
+            candidates.push({
+              text,
+              action: "ask",
+              agent: source.agent,
+              label: source.label,
+              path: source.path,
+              scope: source.scope
+            });
+          }
         }
       } catch (error) {
         startupLog(`instruction discovery skipped ${source.path}: ${error instanceof Error ? error.message : String(error)}`);
       }
     }
     const policies = normalizePolicies({ rules: importedRules }, [], true);
-    return { ok: true, policies, sources, count: policies.length };
+    return { ok: true, policies, candidates, sources, count: policies.length };
   } catch (error) {
     return { ok: false, error: error instanceof Error ? error.message : "Could not scan agent instruction files." };
   }
@@ -1896,8 +1978,9 @@ async function syncRemoteAgentInventory() {
   const remoteApiUrl = localServer.remoteApiUrl;
   const token = localServer.effectiveToken;
   if (!remoteApiUrl || !token || localProtections.length === 0) return;
+  const agents = desktopInventoryAgents();
   try {
-    await fetch(new URL("/v1/desktop/agents", remoteApiUrl), {
+    const response = await fetch(new URL("/v1/desktop/agents", remoteApiUrl), {
       method: "POST",
       headers: {
         "content-type": "application/json",
@@ -1909,13 +1992,96 @@ async function syncRemoteAgentInventory() {
         platform: os.platform(),
         osRelease: os.release(),
         clientVersion: app.getVersion(),
-        agents: enrollmentAgents([])
+        agents
       }),
       signal: AbortSignal.timeout(Number(process.env.OPENLEASH_DESKTOP_INVENTORY_TIMEOUT_MS ?? 10000))
     });
+    if (!response.ok) {
+      const body = await response.json().catch(() => ({}));
+      startupLog(`remote agent inventory sync failed: ${response.status} ${body.error || response.statusText}`);
+    } else {
+      startupLog(`remote agent inventory synced: ${agents.length} agent${agents.length === 1 ? "" : "s"}`);
+      await reconcileRemoteAgentMonitoring(remoteApiUrl, token);
+    }
   } catch {
-    // Inventory sync should never interrupt local protection.
+    startupLog("remote agent inventory sync failed: request did not complete");
   }
+}
+
+async function saveRemoteAgentMonitoring(remoteApiUrl: string, token: string, kind: string, monitored: boolean) {
+  try {
+    const response = await fetch(new URL(`/v1/agents/${encodeURIComponent(kind)}/monitoring`, remoteApiUrl), {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        authorization: `Bearer ${token}`,
+        ...apiVersionHeaders("mobileState")
+      },
+      body: JSON.stringify({ monitored }),
+      signal: AbortSignal.timeout(Number(process.env.OPENLEASH_DESKTOP_AGENT_MONITORING_TIMEOUT_MS ?? 10000))
+    });
+    const body = await response.json().catch(() => ({}));
+    if (!response.ok) return { ok: false, error: body.error || "Could not save agent monitoring." };
+    return { ok: true };
+  } catch {
+    return { ok: false, error: "Could not reach the managed OpenLeash API." };
+  }
+}
+
+async function reconcileRemoteAgentMonitoring(remoteApiUrl: string, token: string) {
+  try {
+    const response = await fetch(new URL("/v1/mobile/state", remoteApiUrl), {
+      headers: { authorization: `Bearer ${token}`, ...apiVersionHeaders("mobileState") },
+      signal: AbortSignal.timeout(Number(process.env.OPENLEASH_DESKTOP_AGENT_MONITORING_TIMEOUT_MS ?? 10000))
+    });
+    if (!response.ok) return;
+    const body = await response.json() as RemoteMobileState;
+    const desiredByKind = new Map<string, boolean>();
+    for (const agent of body.agents ?? []) {
+      const desired = agent.desired_monitored ?? agent.desiredMonitored;
+      if (typeof desired === "boolean") desiredByKind.set(String(agent.kind ?? "").toLowerCase(), desired);
+    }
+    if (desiredByKind.size === 0) return;
+    let changed = false;
+    for (const agent of detectLocalAgentProtections({ appVersion: app.getVersion() })) {
+      const desired = desiredByKind.get(agent.kind);
+      if (typeof desired !== "boolean" || !agent.installed || !agent.supportsInstall) continue;
+      if (desired && !agent.protected) {
+        await protectAgentKind(agent.kind);
+        changed = true;
+      } else if (!desired && agent.protected) {
+        await unprotectAgentKind(agent.kind);
+        changed = true;
+      }
+    }
+    if (changed) {
+      localProtections = detectLocalAgentProtections({ appVersion: app.getVersion() });
+      await postRemoteAgentInventory(remoteApiUrl, token, desktopInventoryAgents());
+      refreshMenu();
+      window?.webContents.send("openleash:update", { apiUrl, localProtections });
+    }
+  } catch {
+    startupLog("remote agent monitoring reconcile failed: request did not complete");
+  }
+}
+
+async function postRemoteAgentInventory(remoteApiUrl: string, token: string, agents: ReturnType<typeof desktopInventoryAgents>) {
+  await fetch(new URL("/v1/desktop/agents", remoteApiUrl), {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      authorization: `Bearer ${token}`,
+      ...apiVersionHeaders("desktopEnroll")
+    },
+    body: JSON.stringify({
+      hostname: os.hostname(),
+      platform: os.platform(),
+      osRelease: os.release(),
+      clientVersion: app.getVersion(),
+      agents
+    }),
+    signal: AbortSignal.timeout(Number(process.env.OPENLEASH_DESKTOP_INVENTORY_TIMEOUT_MS ?? 10000))
+  }).catch(() => undefined);
 }
 
 function rememberCurrentlyProtectedAgents() {
@@ -2911,6 +3077,33 @@ function parseRulesImport(content: string, filePath: string) {
       match: [line]
     }));
   return { rules };
+}
+
+function parsePluginRulesJsonImport(content: string) {
+  const parsed = JSON.parse(content) as unknown;
+  const rawRules = Array.isArray(parsed)
+    ? parsed
+    : parsed && typeof parsed === "object" && Array.isArray((parsed as { rules?: unknown[] }).rules)
+      ? (parsed as { rules: unknown[] }).rules
+      : [];
+  if (rawRules.length === 0) {
+    throw new Error("JSON must be an array of rules or an object with a rules array.");
+  }
+  const rules = rawRules
+    .map((rule) => {
+      if (typeof rule === "string") return { text: rule.trim(), action: "ask" };
+      if (rule && typeof rule === "object") {
+        const record = rule as Record<string, unknown>;
+        return {
+          text: String(record.text ?? record.rule ?? record.description ?? record.natural_language_rule ?? "").trim(),
+          action: record.action === "block" ? "block" : "ask"
+        };
+      }
+      return { text: "", action: "ask" };
+    })
+    .filter((rule) => rule.text);
+  if (rules.length === 0) throw new Error("No valid rules found in that JSON file.");
+  return rules;
 }
 
 function importedRuleTitle(rule: string) {

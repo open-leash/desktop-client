@@ -68,6 +68,7 @@ async function copyIntroVideo() {
 
 async function copyWelcomeAgentIcons() {
   const candidates = [
+    path.join("..", "main-web", "public", "agents"),
     path.join("..", "..", "assets", "agents"),
     path.join("src", "agents")
   ];

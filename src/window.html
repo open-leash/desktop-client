@@ -1117,6 +1117,70 @@
         gap: 14px;
         margin-top: 24px;
       }
+      .pluginDetailTabs {
+        display: inline-flex;
+        flex-wrap: wrap;
+        gap: 6px;
+        width: fit-content;
+        margin-top: 18px;
+        padding: 6px;
+        border: 1px solid var(--line);
+        border-radius: 999px;
+        background: var(--soft);
+      }
+      .pluginDetailTabs button {
+        display: inline-flex;
+        align-items: center;
+        gap: 7px;
+        min-height: 36px;
+        border: 0;
+        border-radius: 999px;
+        padding: 0 13px;
+        background: transparent;
+        color: var(--ink-2);
+        font: inherit;
+        font-size: 13px;
+        font-weight: 900;
+        cursor: pointer;
+      }
+      .pluginDetailTabs button.active {
+        background: #fff;
+        color: var(--ink);
+        box-shadow: var(--shadow-sm);
+      }
+      .pluginDetailTabs span {
+        display: inline-grid;
+        min-width: 20px;
+        height: 20px;
+        place-items: center;
+        border-radius: 999px;
+        background: #e8e4dc;
+        color: var(--ink-2);
+        font-size: 11px;
+        font-weight: 900;
+      }
+      .pluginInsightGrid {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 12px;
+      }
+      .pluginInsightMetric {
+        padding: 16px;
+        border: 1px solid var(--line);
+        border-radius: 14px;
+        background: #fff;
+      }
+      .pluginInsightMetric strong {
+        font-size: 30px;
+        line-height: 1;
+      }
+      .pluginInsightMetric span {
+        display: block;
+        margin-top: 7px;
+        color: var(--muted);
+        font-size: 12px;
+        font-weight: 850;
+      }
       .pluginDetailSettings {
         display: grid;
         gap: 18px;
@@ -1210,6 +1274,28 @@
         box-shadow: 0 12px 30px rgba(26, 25, 20, .05);
         padding: 10px;
       }
+      .ruleListRow.pendingImport {
+        grid-template-columns: minmax(0, 1fr) 124px 44px 36px;
+        border-color: rgba(245, 158, 11, .34);
+        background:
+          linear-gradient(90deg, rgba(254, 243, 199, .64), rgba(255, 255, 255, .95));
+      }
+      .ruleListRow.pendingImport::before {
+        content: "new";
+        order: 3;
+        align-self: center;
+        justify-self: center;
+        border-radius: 999px;
+        padding: 5px 8px;
+        background: #fef3c7;
+        color: #9a5a06;
+        font-size: 10px;
+        font-weight: 950;
+        text-transform: uppercase;
+      }
+      .ruleListRow.pendingImport .ruleListRemove {
+        order: 4;
+      }
       .ruleListRow textarea {
         min-height: 48px;
         max-height: none;
@@ -1246,6 +1332,115 @@
         background: #fff3f1;
         color: #b53f31;
         border-color: rgba(181, 63, 49, .22);
+      }
+      .ruleImportReview {
+        display: grid;
+        gap: 16px;
+      }
+      .ruleCandidateList {
+        display: grid;
+        gap: 14px;
+        max-height: min(58vh, 620px);
+        overflow: auto;
+        padding-right: 4px;
+      }
+      .ruleCandidateGroup {
+        display: grid;
+        gap: 10px;
+        padding: 12px;
+        border: 1px solid rgba(21, 24, 17, .1);
+        border-radius: 18px;
+        background:
+          linear-gradient(180deg, rgba(255,255,255,.96), rgba(250,250,246,.92));
+        box-shadow: 0 12px 34px rgba(26, 25, 20, .05);
+      }
+      .ruleCandidateGroupHead {
+        display: grid;
+        grid-template-columns: 42px minmax(0, 1fr) auto;
+        align-items: center;
+        gap: 12px;
+        padding: 4px 4px 8px;
+        border-bottom: 1px solid rgba(216, 211, 199, .72);
+      }
+      .ruleCandidateGroupHead span:not(.agentIcon) {
+        display: grid;
+        gap: 4px;
+        min-width: 0;
+      }
+      .ruleCandidateGroupHead strong {
+        color: var(--ink);
+        font-size: 16px;
+      }
+      .ruleCandidateGroupHead small {
+        overflow: hidden;
+        color: var(--muted);
+        font-size: 12px;
+        font-weight: 800;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+      .ruleCandidateGroupHead em {
+        border-radius: 999px;
+        padding: 6px 9px;
+        background: var(--soft);
+        color: var(--ink-2);
+        font-size: 11px;
+        font-style: normal;
+        font-weight: 900;
+      }
+      .ruleCandidateRows {
+        display: grid;
+        gap: 8px;
+      }
+      .ruleCandidateRow {
+        display: grid;
+        grid-template-columns: 22px minmax(0, 1fr) 128px;
+        align-items: start;
+        gap: 12px;
+        padding: 14px;
+        border: 1px solid var(--line);
+        border-radius: 14px;
+        background: rgba(255, 255, 255, .82);
+        box-shadow: var(--shadow-sm);
+      }
+      .ruleCandidateRow.selected {
+        border-color: rgba(91, 79, 229, .28);
+        background:
+          radial-gradient(ellipse 420px 160px at 100% 0%, rgba(91, 79, 229, .08), transparent 70%),
+          #fff;
+      }
+      .ruleCandidateRow input {
+        width: 18px;
+        height: 18px;
+        margin-top: 2px;
+        accent-color: var(--accent);
+      }
+      .ruleCandidateRow span {
+        display: grid;
+        gap: 6px;
+        min-width: 0;
+      }
+      .ruleCandidateRow strong {
+        color: var(--ink);
+        font-size: 15px;
+        line-height: 1.32;
+      }
+      .ruleCandidateRow small {
+        overflow: hidden;
+        color: var(--muted);
+        font-size: 12px;
+        font-weight: 800;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+      .ruleCandidateRow select {
+        min-height: 38px;
+        border: 1px solid var(--line);
+        border-radius: 999px;
+        background: #fafaf6;
+        color: var(--ink);
+        padding: 0 12px;
+        font-weight: 900;
       }
       .ruleActionSelect {
         height: 36px;
@@ -1641,12 +1836,17 @@
       }
       .overviewAgentTile {
         display: grid;
-        grid-template-columns: 42px minmax(0, 1fr);
+        grid-template-columns: 42px minmax(0, 1fr) auto;
         gap: 12px;
         align-items: center;
         min-height: 86px;
         border-color: transparent;
         background: #f6fbf9;
+      }
+      .overviewAgentSwitch {
+        justify-self: end;
+        transform: scale(.82);
+        transform-origin: center right;
       }
       .overviewAgentTile.missing {
         background: #f7f7f8;
@@ -1915,7 +2115,7 @@
           OpenLeash
         </div>
         <nav id="sideNav"></nav>
-        <div class="foot" id="modeFoot">Personal mode runs fully on this Mac. Rules, history, approvals, and agent protection stay local.</div>
+        <div class="foot" id="modeFoot">Personal mode runs fully on this Mac. Rules, history, approvals, and OpenLeash activity stay local.</div>
       </aside>
       <main id="root"></main>
     </div>
@@ -1958,6 +2158,10 @@
       let selectedSkillPath = "";
       let pluginViewCategory = "all";
       let selectedPluginId = "";
+      let pluginDetailTab = "insights";
+      let pendingRuleImport = null;
+      const pluginDetailDraftConfigs = {};
+      const pluginPendingRuleTexts = {};
       const skillDocScrollTops = new Map();
       let selectedAgentSessionId = "";
       const root = document.getElementById("root");
@@ -2012,7 +2216,7 @@
           const tenant = state.remoteOrganization || state.remoteApiUrl || "your private cloud";
           return `Private Cloud mode. Rules and approvals sync with ${tenant}. Local hooks still call this Mac first.`;
         }
-        return "Personal mode runs fully on this Mac. Rules, history, approvals, and agent protection stay local.";
+        return "Personal mode runs fully on this Mac. Rules, history, approvals, and OpenLeash activity stay local.";
       }
 
       function updateModeFoot() {
@@ -2410,7 +2614,7 @@
           renderSetup();
           return;
         }
-        setupRemoteNotice = "Installing agent protection...";
+        setupRemoteNotice = "Installing OpenLeash on this Mac...";
         renderSetup();
         const rules = (state.rules || []).map((rule) => ({
           ...rule,
@@ -2830,7 +3034,9 @@
         if (view === "overview") return renderOverview();
         if (view === "usage") return renderUsage();
         if (view === "plugins") return renderPlugins();
+        if (view === "plugin-marketplace") return renderPluginMarketplace();
         if (view === "plugin-detail") return renderPluginDetail();
+        if (view === "plugin-rule-import") return renderPluginRuleImport();
         if (view === "agents") return renderAgents();
         if (view === "mcps") return renderMcps();
         if (view === "skills") return renderSkills();
@@ -2842,17 +3048,19 @@
       }
 
       function renderNavigation() {
-        const fixedItems = [
+        const primaryItems = [
           { view: "overview", label: "Overview" },
+          { view: "agents", label: "Agents" }
+        ];
+        const secondaryItems = [
           { view: "usage", label: "Usage" },
           { view: "history", label: "History" },
-          { view: "agents", label: "Agents" },
           { view: "settings", label: "Settings" }
         ];
         const categoryItems = clientPluginCategories();
         sideNav.innerHTML = `
           <div class="navSection">
-            ${fixedItems.map((item) => `
+            ${primaryItems.map((item) => `
               <button type="button" data-view="${escapeHtml(item.view)}" class="${view === item.view ? "active" : ""}">
                 <span class="navLabel">${escapeHtml(item.label)}</span>
               </button>
@@ -2876,25 +3084,54 @@
               ` : ""}
             `).join("")}
           </div>
+          <div class="navSection">
+            <button type="button" data-view="plugin-marketplace" class="${view === "plugin-marketplace" ? "active" : ""}">
+              ${categoryIcon("all")}
+              <span class="navLabel">Add plugins</span>
+              <span class="navCount">${escapeHtml(String(availablePlugins().length))}</span>
+            </button>
+          </div>
+          <div class="navSection">
+            ${secondaryItems.map((item) => `
+              <button type="button" data-view="${escapeHtml(item.view)}" class="${view === item.view ? "active" : ""}">
+                <span class="navLabel">${escapeHtml(item.label)}</span>
+              </button>
+            `).join("")}
+          </div>
         `;
         bindNavigation();
       }
 
       function installedPlugins() {
-        return (state.plugins || []).filter((plugin) => plugin.settings?.enabled === true);
+        return (state.plugins || []).filter((plugin) => plugin.organizationPolicy?.mandatory || plugin.settings?.enabled === true);
+      }
+
+      function availablePlugins() {
+        return (state.plugins || []).filter((plugin) => !plugin.organizationPolicy?.mandatory && plugin.settings?.enabled !== true);
+      }
+
+      function pluginInstalled(plugin) {
+        return Boolean(plugin?.organizationPolicy?.mandatory || plugin?.installed === true || plugin?.settings?.enabled === true);
+      }
+
+      function pluginStatusLabel(plugin) {
+        if (plugin?.organizationPolicy?.mandatory) return "required";
+        return pluginInstalled(plugin) ? "installed" : "available";
       }
 
       function clientPluginCategories() {
         const fromViewModel = state.viewModel?.pluginCategories;
+        const plugins = installedPlugins().sort(comparePluginPopularity);
         if (Array.isArray(fromViewModel) && fromViewModel.length > 0) {
           return fromViewModel.map((category) => ({
             id: category.id,
             label: category.label || categoryLabel(category.id),
-            plugins: Array.isArray(category.plugins) ? category.plugins : [],
+            plugins: Array.isArray(category.plugins) && category.plugins.length > 0
+              ? category.plugins
+              : plugins.filter((plugin) => pluginCategory(plugin).toLowerCase() === category.id),
             count: Number(category.count || category.plugins?.length || 0)
           }));
         }
-        const plugins = installedPlugins().sort(comparePluginPopularity);
         return ["cost", "security", "observability", "utility"].map((id) => {
           const label = categoryLabel(id);
           const items = plugins.filter((plugin) => pluginCategory(plugin).toLowerCase() === id);
@@ -2946,6 +3183,7 @@
               selectedPluginId = button.dataset.pluginNavId;
               const plugin = (state.plugins || []).find((item) => item.id === selectedPluginId);
               pluginViewCategory = button.dataset.pluginViewCategory || (plugin ? pluginCategory(plugin).toLowerCase() : "all");
+              pluginDetailTab = "insights";
               view = "plugin-detail";
               renderView();
               return;
@@ -2953,6 +3191,10 @@
             if (button.dataset.pluginViewCategory) {
               pluginViewCategory = button.dataset.pluginViewCategory;
               selectedPluginId = "";
+            }
+            if ((button.dataset.view || "") === "plugin-marketplace") {
+              selectedPluginId = "";
+              pluginViewCategory = "all";
             }
             view = button.dataset.view || "overview";
             renderView();
@@ -2976,8 +3218,8 @@
                 <span>
                   <strong>${escapeHtml(agent.displayName)}</strong>
                   <small>${escapeHtml(agent.detail)}</small>
-                  <span class="tag ${agent.installed ? "good" : ""}">${agent.skillCount} skill${agent.skillCount === 1 ? "" : "s"}</span>
                 </span>
+                ${agent.installed && agent.supportsInstall !== false ? `<span class="switch overviewAgentSwitch"><input data-overview-agent="${escapeHtml(agent.kind)}" type="checkbox" ${agent.desiredMonitored ? "checked" : ""}><span></span></span>` : ""}
               </article>
             `).join("")}
           </div>
@@ -3043,6 +3285,25 @@
             ` : ""}
           </div>
         `;
+        bindOverviewAgentSwitches();
+      }
+
+      function bindOverviewAgentSwitches() {
+        root.querySelectorAll("[data-overview-agent]").forEach((input) => {
+          input.onchange = async () => {
+            const next = Boolean(input.checked);
+            input.disabled = true;
+            const result = await window.openleash.setAgentMonitoring?.({ kind: input.dataset.overviewAgent, monitored: next });
+            if (!result?.ok) {
+              input.checked = !next;
+              state.desktopMessage = result?.error || "Could not update this agent.";
+            } else if (Array.isArray(result.localProtections)) {
+              state.localProtections = result.localProtections;
+            }
+            input.disabled = false;
+            renderOverview();
+          };
+        });
       }
 
       function renderHistory() {
@@ -3368,21 +3629,15 @@
 
       function overviewAgentInventory() {
         const detected = new Map((state.localProtections || []).map((agent) => [agent.kind, agent]));
-        const skillCounts = new Map();
-        for (const skill of state.skills || []) {
-          const kind = skill.agent_kind || agentKindForName(skill.agent_name);
-          if (!kind) continue;
-          skillCounts.set(kind, (skillCounts.get(kind) || 0) + 1);
-        }
         const catalog = [
-          { kind: "claude-code", displayName: "Claude Code", icon: "claude" },
-          { kind: "codex", displayName: "OpenAI Codex", icon: "openai" },
-          { kind: "github-copilot", displayName: "GitHub Copilot", icon: "copilot" },
-          { kind: "gemini", displayName: "Google Gemini CLI", icon: "gemini" },
-          { kind: "cursor", displayName: "Cursor", icon: "cursor" },
-          { kind: "windsurf", displayName: "Windsurf", icon: "windsurf" },
-          { kind: "cline", displayName: "Cline", icon: "cline" },
-          { kind: "opencode", displayName: "OpenCode", icon: "opencode" }
+          { kind: "claude-code", displayName: "Claude Code", icon: "claude.png" },
+          { kind: "github-copilot", displayName: "GitHub Copilot", icon: "githubcopilot.svg" },
+          { kind: "gemini", displayName: "Google Gemini CLI", icon: "googlegemini.svg" },
+          { kind: "opencode", displayName: "OpenCode", icon: "opencode.png" },
+          { kind: "codex", displayName: "OpenAI Codex", icon: "codex.png" },
+          { kind: "cline", displayName: "Cline", icon: "cline.png" },
+          { kind: "cursor", displayName: "Cursor", icon: "cursor.png" },
+          { kind: "windsurf", displayName: "Windsurf", icon: "windsurf.svg" }
         ];
         const merged = catalog.map((definition) => {
           const detectedAgent = detected.get(definition.kind);
@@ -3393,18 +3648,13 @@
             ...(detectedAgent || {}),
             installed,
             protected: protectedAgent,
+            desiredMonitored: typeof detectedAgent?.desiredMonitored === "boolean" ? detectedAgent.desiredMonitored : protectedAgent,
             detail: installed
-              ? protectedAgent ? "Protected on this Mac" : (detectedAgent?.detail || "Installed")
-              : "Not installed",
-            skillCount: skillCounts.get(definition.kind) || 0
+              ? protectedAgent ? "Active" : "Unmonitored"
+              : "Not installed"
           };
         });
-        return merged.sort((a, b) =>
-          Number(b.installed) - Number(a.installed) ||
-          Number(b.protected) - Number(a.protected) ||
-          b.skillCount - a.skillCount ||
-          a.displayName.localeCompare(b.displayName)
-        );
+        return merged;
       }
 
       function agentKindForName(name) {
@@ -3783,13 +4033,14 @@
 
       function iconNameForAgent(name) {
         const text = String(name || "").toLowerCase();
-        if (text.includes("claude")) return "claude";
-        if (text.includes("codex") || text.includes("openai")) return "openai";
-        if (text.includes("gemini")) return "gemini";
-        if (text.includes("cline")) return "cline";
-        if (text.includes("opencode")) return "opencode";
-        if (text.includes("cursor")) return "cursor";
-        if (text.includes("windsurf")) return "windsurf";
+        if (text.includes("claude")) return "claude.png";
+        if (text.includes("github copilot") || text.includes("copilot")) return "githubcopilot.svg";
+        if (text.includes("gemini")) return "googlegemini.svg";
+        if (text.includes("opencode")) return "opencode.png";
+        if (text.includes("codex") || text.includes("openai")) return "codex.png";
+        if (text.includes("cline")) return "cline.png";
+        if (text.includes("cursor")) return "cursor.png";
+        if (text.includes("windsurf")) return "windsurf.svg";
         return "";
       }
 
@@ -4519,12 +4770,12 @@
         });
       }
 
-      function bindPluginMarketplaceSearch() {
+      function bindPluginMarketplaceSearch(target = "setup") {
         const search = document.getElementById("pluginMarketplaceSearch");
         if (search) {
           search.oninput = () => {
             setupPluginSearch = search.value;
-            renderSetup();
+            target === "marketplace" ? renderPluginMarketplace() : renderSetup();
             const nextSearch = document.getElementById("pluginMarketplaceSearch");
             if (nextSearch) {
               nextSearch.focus();
@@ -4535,7 +4786,7 @@
         root.querySelectorAll("[data-plugin-category]").forEach((button) => {
           button.onclick = () => {
             setupPluginCategory = button.dataset.pluginCategory || "all";
-            renderSetup();
+            target === "marketplace" ? renderPluginMarketplace() : renderSetup();
           };
         });
       }
@@ -4575,7 +4826,7 @@
       }
 
       function selectedPluginSettingsPayloads() {
-        return (state.plugins || []).filter((plugin) => plugin.organizationPolicy?.mandatory || selectedPlugins?.has(plugin.id)).map((plugin) => {
+        return (state.plugins || []).map((plugin) => {
           const enabled = Boolean(plugin.organizationPolicy?.mandatory || selectedPlugins?.has(plugin.id));
           const config = {
             ...(plugin.defaultConfig || {}),
@@ -4646,7 +4897,7 @@
                       <span class="pluginMetaPill">${metaIcon("downloads")} ${escapeHtml(compactNumber(Number(plugin.marketplace?.downloadCount || 0)))} downloads</span>
                     </span>
                   </div>
-                  <span class="tag good">installed</span>
+                  <span class="tag ${pluginInstalled(plugin) ? "good" : ""}">${escapeHtml(pluginStatusLabel(plugin))}</span>
                 </div>
                 <div class="eventMeta" style="margin-top:14px">
                   <span>${escapeHtml(String(outcomes.length))} outcomes</span>
@@ -4666,6 +4917,71 @@
         bindPluginPageControls();
       }
 
+      function renderPluginMarketplace() {
+        const query = setupPluginSearch.trim().toLowerCase();
+        const category = setupPluginCategory || "all";
+        const allPlugins = availablePlugins().sort(comparePluginPopularity);
+        const categoryFiltered = category === "all" ? allPlugins : allPlugins.filter((plugin) => pluginCategory(plugin).toLowerCase() === category);
+        const plugins = query ? categoryFiltered.filter((plugin) => pluginSearchText(plugin).includes(query)) : categoryFiltered;
+        const categories = pluginCategorySummary(allPlugins);
+        root.innerHTML = `
+          <div class="head">
+            <div><h1>Add plugins</h1><p>Search the plugin marketplace and add pipeline plugins to this account.</p></div>
+            ${modeTag()}
+          </div>
+          <div class="card">
+            <div class="pluginCategoryFilters">
+              ${categories.map((item) => `
+                <button type="button" data-plugin-category="${escapeHtml(item.id)}" class="${escapeHtml(item.id)} ${category === item.id ? "active" : ""}">
+                  ${categoryIcon(item.label)}
+                  <span>${escapeHtml(item.label)} ${escapeHtml(String(item.count))}</span>
+                </button>
+              `).join("")}
+            </div>
+            <div class="pluginMarketplaceTools">
+              <input id="pluginMarketplaceSearch" value="${escapeHtml(setupPluginSearch)}" placeholder="Search plugins, categories, developers, tags...">
+              <span>${plugins.length} of ${categoryFiltered.length} shown</span>
+            </div>
+            <div class="cardList">
+              ${plugins.map((plugin) => {
+                const developer = plugin.marketplace?.developerName || (plugin.publisher === "openleash" ? "OpenLeash" : plugin.publisher || "Unknown");
+                const categoryLabel = pluginCategory(plugin);
+                const categoryClass = pluginCategoryClass(categoryLabel);
+                return `
+                  <article class="card pluginInstallLine">
+                    <span class="agentIcon">${escapeHtml(pluginIconText(plugin))}</span>
+                    <span class="pluginCopy">
+                      <strong>${escapeHtml(pluginPackageName(plugin))}</strong>
+                      <small>${escapeHtml(pluginName(plugin))}</small>
+                      <span>${escapeHtml(plugin.marketplace?.shortDescription || pluginValueLine(plugin))}</span>
+                      <span class="pluginStats">
+                        <span class="pluginMetaPill">${metaIcon("author")} ${escapeHtml(developer)}</span>
+                        <span class="pluginCategoryTag ${categoryClass}">${categoryIcon(categoryLabel)} ${escapeHtml(categoryLabel)}</span>
+                      </span>
+                    </span>
+                    <button type="button" class="pluginAction" data-install-marketplace-plugin="${escapeHtml(plugin.id)}">
+                      <span class="pluginActionIcon">+</span>
+                      <span class="pluginActionText">Install</span>
+                    </button>
+                  </article>
+                `;
+              }).join("") || `<div class="card empty">${allPlugins.length === 0 ? "All available plugins are installed." : "No plugins match this search."}</div>`}
+            </div>
+          </div>
+        `;
+        bindPluginMarketplaceSearch("marketplace");
+        root.querySelectorAll("[data-install-marketplace-plugin]").forEach((button) => {
+          button.onclick = () => {
+            selectedPluginId = button.dataset.installMarketplacePlugin || "";
+            const plugin = (state.plugins || []).find((item) => item.id === selectedPluginId);
+            pluginViewCategory = plugin ? pluginCategory(plugin).toLowerCase() : "all";
+            pluginDetailTab = "settings";
+            view = "plugin-detail";
+            renderView();
+          };
+        });
+      }
+
       function renderPluginDetail() {
         const plugin = (state.plugins || []).find((item) => item.id === selectedPluginId) || (state.plugins || []).find((item) => item.settings?.enabled);
         if (!plugin) {
@@ -4676,7 +4992,11 @@
         const outcomes = pluginOutcomes(plugin.id);
         const categoryLabel = pluginCategory(plugin);
         const categoryClass = pluginCategoryClass(categoryLabel);
-        const locked = Boolean(plugin.organizationPolicy?.configLocked);
+        const installed = pluginInstalled(plugin);
+        const mandatory = Boolean(plugin.organizationPolicy?.mandatory);
+        const locked = mandatory || Boolean(plugin.organizationPolicy?.configLocked);
+        const blocked = outcomes.filter((outcome) => String(outcome.decision || outcome.status || "").toLowerCase().includes("block")).length;
+        const needsReview = outcomes.filter((outcome) => String(outcome.status || "").toLowerCase().includes("review")).length;
         root.innerHTML = `
           <div class="head">
             <div>
@@ -4684,30 +5004,42 @@
               <h1>${escapeHtml(pluginPackageName(plugin))}</h1>
               <p>${escapeHtml(plugin.marketplace?.shortDescription || plugin.description || "")}</p>
             </div>
-            <span class="pluginCategoryTag ${categoryClass}">${categoryIcon(categoryLabel)} ${escapeHtml(categoryLabel)}</span>
+            <div class="actions">
+              <span class="pluginCategoryTag ${categoryClass}">${categoryIcon(categoryLabel)} ${escapeHtml(categoryLabel)}</span>
+              <button id="togglePluginInstall" class="${installed ? "secondary" : "primary"}" ${mandatory ? "disabled" : ""}>${escapeHtml(mandatory ? "Required by org" : installed ? "Remove" : "Add")}</button>
+            </div>
+          </div>
+          <div id="pluginDetailPageStatus" class="detailSettingStatus"></div>
+          <div class="eventMeta" style="margin-top:12px">
+            <span class="pluginMetaPill">${metaIcon("author")} ${escapeHtml(plugin.publisher === "openleash" ? "OpenLeash" : plugin.publisher || "Unknown")}</span>
+            <span>v${escapeHtml(plugin.version || "0.0.0")}</span>
+            <span>${escapeHtml(pluginStatusLabel(plugin))}</span>
+          </div>
+          <div class="pluginDetailTabs" role="tablist" aria-label="${escapeHtml(pluginPackageName(plugin))} sections">
+            <button type="button" data-plugin-detail-tab="insights" class="${pluginDetailTab === "insights" ? "active" : ""}">Insights</button>
+            <button type="button" data-plugin-detail-tab="outcomes" class="${pluginDetailTab === "outcomes" ? "active" : ""}">Outcomes <span>${escapeHtml(String(outcomes.length))}</span></button>
+            <button type="button" data-plugin-detail-tab="settings" class="${pluginDetailTab === "settings" ? "active" : ""}">Settings</button>
           </div>
           <div class="pluginDetailGrid">
+            ${pluginDetailTab === "insights" ? `
             <div class="card">
-              <div class="pluginDetailHeader">
+              <div class="fieldRow">
                 <div>
-                  <strong>Settings</strong>
-                  <p>${locked ? "Managed by your organization." : "Config applied to this user."}</p>
+                  <strong>Insights</strong>
+                  <p>Signals and trends reported by this plugin for this account.</p>
                 </div>
-                <span class="tag ${locked ? "" : "good"}">${escapeHtml(locked ? "locked" : "editable")}</span>
+                <span class="tag good">${escapeHtml(String(outcomes.length))}</span>
               </div>
-              <div class="eventMeta" style="margin-top:12px">
-                <span class="pluginMetaPill">${metaIcon("author")} ${escapeHtml(plugin.publisher === "openleash" ? "OpenLeash" : plugin.publisher || "Unknown")}</span>
-                <span>v${escapeHtml(plugin.version || "0.0.0")}</span>
-                <span>${escapeHtml(plugin.organizationPolicy?.mandatory ? "required" : "optional")}</span>
-              </div>
-              <div class="pluginDetailSettings" style="margin-top:18px">
-                ${pluginDetailSettingsFields(plugin)}
-              </div>
-              <div class="actions">
-                <span id="pluginDetailSaveStatus" class="detailSettingStatus"></span>
-                <button id="savePluginDetailSettings" class="primary" ${locked ? "disabled" : ""}>Save settings</button>
-              </div>
+              ${outcomes.length === 0 ? `<div class="empty" style="margin-top:14px">No insights reported yet.</div>` : `
+                <div class="pluginInsightGrid" style="margin-top:14px">
+                  <article class="pluginInsightMetric"><strong>${escapeHtml(String(outcomes.length))}</strong><span>Total outcomes</span></article>
+                  <article class="pluginInsightMetric"><strong>${escapeHtml(String(blocked))}</strong><span>Blocked</span></article>
+                  <article class="pluginInsightMetric"><strong>${escapeHtml(String(needsReview))}</strong><span>Needs review</span></article>
+                </div>
+              `}
             </div>
+            ` : ""}
+            ${pluginDetailTab === "outcomes" ? `
             <div class="card">
               <div class="fieldRow">
                 <div>
@@ -4720,13 +5052,196 @@
                 ${outcomes.map((outcome) => pluginOutcomeCard(outcome)).join("") || `<div class="empty">No outcomes reported yet.</div>`}
               </div>
             </div>
+            ` : ""}
+            ${pluginDetailTab === "settings" ? `
+            <div class="card">
+              <div class="pluginDetailHeader">
+                <div>
+                  <strong>Settings</strong>
+                  <p>${locked ? "Managed by your organization." : installed ? "Config applied to this user." : "Install this plugin before editing settings."}</p>
+                </div>
+                <span class="tag ${locked ? "" : "good"}">${escapeHtml(locked ? "locked" : "editable")}</span>
+              </div>
+              <div class="pluginDetailSettings" style="margin-top:18px">
+                ${pluginDetailSettingsFields(plugin)}
+              </div>
+              <div class="actions">
+                <span id="pluginDetailSaveStatus" class="detailSettingStatus"></span>
+                <button id="savePluginDetailSettings" class="primary" ${locked || !installed ? "disabled" : ""}>Save settings</button>
+              </div>
+            </div>
+            ` : ""}
           </div>
         `;
         document.getElementById("backPlugins").onclick = () => {
-          view = "plugins";
+          view = installed ? "plugins" : "plugin-marketplace";
           renderView();
         };
-        bindPluginDetailSettings(plugin);
+        root.querySelectorAll("[data-plugin-detail-tab]").forEach((button) => {
+          button.onclick = () => {
+            pluginDetailTab = button.dataset.pluginDetailTab || "insights";
+            renderPluginDetail();
+          };
+        });
+        const toggleInstall = document.getElementById("togglePluginInstall");
+        if (toggleInstall && !mandatory) {
+          toggleInstall.onclick = async () => {
+            if (installed && !confirm(`Remove ${pluginPackageName(plugin)} from this account?`)) return;
+            toggleInstall.disabled = true;
+            toggleInstall.textContent = installed ? "Removing..." : "Adding...";
+            const result = await window.openleash.savePluginSettings({
+              pluginId: plugin.id,
+              enabled: !installed,
+              config: effectivePluginConfig(plugin),
+              orderingPriority: plugin.settings?.orderingPriority ?? plugin.ordering?.priority ?? null
+            }).catch((error) => ({ ok: false, error: error?.message || "Could not update plugin." }));
+            if (!result?.ok) {
+              const status = document.getElementById("pluginDetailSaveStatus") || document.getElementById("pluginDetailPageStatus");
+              if (status) status.textContent = result?.error || "Could not update plugin.";
+              toggleInstall.disabled = false;
+              toggleInstall.textContent = installed ? "Remove" : "Add";
+              return;
+            }
+            state.plugins = (state.plugins || []).map((item) => item.id === plugin.id
+              ? { ...item, settings: result.settings || { ...(item.settings || {}), enabled: !installed } }
+              : item
+            );
+            pluginDetailTab = !installed ? "insights" : "settings";
+            renderPluginDetail();
+          };
+        }
+        if (pluginDetailTab === "settings") bindPluginDetailSettings(plugin);
+      }
+
+      function renderPluginRuleImport() {
+        const plugin = (state.plugins || []).find((item) => item.id === selectedPluginId);
+        if (!plugin || !pendingRuleImport || pendingRuleImport.pluginId !== selectedPluginId) {
+          view = "plugin-detail";
+          return renderPluginDetail();
+        }
+        const candidates = pendingRuleImport.candidates || [];
+        const selectedCount = candidates.filter((candidate) => pendingRuleImport.selected.has(candidate.id)).length;
+        const groups = ruleCandidateGroups(candidates);
+        root.innerHTML = `
+          <div class="head">
+            <div>
+              <button id="backPluginDetailFromImport" class="secondary">Back</button>
+              <h1>Import instruction rules</h1>
+              <p>Select the rules OpenLeash should enforce from scanned agent instruction files.</p>
+            </div>
+            <span class="tag good">${escapeHtml(String(selectedCount))} selected</span>
+          </div>
+          <div class="card ruleImportReview">
+            <div class="fieldRow">
+              <div>
+                <strong>${escapeHtml(candidates.length)} candidate rules</strong>
+                <p>Found across ${escapeHtml(String(pendingRuleImport.sourceCount || 0))} instruction file${pendingRuleImport.sourceCount === 1 ? "" : "s"}. Imported rules are added as unsaved settings until you press Save settings.</p>
+              </div>
+              <div class="actions">
+                <button type="button" class="secondary" id="selectAllRuleCandidates">Select all</button>
+                <button type="button" class="secondary" id="selectNoRuleCandidates">Select none</button>
+              </div>
+            </div>
+            <div class="ruleCandidateList">
+              ${groups.map((group) => `
+                <section class="ruleCandidateGroup">
+                  <div class="ruleCandidateGroupHead">
+                    <span class="agentIcon">${agentIcon({ displayName: group.agent, icon: iconNameForAgent(group.agent) })}</span>
+                    <span>
+                      <strong>${escapeHtml(group.agent)}</strong>
+                      <small>${escapeHtml(group.label)}${group.path ? ` · ${escapeHtml(shortPath(group.path))}` : ""}</small>
+                    </span>
+                    <em>${escapeHtml(String(group.rules.length))} rules</em>
+                  </div>
+                  <div class="ruleCandidateRows">
+                    ${group.rules.map((candidate) => `
+                      <label class="ruleCandidateRow ${pendingRuleImport.selected.has(candidate.id) ? "selected" : ""}">
+                        <input type="checkbox" data-rule-candidate="${escapeHtml(candidate.id)}" ${pendingRuleImport.selected.has(candidate.id) ? "checked" : ""}>
+                        <span>
+                          <strong>${escapeHtml(candidate.text)}</strong>
+                          <small>${escapeHtml(candidate.scope || "instruction file")}</small>
+                        </span>
+                        <select data-rule-candidate-action="${escapeHtml(candidate.id)}">
+                          <option value="ask" ${candidate.action !== "block" ? "selected" : ""}>Ask</option>
+                          <option value="block" ${candidate.action === "block" ? "selected" : ""}>Block</option>
+                        </select>
+                      </label>
+                    `).join("")}
+                  </div>
+                </section>
+              `).join("") || `<div class="empty">No instruction rules found.</div>`}
+            </div>
+            <div class="actions">
+              <span id="ruleImportReviewStatus" class="detailSettingStatus"></span>
+              <button type="button" class="secondary" id="cancelRuleImportReview">Cancel</button>
+              <button type="button" class="primary" id="importSelectedRuleCandidates" ${selectedCount === 0 ? "disabled" : ""}>Next</button>
+            </div>
+          </div>
+        `;
+        bindPluginRuleImport(plugin);
+      }
+
+      function ruleCandidateGroups(candidates) {
+        const groups = new Map();
+        for (const candidate of candidates || []) {
+          const key = [candidate.agent || "Agent instructions", candidate.path || candidate.label || ""].join("|");
+          if (!groups.has(key)) {
+            groups.set(key, {
+              agent: candidate.agent || "Agent instructions",
+              label: candidate.label || "Instruction file",
+              path: candidate.path || "",
+              rules: []
+            });
+          }
+          groups.get(key).rules.push(candidate);
+        }
+        return [...groups.values()];
+      }
+
+      function shortPath(value) {
+        const text = String(value || "").replace(/\\/g, "/");
+        return text.replace(/^.*?([^/]+\/[^/]+\/[^/]+)$/, "$1");
+      }
+
+      function bindPluginRuleImport(plugin) {
+        document.getElementById("backPluginDetailFromImport").onclick = () => {
+          view = "plugin-detail";
+          renderView();
+        };
+        document.getElementById("cancelRuleImportReview").onclick = () => {
+          pendingRuleImport = null;
+          view = "plugin-detail";
+          renderView();
+        };
+        document.getElementById("selectAllRuleCandidates").onclick = () => {
+          pendingRuleImport.selected = new Set((pendingRuleImport.candidates || []).map((candidate) => candidate.id));
+          renderPluginRuleImport();
+        };
+        document.getElementById("selectNoRuleCandidates").onclick = () => {
+          pendingRuleImport.selected = new Set();
+          renderPluginRuleImport();
+        };
+        root.querySelectorAll("[data-rule-candidate]").forEach((input) => {
+          input.onchange = () => {
+            input.checked ? pendingRuleImport.selected.add(input.dataset.ruleCandidate) : pendingRuleImport.selected.delete(input.dataset.ruleCandidate);
+            renderPluginRuleImport();
+          };
+        });
+        root.querySelectorAll("[data-rule-candidate-action]").forEach((select) => {
+          select.onchange = () => {
+            const candidate = (pendingRuleImport.candidates || []).find((item) => item.id === select.dataset.ruleCandidateAction);
+            if (candidate) candidate.action = select.value === "block" ? "block" : "ask";
+          };
+        });
+        document.getElementById("importSelectedRuleCandidates").onclick = () => {
+          const selected = (pendingRuleImport.candidates || [])
+            .filter((candidate) => pendingRuleImport.selected.has(candidate.id))
+            .map((candidate) => ({ text: candidate.text, action: candidate.action === "block" ? "block" : "ask" }));
+          addRulesToPluginDraft(plugin, selected);
+          pendingRuleImport = null;
+          view = "plugin-detail";
+          renderView();
+        };
       }
 
       function bindPluginPageControls() {
@@ -4778,7 +5293,7 @@
       function pluginDetailSettingField(plugin, config, field) {
         const value = config[field.key] ?? field.defaultValue;
         const schema = field.schema || {};
-        const disabled = plugin.organizationPolicy?.configLocked ? "disabled" : "";
+        const disabled = (plugin.organizationPolicy?.mandatory || plugin.organizationPolicy?.configLocked) ? "disabled" : "";
         const label = settingLabel(field.key);
         const hint = pluginSettingHint(field.key);
         const head = `
@@ -4831,7 +5346,7 @@
                   <div class="ruleListActions">
                     <button type="button" class="secondary" id="addPluginRule">Add rule</button>
                     <button type="button" class="secondary" id="scanPluginRules">Scan agent instruction files</button>
-                    <button type="button" class="secondary" id="importPluginRules">Import from CLAUDE.md or rules file</button>
+                    <button type="button" class="secondary" id="importPluginRules">Import JSON rules</button>
                   </div>
                 ` : ""}
               </div>
@@ -4905,7 +5420,8 @@
         if (value && typeof value === "object") {
           return {
             text: String(value.text || value.rule || value.description || "").trim(),
-            action: value.action === "block" ? "block" : "ask"
+            action: value.action === "block" ? "block" : "ask",
+            pending: Boolean(value.pending)
           };
         }
         return { text: "", action: "ask" };
@@ -4913,8 +5429,10 @@
 
       function ruleEditorRow(pluginId, key, value = "", disabled = "") {
         const rule = normalizeRuleEditorValue(value);
+        const pendingTexts = pluginPendingRuleTexts[pluginId] || new Set();
+        const pending = rule.pending || pendingTexts.has(rule.text.toLowerCase());
         return `
-          <div class="ruleListRow">
+          <div class="ruleListRow ${pending ? "pendingImport" : ""}">
             <textarea data-rule-item="${escapeHtml(pluginId)}" data-setting-key="${escapeHtml(key)}" placeholder="Ask before..." ${disabled}>${escapeHtml(rule.text)}</textarea>
             <select class="ruleActionSelect" data-rule-action="${escapeHtml(pluginId)}" data-setting-key="${escapeHtml(key)}" ${disabled}>
               <option value="ask" ${rule.action !== "block" ? "selected" : ""}>Ask</option>
@@ -4937,6 +5455,13 @@
       }
 
       function effectivePluginConfig(plugin) {
+        if (pluginDetailDraftConfigs[plugin.id]) return {
+          ...(pluginDetailDraftConfigs[plugin.id] || {})
+        };
+        return baseEffectivePluginConfig(plugin);
+      }
+
+      function baseEffectivePluginConfig(plugin) {
         const config = {
           ...(plugin.defaultConfig || {}),
           ...(plugin.settings?.config || {})
@@ -4948,6 +5473,28 @@
             .filter(Boolean);
         }
         return config;
+      }
+
+      function addRulesToPluginDraft(plugin, rules) {
+        const base = pluginDetailDraftConfigs[plugin.id]
+          ? { ...(pluginDetailDraftConfigs[plugin.id] || {}) }
+          : baseEffectivePluginConfig(plugin);
+        const existingRules = normalizeRuleEditorValues(base.rules);
+        const seen = new Set(existingRules.map((rule) => rule.text.toLowerCase()));
+        const pendingTexts = pluginPendingRuleTexts[plugin.id] || new Set();
+        const nextRules = [...existingRules];
+        for (const rule of rules || []) {
+          const normalized = normalizeRuleEditorValue(rule);
+          if (!normalized.text || seen.has(normalized.text.toLowerCase())) continue;
+          seen.add(normalized.text.toLowerCase());
+          pendingTexts.add(normalized.text.toLowerCase());
+          nextRules.push({ ...normalized, pending: true });
+        }
+        pluginPendingRuleTexts[plugin.id] = pendingTexts;
+        pluginDetailDraftConfigs[plugin.id] = {
+          ...base,
+          rules: nextRules
+        };
       }
 
       function collectPluginDetailConfig(plugin) {
@@ -4998,7 +5545,7 @@
       function bindPluginDetailSettings(plugin) {
         const button = document.getElementById("savePluginDetailSettings");
         const status = document.getElementById("pluginDetailSaveStatus");
-        if (!button || plugin.organizationPolicy?.configLocked) return;
+        if (!button || plugin.organizationPolicy?.mandatory || plugin.organizationPolicy?.configLocked) return;
         const importRules = document.getElementById("importPluginRules");
         const addRule = document.getElementById("addPluginRule");
         const scanRules = document.getElementById("scanPluginRules");
@@ -5027,43 +5574,47 @@
               status.textContent = result?.error || "Could not scan agent instruction files.";
               return;
             }
-            const rules = (result.policies || []).map((rule) => rule.description || rule.natural_language_rule || rule.name).filter(Boolean);
-            if (rules.length === 0) {
+            const rawCandidates = Array.isArray(result.candidates) && result.candidates.length ? result.candidates : (result.policies || []);
+            const candidates = rawCandidates
+              .map((rule, index) => {
+                const text = rule.text || rule.description || rule.natural_language_rule || rule.name;
+                const agent = rule.agent || String(rule.category || "Agent instructions").replace(/\s+instructions$/i, "");
+                return text ? {
+                  id: `candidate-${index}-${String(text).slice(0, 24).replace(/\W+/g, "-")}`,
+                  text,
+                  action: "ask",
+                  agent,
+                  label: rule.label || rule.sourceLabel || "Instruction file",
+                  path: rule.path || rule.source || "",
+                  scope: rule.scope || "project"
+                } : undefined;
+              })
+              .filter(Boolean);
+            if (candidates.length === 0) {
               status.textContent = "No agent instruction rules found.";
               return;
             }
-            const list = root.querySelector(`[data-rule-list="${cssEscape(plugin.id)}"][data-setting-key="rules"]`);
-            if (list) {
-              list.innerHTML = rules.map((rule) => ruleEditorRow(plugin.id, "rules", { text: rule, action: "ask" })).join("");
-              root.querySelectorAll(`[data-rule-remove="${cssEscape(plugin.id)}"]`).forEach((removeButton) => {
-                removeButton.onclick = () => removeButton.closest(".ruleListRow")?.remove();
-              });
-              autosizeRuleTextareas(list);
-              const sourceCount = Array.isArray(result.sources) ? result.sources.length : 0;
-              status.textContent = `Found ${rules.length} candidate rule${rules.length === 1 ? "" : "s"} from ${sourceCount} instruction file${sourceCount === 1 ? "" : "s"}. Review and save.`;
-            }
+            pendingRuleImport = {
+              pluginId: plugin.id,
+              candidates,
+              selected: new Set(candidates.map((candidate) => candidate.id)),
+              sourceCount: Array.isArray(result.sources) ? result.sources.length : 0
+            };
+            view = "plugin-rule-import";
+            renderView();
           };
         }
         if (importRules) {
           importRules.onclick = async () => {
-            const result = await window.openleash.importRules({ replace: true, save: false, currentRules: [] });
+            const result = await window.openleash.importRuleListJson();
             if (!result?.ok) {
-              status.textContent = result?.canceled ? "" : result?.error || "Could not import rules.";
+              status.textContent = result?.canceled ? "" : result?.error || "Could not import JSON rules.";
               return;
             }
-            const list = root.querySelector(`[data-rule-list="${cssEscape(plugin.id)}"][data-setting-key="rules"]`);
-            if (list) {
-              list.innerHTML = (result.policies || [])
-                .map((rule) => rule.description || rule.natural_language_rule || rule.name)
-                .filter(Boolean)
-                .map((rule) => ruleEditorRow(plugin.id, "rules", { text: rule, action: "ask" }))
-                .join("");
-              root.querySelectorAll(`[data-rule-remove="${cssEscape(plugin.id)}"]`).forEach((removeButton) => {
-                removeButton.onclick = () => removeButton.closest(".ruleListRow")?.remove();
-              });
-              autosizeRuleTextareas(list);
-              status.textContent = `Imported ${(result.policies || []).length} rules. Review and save.`;
-            }
+            addRulesToPluginDraft(plugin, result.rules || []);
+            renderPluginDetail();
+            const nextStatus = document.getElementById("pluginDetailSaveStatus");
+            if (nextStatus) nextStatus.textContent = `Imported ${(result.rules || []).length} rule${(result.rules || []).length === 1 ? "" : "s"} from JSON. Unsaved rows are highlighted.`;
           };
         }
         button.onclick = async () => {
@@ -5072,7 +5623,7 @@
           const config = collectPluginDetailConfig(plugin);
           const result = await window.openleash.savePluginSettings({
             pluginId: plugin.id,
-            enabled: plugin.settings?.enabled !== false,
+            enabled: pluginInstalled(plugin),
             config,
             orderingPriority: plugin.settings?.orderingPriority ?? plugin.ordering?.priority ?? null
           }).catch((error) => ({ ok: false, error: error?.message || "Could not save plugin settings." }));
@@ -5085,6 +5636,8 @@
             ? { ...item, settings: result.settings || { ...(item.settings || {}), config } }
             : item
           );
+          delete pluginDetailDraftConfigs[plugin.id];
+          delete pluginPendingRuleTexts[plugin.id];
           status.textContent = "Settings saved.";
           button.disabled = false;
         };
@@ -5242,8 +5795,22 @@
       }
 
       function agentIcon(agent) {
-        if (agent.icon) return `<img src="agent-icons/${escapeHtml(agent.icon)}.svg" alt="">`;
+        if (agent.icon) return `<img src="agents/${escapeHtml(agentIconFile(agent.icon))}" alt="">`;
         return escapeHtml(String(agent.displayName || "AI").split(/\s+/).slice(0, 2).map((part) => part[0]).join("").toUpperCase());
+      }
+
+      function agentIconFile(icon) {
+        const value = String(icon || "");
+        if (value.includes(".")) return value;
+        if (value === "claude") return "claude.png";
+        if (value === "copilot") return "githubcopilot.svg";
+        if (value === "gemini") return "googlegemini.svg";
+        if (value === "opencode") return "opencode.png";
+        if (value === "openai" || value === "codex") return "codex.png";
+        if (value === "cline") return "cline.png";
+        if (value === "cursor") return "cursor.png";
+        if (value === "windsurf") return "windsurf.svg";
+        return value;
       }
 
       function escapeHtml(value) {
