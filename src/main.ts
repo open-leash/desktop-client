@@ -653,6 +653,20 @@ ipcMain.handle("openleash:start-org-cloud-onboarding", async (_event, payload: {
   }
 });
 
+ipcMain.handle("openleash:open-debug-dashboard", async () => {
+  try {
+    const dashboardUrl = new URL(cloudDashboardUrl.replace(/\/$/, "") || "http://localhost:9300");
+    const slug = localServer?.remoteOrganization;
+    dashboardUrl.pathname = slug && !dashboardUrl.pathname.includes(slug)
+      ? `/${encodeURIComponent(slug)}/log`
+      : "/log";
+    await openTrustedExternalUrl(dashboardUrl.toString());
+    return { ok: true };
+  } catch (error) {
+    return { ok: false, error: error instanceof Error ? error.message : "Could not open Log in the dashboard." };
+  }
+});
+
 async function fetchMobileBootstrap(remoteApiUrl: string, organizationSlug?: string) {
   try {
     const url = new URL("/v1/mobile/bootstrap", remoteApiUrl);
@@ -2868,12 +2882,13 @@ function localHookInstallContext() {
 }
 
 function hookInstallContext() {
+  const managed = Boolean(localServer.remoteApiUrl);
   return {
     apiUrl: localServer.remoteApiUrl || apiUrl,
     token: localServer.effectiveToken,
     clientVersion: app.getVersion(),
-    apiFunction: "localHookEvaluate",
-    apiVersion: "2026-05-22.local-hook-evaluate.v1"
+    apiFunction: managed ? "tenantHookEvaluate" : "localHookEvaluate",
+    apiVersion: managed ? "2026-05-22.tenant-hook-evaluate.v1" : "2026-05-22.local-hook-evaluate.v1"
   };
 }
 
@@ -3058,25 +3073,45 @@ function filesInDirectory(directory: string, pattern: RegExp) {
 
 function parseRulesImport(content: string, filePath: string) {
   if (path.extname(filePath).toLowerCase() === ".json") return JSON.parse(content) as unknown;
-  const rules = content
-    .replace(/```[\s\S]*?```/g, "")
-    .split(/\r?\n/g)
-    .map((line) => line
-      .replace(/^#{1,6}\s+/, "")
-      .replace(/^\s*(?:[-*]|\d+[.)])\s+/, "")
-      .trim()
-    )
-    .filter((line) => line.length >= 8)
-    .filter((line) => !/^(rules|instructions|guidelines|notes?|overview|context)$/i.test(line))
-    .map((line) => ({
-      id: `imported-${crypto.createHash("sha1").update(line).digest("hex").slice(0, 12)}`,
-      name: importedRuleTitle(line),
+  const rules = ruleCandidatesFromMarkdown(content)
+    .map((text) => ({
+      id: `imported-${crypto.createHash("sha1").update(text).digest("hex").slice(0, 12)}`,
+      name: importedRuleTitle(text),
       category: "Imported rules",
-      description: line,
+      description: text,
       enabled: true,
-      match: [line]
+      match: [text]
     }));
   return { rules };
+}
+
+function ruleCandidatesFromMarkdown(content: string) {
+  const cleaned = content
+    .replace(/```[\s\S]*?```/g, "")
+    .replace(/\r\n/g, "\n");
+  const candidates: string[] = [];
+  for (const paragraph of cleaned.split(/\n{2,}/g)) {
+    const lines = paragraph
+      .split(/\n/g)
+      .map((line) => line.replace(/^#{1,6}\s+/, "").trim())
+      .filter(Boolean);
+    if (lines.length === 0) continue;
+    const listItems = lines
+      .filter((line) => /^\s*(?:[-*]|\d+[.)])\s+/.test(line))
+      .map((line) => line.replace(/^\s*(?:[-*]|\d+[.)])\s+/, "").trim())
+      .filter(isRuleCandidateText);
+    if (listItems.length > 0) {
+      candidates.push(...listItems);
+      continue;
+    }
+    const text = lines.join(" ").replace(/\s+/g, " ").trim();
+    if (isRuleCandidateText(text)) candidates.push(text);
+  }
+  return [...new Map(candidates.map((text) => [text.toLowerCase(), text])).values()];
+}
+
+function isRuleCandidateText(text: string) {
+  return text.length >= 8 && !/^(rules|instructions|guidelines|notes?|overview|context)$/i.test(text);
 }
 
 function parsePluginRulesJsonImport(content: string) {

@@ -658,7 +658,9 @@ export class LocalOpenLeashServer {
       };
     }
     const evaluatedResults = this.store.policies.filter((policy) => policy.enabled).map((policy) => evaluatePolicy(policy, request));
-    const results = shouldDeferPromptOnlyApproval(request, evaluatedResults) ? deferPromptOnlyPolicyResults(evaluatedResults) : evaluatedResults;
+    const results = shouldDeferPromptOnlyApproval(request, evaluatedResults) && !hasSensitivePromptOnlyFinding(request, evaluatedResults)
+      ? deferPromptOnlyPolicyResults(evaluatedResults)
+      : evaluatedResults;
     const failed = results.filter((result) => result.status === "failed" || result.status === "needs_question");
     const decision: "ask" | "allow" = failed.length > 0 ? "ask" : "allow";
     const filePath = await this.extractFilePath(request, failed);
@@ -2065,6 +2067,18 @@ function isPassOnlyEvaluation(item: Pick<Evaluation, "decision" | "resolution" |
 function shouldDeferPromptOnlyApproval(request: EvaluationRequest, results: PolicyResult[]) {
   if (!isPromptOnlyHook(request)) return false;
   return results.some((result) => result.status === "failed" || result.status === "needs_question");
+}
+
+function hasSensitivePromptOnlyFinding(request: EvaluationRequest, results: PolicyResult[]) {
+  if (!isPromptOnlyHook(request)) return false;
+  const text = eventText(request).toLowerCase();
+  const sensitiveIntent = /(\.env|env(?:ironment)?\s+file|dotenv|secret|credential|private key|api[_ -]?key|token|password|kubeconfig|\.npmrc|id_rsa|id_ed25519)/i.test(text) &&
+    /\b(read|print|show|display|dump|open|inspect|cat|copy|expose|summarize)\b/i.test(text);
+  if (!sensitiveIntent) return false;
+  return results.some((result) =>
+    result.status === "failed" &&
+    /(credential|secret|token|\.env|private key|kubeconfig|npmrc)/i.test(`${result.policyName} ${result.explanation}`)
+  );
 }
 
 function isPromptOnlyHook(request: EvaluationRequest) {

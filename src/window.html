@@ -1622,6 +1622,71 @@
         border-radius: 14px;
         background: var(--soft);
       }
+      .debugRows { display: grid; gap: 12px; margin-top: 22px; }
+      .debugRow {
+        overflow: hidden;
+        background: white;
+        border: 1px solid var(--line);
+        border-radius: 16px;
+      }
+      .debugRow[open] { box-shadow: 0 12px 32px rgba(20, 30, 30, .06); }
+      .debugRow summary {
+        display: grid;
+        grid-template-columns: 82px minmax(0, 1fr) minmax(160px, .55fr);
+        gap: 14px;
+        align-items: center;
+        padding: 14px 16px;
+        cursor: pointer;
+        list-style: none;
+      }
+      .debugRow summary::-webkit-details-marker { display: none; }
+      .debugLevel {
+        justify-self: start;
+        padding: 6px 9px;
+        border-radius: 999px;
+        background: #eeece6;
+        color: #4d4b46;
+        font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+        font-size: 11px;
+        font-weight: 900;
+        text-transform: uppercase;
+      }
+      .debugLevel.error { color: #b4233b; background: #ffe8ee; }
+      .debugLevel.warn { color: #9a5b00; background: #fff0d7; }
+      .debugLevel.security { color: #087b6d; background: #dfeee9; }
+      .debugCopy { min-width: 0; }
+      .debugCopy strong,
+      .debugCopy small,
+      .debugContext {
+        display: block;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+      .debugCopy strong { font-size: 15px; }
+      .debugCopy small,
+      .debugContext { color: var(--muted); font-size: 12px; font-weight: 800; }
+      .debugContext { text-align: right; }
+      .debugDetail { display: grid; gap: 12px; padding: 0 16px 16px; }
+      .debugMeta {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 8px;
+      }
+      .debugMeta .kv { min-width: 0; }
+      .debugMeta .kv strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      .debugPre {
+        max-height: 260px;
+        overflow: auto;
+        padding: 12px;
+        background: #f8faf8;
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        color: #2c3230;
+        font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+        font-size: 12px;
+        white-space: pre-wrap;
+      }
       .eventBody {
         display: grid;
         gap: 8px;
@@ -3041,6 +3106,7 @@
         if (view === "mcps") return renderMcps();
         if (view === "skills") return renderSkills();
         if (view === "skill-detail") return renderSkillDetailView();
+        if (view === "debug") return renderDebug();
         if (view === "settings") return renderSettings();
         if (view === "event") return renderEventDetail();
         if (view === "agent-session") return renderAgentSessionDetail();
@@ -3055,6 +3121,7 @@
         const secondaryItems = [
           { view: "usage", label: "Usage" },
           { view: "history", label: "History" },
+          { view: "debug", label: "Log" },
           { view: "settings", label: "Settings" }
         ];
         const categoryItems = clientPluginCategories();
@@ -3204,8 +3271,6 @@
 
       function renderOverview() {
         const inventory = overviewAgentInventory();
-        const agentCards = currentAgentCards();
-        const groups = agentHighlights();
         root.innerHTML = `
           <div class="head">
             <div><h1>Overview</h1><p>What local AI agents are doing right now.</p></div>
@@ -3222,67 +3287,6 @@
                 ${agent.installed && agent.supportsInstall !== false ? `<span class="switch overviewAgentSwitch"><input data-overview-agent="${escapeHtml(agent.kind)}" type="checkbox" ${agent.desiredMonitored ? "checked" : ""}><span></span></span>` : ""}
               </article>
             `).join("")}
-          </div>
-          <div class="overviewAgents">
-            ${agentCards.map((agent) => `
-              <article class="card agentOverview">
-                <span class="agentIcon">${agentIcon(agent)}</span>
-                <div>
-                  <div class="agentOverviewHead">
-                    <span>
-                      <strong>${escapeHtml(agent.displayName)}</strong>
-                      <small>${escapeHtml(agent.host)} · ${escapeHtml(agent.when)}</small>
-                    </span>
-                    <span class="tag ${agent.statusClass}">${escapeHtml(agent.status)}</span>
-                  </div>
-                  <div class="projectLine">
-                    <span>Project</span>
-                    <strong>${escapeHtml(agent.project)}</strong>
-                  </div>
-                  <div class="nowSummary">${escapeHtml(agent.summary)}</div>
-                  <div class="agentMeta">
-                    <span class="tag">${escapeHtml(agent.action)}</span>
-                    ${agent.rule ? `<span class="tag">${escapeHtml(agent.rule)}</span>` : ""}
-                  </div>
-                  ${agent.details.length ? `<div class="detailList">
-                    ${agent.details.map((detail) => `
-                      <div class="detailLine"><b>${escapeHtml(detail.label)}</b><span>${escapeHtml(detail.value)}</span></div>
-                    `).join("")}
-                  </div>` : ""}
-                </div>
-              </article>
-            `).join("") || `<div class="card empty">Waiting for agent activity.</div>`}
-            ${groups.length ? `
-              <div class="subhead">
-                <h2>Recent highlights</h2>
-                <p>High-signal actions OpenLeash noticed recently.</p>
-              </div>
-              ${groups.map((group) => `
-                <article class="card agentOverview">
-                  <span class="agentIcon">${agentIcon(group.agent)}</span>
-                  <div>
-                    <div class="agentOverviewHead">
-                      <span>
-                        <strong>${escapeHtml(group.agent.displayName)}</strong>
-                        <small>${escapeHtml(group.project || "No project")} · ${escapeHtml(group.actions[0]?.date || "No recent activity")}</small>
-                      </span>
-                      <span class="tag">${group.actions.length} highlighted</span>
-                    </div>
-                    <div class="highlightList">
-                      ${group.actions.map((action) => `
-                        <div class="highlight">
-                          <span>
-                            <span class="highlightTitle">${escapeHtml(action.label)}</span>
-                            ${action.filePath ? fileLine(action.filePath) : `<span class="quote">${escapeHtml(action.quote)}</span>`}
-                          </span>
-                          <small>${escapeHtml(action.date)}</small>
-                        </div>
-                      `).join("")}
-                    </div>
-                  </div>
-                </article>
-              `).join("")}
-            ` : ""}
           </div>
         `;
         bindOverviewAgentSwitches();
@@ -3332,6 +3336,67 @@
             renderView();
           };
         });
+      }
+
+      function renderDebug() {
+        const rows = localPluginDebugRows();
+        root.innerHTML = `
+          <div class="head">
+            <div><h1>Log</h1><p>Plugin run records and local event metadata from this Mac.</p></div>
+            <div class="headActions">
+              ${modeTag()}
+              <button class="secondary" id="openDebugDashboard">Open dashboard log</button>
+            </div>
+          </div>
+          <div class="debugRows">
+            ${rows.map((row) => `
+              <details class="debugRow">
+                <summary>
+                  <span class="debugLevel ${escapeHtml(row.level)}">${escapeHtml(row.level)}</span>
+                  <span class="debugCopy">
+                    <strong>${escapeHtml(row.summary)}</strong>
+                    <small>${escapeHtml(row.pluginId)} · ${escapeHtml(row.eventName)} · ${escapeHtml(formatTime(row.createdAt))}</small>
+                  </span>
+                  <span class="debugContext">${escapeHtml([row.agentName, projectTag(row.projectPath), row.sessionId].filter(Boolean).join(" · ") || "No context")}</span>
+                </summary>
+                <div class="debugDetail">
+                  <div class="debugMeta">
+                    <div class="kv"><small>Plugin</small><strong>${escapeHtml(row.pluginId)}</strong></div>
+                    <div class="kv"><small>Level</small><strong>${escapeHtml(row.level)}</strong></div>
+                    <div class="kv"><small>Agent</small><strong>${escapeHtml(row.agentName || "Unknown")}</strong></div>
+                    <div class="kv"><small>Session</small><strong>${escapeHtml(row.sessionId || "Unknown")}</strong></div>
+                  </div>
+                  <div class="debugPre">${escapeHtml(JSON.stringify(row.raw, null, 2))}</div>
+                </div>
+              </details>
+            `).join("") || `<div class="empty">No local plugin debug records yet. The full server-side plugin log stream is available in the dashboard.</div>`}
+          </div>
+        `;
+        const openDebug = document.getElementById("openDebugDashboard");
+        if (openDebug) openDebug.onclick = async () => {
+          const result = await window.openleash.openDebugDashboard();
+          if (!result?.ok) alert(result?.error || "Could not open dashboard debug.");
+        };
+      }
+
+      function localPluginDebugRows() {
+        return visibleHistoryItems()
+          .flatMap((item) => {
+            const runs = Array.isArray(item.payload?.openleashPluginRuns) ? item.payload.openleashPluginRuns : [];
+            return runs.map((run, index) => ({
+              id: `${item.id}:${index}`,
+              pluginId: run.pluginId || run.plugin_id || "openleash.plugin",
+              level: run.error ? "error" : run.decision === "deny" ? "security" : "debug",
+              summary: run.summary || run.message || run.kind || "Plugin run completed.",
+              eventName: item.event_name || item.payload?.eventName || "event",
+              agentName: item.agent_name,
+              projectPath: item.project_path,
+              sessionId: item.payload?.sessionId,
+              createdAt: item.created_at,
+              raw: { pluginRun: run, event: item }
+            }));
+          })
+          .slice(0, 120);
       }
 
       function renderEventDetail() {

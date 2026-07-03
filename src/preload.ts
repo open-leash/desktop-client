@@ -10,6 +10,7 @@ contextBridge.exposeInMainWorld("openleash", {
   dockerStatus: () => ipcRenderer.invoke("openleash:docker-status"),
   startSelfHosted: () => ipcRenderer.invoke("openleash:start-self-hosted"),
   openLocalConfig: () => ipcRenderer.invoke("openleash:open-local-config"),
+  openDebugDashboard: () => ipcRenderer.invoke("openleash:open-debug-dashboard"),
   markIntroSeen: () => ipcRenderer.invoke("openleash:mark-intro-seen"),
   setup: (payload: unknown) => ipcRenderer.invoke("openleash:setup", payload),
   saveSettings: (payload: unknown) => ipcRenderer.invoke("openleash:save-settings", payload),
