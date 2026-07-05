@@ -21,6 +21,10 @@ export type PluginSettingState = {
   enabled: boolean;
   config: Record<string, unknown>;
   orderingPriority?: number | null;
+  installedVersion?: string;
+  availableVersion?: string;
+  updateAvailable?: boolean;
+  updatePolicy?: "manual" | "patch" | "minor" | "locked";
   updatedAt?: string;
 };
 

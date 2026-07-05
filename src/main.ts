@@ -1265,6 +1265,11 @@ async function fetchTrayState(): Promise<{ pending: PendingDecision[]; agents: A
   if (!remoteApiUrl || !remoteToken) return localState;
 
   try {
+    const notifications = await fetchRemoteNotifications(remoteApiUrl, remoteToken);
+    if (notifications?.pending.length) {
+      return mergeTrayState(localState, notifications, localState?.plugins ?? latestPlugins, latestOutcomes);
+    }
+
     const [stateResponse, plugins, outcomes] = await Promise.all([
       fetch(new URL("/v1/mobile/state", remoteApiUrl), {
         headers: { authorization: `Bearer ${remoteToken}`, ...apiVersionHeaders("mobileState") }
@@ -1284,6 +1289,18 @@ async function fetchLocalTrayState() {
   if (!response.ok) return undefined;
   const body = await response.json() as { pending: PendingDecision[]; agents: AgentStatus[]; session_metrics?: SessionMetrics; sessionMetrics?: SessionMetrics };
   return { pending: body.pending, agents: body.agents, sessionMetrics: body.session_metrics ?? body.sessionMetrics, plugins: localServer.plugins, outcomes: latestOutcomes, viewModel: latestViewModel };
+}
+
+async function fetchRemoteNotifications(remoteApiUrl: string, remoteToken: string): Promise<{ pending: PendingDecision[]; agents: AgentStatus[]; sessionMetrics?: SessionMetrics } | undefined> {
+  try {
+    const response = await fetch(new URL("/v1/client/notifications", remoteApiUrl), {
+      headers: { authorization: `Bearer ${remoteToken}`, ...apiVersionHeaders("clientNotifications") }
+    });
+    if (!response.ok) return undefined;
+    return mapRemoteMobileState(await response.json() as RemoteMobileState);
+  } catch {
+    return undefined;
+  }
 }
 
 async function fetchRemotePluginCatalog(remoteApiUrl: string, remoteToken: string, fallback: PluginCatalogItem[]) {
