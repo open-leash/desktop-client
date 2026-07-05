@@ -237,6 +237,7 @@ type SetupConfig = {
 
 type LocalServerOptions = {
   onAgentStop?: (event: { agent: string; eventName: string; body: unknown }) => void;
+  onRemoteHookForward?: (event: { agent: string; eventName: string; body: unknown }) => void;
 };
 
 function desktopExchangeRedirectUri(pathname: string) {
@@ -778,6 +779,7 @@ export class LocalOpenLeashServer {
 
   private async forwardRemoteHook(agent: string, eventName: string, body: unknown, originalUrl: string) {
     if (!this.store.remoteApiUrl || !this.store.remoteToken) return undefined;
+    this.options.onRemoteHookForward?.({ agent, eventName, body });
     try {
       const endpoint = new URL(`/v1/hooks/${agent}/${eventName}`, this.store.remoteApiUrl.replace(/\/+$/, ""));
       const query = new URL(originalUrl, "http://127.0.0.1").searchParams;
@@ -794,7 +796,7 @@ export class LocalOpenLeashServer {
           [OPENLEASH_API_VERSION_HEADER]: OPENLEASH_API_CONTRACTS.tenantHookEvaluate
         },
         body: JSON.stringify(body),
-        signal: AbortSignal.timeout(Number(process.env.OPENLEASH_REMOTE_HOOK_TIMEOUT_MS ?? 115000))
+        signal: AbortSignal.timeout(Number(process.env.OPENLEASH_REMOTE_HOOK_TIMEOUT_MS ?? 130000))
       });
       if (!response.ok) return undefined;
       return await response.json() as unknown;

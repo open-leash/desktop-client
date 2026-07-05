@@ -491,7 +491,10 @@ app.whenReady().then(async () => {
     name: APP_DISPLAY_NAME
   });
   startupLog("login item set");
-  localServer = new LocalOpenLeashServer(app.getPath("userData"), { onAgentStop: playAgentDoneSound });
+  localServer = new LocalOpenLeashServer(app.getPath("userData"), {
+    onAgentStop: playAgentDoneSound,
+    onRemoteHookForward: refreshPendingApprovalsSoon
+  });
   startupLog(`local server constructed at ${app.getPath("userData")}`);
   syncInstallIdentity();
   if (process.argv.includes("--reset-setup")) {
@@ -1243,6 +1246,14 @@ async function poll() {
   } catch {
     await refreshLocalProtections();
     setDisconnected();
+  }
+}
+
+function refreshPendingApprovalsSoon() {
+  for (const delayMs of [250, 750, 1500, 3000, 6000]) {
+    setTimeout(() => {
+      void poll();
+    }, delayMs);
   }
 }
 
