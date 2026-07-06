@@ -1078,7 +1078,7 @@ class _PluginHomeSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final categories = ['cost', 'security', 'observability', 'utility'];
+    final categories = ['observability', 'cost', 'security', 'utility'];
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -1244,7 +1244,7 @@ class _PluginMarketplacePageState extends State<_PluginMarketplacePage> {
             Wrap(
               spacing: 8,
               runSpacing: 8,
-              children: ['all', 'cost', 'security', 'observability', 'utility'].map((category) {
+              children: ['all', 'observability', 'cost', 'security', 'utility'].map((category) {
                 final selected = _category == category;
                 return ChoiceChip(
                   label: Text(category == 'all' ? 'All' : _categoryLabel(category)),
@@ -1626,6 +1626,8 @@ String _pluginInitials(Map plugin) {
 
 String _pluginCategory(Map plugin) {
   final marketplace = plugin['marketplace'];
+  final marketplaceTags = marketplace is Map && marketplace['tags'] is List ? (marketplace['tags'] as List).join(' ') : '';
+  final pluginTags = plugin['tags'] is List ? (plugin['tags'] as List).join(' ') : '';
   final explicit = [
     marketplace is Map ? marketplace['category'] : null,
     plugin['category'],
@@ -1633,11 +1635,17 @@ String _pluginCategory(Map plugin) {
   ].whereType<Object>().map((item) => item.toString().toLowerCase()).join(' ');
   final text = explicit.isNotEmpty
       ? explicit
-      : '${plugin['id'] ?? ''} ${plugin['name'] ?? ''} ${plugin['description'] ?? ''}'.toLowerCase();
+      : '${plugin['id'] ?? ''} ${plugin['name'] ?? ''} ${plugin['description'] ?? ''} $marketplaceTags $pluginTags'.toLowerCase();
+  if (RegExp(r'siem-exporter').hasMatch(text)) {
+    return 'utility';
+  }
+  if (RegExp(r'mcp-scanner|skill-scanner').hasMatch(text)) {
+    return 'security';
+  }
   if (RegExp(r'security|policy|guard|skill|risk|approval|dlp|leak|secret|credential').hasMatch(text)) {
     return 'security';
   }
-  if (RegExp(r'observability|observe|log|mcp|siem|audit|telemetry|monitor').hasMatch(text)) {
+  if (RegExp(r'visibility|observability|observe|log|mcp|siem|audit|telemetry|monitor').hasMatch(text)) {
     return 'observability';
   }
   if (RegExp(r'cost|token|compression|usage|budget|spend').hasMatch(text)) {
@@ -1649,8 +1657,8 @@ String _pluginCategory(Map plugin) {
 String _categoryLabel(String category) {
   if (category == 'cost') return 'Cost';
   if (category == 'security') return 'Security';
-  if (category == 'observability') return 'Observability';
-  if (category == 'utility') return 'Utility';
+  if (category == 'observability') return 'Visibility';
+  if (category == 'utility') return 'Misc';
   return 'All';
 }
 
