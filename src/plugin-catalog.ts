@@ -227,7 +227,7 @@ export const bundledFirstPartyPlugins: BundledPluginManifest[] = [
       }
     },
     defaultConfig: { enabled: true, redactSecrets: true },
-    tags: ["mcp", "inventory", "audit"]
+    tags: ["security", "mcp", "inventory", "audit"]
   }
 ];
 

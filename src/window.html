@@ -3199,7 +3199,7 @@
             count: Number(category.count || category.plugins?.length || 0)
           }));
         }
-        return ["cost", "security", "observability", "utility"].map((id) => {
+        return ["observability", "cost", "security", "utility"].map((id) => {
           const label = categoryLabel(id);
           const items = plugins.filter((plugin) => pluginCategory(plugin).toLowerCase() === id);
           return { id, label, plugins: items, count: items.length };
@@ -3233,8 +3233,8 @@
       function categoryLabel(id) {
         if (id === "cost") return "Cost";
         if (id === "security") return "Security";
-        if (id === "observability") return "Observability";
-        if (id === "utility") return "Utility";
+        if (id === "observability") return "Visibility";
+        if (id === "utility") return "Misc";
         return "All";
       }
 
@@ -4600,11 +4600,13 @@
 
       function pluginCategory(plugin) {
         const raw = plugin.marketplace?.category || plugin.category || plugin.manifest?.category || "";
-        const text = String(raw || `${plugin.id || ""} ${plugin.name || ""} ${plugin.description || ""} ${(plugin.marketplace?.tags || []).join(" ")}`).toLowerCase();
+        const text = String(raw || `${plugin.id || ""} ${plugin.name || ""} ${plugin.description || ""} ${(plugin.marketplace?.tags || []).join(" ")} ${(plugin.tags || []).join(" ")}`).toLowerCase();
+        if (/siem-exporter/.test(text)) return "Misc";
+        if (/mcp-scanner|skill-scanner/.test(text)) return "Security";
         if (/security|policy|guard|skill|prompt-injection|risk|approval|dlp|leak|sensitive|secret|credential/.test(text)) return "Security";
-        if (/observability|observe|log|mcp|siem|audit|telemetry|monitor/.test(text)) return "Observability";
+        if (/visibility|observability|observe|log|mcp|siem|audit|telemetry|monitor/.test(text)) return "Visibility";
         if (/cost|token|compression|usage|budget|spend/.test(text)) return "Cost";
-        return "Utility";
+        return "Misc";
       }
 
       function pluginCategorySummary(plugins) {
@@ -4617,8 +4619,8 @@
           { id: "all", label: "All", count: counts.get("all") || 0 },
           { id: "cost", label: "Cost", count: counts.get("cost") || 0 },
           { id: "security", label: "Security", count: counts.get("security") || 0 },
-          { id: "observability", label: "Observability", count: counts.get("observability") || 0 },
-          { id: "utility", label: "Utility", count: counts.get("utility") || 0 }
+          { id: "observability", label: "Visibility", count: counts.get("observability") || 0 },
+          { id: "utility", label: "Misc", count: counts.get("utility") || 0 }
         ];
       }
 

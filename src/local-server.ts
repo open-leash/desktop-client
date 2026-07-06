@@ -1019,10 +1019,9 @@ export class LocalOpenLeashServer {
     const contentHash = crypto.createHash("sha256").update(input.content).digest("hex");
     const existing = this.db.prepare("select content_hash, status, content, purpose_summary, content_updated_at from skills where skill_path = ?").get(input.skillPath) as { content_hash?: string; status?: string; content?: string | null; purpose_summary?: string | null; content_updated_at?: string | null } | undefined;
     if (existing?.content_hash === contentHash && existing.status !== "deleted" && existing.content && existing.purpose_summary) return { ok: true, unchanged: true };
-    const assessment = await this.evaluateSkillRisk(input.content, input.skillName, input.skillPath);
-    const purposeSummary = await this.summarizeSkillPurpose(input.content, input.skillName, input.skillPath);
+    const purposeSummary = heuristicSkillPurpose(input.content, input.skillName);
     const now = new Date().toISOString();
-    const status = assessment.malicious ? "suspicious" : existing?.status === "approved" ? "approved" : "observed";
+    const status = existing?.status === "approved" ? "approved" : "observed";
     this.db.prepare(`
       insert into skills (
         id, agent_kind, agent_name, scope, project_path, skill_name, skill_path, status, risk_score,
@@ -1032,11 +1031,11 @@ export class LocalOpenLeashServer {
         @reasons_json, @content_hash, @content, @content_preview, @purpose_summary, @content_updated_at, @first_seen_at, @last_seen_at, @updated_at)
       on conflict(skill_path) do update set
         agent_kind = excluded.agent_kind,
-        agent_name = excluded.agent_name,
-        scope = excluded.scope,
-        project_path = excluded.project_path,
-        skill_name = excluded.skill_name,
-        status = excluded.status,
+      agent_name = excluded.agent_name,
+      scope = excluded.scope,
+      project_path = excluded.project_path,
+      skill_name = excluded.skill_name,
+      status = excluded.status,
         risk_score = excluded.risk_score,
         reasons_json = excluded.reasons_json,
         content_hash = excluded.content_hash,
@@ -1055,8 +1054,8 @@ export class LocalOpenLeashServer {
       skill_name: input.skillName,
       skill_path: input.skillPath,
       status,
-      risk_score: assessment.riskScore,
-      reasons_json: JSON.stringify(assessment.reasons),
+      risk_score: 0,
+      reasons_json: JSON.stringify([]),
       content_hash: contentHash,
       content: truncate(input.content, 80000),
       content_preview: truncate(input.content, 12000),
@@ -1066,87 +1065,7 @@ export class LocalOpenLeashServer {
       last_seen_at: input.changedAt ?? now,
       updated_at: now
     });
-    if (assessment.malicious) this.recordSuspiciousSkillEvaluation(input, assessment);
-    return { ok: true, suspicious: assessment.malicious, assessment, purposeSummary };
-  }
-
-  private async evaluateSkillRisk(content: string, skillName: string, skillPath: string) {
-    const heuristic = heuristicSkillAssessment(content);
-    if (this.store.apiProvider !== "openai" || !this.store.apiKey) return heuristic;
-    const modelAssessment = await evaluateSkillRiskWithOpenAI({ content, skillName, skillPath, apiKey: this.store.apiKey });
-    if (!modelAssessment) return heuristic;
-    if (modelAssessment.malicious) return modelAssessment;
-    return heuristic.malicious ? heuristic : modelAssessment;
-  }
-
-  private async summarizeSkillPurpose(content: string, skillName: string, skillPath: string) {
-    if (this.store.apiProvider === "openai" && this.store.apiKey) {
-      const summary = await summarizeSkillPurposeWithOpenAI({ content, skillName, skillPath, apiKey: this.store.apiKey });
-      if (summary) return summary;
-    }
-    return heuristicSkillPurpose(content, skillName);
-  }
-
-  private recordSuspiciousSkillEvaluation(input: {
-    agentKind: string;
-    agentName: string;
-    scope: "user" | "project";
-    projectPath?: string | null;
-    skillName: string;
-    skillPath: string;
-    content: string;
-  }, assessment: { riskScore: number; reasons: Array<{ reason: string; quote?: string }> }) {
-    const existing = this.store.history.find((item) =>
-      skillPathFromEvaluation(item) === input.skillPath &&
-      item.resolution == null &&
-      item.decision === "ask"
-    );
-    if (existing) return;
-    const id = crypto.randomUUID();
-    const summary = "OpenLeash detected a possibly malicious agent skill.";
-    const evaluation: Evaluation = {
-      id,
-      file_path: input.skillPath,
-      decision: "ask",
-      resolution: null,
-      summary,
-      question: `${summary} Delete this skill or approve it?`,
-      created_at: new Date().toISOString(),
-      user_name: "Max Brin",
-      hostname: os.hostname(),
-      agent_name: input.agentName,
-      agent_kind: input.agentKind,
-      event_name: "SkillChanged",
-      tool_name: "agent-skill",
-      project_path: input.projectPath ?? undefined,
-      payload: {
-        eventName: "Notification",
-        agentKind: input.agentKind as any,
-        sessionId: `skill:${input.skillPath}`,
-        projectPath: input.projectPath ?? undefined,
-        prompt: `Skill ${input.skillName} changed at ${input.skillPath}`,
-        raw: {
-          openleashEventType: "skill-risk",
-          skillName: input.skillName,
-          skillPath: input.skillPath,
-          scope: input.scope,
-          riskScore: assessment.riskScore,
-          reasons: assessment.reasons,
-          contentPreview: truncate(input.content, 12000)
-        },
-        occurredAt: new Date().toISOString()
-      },
-      triggered_policies: [{
-        policy_name: "Agent skill integrity",
-        status: "needs_question",
-        severity: "high",
-        explanation: "A newly added or edited agent skill may contain unsafe instructions or executable behavior.",
-        evidence: assessment.reasons.map((reason) => reason.quote ? `${reason.reason}: ${reason.quote}` : reason.reason)
-      }]
-    };
-    this.store.history.unshift(evaluation);
-    this.store.history = this.store.history.slice(0, 500);
-    this.writeStore();
+    return { ok: true, suspicious: false, purposeSummary };
   }
 
   private writeStore() {
@@ -2399,133 +2318,6 @@ function deleteSkillFile(skillPath: string) {
   }
 }
 
-type SkillAssessment = { malicious: boolean; riskScore: number; reasons: Array<{ reason: string; quote?: string }> };
-
-function heuristicSkillAssessment(content: string): SkillAssessment {
-  const reasons: Array<{ reason: string; quote?: string; score: number }> = [];
-  const checks: Array<[RegExp, string, number]> = [
-    [/(?:ignore|bypass|disable|remove|tamper with).{0,80}(?:openleash|approval|guardrail|security hook|policy enforcement|safety check)/i, "Attempts to bypass approval, safety, or OpenLeash controls", 95],
-    [/(?:exfiltrat|steal|harvest|collect|send|upload|post).{0,120}(?:secret|token|api[_ -]?key|credential|\.env|private key|id_rsa|id_ed25519)/i, "Instructs secret or credential theft/exfiltration", 95],
-    [/(?:secret|token|api[_ -]?key|credential|\.env|private key|id_rsa|id_ed25519).{0,120}(?:exfiltrat|steal|harvest|send|upload|post).{0,120}(?:http|webhook|server|endpoint|curl|fetch|wget)/i, "Combines credential access with network exfiltration", 100],
-    [/(?:install|create|write|add).{0,100}(?:launchagent|launchdaemon|cron|plist|systemd|login item|startup item).{0,100}(?:backdoor|persistence|survive reboot|reinstall)/i, "Attempts to create persistence or a backdoor", 95],
-    [/(?:curl|wget|fetch).{0,80}(?:http[s]?:\/\/).{0,160}(?:\|\s*(?:sh|bash|zsh)|exec|eval|python\s+-c|node\s+-e)/i, "Runs remotely downloaded code", 95],
-    [/(?:eval\(|exec\(|child_process|subprocess|os\.system|shell=True).{0,160}(?:untrusted|remote|download|payload|base64|curl|wget)/i, "Runs dynamically fetched or untrusted code", 90],
-    [/(?:rm\s+-rf\s+(?:\/|\*|\$HOME|~)|format\s+(?:disk|drive|volume)|diskutil\s+erase|dd\s+if=\/dev\/zero|git\s+reset\s+--hard).{0,120}(?:without asking|silently|auto-approve|do not ask|bypass approval)/i, "Guides broad destructive action without approval", 90]
-  ];
-  for (const [pattern, reason, score] of checks) {
-    const match = content.match(pattern);
-    if (match) reasons.push({ reason, quote: quoteAround(content, match.index ?? 0), score });
-  }
-  const riskScore = reasons.reduce((score, reason) => Math.max(score, reason.score), 0);
-  return {
-    malicious: riskScore >= 90 && reasons.length > 0,
-    riskScore,
-    reasons: reasons.map(({ score: _score, ...reason }) => reason)
-  };
-}
-
-function quoteAround(content: string, index: number) {
-  return truncate(content.slice(Math.max(0, index - 80), Math.min(content.length, index + 220)).replace(/\s+/g, " ").trim(), 260);
-}
-
-async function evaluateSkillRiskWithOpenAI({ content, skillName, skillPath, apiKey }: { content: string; skillName: string; skillPath: string; apiKey: string }) {
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 5000);
-  try {
-    const response = await fetch("https://api.openai.com/v1/responses", {
-      method: "POST",
-      signal: controller.signal,
-      headers: {
-        "content-type": "application/json",
-        authorization: `Bearer ${apiKey}`
-      },
-      body: JSON.stringify({
-        model: process.env.OPENLEASH_SKILL_EVAL_MODEL ?? process.env.OPENAI_EVAL_MODEL ?? "gpt-4.1-mini",
-        input: [
-          {
-            role: "system",
-            content: [
-              "You are OpenLeash, a security evaluator for local AI-agent skills.",
-              "Flag a skill only when the skill content itself contains clear, actionable malicious instructions or code.",
-              "The threshold is intentionally high: credential theft/exfiltration, network upload of secrets, bypassing approval/safety controls, persistence/backdoors, dynamically executing untrusted downloaded code, or broad destructive commands that explicitly avoid approval.",
-              "Do not flag normal skill documentation merely because it mentions allowed tools, reading or writing its own config files, mkdir, deleting its own pending/config entries, API keys as setup inputs, or other ordinary task-specific file operations.",
-              "Do not flag skills merely for being installed, named agent-skill, describing installation, syncing skills, editing SKILL.md, or mentioning hooks/security in a defensive or administrative context.",
-              "Prefer false negatives over noisy false positives. If the concern is only generic capability, return malicious=false.",
-              "Set malicious=true only when riskScore is 90 or higher and include short exact quotes that prove the suspicious behavior.",
-              "Return compact JSON only: {\"malicious\":boolean,\"riskScore\":0-100,\"reasons\":[{\"reason\":\"...\",\"quote\":\"short exact quote from skill\"}]}. Quote only text present in the skill."
-            ].join(" ")
-          },
-          {
-            role: "user",
-            content: JSON.stringify({ skillName, skillPath, content: truncate(content, 24000) })
-          }
-        ],
-        temperature: 0,
-        max_output_tokens: 700
-      })
-    });
-    if (!response.ok) return undefined;
-    const payload = await response.json() as { output_text?: string; output?: Array<{ content?: Array<{ text?: string }> }> };
-    const output = payload.output_text ?? payload.output?.flatMap((item) => item.content ?? []).map((item) => item.text ?? "").join("") ?? "";
-    const parsed = JSON.parse(output) as { malicious?: unknown; riskScore?: unknown; reasons?: unknown };
-    const reasons = Array.isArray(parsed.reasons)
-      ? parsed.reasons.flatMap((item) => {
-          if (!item || typeof item !== "object") return [];
-          const reason = typeof (item as Record<string, unknown>).reason === "string" ? (item as Record<string, unknown>).reason as string : "";
-          const quote = typeof (item as Record<string, unknown>).quote === "string" ? (item as Record<string, unknown>).quote as string : undefined;
-          return reason ? [{ reason: truncate(reason, 220), ...(quote ? { quote: truncate(quote, 260) } : {}) }] : [];
-        })
-      : [];
-    return normalizeSkillAssessment({
-      malicious: Boolean(parsed.malicious),
-      riskScore: typeof parsed.riskScore === "number" ? Math.max(0, Math.min(100, parsed.riskScore)) : (reasons.length ? 50 : 0),
-      reasons
-    });
-  } catch {
-    return undefined;
-  } finally {
-    clearTimeout(timeout);
-  }
-}
-
-async function summarizeSkillPurposeWithOpenAI({ content, skillName, skillPath, apiKey }: { content: string; skillName: string; skillPath: string; apiKey: string }) {
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 3500);
-  try {
-    const response = await fetch("https://api.openai.com/v1/responses", {
-      method: "POST",
-      signal: controller.signal,
-      headers: {
-        "content-type": "application/json",
-        authorization: `Bearer ${apiKey}`
-      },
-      body: JSON.stringify({
-        model: process.env.OPENLEASH_SKILL_SUMMARY_MODEL ?? process.env.OPENAI_EVAL_MODEL ?? "gpt-4.1-mini",
-        input: [
-          {
-            role: "system",
-            content: "Summarize this AI agent skill purpose in 4 to 8 words. No punctuation unless needed. No quotes. Return only the phrase."
-          },
-          {
-            role: "user",
-            content: JSON.stringify({ skillName, skillPath, content: truncate(content, 10000) })
-          }
-        ],
-        temperature: 0,
-        max_output_tokens: 40
-      })
-    });
-    if (!response.ok) return undefined;
-    const payload = await response.json() as { output_text?: string; output?: Array<{ content?: Array<{ text?: string }> }> };
-    const output = payload.output_text ?? payload.output?.flatMap((item) => item.content ?? []).map((item) => item.text ?? "").join("") ?? "";
-    return normalizeSkillPurpose(output, skillName);
-  } catch {
-    return undefined;
-  } finally {
-    clearTimeout(timeout);
-  }
-}
-
 function heuristicSkillPurpose(content: string, skillName: string) {
   const heading = content.match(/^#\s+(.+)$/m)?.[1] ?? content.match(/^description:\s*["']?(.+?)["']?\s*$/mi)?.[1];
   const source = heading || skillName.replace(/[-_]+/g, " ");
@@ -2546,22 +2338,6 @@ function titleCaseWords(value: string) {
     .filter(Boolean)
     .map((word) => word.length <= 3 ? word : word.charAt(0).toUpperCase() + word.slice(1))
     .join(" ");
-}
-
-function normalizeSkillAssessment(assessment: SkillAssessment): SkillAssessment {
-  const reasons = assessment.reasons.filter((reason) => {
-    const text = `${reason.reason} ${reason.quote ?? ""}`.toLowerCase();
-    const hasSuspiciousBehavior = /(exfiltrat|steal|harvest|credential|secret|token|api[_ -]?key|private key|id_rsa|id_ed25519|bypass|disable|tamper|approval|guardrail|backdoor|persistence|launchagent|launchdaemon|cron|remote.*code|downloaded code|rm -rf|format disk|without asking|auto-approve)/i.test(text);
-    const isOnlyAdministrative = /(install|installer|skill\.md|agent-skill|allowed tools|configuration|config|sync|marketplace|documentation)/i.test(text) &&
-      !/(exfiltrat|steal|credential|secret|token|private key|bypass|backdoor|remote.*code|rm -rf|format disk)/i.test(text);
-    return hasSuspiciousBehavior && !isOnlyAdministrative;
-  });
-  const riskScore = reasons.length > 0 ? assessment.riskScore : 0;
-  return {
-    malicious: Boolean(assessment.malicious && riskScore >= 90 && reasons.length > 0),
-    riskScore,
-    reasons
-  };
 }
 
 function slug(value: string) {
