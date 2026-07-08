@@ -4,18 +4,22 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>OpenLeash</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet" />
     <style>
       :root {
-        --ink: #0c0c0a;
-        --ink-2: #2a2a26;
-        --muted: #6b6b63;
-        --line: #e8e5dd;
-        --line-2: #d8d3c7;
-        --soft: #f3f2ec;
+        --ink: #22201a;
+        --ink-2: #3a3730;
+        --muted: #5c584a;
+        --line: #ece7d6;
+        --line-2: #c4bfa8;
+        --soft: #faf8ef;
         --panel: #ffffff;
-        --accent: #5b4fe5;
-        --accent-2: #ec4899;
-        --accent-soft: #efedfd;
+        --accent: #5b4df0;
+        --accent-2: #b44df0;
+        --accent-soft: #f6f5ff;
+        --yellow-soft: #fff4d6;
         --green: #18a558;
         --green-soft: #e6f5ed;
         --red: #e94e3a;
@@ -25,11 +29,13 @@
       * { box-sizing: border-box; }
       body {
         margin: 0;
-        background: var(--soft);
+        background: #fffdf7;
         color: var(--ink);
-        font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        font-family: "Space Grotesk", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
         -webkit-font-smoothing: antialiased;
+        text-rendering: geometricPrecision;
         user-select: none;
+        overflow: hidden;
       }
       .drag-strip {
         position: fixed;
@@ -47,11 +53,13 @@
         -webkit-app-region: no-drag;
       }
       .app {
-        min-height: 100vh;
+        height: 100vh;
+        min-height: 0;
         display: grid;
         grid-template-columns: 230px minmax(0, 1fr);
         gap: 14px;
         padding: 14px;
+        overflow: hidden;
       }
       aside, main {
         background: var(--panel);
@@ -63,6 +71,8 @@
         display: flex;
         flex-direction: column;
         gap: 18px;
+        min-height: 0;
+        overflow: hidden;
       }
       .brand {
         display: flex;
@@ -200,9 +210,9 @@
         font-size: 13px;
         line-height: 1.45;
       }
-      main { padding: 48px 38px 38px; overflow: auto; }
-      h1 { margin: 0; font-size: 38px; letter-spacing: 0; }
-      h2 { margin: 0; font-size: 20px; letter-spacing: 0; }
+      main { min-width: 0; min-height: 0; padding: 48px 38px 38px; overflow: auto; }
+      h1 { margin: 0; font-size: 38px; line-height: 1.05; letter-spacing: 0; font-weight: 700; }
+      h2 { margin: 0; font-size: 20px; line-height: 1.14; letter-spacing: 0; font-weight: 700; }
       p { margin: 0; color: var(--muted); line-height: 1.5; }
       .head {
         display: flex;
@@ -249,6 +259,41 @@
         height: 100%;
         border-radius: 999px;
         background: linear-gradient(90deg, var(--accent), var(--accent-2));
+      }
+      .localBackendProgress {
+        display: grid;
+        gap: 10px;
+        margin-top: 16px;
+      }
+      .localBackendProgressBar {
+        height: 8px;
+        border-radius: 999px;
+        background: rgba(216, 211, 199, .5);
+        overflow: hidden;
+      }
+      .localBackendProgressFill {
+        width: 48%;
+        height: 100%;
+        border-radius: 999px;
+        background: linear-gradient(90deg, var(--accent), var(--accent-2));
+        transition: width .25s ease;
+      }
+      .localBackendProgressFill.ready {
+        width: 100%;
+        background: linear-gradient(90deg, #18a558, #6ed59a);
+      }
+      .localBackendProgressFill.busy {
+        width: 68%;
+        animation: localBackendPulse 1.2s ease-in-out infinite;
+      }
+      .localBackendStatus {
+        color: var(--muted);
+        font-size: 14px;
+        font-weight: 800;
+      }
+      @keyframes localBackendPulse {
+        0%, 100% { opacity: .62; }
+        50% { opacity: 1; }
       }
       .setupGreeting {
         margin-top: 10px;
@@ -705,7 +750,7 @@
       }
       .pluginMarketplaceTools {
         display: grid;
-        grid-template-columns: minmax(0, 1fr) auto;
+        grid-template-columns: minmax(0, 1fr) auto auto;
         align-items: center;
         gap: 12px;
         margin-bottom: 14px;
@@ -1895,16 +1940,18 @@
       }
       .overviewAgentGrid {
         display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+        grid-template-columns: repeat(auto-fit, minmax(176px, 1fr));
         gap: 12px;
         margin-top: 24px;
       }
       .overviewAgentTile {
         display: grid;
-        grid-template-columns: 42px minmax(0, 1fr) auto;
-        gap: 12px;
+        grid-template-columns: 38px minmax(0, 1fr) auto;
+        grid-template-rows: 38px minmax(0, auto);
+        gap: 10px;
         align-items: center;
-        min-height: 86px;
+        min-height: 92px;
+        min-width: 0;
         border-color: transparent;
         background: #f6fbf9;
       }
@@ -2169,6 +2216,380 @@
       }
       .quote::before { content: "“"; }
       .quote::after { content: "”"; }
+
+      /* Main-web visual theme layer. Keeps the desktop views aligned with the public site. */
+      .app {
+        gap: 12px;
+        padding: 12px;
+        background: #fffdf7;
+      }
+      aside,
+      main {
+        border-radius: 14px;
+        background: #fffdf7;
+        box-shadow: none;
+      }
+      aside {
+        border: 1.5px solid var(--line);
+        background: rgba(255, 253, 247, .92);
+      }
+      main {
+        border: 0;
+        background: #fffdf7;
+      }
+      body,
+      button,
+      input,
+      select,
+      textarea {
+        font-family: "Space Grotesk", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        letter-spacing: 0;
+      }
+      code,
+      pre,
+      .pre,
+      .debugPre,
+      .skillDoc pre,
+      .fileName,
+      .terminalLine,
+      .installCommand {
+        font-family: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      }
+      nav button {
+        min-height: 42px;
+        border-radius: 10px;
+        padding: 10px 14px;
+        color: var(--muted);
+        font-weight: 700;
+      }
+      nav button:hover,
+      nav button.active {
+        background: var(--yellow-soft);
+        color: var(--ink);
+      }
+      nav button.navPlugin.active {
+        background: var(--accent-soft);
+        color: var(--accent);
+      }
+      .foot,
+      p,
+      small,
+      .muted,
+      .choiceCard p,
+      .pluginInstallLine .pluginCopy > span:not(.pluginMeta),
+      .pluginOutcomeCopy p,
+      .quote,
+      .sessionRow small,
+      .sessionRow em {
+        color: var(--muted);
+      }
+      .card,
+      .welcomeTile,
+      .choiceCard,
+      .pluginInstallLine,
+      .pluginOutcomeCard,
+      .pluginSettingCard,
+      .pluginInsightMetric,
+      .ruleCandidateGroup,
+      .ruleCandidateRow,
+      .ruleListRow,
+      .categoryCard,
+      .debugRow,
+      .sessionStat,
+      .sessionRow,
+      .overviewAgentTile,
+      .highlight,
+      .empty,
+      .skillDoc,
+      .googleSignIn {
+        border: 1.5px solid var(--line);
+        background: #fff;
+        box-shadow: none;
+      }
+      .card,
+      .welcomeTile,
+      .choiceCard,
+      .pluginInstallLine,
+      .pluginOutcomeCard,
+      .pluginSettingCard,
+      .pluginInsightMetric,
+      .ruleCandidateGroup,
+      .ruleCandidateRow,
+      .ruleListRow,
+      .categoryCard,
+      .debugRow,
+      .sessionStat,
+      .sessionRow,
+      .overviewAgentTile,
+      .highlight,
+      .empty,
+      .skillDoc {
+        border-radius: 14px;
+      }
+      .choiceCard.selected,
+      .choiceCard.featured.selected,
+      .pluginInstallLine.selected,
+      .ruleCandidateRow.selected,
+      .choicePill:has(input:checked),
+      .overviewAgentTile.protected {
+        border-color: var(--accent);
+        background: var(--accent-soft);
+      }
+      .choiceCard.featured {
+        border-color: var(--line);
+        background: #fff;
+      }
+      .choiceCard .benefits span,
+      .recommendedTag,
+      .managedBadge,
+      .setupStepPill,
+      .tag,
+      .pluginMetaPill,
+      .pluginCategoryTag,
+      .sessionMeta b,
+      .sessionMeta i,
+      code,
+      .filePathPill {
+        border-color: var(--line);
+        background: var(--yellow-soft);
+        color: var(--ink);
+      }
+      .tag.good {
+        background: var(--green-soft);
+        color: #0d7650;
+      }
+      .tag.bad {
+        background: #fdeced;
+        color: #bd2d3f;
+      }
+      .welcomeMark,
+      .welcomeAgentIcon,
+      .agentIcon,
+      .pluginActionIcon,
+      .fileTypeIcon {
+        border-color: var(--line);
+        background: var(--soft);
+        color: var(--accent);
+      }
+      .agentIcon {
+        width: 38px;
+        height: 38px;
+        flex-basis: 38px;
+        border-radius: 9px;
+      }
+      .agentIcon img {
+        width: 22px;
+        height: 22px;
+      }
+      .overviewAgentTile {
+        grid-template-columns: 38px minmax(0, 1fr) auto;
+        grid-template-rows: 38px minmax(0, auto);
+        align-items: center;
+        border: 1.5px solid var(--line);
+        background: #fff;
+        padding: 14px 16px;
+      }
+      .overviewAgentTile > span:not(.agentIcon):not(.overviewAgentSwitch) {
+        grid-column: 1 / -1;
+        grid-row: 2;
+        min-width: 0;
+      }
+      .overviewAgentTile > .agentIcon {
+        grid-column: 1;
+        grid-row: 1;
+      }
+      .overviewAgentTile strong {
+        display: -webkit-box;
+        overflow: hidden;
+        -webkit-box-orient: vertical;
+        -webkit-line-clamp: 2;
+        line-height: 1.08;
+        overflow-wrap: anywhere;
+      }
+      .overviewAgentTile small {
+        display: block;
+        max-width: 100%;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+      .overviewAgentTile.missing {
+        background: #fff;
+        opacity: .68;
+      }
+      .overviewAgentTile.protected {
+        box-shadow: inset 0 0 0 1px rgba(91, 77, 240, .2);
+      }
+      .overviewAgentSwitch {
+        grid-column: 3;
+        grid-row: 1;
+        align-self: center;
+      }
+      .primary {
+        background: var(--accent);
+        color: #fff;
+        box-shadow: 0 12px 24px rgba(91, 77, 240, .16);
+      }
+      .primary:hover:not(:disabled) {
+        background: #4335c9;
+      }
+      .secondary,
+      .pluginAction,
+      .toggleRow,
+      .choicePill,
+      .checkboxPill,
+      .pluginCategoryFilters button,
+      .pluginDetailTabs,
+      .segmented,
+      .googleSignIn {
+        border: 1.5px solid var(--line);
+        background: #fff;
+        color: var(--ink);
+        font-family: "Space Grotesk", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      }
+      .secondary:hover:not(:disabled),
+      .pluginAction:hover,
+      .pluginCategoryFilters button:hover,
+      .pluginDetailTabs button:hover {
+        background: var(--yellow-soft);
+      }
+      .setupProgressBar,
+      .localBackendProgressBar {
+        background: #f0ecdd;
+      }
+      .setupProgressFill,
+      .localBackendProgressFill,
+      .progressFill,
+      .riskFill {
+        background: linear-gradient(90deg, var(--accent), var(--accent-2));
+      }
+      .localBackendProgressFill.ready {
+        background: linear-gradient(90deg, #18a558, #6ed59a);
+      }
+      input.secret,
+      .detailSettingInput,
+      .settingsGrid input,
+      .settingsGrid select,
+      .pluginMarketplaceTools input,
+      .ruleCandidateRow select,
+      .ruleActionSelect,
+      .ruleListRow textarea {
+        border-color: var(--line);
+        background: #fff;
+        color: var(--ink);
+      }
+      input.secret:focus,
+      .detailSettingInput:focus,
+      .settingsGrid input:focus,
+      .settingsGrid select:focus,
+      .pluginMarketplaceTools input:focus,
+      .ruleCandidateRow select:focus,
+      .ruleActionSelect:focus,
+      .ruleListRow textarea:focus {
+        outline: none;
+        border-color: #c9c2f7;
+        box-shadow: 0 0 0 3px rgba(91, 77, 240, .12);
+      }
+      .navCategory.cost,
+      .pluginCategoryFilters button.cost,
+      .pluginCategoryTag.cost {
+        background: #fff4d6;
+        color: #8a6a12;
+      }
+      .navCategory.security,
+      .pluginCategoryFilters button.security,
+      .pluginCategoryTag.security {
+        background: #e8f6ee;
+        color: #1c7a4d;
+      }
+      .navCategory.observability,
+      .pluginCategoryFilters button.observability,
+      .pluginCategoryTag.observability {
+        background: #eef0fd;
+        color: #4335c9;
+      }
+      .navCategory.utility,
+      .pluginCategoryFilters button.utility,
+      .pluginCategoryTag.utility {
+        background: #fbeee3;
+        color: #a05a1c;
+      }
+      .pluginCategoryFilters button.active,
+      .pluginCategoryFilters button.cost.active,
+      .pluginCategoryFilters button.security.active,
+      .pluginCategoryFilters button.observability.active,
+      .pluginCategoryFilters button.utility.active {
+        border-color: var(--accent);
+        background: var(--accent);
+        color: #fff;
+      }
+      .pre,
+      .debugPre,
+      .skillDoc pre {
+        border-color: var(--ink);
+        background: var(--ink);
+        color: #f7f2e8;
+      }
+      .highlight,
+      .history article.selected,
+      .authSummary,
+      .subtleToggle,
+      .pluginOutcomeLatest,
+      .lockedRule,
+      .overviewAgentTile.missing {
+        background: var(--soft);
+      }
+      .overviewAgentTile {
+        box-shadow: none;
+      }
+      .setupStepPill.active,
+      .setupStepPill.done {
+        background: var(--ink);
+        color: #fffdf7;
+      }
+      .setupStepPill.active b,
+      .setupStepPill.done b {
+        background: #fffdf7;
+        color: var(--ink);
+      }
+      .head {
+        border-bottom: 1.5px solid var(--line);
+      }
+      .head .tag {
+        background: #e8f6ee;
+        color: #087b52;
+      }
+      .foot {
+        border-radius: 10px;
+        background: var(--soft);
+        color: var(--muted);
+        overflow: hidden;
+      }
+      .card > *,
+      .choiceCard > *,
+      .pluginInstallLine > *,
+      .pluginOutcomeMain > *,
+      .ruleCandidateRow > *,
+      .ruleCandidateGroupHead > *,
+      .sessionRow > *,
+      .highlight > * {
+        min-width: 0;
+      }
+      .card strong,
+      .choiceCard strong,
+      .pluginInstallLine strong,
+      .pluginOutcomeCopy strong,
+      .ruleCandidateRow strong,
+      .sessionRow strong,
+      .highlightTitle {
+        overflow-wrap: anywhere;
+      }
+      .choiceCard p,
+      .pluginInstallLine .pluginCopy > span:not(.pluginMeta),
+      .pluginOutcomeCopy p,
+      .ruleCandidateRow small {
+        max-width: 100%;
+      }
     </style>
   </head>
   <body>
@@ -2210,6 +2631,7 @@
       let setupSkipDashboardOpenAfterInstall = false;
       let setupDockerStatus;
       let setupDockerBusy = false;
+      let setupDockerAutoStarted = false;
       let setupProvider = "openai";
       let setupApiKey = "";
       let importedRules;
@@ -2268,6 +2690,7 @@
 
       function modeLabel() {
         if (state.clientMode === "cloud") return "OpenLeash Cloud";
+        if (state.clientMode === "custom" && isLocalOpenSourceApi(state.remoteApiUrl)) return "Individual Open Source";
         if (state.clientMode === "custom") return "Private Cloud";
         return "Local only";
       }
@@ -2278,6 +2701,9 @@
           return `OpenLeash Cloud organization mode. Rules and approvals sync with ${tenant}. Local hooks still call this Mac first.`;
         }
         if (state.clientMode === "custom") {
+          if (isLocalOpenSourceApi(state.remoteApiUrl)) {
+            return "Individual Open Source mode. The desktop talks to your local Dockerized OpenLeash API and keeps client updates on the OpenLeash update feed.";
+          }
           const tenant = state.remoteOrganization || state.remoteApiUrl || "your private cloud";
           return `Private Cloud mode. Rules and approvals sync with ${tenant}. Local hooks still call this Mac first.`;
         }
@@ -2332,18 +2758,28 @@
         const personal = setupClientMode === "personal";
         const cloud = setupClientMode === "cloud";
         const individualCloud = setupAudience === "individual" && cloud;
+        const individualOpenSource = setupAudience === "individual" && setupClientMode === "custom";
         const orgCloud = setupAudience === "organization" && cloud;
         initializePluginSetupState();
         const pluginSteps = [
           { title: "Plugins", subtitle: "Choose plugins to add during setup." }
         ];
-        const steps = individualCloud
+        const steps = individualOpenSource
           ? [
               { title: "Account", subtitle: "Tell us who is setting this up." },
-              { title: "Sign in", subtitle: "Sign in to OpenLeash Cloud." },
+              { title: "Connect", subtitle: "Pick how OpenLeash runs." },
+              { title: "Local backend", subtitle: "Start your open-source backend." },
               { title: "Agents", subtitle: "Choose agents to manage." },
               ...pluginSteps
             ]
+          : individualCloud
+            ? [
+                { title: "Account", subtitle: "Tell us who is setting this up." },
+                { title: "Connect", subtitle: "Pick how OpenLeash runs." },
+                { title: "Sign in", subtitle: "Sign in to OpenLeash Cloud." },
+                { title: "Agents", subtitle: "Choose agents to manage." },
+                ...pluginSteps
+              ]
           : cloud
             ? [
                 { title: "Account", subtitle: "Tell us who is setting this up." },
@@ -2397,7 +2833,7 @@
               </div>
               <div class="welcomeActions">
                 <button class="primary" id="setupNext">Next</button>
-                <span class="welcomeFootnote">Works with OpenLeash Cloud or your private OpenLeash backend.</span>
+                <span class="welcomeFootnote">Works with OpenLeash Cloud, Private Cloud, or an open-source local backend.</span>
               </div>
             </section>
           `;
@@ -2438,7 +2874,25 @@
                 <p>${setupAudience === "organization" ? "Pick how your organization runs OpenLeash." : "Pick how OpenLeash runs for you."}</p>
                 <div class="cardList">
                   ${connectionChoice("cloud", "OpenLeash Cloud", setupAudience === "organization" ? "Use the OpenLeash-hosted API and dashboard." : "Use the OpenLeash-hosted account and sync.", "cloud")}
-                  ${setupAudience === "organization" ? connectionChoice("custom", "Private Cloud", "Use your private OpenLeash deployment.", "dns") : ""}
+                  ${setupAudience === "organization"
+                    ? connectionChoice("custom", "Private Cloud", "Use your private OpenLeash deployment.", "dns")
+                    : connectionChoice("custom", "Open Source Local", "Run the open-source API and database on this computer.", "devices")}
+                </div>
+              </section>
+            ` : ""}
+            ${currentId === "local backend" ? `
+              <section class="setupSection">
+                <h2>Local backend</h2>
+                <div class="card">
+                  <strong>OpenLeash API and Database</strong>
+                  <p>Starting the open-source backend and persistent database with Docker.</p>
+                  <div class="localBackendProgress">
+                    <div class="localBackendProgressBar"><div class="localBackendProgressFill ${setupDockerStatus?.apiReachable ? "ready" : setupDockerBusy ? "busy" : ""}"></div></div>
+                    <div class="localBackendStatus">${escapeHtml(setupDockerStatus?.apiReachable ? "Setup finished. Local OpenLeash is ready." : setupDockerBusy ? "Starting local OpenLeash..." : setupDockerStatus?.status || "Preparing Docker runtime...")}</div>
+                  </div>
+                  ${!setupDockerBusy && !setupDockerStatus?.apiReachable && setupDockerStatus?.status ? `<div class="actions left" style="margin-top:16px"><button class="primary" id="startLocalBackend">Retry</button><button class="secondary" id="checkDockerStatus">Check Docker</button></div>` : ""}
+                  <div class="notice" style="margin-top:12px">${escapeHtml(setupDockerStatus?.apiReachable ? "You can continue." : setupDockerStatus?.status || "Your data is stored in a local Docker volume.")}</div>
+                  ${setupRemoteError ? `<div class="error">${escapeHtml(setupRemoteError)}</div>` : ""}
                 </div>
               </section>
             ` : ""}
@@ -2530,7 +2984,7 @@
           <div class="actions">
             <button class="secondary" id="setupBack">Back</button>
             ${setupStep < steps.length
-              ? `<button class="primary" id="setupNext">Next</button>`
+              ? `<button class="primary" id="setupNext" ${currentId === "local backend" && setupDockerBusy ? "disabled" : ""}>${currentId === "local backend" && setupDockerBusy ? "Starting..." : "Next"}</button>`
               : `<button class="primary" id="finish" ${setupFinishing ? "disabled" : ""}>${setupFinishing ? "Installing..." : "Install and start managing"}</button>`}
           </div>
           ${setupStep >= steps.length && (setupRemoteNotice || setupFinishError) ? `
@@ -2547,6 +3001,23 @@
         const next = document.getElementById("setupNext");
         if (next) next.onclick = async () => {
           rememberSetupInputs();
+          if (currentId === "connect" && setupAudience === "individual" && setupClientMode === "custom") {
+            setupRemoteApiUrl = "http://127.0.0.1:9318";
+            setupRemoteAuth = undefined;
+            setupRemoteBootstrap = undefined;
+            setupRemoteError = "";
+          }
+          if (currentId === "local backend") {
+            setupRemoteApiUrl = "http://127.0.0.1:9318";
+            if (!setupDockerStatus?.apiReachable) {
+              await startSelfHostedRuntime();
+            }
+            if (!setupDockerStatus?.apiReachable) {
+              setupRemoteError = setupDockerStatus?.status || "Start the local OpenLeash backend before continuing.";
+              return renderSetup();
+            }
+            setupRemoteError = "";
+          }
           if (currentId === "api" && setupClientMode === "custom") {
             const ok = await bootstrapRemoteSetup();
             if (!ok) return renderSetup();
@@ -2591,8 +3062,16 @@
         if (orgCloudGoogle) orgCloudGoogle.onclick = () => startOrgCloudOnboarding("google");
         const orgCloudMicrosoft = document.getElementById("orgCloudMicrosoft");
         if (orgCloudMicrosoft) orgCloudMicrosoft.onclick = () => startOrgCloudOnboarding("microsoft");
+        const startLocalBackend = document.getElementById("startLocalBackend");
+        if (startLocalBackend) startLocalBackend.onclick = () => startSelfHostedRuntime();
+        const checkLocalBackend = document.getElementById("checkDockerStatus");
+        if (checkLocalBackend) checkLocalBackend.onclick = () => checkDockerStatus();
         const openLocalRules = document.getElementById("openLocalRules");
         if (openLocalRules) openLocalRules.onclick = () => window.openleash.openLocalConfig();
+        if (currentId === "local backend" && setupAudience === "individual" && setupClientMode === "custom" && !setupDockerAutoStarted && !setupDockerBusy && !setupDockerStatus?.apiReachable) {
+          setupDockerAutoStarted = true;
+          window.setTimeout(() => startSelfHostedRuntime(), 80);
+        }
       }
 
       async function startOrgCloudOnboarding(provider) {
@@ -2659,6 +3138,21 @@
         if (setupFinishing) return;
         rememberSetupInputs();
         setupFinishError = "";
+        if (setupAudience === "individual" && setupClientMode === "custom") {
+          setupRemoteApiUrl = "http://127.0.0.1:9318";
+          if (!setupDockerStatus?.apiReachable) {
+            setupRemoteNotice = "Starting local OpenLeash...";
+            renderSetup();
+            await startSelfHostedRuntime();
+          }
+          if (!setupDockerStatus?.apiReachable) {
+            setupFinishing = false;
+            setupFinishError = setupDockerStatus?.status || "Start the local OpenLeash backend before finishing setup.";
+            setupRemoteNotice = "";
+            renderSetup();
+            return;
+          }
+        }
         if (setupClientMode === "cloud" && setupAudience === "organization" && isPersonalEmail(setupRemoteAuth?.userEmail)) {
           setupRemoteError = "Use your company Google Workspace or Microsoft 365 account, not a personal email address.";
           setupRemoteAuth = undefined;
@@ -2803,11 +3297,9 @@
               <small>${escapeHtml(subtitle)}</small>
               ${featured ? `
                 <span class="benefits">
-                  <span>Advanced protection</span>
-                  <span>Automatic updates</span>
-                  <span>Cloud agent coverage</span>
-                  <span>Codex cloud tasks</span>
-                  <span>Claude Code web</span>
+                  <span>Control Anywhere (Mobile, Web)</span>
+                  <span>Supports More Agents</span>
+                  <span>Works 24/7</span>
                 </span>
               ` : ""}
             </span>
@@ -2880,7 +3372,6 @@
       }
 
       function enforceAudienceMode() {
-        if (setupAudience === "individual" && setupClientMode === "custom") setupClientMode = "cloud";
         if (setupAudience === "organization" && setupClientMode === "personal") setupClientMode = "cloud";
         if (setupClientMode === "personal") setupClientMode = "cloud";
       }
@@ -2894,6 +3385,7 @@
             setupRemoteBootstrap = undefined;
             setupRemoteError = "";
             setupRemoteNotice = "";
+            setupDockerAutoStarted = false;
             renderSetup();
           };
         });
@@ -2906,6 +3398,9 @@
             if (setupClientMode === "cloud") {
               setupRemoteApiUrl = state.cloudApiUrl || "https://api.openleash.com";
               setupOrganizationSlug = "";
+            } else if (setupAudience === "individual" && setupClientMode === "custom") {
+              setupRemoteApiUrl = "http://127.0.0.1:9318";
+              setupOrganizationSlug = "";
             } else if (setupClientMode === "custom" && setupRemoteApiUrl === (state.cloudApiUrl || "https://api.openleash.com")) {
               setupRemoteApiUrl = "";
             }
@@ -2913,6 +3408,7 @@
             setupRemoteBootstrap = undefined;
             setupRemoteError = "";
             setupRemoteNotice = "";
+            setupDockerAutoStarted = false;
             renderSetup();
           };
         });
@@ -3004,6 +3500,15 @@
         return `Hi, ${label}`;
       }
 
+      function isLocalOpenSourceApi(value) {
+        try {
+          const url = new URL(value || "");
+          return ["localhost", "127.0.0.1", "::1"].includes(url.hostname);
+        } catch {
+          return false;
+        }
+      }
+
       function scrollSetupTop() {
         const main = document.querySelector("main");
         if (!main) return;
@@ -3075,6 +3580,7 @@
 
       async function checkDockerStatus() {
         setupDockerBusy = true;
+        setupDockerStatus = { ...(setupDockerStatus || {}), status: "Checking Docker..." };
         renderSetup();
         setupDockerStatus = await window.openleash.dockerStatus();
         setupDockerBusy = false;
@@ -3083,6 +3589,7 @@
 
       async function startSelfHostedRuntime() {
         setupDockerBusy = true;
+        setupDockerStatus = { ...(setupDockerStatus || {}), status: "Starting Docker containers and running migrations..." };
         renderSetup();
         setupDockerStatus = await window.openleash.startSelfHosted();
         setupDockerBusy = false;
@@ -4537,6 +5044,7 @@
           </div>
           <div class="pluginMarketplaceTools">
             <input id="pluginMarketplaceSearch" value="${escapeHtml(setupPluginSearch)}" placeholder="Search plugins, categories, developers, tags...">
+            ${canAddLocalPluginFolder() ? `<button type="button" class="secondary" data-add-local-plugin-folder>Add local folder</button>` : ""}
             <span>${plugins.length} of ${categoryFiltered.length} shown</span>
           </div>
           <div class="cardList">
@@ -4856,6 +5364,36 @@
             target === "marketplace" ? renderPluginMarketplace() : renderSetup();
           };
         });
+        root.querySelectorAll("[data-add-local-plugin-folder]").forEach((button) => {
+          button.onclick = async () => {
+            button.disabled = true;
+            const original = button.textContent;
+            button.textContent = "Adding...";
+            const result = await window.openleash.importLocalPluginFolder?.().catch((error) => ({ ok: false, error: error?.message || "Could not add local plugin." }));
+            button.disabled = false;
+            button.textContent = original || "Add local folder";
+            if (result?.canceled) return;
+            if (!result?.ok) {
+              alert(result?.error || "Could not add local plugin.");
+              return;
+            }
+            if (result.plugin && !state.plugins?.some((plugin) => plugin.id === result.plugin.id)) {
+              state.plugins = [...(state.plugins || []), {
+                ...result.plugin,
+                marketplace: result.plugin,
+                settings: result.settings || { enabled: true, config: result.plugin.defaultConfig || {}, availableVersion: result.plugin.version },
+                organizationPolicy: { mandatory: false, defaultEnabled: false, userInstallAllowed: true, configLocked: false }
+              }];
+            }
+            initializePluginSetupState(true);
+            target === "marketplace" ? renderPluginMarketplace() : renderSetup();
+          };
+        });
+      }
+
+      function canAddLocalPluginFolder() {
+        const url = String(setupRemoteApiUrl || state.remoteApiUrl || "");
+        return setupClientMode === "custom" || state.clientMode === "custom" || /https?:\/\/(127\.0\.0\.1|localhost|\[::1\])(?::|\/)/i.test(url);
       }
 
       function bindPluginSettingInputs() {
@@ -4905,19 +5443,21 @@
             pluginId: plugin.id,
             enabled,
             config,
-            orderingPriority: plugin.settings?.orderingPriority ?? plugin.ordering?.priority ?? null
+            orderingPriority: plugin.settings?.orderingPriority ?? plugin.ordering?.priority ?? null,
+            marketplace: plugin.marketplace || null
           };
         });
       }
 
       async function saveSelectedPluginSettings() {
         const payloads = selectedPluginSettingsPayloads();
-        if (payloads.length === 0 || !setupRemoteAuth?.token) return { ok: true };
+        if (payloads.length === 0) return { ok: true };
+        if (!setupRemoteAuth?.token && !canAddLocalPluginFolder()) return { ok: true };
         const updated = [];
         for (const payload of payloads) {
           const result = await window.openleash.savePluginSettings({
             apiUrl: setupRemoteApiUrl,
-            token: setupRemoteAuth.token,
+            token: setupRemoteAuth?.token,
             ...payload
           }).catch((error) => ({ ok: false, error: error?.message || "Could not save plugin settings." }));
           if (!result?.ok) return { ok: false, error: result?.error || `Could not save ${payload.pluginId}.`, pluginId: payload.pluginId };
@@ -5007,6 +5547,7 @@
             </div>
             <div class="pluginMarketplaceTools">
               <input id="pluginMarketplaceSearch" value="${escapeHtml(setupPluginSearch)}" placeholder="Search plugins, categories, developers, tags...">
+              ${canAddLocalPluginFolder() ? `<button type="button" class="secondary" data-add-local-plugin-folder>Add local folder</button>` : ""}
               <span>${plugins.length} of ${categoryFiltered.length} shown</span>
             </div>
             <div class="cardList">
@@ -5160,7 +5701,8 @@
               pluginId: plugin.id,
               enabled: !installed,
               config: effectivePluginConfig(plugin),
-              orderingPriority: plugin.settings?.orderingPriority ?? plugin.ordering?.priority ?? null
+              orderingPriority: plugin.settings?.orderingPriority ?? plugin.ordering?.priority ?? null,
+              marketplace: plugin.marketplace || null
             }).catch((error) => ({ ok: false, error: error?.message || "Could not update plugin." }));
             if (!result?.ok) {
               const status = document.getElementById("pluginDetailSaveStatus") || document.getElementById("pluginDetailPageStatus");
@@ -5692,7 +6234,8 @@
             pluginId: plugin.id,
             enabled: pluginInstalled(plugin),
             config,
-            orderingPriority: plugin.settings?.orderingPriority ?? plugin.ordering?.priority ?? null
+            orderingPriority: plugin.settings?.orderingPriority ?? plugin.ordering?.priority ?? null,
+            marketplace: plugin.marketplace || null
           }).catch((error) => ({ ok: false, error: error?.message || "Could not save plugin settings." }));
           if (!result?.ok) {
             status.textContent = result?.error || "Could not save settings.";

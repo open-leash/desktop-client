@@ -206,6 +206,8 @@ type SkillRecord = {
   updated_at: string;
 };
 
+type SkillLifecycleEvent = "detected" | "changed" | "seen" | "removed";
+
 type Store = {
   token: string;
   setupComplete: boolean;
@@ -1018,10 +1020,19 @@ export class LocalOpenLeashServer {
   }) {
     const contentHash = crypto.createHash("sha256").update(input.content).digest("hex");
     const existing = this.db.prepare("select content_hash, status, content, purpose_summary, content_updated_at from skills where skill_path = ?").get(input.skillPath) as { content_hash?: string; status?: string; content?: string | null; purpose_summary?: string | null; content_updated_at?: string | null } | undefined;
-    if (existing?.content_hash === contentHash && existing.status !== "deleted" && existing.content && existing.purpose_summary) return { ok: true, unchanged: true };
+    const eventType: SkillLifecycleEvent = !existing || existing.status === "deleted"
+      ? "detected"
+      : existing.content_hash === contentHash
+        ? "seen"
+        : "changed";
+    if (eventType === "seen" && existing?.content && existing.purpose_summary) {
+      const seenAt = input.changedAt ?? new Date().toISOString();
+      this.db.prepare("update skills set last_seen_at = ?, updated_at = ? where skill_path = ?").run(seenAt, seenAt, input.skillPath);
+      return { ok: true, unchanged: true, eventType, contentHash, purposeSummary: existing.purpose_summary };
+    }
     const purposeSummary = heuristicSkillPurpose(input.content, input.skillName);
     const now = new Date().toISOString();
-    const status = existing?.status === "approved" ? "approved" : "observed";
+    const status = eventType === "seen" && existing?.status === "approved" ? "approved" : "observed";
     this.db.prepare(`
       insert into skills (
         id, agent_kind, agent_name, scope, project_path, skill_name, skill_path, status, risk_score,
@@ -1065,7 +1076,27 @@ export class LocalOpenLeashServer {
       last_seen_at: input.changedAt ?? now,
       updated_at: now
     });
-    return { ok: true, suspicious: false, purposeSummary };
+    return { ok: true, suspicious: false, eventType, contentHash, purposeSummary };
+  }
+
+  observeSkillRemoved(input: {
+    agentKind: string;
+    agentName: string;
+    scope: "user" | "project";
+    projectPath?: string | null;
+    skillName: string;
+    skillPath: string;
+    removedAt?: string;
+  }) {
+    const existing = this.db.prepare("select status, content_hash, purpose_summary from skills where skill_path = ?").get(input.skillPath) as { status?: string; content_hash?: string; purpose_summary?: string | null } | undefined;
+    if (!existing || existing.status === "deleted") return { ok: true, unchanged: true, eventType: "removed" as SkillLifecycleEvent, contentHash: existing?.content_hash, purposeSummary: existing?.purpose_summary ?? undefined };
+    const now = input.removedAt ?? new Date().toISOString();
+    this.db.prepare(`
+      update skills
+      set agent_kind = ?, agent_name = ?, scope = ?, project_path = ?, skill_name = ?, status = 'deleted', last_seen_at = ?, updated_at = ?
+      where skill_path = ?
+    `).run(input.agentKind, input.agentName, input.scope, input.projectPath ?? null, input.skillName, now, now, input.skillPath);
+    return { ok: true, suspicious: false, eventType: "removed" as SkillLifecycleEvent, contentHash: existing.content_hash, purposeSummary: existing.purpose_summary ?? undefined };
   }
 
   private writeStore() {

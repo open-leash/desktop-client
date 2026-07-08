@@ -70,7 +70,7 @@ export const bundledFirstPartyPlugins: BundledPluginManifest[] = [
     publisher: "openleash",
     runtime: "openleash-core",
     entrypoint: "plugins/skill-scanner",
-    events: ["openleash.startup", "agent.detected", "skill.changed"],
+    events: ["openleash.startup", "agent.detected", "skill.detected", "skill.changed"],
     permissions: ["event:read", "filesystem:read", "decision:write", "model:invoke", "audit:write", "notification:send"],
     effects: ["observe", "ask", "inventory"],
     ordering: { priority: 150 },

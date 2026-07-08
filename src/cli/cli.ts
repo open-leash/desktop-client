@@ -30,6 +30,8 @@ type PluginListing = {
   id: string;
   slug?: string;
   name?: string;
+  publisher?: string;
+  shortDescription?: string;
   developerName?: string;
   reviewStatus?: string;
   rating?: number;
@@ -40,6 +42,8 @@ type PluginListing = {
   installed?: boolean;
   mandatory?: boolean;
   installable?: boolean;
+  settings?: { enabled?: boolean };
+  organizationPolicy?: { mandatory?: boolean };
 };
 
 program.name("openleash").description("OpenLeash Desktop Client CLI and hook installer");
@@ -278,6 +282,9 @@ function authHeaders(config: { token: string }, functionName: "tenantPluginsRead
 
 async function fetchPluginListings(config: { token: string; remoteApiUrl?: string; tenantUrl?: string; apiUrl?: string }, search = "") {
   const baseUrl = configuredRemoteApiUrl(config);
+  if (isIndividualOpenSourceApiUrl(baseUrl)) {
+    return fetchIndividualOpenSourcePluginListings(config, baseUrl, search);
+  }
   const url = new URL(`${baseUrl}/v1/plugin-marketplace`);
   if (search.trim()) url.searchParams.set("search", search.trim());
   const response = await fetch(url, { headers: authHeaders(config, "tenantPluginsRead") });
@@ -285,6 +292,78 @@ async function fetchPluginListings(config: { token: string; remoteApiUrl?: strin
   if (!response.ok) throw new Error(apiError(body, response.statusText));
   if (body && typeof body === "object" && "listings" in body && Array.isArray(body.listings)) return body.listings as PluginListing[];
   return Array.isArray(body) ? (body as PluginListing[]) : [];
+}
+
+async function fetchIndividualOpenSourcePluginListings(
+  config: { token: string },
+  localApiUrl: string,
+  search = ""
+) {
+  const [localPlugins, publicListings] = await Promise.all([
+    fetchLocalPluginCatalog(config, localApiUrl),
+    fetchPublicPluginCatalog(search)
+  ]);
+  const publicById = new Map(publicListings.map((plugin) => [plugin.id, plugin]));
+  const query = search.trim().toLowerCase();
+  return localPlugins
+    .map((plugin) => {
+      const listing = publicById.get(plugin.id);
+      return {
+        ...plugin,
+        ...listing,
+        id: plugin.id,
+        slug: listing?.slug ?? plugin.slug ?? plugin.name,
+        name: listing?.name ?? plugin.name,
+        publisher: listing?.publisher ?? plugin.publisher,
+        developerName: listing?.developerName ?? (plugin.publisher === "openleash" ? "OpenLeash" : plugin.publisher),
+        installed: Boolean(plugin.installed ?? plugin.settings?.enabled),
+        installable: true,
+        mandatory: Boolean(plugin.mandatory ?? plugin.organizationPolicy?.mandatory)
+      };
+    })
+    .filter((plugin) => !query || pluginSearchText(plugin).includes(query));
+}
+
+async function fetchLocalPluginCatalog(config: { token: string }, localApiUrl: string) {
+  const response = await fetch(`${localApiUrl}/v1/plugins`, { headers: authHeaders(config, "tenantPluginsRead") });
+  const body = await readJsonResponse(response);
+  if (!response.ok) throw new Error(apiError(body, response.statusText));
+  if (body && typeof body === "object" && "plugins" in body && Array.isArray(body.plugins)) return body.plugins as PluginListing[];
+  return [];
+}
+
+async function fetchPublicPluginCatalog(search = "") {
+  try {
+    const url = new URL(`${defaultCloudApiUrl}/public/plugins`);
+    if (search.trim()) url.searchParams.set("search", search.trim());
+    const response = await fetch(url, { headers: apiVersionHeaders("tenantPluginsRead") });
+    const body = await readJsonResponse(response);
+    if (!response.ok) return [];
+    if (body && typeof body === "object" && "listings" in body && Array.isArray(body.listings)) return body.listings as PluginListing[];
+    return [];
+  } catch {
+    return [];
+  }
+}
+
+function isIndividualOpenSourceApiUrl(apiUrl: string) {
+  try {
+    const url = new URL(apiUrl);
+    return ["127.0.0.1", "localhost", "::1"].includes(url.hostname) && url.port === "9318";
+  } catch {
+    return false;
+  }
+}
+
+function pluginSearchText(plugin: PluginListing) {
+  return [
+    plugin.id,
+    plugin.slug,
+    plugin.name,
+    plugin.publisher,
+    plugin.developerName,
+    plugin.shortDescription
+  ].filter(Boolean).join(" ").toLowerCase();
 }
 
 async function mutatePlugins(action: "install" | "uninstall", pluginInputs: string[], options: { json?: boolean }) {

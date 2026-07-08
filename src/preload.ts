@@ -16,6 +16,7 @@ contextBridge.exposeInMainWorld("openleash", {
   saveSettings: (payload: unknown) => ipcRenderer.invoke("openleash:save-settings", payload),
   setAgentMonitoring: (payload: unknown) => ipcRenderer.invoke("openleash:set-agent-monitoring", payload),
   savePluginSettings: (payload: unknown) => ipcRenderer.invoke("openleash:save-plugin-settings", payload),
+  importLocalPluginFolder: () => ipcRenderer.invoke("openleash:import-local-plugin-folder"),
   savePromptTransforms: (payload: unknown) => ipcRenderer.invoke("openleash:save-prompt-transforms", payload),
   deleteData: () => ipcRenderer.invoke("openleash:delete-data"),
   deleteSettings: () => ipcRenderer.invoke("openleash:delete-settings"),

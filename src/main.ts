@@ -156,6 +156,24 @@ type RemoteMobileState = {
 
 type PluginOutcome = OpenLeashOutcomeRecord;
 
+type PublicPluginListing = Record<string, unknown> & {
+  id?: string;
+  slug?: string;
+  name?: string;
+  description?: string;
+  publisher?: string;
+  repositoryUrl?: string;
+  version?: string;
+  runtime?: string;
+  entrypoint?: string;
+  events?: unknown[];
+  permissions?: unknown[];
+  effects?: unknown[];
+  ordering?: Record<string, unknown>;
+  configSchema?: Record<string, unknown>;
+  defaultConfig?: Record<string, unknown>;
+};
+
 type TriggeredPolicy = {
   policy_name: string;
   status: "failed" | "needs_question";
@@ -186,6 +204,7 @@ type UpdateState = {
 const localDevCloudApiUrl = "http://127.0.0.1:9318";
 const apiUrl = OPENLEASH_DESKTOP_API_URL;
 const cloudApiUrl = process.env.OPENLEASH_CLOUD_API_URL ?? (app.isPackaged ? OPENLEASH_PUBLIC_CLOUD_API_URL : localDevCloudApiUrl);
+const publicPluginCatalogApiUrl = process.env.OPENLEASH_PUBLIC_PLUGIN_CATALOG_API_URL ?? cloudApiUrl;
 const cloudDashboardUrl = process.env.OPENLEASH_CLOUD_DASHBOARD_URL ?? OPENLEASH_PUBLIC_CLOUD_DASHBOARD_URL;
 const cloudDevAuth = process.env.OPENLEASH_MOBILE_DEV_AUTH === "1";
 const cloudDevAuthEmail = process.env.OPENLEASH_MOBILE_DEV_EMAIL ?? "mobile.user@openleash.com";
@@ -196,6 +215,7 @@ const desktopGithubRedirectUri = OPENLEASH_DESKTOP_GITHUB_REDIRECT_URI;
 const here = __dirname;
 const defaultUpdateFeedUrl = app.isPackaged ? `${OPENLEASH_PUBLIC_CLOUD_API_URL}/api/updates/check` : "";
 const updateCheckIntervalMs = 24 * 60 * 60 * 1000;
+const individualOpenSourceApiUrl = "http://127.0.0.1:9318";
 const NOTICE_CONTEXT_MESSAGE_COUNT = Number(process.env.OPENLEASH_ACTION_PURPOSE_MESSAGES ?? 5);
 const MAIN_WINDOW_WIDTH = 1160;
 const MAIN_WINDOW_HEIGHT = 760;
@@ -824,6 +844,7 @@ ipcMain.handle("openleash:save-plugin-settings", async (_event, payload: {
   enabled?: boolean;
   config?: Record<string, unknown>;
   orderingPriority?: number | null;
+  marketplace?: PublicPluginListing;
 }) => {
   const token = payload.token || localServer.effectiveToken || desktopAuthSession?.token;
   if (!token) return { ok: false, error: "Sign in before saving plugin settings." };
@@ -836,12 +857,53 @@ ipcMain.handle("openleash:save-plugin-settings", async (_event, payload: {
     body: JSON.stringify({
       enabled: payload.enabled !== false,
       config: payload.config ?? {},
-      orderingPriority: payload.orderingPriority ?? undefined
+      orderingPriority: payload.orderingPriority ?? undefined,
+      marketplace: payload.marketplace ?? undefined
     })
   });
   const body = await response.json().catch(() => ({}));
   if (!response.ok) return { ok: false, error: body.error || "Could not save plugin settings." };
   return { ok: true, ...body };
+});
+ipcMain.handle("openleash:import-local-plugin-folder", async () => {
+  const remoteApiUrl = normalizeRemoteApiUrl(localServer.remoteApiUrl || cloudApiUrl);
+  if (!isLocalApiUrl(remoteApiUrl)) {
+    return { ok: false, error: "Local plugin folders can only be added to a local OpenLeash backend." };
+  }
+  const token = localServer.effectiveToken;
+  if (!token) return { ok: false, error: "Local backend auth is not ready." };
+  const selected = window
+    ? await dialog.showOpenDialog(window, {
+      title: "Add local OpenLeash plugin",
+      buttonLabel: "Add plugin",
+      properties: ["openDirectory"]
+    })
+    : await dialog.showOpenDialog({
+      title: "Add local OpenLeash plugin",
+      buttonLabel: "Add plugin",
+      properties: ["openDirectory"]
+    });
+  if (selected.canceled || !selected.filePaths[0]) return { ok: false, canceled: true };
+  try {
+    const marketplace = await readLocalPluginFolderListing(selected.filePaths[0]);
+    const response = await fetch(new URL(`/v1/plugins/${encodeURIComponent(String(marketplace.id))}/settings`, remoteApiUrl), {
+      method: "POST",
+      headers: { "content-type": "application/json", authorization: `Bearer ${token}` },
+      body: JSON.stringify({
+        enabled: true,
+        config: marketplace.defaultConfig ?? {},
+        orderingPriority: typeof marketplace.ordering?.priority === "number" ? marketplace.ordering.priority : undefined,
+        marketplace
+      })
+    });
+    const body = await response.json().catch(() => ({}));
+    if (!response.ok) return { ok: false, error: body.error || "Could not add local plugin." };
+    latestPlugins = await fetchRemotePluginCatalog(remoteApiUrl, token, latestPlugins);
+    window?.webContents.send("openleash:update", { plugins: latestPlugins });
+    return { ok: true, pluginId: marketplace.id, plugin: marketplace, settings: body.settings };
+  } catch (error) {
+    return { ok: false, error: error instanceof Error ? error.message : "Could not add local plugin folder." };
+  }
 });
 ipcMain.handle("openleash:docker-status", async () => {
   selfHostedRuntime = await checkSelfHostedRuntime();
@@ -875,6 +937,9 @@ ipcMain.handle("openleash:setup", async (_event, payload: {
   const apiKey = String(payload.apiKey ?? "").trim();
   let remoteToken = payload.remoteToken || desktopAuthSession?.token;
   const remoteApiUrl = normalizeRemoteApiUrl(payload.remoteApiUrl || desktopAuthSession?.apiUrl || cloudApiUrl);
+  if (!remoteToken && clientMode === "custom" && isLocalApiUrl(remoteApiUrl)) {
+    remoteToken = localServer.token;
+  }
 	  if (!remoteToken) return { ok: false, error: "Sign in before installing OpenLeash." };
   if (clientMode === "cloud" && audience === "organization" && isPersonalEmailDomain(payload.remoteUser || desktopAuthSession?.userEmail)) {
     return { ok: false, error: "Use your company Google Workspace or Microsoft 365 account, not a personal email address." };
@@ -919,6 +984,9 @@ ipcMain.handle("openleash:setup", async (_event, payload: {
   }
   await refreshLocalProtections(true);
   startProtectionIntegrityGuard();
+  if (localServer.remoteApiUrl && localServer.effectiveToken) {
+    latestPlugins = await fetchRemotePluginCatalog(localServer.remoteApiUrl, localServer.effectiveToken, latestPlugins);
+  }
   refreshMenu();
   const setupState = {
     apiUrl,
@@ -1310,10 +1378,178 @@ async function fetchRemotePluginCatalog(remoteApiUrl: string, remoteToken: strin
     });
     if (!response.ok) return fallback;
     const body = await response.json() as { plugins?: PluginCatalogItem[] };
-    return Array.isArray(body.plugins) ? body.plugins : fallback;
+    const plugins = Array.isArray(body.plugins) ? body.plugins : fallback;
+    if (isLocalApiUrl(remoteApiUrl)) return await mergePublicCloudPluginCatalog(plugins);
+    return plugins;
   } catch {
     return fallback;
   }
+}
+
+async function mergePublicCloudPluginCatalog(plugins: PluginCatalogItem[]) {
+  try {
+    const response = await fetch(new URL("/public/plugins", publicPluginCatalogApiUrl), {
+      headers: apiVersionHeaders("tenantPluginsRead")
+    });
+    if (!response.ok) return plugins;
+    const body = await response.json() as { listings?: PublicPluginListing[] };
+    if (!Array.isArray(body.listings)) return plugins;
+    const listings = new Map<string, PublicPluginListing>();
+    for (const listing of body.listings) {
+      const id = optionalText(listing.id);
+      if (id) listings.set(id, listing);
+    }
+    const merged = plugins.map((plugin) => {
+      const listing = listings.get(plugin.id);
+      if (!listing) return plugin;
+      const version = optionalText(listing.version);
+      return {
+        ...plugin,
+        slug: plugin.slug ?? optionalText(listing.slug),
+        repositoryUrl: plugin.repositoryUrl ?? optionalText(listing.repositoryUrl),
+        marketplace: listing,
+        settings: {
+          ...plugin.settings,
+          availableVersion: version ?? plugin.settings?.availableVersion,
+          updateAvailable: Boolean(plugin.settings?.enabled && plugin.settings?.installedVersion && version && plugin.settings.installedVersion !== version)
+        }
+      } as PluginCatalogItem;
+    });
+    const existingIds = new Set(merged.map((plugin) => plugin.id));
+    for (const listing of listings.values()) {
+      const item = publicListingToPluginCatalogItem(listing);
+      if (!item || existingIds.has(item.id)) continue;
+      existingIds.add(item.id);
+      merged.push(item);
+    }
+    return merged;
+  } catch {
+    return plugins;
+  }
+}
+
+function publicListingToPluginCatalogItem(listing: PublicPluginListing): PluginCatalogItem | undefined {
+  const id = optionalText(listing.id);
+  const name = optionalText(listing.name) || optionalText(listing.slug) || id;
+  const description = optionalText(listing.description) || optionalText(listing.shortDescription) || "OpenLeash plugin.";
+  const version = optionalText(listing.version) || "0.0.0";
+  const publisher = optionalText(listing.publisher) || "openleash";
+  const runtime = optionalText(listing.runtime) || "openleash-core";
+  const entrypoint = optionalText(listing.entrypoint) || "";
+  if (!id || !name || !entrypoint) return undefined;
+  return {
+    id,
+    slug: optionalText(listing.slug),
+    name,
+    description,
+    repositoryUrl: optionalText(listing.repositoryUrl),
+    version,
+    publisher,
+    runtime,
+    entrypoint,
+    events: Array.isArray(listing.events) ? listing.events as PluginCatalogItem["events"] : [],
+    permissions: Array.isArray(listing.permissions) ? listing.permissions as PluginCatalogItem["permissions"] : [],
+    effects: Array.isArray(listing.effects) ? listing.effects as PluginCatalogItem["effects"] : [],
+    ordering: typeof listing.ordering === "object" && listing.ordering ? listing.ordering as PluginCatalogItem["ordering"] : undefined,
+    configSchema: typeof listing.configSchema === "object" && listing.configSchema ? listing.configSchema as PluginCatalogItem["configSchema"] : undefined,
+    defaultConfig: typeof listing.defaultConfig === "object" && listing.defaultConfig ? listing.defaultConfig as Record<string, unknown> : {},
+    tags: Array.isArray(listing.tags) ? listing.tags as string[] : [],
+    marketplace: listing,
+    settings: {
+      enabled: false,
+      config: typeof listing.defaultConfig === "object" && listing.defaultConfig ? listing.defaultConfig as Record<string, unknown> : {},
+      orderingPriority: typeof listing.ordering?.priority === "number" ? listing.ordering.priority : null,
+      availableVersion: version,
+      updatePolicy: "manual"
+    },
+    organizationPolicy: {
+      mandatory: false,
+      defaultEnabled: false,
+      userInstallAllowed: true,
+      configLocked: false
+    }
+  } as PluginCatalogItem;
+}
+
+async function readLocalPluginFolderListing(folderPath: string): Promise<PublicPluginListing> {
+  const stat = fs.statSync(folderPath);
+  if (!stat.isDirectory()) throw new Error("Choose a plugin folder.");
+  const manifest = readLocalPluginManifestJson(folderPath);
+  if (!manifest) {
+    throw new Error("No OpenLeash plugin manifest found. Add openleash.plugin.json, plugin.json, manifest.json, or package.json with an openleash/openleashPlugin field.");
+  }
+  const id = optionalText(manifest.id);
+  const name = optionalText(manifest.name) || optionalText(manifest.slug) || id;
+  const description = optionalText(manifest.description) || optionalText(manifest.shortDescription);
+  const version = optionalText(manifest.version);
+  const runtime = optionalText(manifest.runtime);
+  const entrypoint = optionalText(manifest.entrypoint);
+  if (!id || !name || !description || !version || !runtime || !entrypoint) {
+    throw new Error("Plugin manifest must include id, name, description, version, runtime, and entrypoint.");
+  }
+  const slug = slugifyLocalPlugin(optionalText(manifest.slug) || name || id);
+  const publisher = optionalText(manifest.publisher) || "local";
+  const shortDescription = optionalText(manifest.shortDescription) || description;
+  return {
+    ...manifest,
+    id,
+    slug,
+    name,
+    description,
+    version,
+    publisher,
+    runtime,
+    entrypoint,
+    source: "private",
+    reviewStatus: "approved",
+    developerName: optionalText(manifest.developerName) || (publisher === "openleash" ? "OpenLeash" : "Local"),
+    shortDescription,
+    longDescription: optionalText(manifest.longDescription) || description,
+    heroTagline: optionalText(manifest.heroTagline) || shortDescription,
+    packageUrl: optionalText(manifest.packageUrl) || `file:${folderPath}`,
+    repositoryUrl: optionalText(manifest.repositoryUrl),
+    documentationUrl: optionalText(manifest.documentationUrl),
+    iconText: optionalText(manifest.iconText) || slug.slice(0, 2).toUpperCase() || "OL",
+    visualPng: optionalText(manifest.visualPng),
+    events: Array.isArray(manifest.events) ? manifest.events : [],
+    permissions: Array.isArray(manifest.permissions) ? manifest.permissions : [],
+    effects: Array.isArray(manifest.effects) ? manifest.effects : [],
+    ordering: typeof manifest.ordering === "object" && manifest.ordering ? manifest.ordering as Record<string, unknown> : undefined,
+    configSchema: typeof manifest.configSchema === "object" && manifest.configSchema ? manifest.configSchema as Record<string, unknown> : undefined,
+    defaultConfig: typeof manifest.defaultConfig === "object" && manifest.defaultConfig ? manifest.defaultConfig as Record<string, unknown> : {},
+    tags: Array.isArray(manifest.tags) ? manifest.tags : [],
+    seoTitle: optionalText(manifest.seoTitle) || `${slug} Plugin for OpenLeash`,
+    seoDescription: optionalText(manifest.seoDescription) || `Install ${slug} for OpenLeash. ${shortDescription}`
+  };
+}
+
+function readLocalPluginManifestJson(folderPath: string): Record<string, unknown> | undefined {
+  for (const name of ["openleash.plugin.json", "plugin.json", "manifest.json"]) {
+    const filePath = path.join(folderPath, name);
+    if (!fs.existsSync(filePath)) continue;
+    return JSON.parse(fs.readFileSync(filePath, "utf8")) as Record<string, unknown>;
+  }
+  const packagePath = path.join(folderPath, "package.json");
+  if (!fs.existsSync(packagePath)) return undefined;
+  const packageJson = JSON.parse(fs.readFileSync(packagePath, "utf8")) as Record<string, unknown>;
+  const embedded = packageJson.openleashPlugin ?? packageJson.openleash;
+  if (embedded && typeof embedded === "object") {
+    return {
+      ...(embedded as Record<string, unknown>),
+      name: optionalText((embedded as Record<string, unknown>).name) || optionalText(packageJson.name),
+      version: optionalText((embedded as Record<string, unknown>).version) || optionalText(packageJson.version)
+    };
+  }
+  return undefined;
+}
+
+function slugifyLocalPlugin(value: string) {
+  return value.toLowerCase().replace(/^@[^/]+\//, "").replace(/^plugin-/, "").replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 80);
+}
+
+function optionalText(value: unknown) {
+  const text = typeof value === "string" ? value.trim() : "";
+  return text || undefined;
 }
 
 async function fetchRemotePluginOutcomes(remoteApiUrl: string, remoteToken: string) {
@@ -2222,6 +2458,33 @@ function syncSkillWatchers() {
       skillWatchers.delete(dir);
     }
   }
+  reconcileRemovedSkills();
+}
+
+function reconcileRemovedSkills() {
+  if (!localServer?.setupComplete) return;
+  for (const skill of localServer.skills) {
+    if (fs.existsSync(skill.skill_path)) continue;
+    const target = {
+      agentKind: skill.agent_kind,
+      agentName: skill.agent_name,
+      scope: skill.scope,
+      projectPath: skill.project_path
+    };
+    const observation = localServer.observeSkillRemoved({
+      ...target,
+      skillName: skill.skill_name || path.basename(path.dirname(skill.skill_path)),
+      skillPath: skill.skill_path
+    });
+    if (!observation.unchanged) {
+      observedSkillHashes.delete(skill.skill_path);
+      void sendRemoteSkillObservation({
+        target,
+        skillPath: skill.skill_path,
+        observation
+      });
+    }
+  }
 }
 
 function skillWatchTargets() {
@@ -2396,10 +2659,14 @@ function scheduleSkillScan(dir: string, target: { dir: string; agentKind: string
 
 async function scanSkillDirectory(target: { dir: string; agentKind: string; agentName: string; scope: "user" | "project"; projectPath?: string | null }) {
   if (!localServer?.setupComplete || !fs.existsSync(target.dir)) return;
+  const foundSkillPaths = new Set<string>();
   for (const skillPath of findSkillManifests(target.dir)) {
     try {
       const content = fs.readFileSync(skillPath, "utf8");
-      const hash = `${fs.statSync(skillPath).mtimeMs}:${content.length}:${content.slice(0, 64)}`;
+      const stat = fs.statSync(skillPath);
+      const changedAt = new Date(stat.mtimeMs).toISOString();
+      const hash = `${stat.mtimeMs}:${content.length}:${content.slice(0, 64)}`;
+      foundSkillPaths.add(path.resolve(skillPath));
       if (observedSkillHashes.get(skillPath) === hash) continue;
       observedSkillHashes.set(skillPath, hash);
       const observation = await localServer.observeSkill({
@@ -2409,7 +2676,8 @@ async function scanSkillDirectory(target: { dir: string; agentKind: string; agen
         projectPath: target.projectPath,
         skillName: path.basename(path.dirname(skillPath)),
         skillPath,
-        content
+        content,
+        changedAt
       });
       void sendRemoteSkillObservation({
         target,
@@ -2434,6 +2702,31 @@ async function scanSkillDirectory(target: { dir: string; agentKind: string; agen
       startupLog(`could not inspect skill ${skillPath}: ${error instanceof Error ? error.message : String(error)}`);
     }
   }
+  for (const skill of localServer.skills) {
+    const skillPath = path.resolve(skill.skill_path);
+    if (!isPathInside(skillPath, target.dir) || foundSkillPaths.has(skillPath)) continue;
+    const observation = localServer.observeSkillRemoved({
+      agentKind: target.agentKind,
+      agentName: target.agentName,
+      scope: target.scope,
+      projectPath: target.projectPath,
+      skillName: skill.skill_name || path.basename(path.dirname(skill.skill_path)),
+      skillPath: skill.skill_path
+    });
+    if (!observation.unchanged) {
+      observedSkillHashes.delete(skill.skill_path);
+      void sendRemoteSkillObservation({
+        target,
+        skillPath: skill.skill_path,
+        observation
+      });
+    }
+  }
+}
+
+function isPathInside(filePath: string, directory: string) {
+  const relative = path.relative(path.resolve(directory), path.resolve(filePath));
+  return Boolean(relative) && !relative.startsWith("..") && !path.isAbsolute(relative);
 }
 
 function findSkillManifests(root: string) {
@@ -2462,13 +2755,13 @@ function findSkillManifests(root: string) {
 async function sendRemoteSkillObservation({ target, skillPath, content, observation }: {
   target: { agentKind: string; agentName: string; scope: "user" | "project"; projectPath?: string | null };
   skillPath: string;
-  content: string;
-  observation: { assessment?: { riskScore?: number; reasons?: Array<{ reason: string; quote?: string }>; malicious?: boolean }; suspicious?: boolean; unchanged?: boolean; purposeSummary?: string };
+  content?: string;
+  observation: { assessment?: { riskScore?: number; reasons?: Array<{ reason: string; quote?: string }>; malicious?: boolean }; suspicious?: boolean; unchanged?: boolean; eventType?: "detected" | "changed" | "seen" | "removed"; contentHash?: string; purposeSummary?: string };
 }) {
-  if (observation.unchanged || !pluginEnabled("openleash.skill-scanner")) return;
   const remoteApiUrl = localServer.remoteApiUrl;
   const token = localServer.effectiveToken;
   if (!remoteApiUrl || !token) return;
+  const contentHash = content ? crypto.createHash("sha256").update(content).digest("hex") : observation.contentHash;
   try {
     await fetch(new URL("/v1/skills/observations", remoteApiUrl), {
       method: "POST",
@@ -2484,11 +2777,12 @@ async function sendRemoteSkillObservation({ target, skillPath, content, observat
         projectPath: target.projectPath,
         skillName: path.basename(path.dirname(skillPath)),
         skillPath,
-        contentHash: crypto.createHash("sha256").update(content).digest("hex"),
-        content: content.slice(0, 80000),
-        contentPreview: content.slice(0, 12000),
+        eventType: observation.eventType ?? (observation.unchanged ? "seen" : "changed"),
+        contentHash,
+        content: content?.slice(0, 80000),
+        contentPreview: content?.slice(0, 12000),
         purposeSummary: observation.purposeSummary,
-        status: observation.suspicious ? "suspicious" : "observed",
+        status: observation.eventType === "removed" ? "deleted" : observation.suspicious ? "suspicious" : "observed",
         riskScore: observation.assessment?.riskScore ?? 0,
         reasons: observation.assessment?.reasons ?? []
       })
@@ -2938,6 +3232,14 @@ function isLocalApiHost(hostname: string) {
   return hostname === "localhost" || hostname === "127.0.0.1" || hostname === "::1";
 }
 
+function isLocalApiUrl(value: string) {
+  try {
+    return isLocalApiHost(new URL(value).hostname);
+  } catch {
+    return false;
+  }
+}
+
 async function checkSelfHostedRuntime() {
   const docker = spawnSync("docker", ["--version"], { encoding: "utf8" });
   const dockerInstalled = docker.status === 0;
@@ -2962,17 +3264,155 @@ async function startSelfHostedRuntime() {
   if (!before.dockerRunning) {
     return { ...before, status: "Start Docker Desktop, then click Start local OpenLeash again.", log: before.log };
   }
-  const repoCompose = findRepoFile("docker-compose.yml") ?? path.resolve(process.cwd(), "docker-compose.yml");
-  const args = ["compose", "-f", repoCompose, "up", "-d", "postgres", "api"];
-  const result = spawnSync("docker", args, { encoding: "utf8", timeout: 180000, cwd: path.dirname(repoCompose) });
-  const apiReachable = await waitForReachable("http://127.0.0.1:9318/health", 60000);
+  const runtimeDir = path.join(os.homedir(), ".openleash", "individual-open-source");
+  ensureIndividualOpenSourceRuntime(runtimeDir);
+  const compose = dockerComposeArgs();
+  const setup = [
+    spawnSync("docker", [...compose, "pull"], { encoding: "utf8", timeout: 300000, cwd: runtimeDir }),
+    spawnSync("docker", [...compose, "up", "-d", "postgres"], { encoding: "utf8", timeout: 180000, cwd: runtimeDir }),
+    spawnSync("docker", [...compose, "--profile", "setup", "run", "--rm", "migrate"], { encoding: "utf8", timeout: 180000, cwd: runtimeDir }),
+    spawnSync("docker", [...compose, "--profile", "setup", "run", "--rm", "seed"], { encoding: "utf8", timeout: 180000, cwd: runtimeDir }),
+    spawnSync("docker", [...compose, "up", "-d", "client-api"], { encoding: "utf8", timeout: 180000, cwd: runtimeDir })
+  ];
+  const failed = setup.find((result) => result.status !== 0);
+  const apiReachable = await waitForReachable(`${individualOpenSourceApiUrl}/health`, 60000);
   return {
     dockerInstalled: true,
     dockerRunning: true,
     apiReachable,
-    status: apiReachable ? "Local OpenLeash API is running" : "Containers started, but the API is not reachable yet.",
-    log: [result.stdout, result.stderr].filter(Boolean).join("\n").trim()
+    status: apiReachable ? "Setup finished. Local OpenLeash is ready." : "Containers started, but setup is not ready yet.",
+    log: [
+      `Runtime: ${runtimeDir}`,
+      ...setup.flatMap((result) => [result.stdout, result.stderr]),
+      failed ? `Failed command exited ${failed.status}` : ""
+    ].filter(Boolean).join("\n").trim()
   };
+}
+
+function dockerComposeArgs() {
+  const compose = spawnSync("docker", ["compose", "version"], { encoding: "utf8" });
+  if (compose.status === 0) return ["compose"];
+  return ["compose"];
+}
+
+function ensureIndividualOpenSourceRuntime(runtimeDir: string) {
+  fs.mkdirSync(path.join(runtimeDir, "backups"), { recursive: true });
+  const envPath = path.join(runtimeDir, ".env");
+  if (!fs.existsSync(envPath)) {
+    fs.writeFileSync(envPath, [
+      "OPENLEASH_IMAGE_REGISTRY=ghcr.io/open-leash",
+      `OPENLEASH_VERSION=${process.env.OPENLEASH_BACKEND_VERSION || "latest"}`,
+      "OPENLEASH_POSTGRES_DB=openleash",
+      "OPENLEASH_POSTGRES_USER=openleash",
+      `OPENLEASH_POSTGRES_PASSWORD=${randomHexSecret()}`,
+      "OPENLEASH_CLIENT_API_PORT=9318",
+      `OPENLEASH_RELEASE_ADMIN_TOKEN=${randomHexSecret()}`,
+      `OPENLEASH_MODEL_KEY_ENCRYPTION_KEY=${randomHexSecret()}`,
+      `OPENLEASH_PROVIDER_USAGE_ENCRYPTION_KEY=${randomHexSecret()}`,
+      `OPENLEASH_SECRET_KEY=${randomHexSecret()}`,
+      ""
+    ].join("\n"));
+  }
+  upsertEnvValues(envPath, {
+    OPENLEASH_DEV_TOKEN: localServer.token,
+    OPENLEASH_ALLOW_PROD_DEV_TOKEN_SEED: "1",
+    OPENLEASH_DEV_ORG_SLUG: "individual-open-source",
+    OPENLEASH_DEV_ORG_NAME: "Individual Open Source"
+  });
+  fs.writeFileSync(path.join(runtimeDir, "docker-compose.yml"), individualOpenSourceCompose());
+}
+
+function upsertEnvValues(envPath: string, values: Record<string, string>) {
+  const existing = fs.existsSync(envPath) ? fs.readFileSync(envPath, "utf8") : "";
+  const lines = existing.split(/\r?\n/).filter((line) => line.length > 0);
+  const seen = new Set<string>();
+  const next = lines.map((line) => {
+    const match = line.match(/^([A-Z0-9_]+)=/);
+    if (!match) return line;
+    const key = match[1];
+    if (!(key in values)) return line;
+    seen.add(key);
+    return `${key}=${values[key]}`;
+  });
+  for (const [key, value] of Object.entries(values)) {
+    if (!seen.has(key)) next.push(`${key}=${value}`);
+  }
+  fs.writeFileSync(envPath, `${next.join("\n")}\n`);
+}
+
+function randomHexSecret() {
+  return crypto.randomBytes(24).toString("hex");
+}
+
+function individualOpenSourceCompose() {
+  return `name: openleash-individual
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: openleash-individual-postgres
+    environment:
+      POSTGRES_DB: \${OPENLEASH_POSTGRES_DB:-openleash}
+      POSTGRES_USER: \${OPENLEASH_POSTGRES_USER:-openleash}
+      POSTGRES_PASSWORD: \${OPENLEASH_POSTGRES_PASSWORD:-openleash}
+    volumes:
+      - openleash-individual-postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U \${OPENLEASH_POSTGRES_USER:-openleash} -d \${OPENLEASH_POSTGRES_DB:-openleash}"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  migrate:
+    image: \${OPENLEASH_IMAGE_REGISTRY:-ghcr.io/open-leash}/openleash-client-api:\${OPENLEASH_VERSION:-latest}
+    profiles: ["setup"]
+    environment:
+      DATABASE_URL: postgres://\${OPENLEASH_POSTGRES_USER:-openleash}:\${OPENLEASH_POSTGRES_PASSWORD:-openleash}@postgres:5432/\${OPENLEASH_POSTGRES_DB:-openleash}
+      OPENLEASH_DEV_TOKEN: \${OPENLEASH_DEV_TOKEN:-}
+      OPENLEASH_ALLOW_PROD_DEV_TOKEN_SEED: \${OPENLEASH_ALLOW_PROD_DEV_TOKEN_SEED:-1}
+      OPENLEASH_DEV_ORG_SLUG: individual-open-source
+      OPENLEASH_DEV_ORG_NAME: Individual Open Source
+      OPENLEASH_DEPLOYMENT_MODE: individual-open-source
+    command: ["node", "apps/client-api/dist/migrate.js", "--apply"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  seed:
+    image: \${OPENLEASH_IMAGE_REGISTRY:-ghcr.io/open-leash}/openleash-client-api:\${OPENLEASH_VERSION:-latest}
+    profiles: ["setup"]
+    environment:
+      DATABASE_URL: postgres://\${OPENLEASH_POSTGRES_USER:-openleash}:\${OPENLEASH_POSTGRES_PASSWORD:-openleash}@postgres:5432/\${OPENLEASH_POSTGRES_DB:-openleash}
+    command: ["node", "scripts/db-create-organization.mjs", "--name", "Individual Open Source", "--slug", "individual-open-source", "--mode", "private"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  client-api:
+    image: \${OPENLEASH_IMAGE_REGISTRY:-ghcr.io/open-leash}/openleash-client-api:\${OPENLEASH_VERSION:-latest}
+    container_name: openleash-individual-client-api
+    environment:
+      DATABASE_URL: postgres://\${OPENLEASH_POSTGRES_USER:-openleash}:\${OPENLEASH_POSTGRES_PASSWORD:-openleash}@postgres:5432/\${OPENLEASH_POSTGRES_DB:-openleash}
+      OPENLEASH_API_PORT: 9318
+      OPENLEASH_API_SURFACE: client
+      OPENLEASH_DEPLOYMENT_MODE: individual-open-source
+      OPENLEASH_DEV_ORG_SLUG: individual-open-source
+      OPENLEASH_DEV_ORG_NAME: Individual Open Source
+      OPENLEASH_DEV_TOKEN: \${OPENLEASH_DEV_TOKEN:-}
+      OPENLEASH_ALLOW_PROD_DEV_TOKEN_SEED: \${OPENLEASH_ALLOW_PROD_DEV_TOKEN_SEED:-1}
+      OPENLEASH_RELEASE_ADMIN_TOKEN: \${OPENLEASH_RELEASE_ADMIN_TOKEN:-local-release-admin-token}
+      OPENLEASH_MODEL_KEY_ENCRYPTION_KEY: \${OPENLEASH_MODEL_KEY_ENCRYPTION_KEY:-openleash-local-model-key-change-me}
+      OPENLEASH_PROVIDER_USAGE_ENCRYPTION_KEY: \${OPENLEASH_PROVIDER_USAGE_ENCRYPTION_KEY:-openleash-local-provider-key-change-me}
+      OPENLEASH_SECRET_KEY: \${OPENLEASH_SECRET_KEY:-openleash-local-secret-change-me}
+    ports:
+      - "127.0.0.1:\${OPENLEASH_CLIENT_API_PORT:-9318}:9318"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+volumes:
+  openleash-individual-postgres:
+`;
 }
 
 function findRepoFile(fileName: string) {
