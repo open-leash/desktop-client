@@ -467,7 +467,12 @@ class _OpenLeashHomeState extends State<OpenLeashHome> {
     try {
       final responses = await Future.wait([
         _request('GET', '/v1/plugins', 'tenantPluginsRead'),
-        _request('GET', '/v1/outcomes', 'authAccountOutcomes', query: {'limit': '50'}),
+        _request(
+          'GET',
+          '/v1/outcomes',
+          'authAccountOutcomes',
+          query: {'limit': '50'},
+        ),
       ]);
       if (responses[0].statusCode < 400) {
         final body = jsonDecode(responses[0].body) as Map<String, dynamic>;
@@ -485,14 +490,18 @@ class _OpenLeashHomeState extends State<OpenLeashHome> {
 
   Future<bool> _setPluginInstalled(Map plugin, bool installed) async {
     final id = plugin['id']?.toString() ?? '';
-    if (id.isEmpty) return false;
+    if (id.isEmpty) {
+      return false;
+    }
     try {
       final response = await _request(
         'POST',
         '/v1/plugins/${Uri.encodeComponent(id)}/${installed ? 'install' : 'uninstall'}',
         'adminPluginsWrite',
       );
-      if (response.statusCode >= 400) throw Exception(await _responseMessage(response));
+      if (response.statusCode >= 400) {
+        throw Exception(await _responseMessage(response));
+      }
       await _refreshState();
       return true;
     } catch (error) {
@@ -501,9 +510,14 @@ class _OpenLeashHomeState extends State<OpenLeashHome> {
     }
   }
 
-  Future<bool> _savePluginSettings(Map plugin, Map<String, dynamic> config) async {
+  Future<bool> _savePluginSettings(
+    Map plugin,
+    Map<String, dynamic> config,
+  ) async {
     final id = plugin['id']?.toString() ?? '';
-    if (id.isEmpty) return false;
+    if (id.isEmpty) {
+      return false;
+    }
     try {
       final response = await _request(
         'POST',
@@ -511,7 +525,9 @@ class _OpenLeashHomeState extends State<OpenLeashHome> {
         'adminPluginsWrite',
         body: {'enabled': _pluginInstalled(plugin), 'config': config},
       );
-      if (response.statusCode >= 400) throw Exception(await _responseMessage(response));
+      if (response.statusCode >= 400) {
+        throw Exception(await _responseMessage(response));
+      }
       await _refreshState();
       return true;
     } catch (error) {
@@ -528,13 +544,11 @@ class _OpenLeashHomeState extends State<OpenLeashHome> {
         : Map<String, dynamic>.from(_state as Map<String, dynamic>);
     setStateSafe(() {
       final nextState = Map<String, dynamic>.from(_state ?? const {});
-      final nextAgents = ((_state?['agents'] as List?) ?? const [])
-          .map((item) {
-            if (item is! Map) return item;
-            if (_canonicalAgentKind(item) != kind) return item;
-            return {...item, 'desired_monitored': monitored};
-          })
-          .toList();
+      final nextAgents = ((_state?['agents'] as List?) ?? const []).map((item) {
+        if (item is! Map) return item;
+        if (_canonicalAgentKind(item) != kind) return item;
+        return {...item, 'desired_monitored': monitored};
+      }).toList();
       nextState['agents'] = nextAgents;
       _state = nextState;
     });
@@ -678,6 +692,10 @@ class _OpenLeashHomeState extends State<OpenLeashHome> {
           approval['agentKind']?.toString(),
       project: project ?? 'Project',
       policy: policy?.toString() ?? 'OpenLeash rule',
+      plugin:
+          approval['plugin_name']?.toString() ??
+          approval['pluginName']?.toString() ??
+          'OpenLeash core',
       purpose:
           approval['purpose_summary']?.toString() ??
           approval['purposeSummary']?.toString(),
@@ -884,10 +902,15 @@ class _OpenLeashHomeState extends State<OpenLeashHome> {
         .whereType<Map>()
         .where(_isInterestingActivity)
         .toList();
-    final installedPlugins = _plugins.whereType<Map>().where(_pluginInstalled).toList()
-      ..sort(_comparePlugins);
-    final availablePlugins = _plugins.whereType<Map>().where((plugin) => !_pluginInstalled(plugin)).toList()
-      ..sort(_comparePlugins);
+    final installedPlugins =
+        _plugins.whereType<Map>().where(_pluginInstalled).toList()
+          ..sort(_comparePlugins);
+    final availablePlugins =
+        _plugins
+            .whereType<Map>()
+            .where((plugin) => !_pluginInstalled(plugin))
+            .toList()
+          ..sort(_comparePlugins);
     final agentCount = visibleAgents.length;
     return [
       _Panel(
@@ -1008,8 +1031,12 @@ class _OpenLeashHomeState extends State<OpenLeashHome> {
           MaterialPageRoute(
             builder: (_) => _PluginDetailPage(
               plugin: plugin,
-              outcomes: _pluginOutcomes(plugin, _outcomes.whereType<Map>().toList()),
-              onInstallChanged: (installed) => _setPluginInstalled(plugin, installed),
+              outcomes: _pluginOutcomes(
+                plugin,
+                _outcomes.whereType<Map>().toList(),
+              ),
+              onInstallChanged: (installed) =>
+                  _setPluginInstalled(plugin, installed),
               onSaveSettings: (config) => _savePluginSettings(plugin, config),
             ),
           ),
@@ -1097,14 +1124,21 @@ class _PluginHomeSection extends StatelessWidget {
           child: plugins.isEmpty
               ? const Text(
                   'No installed plugins yet.',
-                  style: TextStyle(color: _OlTheme.dim, fontWeight: FontWeight.w700),
+                  style: TextStyle(
+                    color: _OlTheme.dim,
+                    fontWeight: FontWeight.w700,
+                  ),
                 )
               : Column(
                   children: [
                     for (final category in categories) ...[
                       _PluginCategoryBlock(
                         category: category,
-                        plugins: plugins.where((plugin) => _pluginCategory(plugin) == category).toList(),
+                        plugins: plugins
+                            .where(
+                              (plugin) => _pluginCategory(plugin) == category,
+                            )
+                            .toList(),
                         outcomes: outcomes,
                         onOpenPlugin: onOpenPlugin,
                       ),
@@ -1140,14 +1174,16 @@ class _PluginCategoryBlock extends StatelessWidget {
         children: [
           _CategoryPill(category: category, count: plugins.length),
           const SizedBox(height: 8),
-          ...plugins.map((plugin) => Padding(
-                padding: const EdgeInsets.only(bottom: 8),
-                child: _PluginRow(
-                  plugin: plugin,
-                  outcomeCount: _pluginOutcomes(plugin, outcomes).length,
-                  onTap: () => onOpenPlugin(plugin),
-                ),
-              )),
+          ...plugins.map(
+            (plugin) => Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: _PluginRow(
+                plugin: plugin,
+                outcomeCount: _pluginOutcomes(plugin, outcomes).length,
+                onTap: () => onOpenPlugin(plugin),
+              ),
+            ),
+          ),
         ],
       ),
     );
@@ -1155,7 +1191,11 @@ class _PluginCategoryBlock extends StatelessWidget {
 }
 
 class _PluginRow extends StatelessWidget {
-  const _PluginRow({required this.plugin, required this.outcomeCount, required this.onTap});
+  const _PluginRow({
+    required this.plugin,
+    required this.outcomeCount,
+    required this.onTap,
+  });
 
   final Map plugin;
   final int outcomeCount;
@@ -1181,9 +1221,23 @@ class _PluginRow extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(_pluginName(plugin), maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 16)),
+                  Text(
+                    _pluginName(plugin),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontWeight: FontWeight.w900,
+                      fontSize: 16,
+                    ),
+                  ),
                   const SizedBox(height: 3),
-                  Text('$outcomeCount outcomes', style: const TextStyle(color: _OlTheme.dim, fontWeight: FontWeight.w700)),
+                  Text(
+                    '$outcomeCount outcomes',
+                    style: const TextStyle(
+                      color: _OlTheme.dim,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
                 ],
               ),
             ),
@@ -1206,7 +1260,8 @@ class _PluginMarketplacePage extends StatefulWidget {
   final List<Map> plugins;
   final List<Map> outcomes;
   final Future<bool> Function(Map plugin, bool installed) onInstallChanged;
-  final Future<bool> Function(Map plugin, Map<String, dynamic> config) onSaveSettings;
+  final Future<bool> Function(Map plugin, Map<String, dynamic> config)
+  onSaveSettings;
 
   @override
   State<_PluginMarketplacePage> createState() => _PluginMarketplacePageState();
@@ -1219,13 +1274,21 @@ class _PluginMarketplacePageState extends State<_PluginMarketplacePage> {
   @override
   Widget build(BuildContext context) {
     final plugins = widget.plugins.where((plugin) {
-      final matchesCategory = _category == 'all' || _pluginCategory(plugin) == _category;
-      final text = '${_pluginName(plugin)} ${_pluginDescription(plugin)} ${_pluginCategory(plugin)}'.toLowerCase();
+      final matchesCategory =
+          _category == 'all' || _pluginCategory(plugin) == _category;
+      final text =
+          '${_pluginName(plugin)} ${_pluginDescription(plugin)} ${_pluginCategory(plugin)}'
+              .toLowerCase();
       return matchesCategory && text.contains(_query.toLowerCase());
     }).toList();
     return Scaffold(
       backgroundColor: _OlTheme.bg,
-      appBar: AppBar(title: const Text('Add plugins'), backgroundColor: _OlTheme.bg, foregroundColor: _OlTheme.ink, elevation: 0),
+      appBar: AppBar(
+        title: const Text('Add plugins'),
+        backgroundColor: _OlTheme.bg,
+        foregroundColor: _OlTheme.ink,
+        elevation: 0,
+      ),
       body: SafeArea(
         child: ListView(
           padding: const EdgeInsets.fromLTRB(20, 8, 20, 32),
@@ -1236,7 +1299,10 @@ class _PluginMarketplacePageState extends State<_PluginMarketplacePage> {
                 hintText: 'Search plugins',
                 filled: true,
                 fillColor: _OlTheme.surface,
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: const BorderSide(color: _OlTheme.line2)),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(16),
+                  borderSide: const BorderSide(color: _OlTheme.line2),
+                ),
               ),
               onChanged: (value) => setState(() => _query = value),
             ),
@@ -1244,36 +1310,52 @@ class _PluginMarketplacePageState extends State<_PluginMarketplacePage> {
             Wrap(
               spacing: 8,
               runSpacing: 8,
-              children: ['all', 'observability', 'cost', 'security', 'utility'].map((category) {
-                final selected = _category == category;
-                return ChoiceChip(
-                  label: Text(category == 'all' ? 'All' : _categoryLabel(category)),
-                  selected: selected,
-                  onSelected: (_) => setState(() => _category = category),
-                );
-              }).toList(),
+              children: ['all', 'observability', 'cost', 'security', 'utility']
+                  .map((category) {
+                    final selected = _category == category;
+                    return ChoiceChip(
+                      label: Text(
+                        category == 'all' ? 'All' : _categoryLabel(category),
+                      ),
+                      selected: selected,
+                      onSelected: (_) => setState(() => _category = category),
+                    );
+                  })
+                  .toList(),
             ),
             const SizedBox(height: 16),
             if (plugins.isEmpty)
-              const _Panel(child: Text('No plugins match this search.', style: TextStyle(color: _OlTheme.dim, fontWeight: FontWeight.w700)))
+              const _Panel(
+                child: Text(
+                  'No plugins match this search.',
+                  style: TextStyle(
+                    color: _OlTheme.dim,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              )
             else
-              ...plugins.map((plugin) => Padding(
-                    padding: const EdgeInsets.only(bottom: 12),
-                    child: _MarketplacePluginCard(
-                      plugin: plugin,
-                      onInstall: () => Navigator.of(context).push(
-                        MaterialPageRoute(
-                          builder: (_) => _PluginDetailPage(
-                            plugin: plugin,
-                            outcomes: _pluginOutcomes(plugin, widget.outcomes),
-                            initialTab: 'settings',
-                            onInstallChanged: (installed) => widget.onInstallChanged(plugin, installed),
-                            onSaveSettings: (config) => widget.onSaveSettings(plugin, config),
-                          ),
+              ...plugins.map(
+                (plugin) => Padding(
+                  padding: const EdgeInsets.only(bottom: 12),
+                  child: _MarketplacePluginCard(
+                    plugin: plugin,
+                    onInstall: () => Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (_) => _PluginDetailPage(
+                          plugin: plugin,
+                          outcomes: _pluginOutcomes(plugin, widget.outcomes),
+                          initialTab: 'settings',
+                          onInstallChanged: (installed) =>
+                              widget.onInstallChanged(plugin, installed),
+                          onSaveSettings: (config) =>
+                              widget.onSaveSettings(plugin, config),
                         ),
                       ),
                     ),
-                  )),
+                  ),
+                ),
+              ),
           ],
         ),
       ),
@@ -1299,9 +1381,21 @@ class _MarketplacePluginCard extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(_pluginName(plugin), style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900)),
+                Text(
+                  _pluginName(plugin),
+                  style: const TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
                 const SizedBox(height: 4),
-                Text(_pluginDescription(plugin), style: const TextStyle(color: _OlTheme.dim, fontWeight: FontWeight.w700)),
+                Text(
+                  _pluginDescription(plugin),
+                  style: const TextStyle(
+                    color: _OlTheme.dim,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
                 const SizedBox(height: 10),
                 _CategoryPill(category: _pluginCategory(plugin)),
               ],
@@ -1359,29 +1453,45 @@ class _PluginDetailPageState extends State<_PluginDetailPage> {
         elevation: 0,
         actions: [
           TextButton(
-            onPressed: _busy || mandatory ? null : () async {
-              final navigator = Navigator.of(context);
-              if (installed) {
-                final remove = await showDialog<bool>(
-                  context: context,
-                  builder: (context) => AlertDialog(
-                    title: const Text('Remove plugin?'),
-                    content: Text('Remove ${_pluginName(widget.plugin)} from this account?'),
-                    actions: [
-                      TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
-                      FilledButton(onPressed: () => Navigator.pop(context, true), child: const Text('Remove')),
-                    ],
-                  ),
-                );
-                if (remove != true) return;
-              }
-              setState(() => _busy = true);
-              final ok = await widget.onInstallChanged(!installed);
-              if (!mounted) return;
-              setState(() => _busy = false);
-              if (ok) navigator.pop();
-            },
-            child: Text(mandatory ? 'Required' : installed ? 'Remove' : 'Install'),
+            onPressed: _busy || mandatory
+                ? null
+                : () async {
+                    final navigator = Navigator.of(context);
+                    if (installed) {
+                      final remove = await showDialog<bool>(
+                        context: context,
+                        builder: (context) => AlertDialog(
+                          title: const Text('Remove plugin?'),
+                          content: Text(
+                            'Remove ${_pluginName(widget.plugin)} from this account?',
+                          ),
+                          actions: [
+                            TextButton(
+                              onPressed: () => Navigator.pop(context, false),
+                              child: const Text('Cancel'),
+                            ),
+                            FilledButton(
+                              onPressed: () => Navigator.pop(context, true),
+                              child: const Text('Remove'),
+                            ),
+                          ],
+                        ),
+                      );
+                      if (remove != true) return;
+                    }
+                    setState(() => _busy = true);
+                    final ok = await widget.onInstallChanged(!installed);
+                    if (!mounted) return;
+                    setState(() => _busy = false);
+                    if (ok) navigator.pop();
+                  },
+            child: Text(
+              mandatory
+                  ? 'Required'
+                  : installed
+                  ? 'Remove'
+                  : 'Install',
+            ),
           ),
         ],
       ),
@@ -1391,34 +1501,57 @@ class _PluginDetailPageState extends State<_PluginDetailPage> {
           children: [
             _CategoryPill(category: _pluginCategory(widget.plugin)),
             const SizedBox(height: 10),
-            Text(_pluginName(widget.plugin), style: const TextStyle(fontSize: 32, height: 1.02, fontWeight: FontWeight.w900)),
+            Text(
+              _pluginName(widget.plugin),
+              style: const TextStyle(
+                fontSize: 32,
+                height: 1.02,
+                fontWeight: FontWeight.w900,
+              ),
+            ),
             const SizedBox(height: 6),
-            Text(_pluginDescription(widget.plugin), style: const TextStyle(color: _OlTheme.dim, fontSize: 16, fontWeight: FontWeight.w700)),
+            Text(
+              _pluginDescription(widget.plugin),
+              style: const TextStyle(
+                color: _OlTheme.dim,
+                fontSize: 16,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
             const SizedBox(height: 16),
             SegmentedButton<String>(
               segments: [
                 const ButtonSegment(value: 'insights', label: Text('Insights')),
-                ButtonSegment(value: 'outcomes', label: Text('Outcomes ${widget.outcomes.length}')),
+                ButtonSegment(
+                  value: 'outcomes',
+                  label: Text('Outcomes ${widget.outcomes.length}'),
+                ),
                 const ButtonSegment(value: 'settings', label: Text('Settings')),
               ],
               selected: {_tab},
-              onSelectionChanged: (values) => setState(() => _tab = values.first),
+              onSelectionChanged: (values) =>
+                  setState(() => _tab = values.first),
             ),
             const SizedBox(height: 16),
-            if (_tab == 'insights') _PluginInsightsPanel(outcomes: widget.outcomes),
-            if (_tab == 'outcomes') _PluginOutcomesPanel(outcomes: widget.outcomes),
-            if (_tab == 'settings') _PluginSettingsPanel(
-              plugin: widget.plugin,
-              config: _config,
-              enabled: settingsEditable,
-              busy: _busy,
-              onChanged: (key, value) => setState(() => _config[key] = value),
-              onSave: installed ? () async {
-                setState(() => _busy = true);
-                await widget.onSaveSettings(_config);
-                if (mounted) setState(() => _busy = false);
-              } : null,
-            ),
+            if (_tab == 'insights')
+              _PluginInsightsPanel(outcomes: widget.outcomes),
+            if (_tab == 'outcomes')
+              _PluginOutcomesPanel(outcomes: widget.outcomes),
+            if (_tab == 'settings')
+              _PluginSettingsPanel(
+                plugin: widget.plugin,
+                config: _config,
+                enabled: settingsEditable,
+                busy: _busy,
+                onChanged: (key, value) => setState(() => _config[key] = value),
+                onSave: installed
+                    ? () async {
+                        setState(() => _busy = true);
+                        await widget.onSaveSettings(_config);
+                        if (mounted) setState(() => _busy = false);
+                      }
+                    : null,
+              ),
           ],
         ),
       ),
@@ -1433,16 +1566,33 @@ class _PluginInsightsPanel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final blocked = outcomes.where((item) => '${item['decision'] ?? item['status']}'.toLowerCase().contains('block')).length;
-    final review = outcomes.where((item) => '${item['status']}'.toLowerCase().contains('review')).length;
+    final blocked = outcomes
+        .where(
+          (item) => '${item['decision'] ?? item['status']}'
+              .toLowerCase()
+              .contains('block'),
+        )
+        .length;
+    final review = outcomes
+        .where((item) => '${item['status']}'.toLowerCase().contains('review'))
+        .length;
     return _Panel(
       child: Row(
         children: [
-          Expanded(child: _DashboardMetric(value: '${outcomes.length}', label: 'outcomes')),
+          Expanded(
+            child: _DashboardMetric(
+              value: '${outcomes.length}',
+              label: 'outcomes',
+            ),
+          ),
           const SizedBox(width: 10),
-          Expanded(child: _DashboardMetric(value: '$blocked', label: 'blocked')),
+          Expanded(
+            child: _DashboardMetric(value: '$blocked', label: 'blocked'),
+          ),
           const SizedBox(width: 10),
-          Expanded(child: _DashboardMetric(value: '$review', label: 'review')),
+          Expanded(
+            child: _DashboardMetric(value: '$review', label: 'review'),
+          ),
         ],
       ),
     );
@@ -1458,7 +1608,13 @@ class _PluginOutcomesPanel extends StatelessWidget {
   Widget build(BuildContext context) {
     return _Panel(
       child: outcomes.isEmpty
-          ? const Text('No outcomes reported yet.', style: TextStyle(color: _OlTheme.dim, fontWeight: FontWeight.w700))
+          ? const Text(
+              'No outcomes reported yet.',
+              style: TextStyle(
+                color: _OlTheme.dim,
+                fontWeight: FontWeight.w700,
+              ),
+            )
           : Column(
               children: [
                 for (var index = 0; index < outcomes.length; index++) ...[
@@ -1496,17 +1652,25 @@ class _PluginSettingsPanel extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           if (keys.isEmpty)
-            const Text('No setup required.', style: TextStyle(color: _OlTheme.dim, fontWeight: FontWeight.w700))
+            const Text(
+              'No setup required.',
+              style: TextStyle(
+                color: _OlTheme.dim,
+                fontWeight: FontWeight.w700,
+              ),
+            )
           else
-            ...keys.map((key) => Padding(
-                  padding: const EdgeInsets.only(bottom: 12),
-                  child: _PluginSettingControl(
-                    label: _settingLabel(key),
-                    value: config[key],
-                    enabled: enabled,
-                    onChanged: (value) => onChanged(key, value),
-                  ),
-                )),
+            ...keys.map(
+              (key) => Padding(
+                padding: const EdgeInsets.only(bottom: 12),
+                child: _PluginSettingControl(
+                  label: _settingLabel(key),
+                  value: config[key],
+                  enabled: enabled,
+                  onChanged: (value) => onChanged(key, value),
+                ),
+              ),
+            ),
           const SizedBox(height: 8),
           FilledButton(
             onPressed: busy || !enabled ? null : onSave,
@@ -1519,7 +1683,12 @@ class _PluginSettingsPanel extends StatelessWidget {
 }
 
 class _PluginSettingControl extends StatelessWidget {
-  const _PluginSettingControl({required this.label, required this.value, required this.enabled, required this.onChanged});
+  const _PluginSettingControl({
+    required this.label,
+    required this.value,
+    required this.enabled,
+    required this.onChanged,
+  });
 
   final String label;
   final dynamic value;
@@ -1539,7 +1708,10 @@ class _PluginSettingControl extends StatelessWidget {
     return TextFormField(
       initialValue: value?.toString() ?? '',
       enabled: enabled,
-      decoration: InputDecoration(labelText: label, border: OutlineInputBorder(borderRadius: BorderRadius.circular(12))),
+      decoration: InputDecoration(
+        labelText: label,
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+      ),
       onChanged: onChanged,
     );
   }
@@ -1555,8 +1727,19 @@ class _PluginIcon extends StatelessWidget {
     return Container(
       width: 42,
       height: 42,
-      decoration: BoxDecoration(color: _OlTheme.accentSoft, borderRadius: BorderRadius.circular(12)),
-      child: Center(child: Text(_pluginInitials(plugin), style: const TextStyle(color: _OlTheme.accent, fontWeight: FontWeight.w900))),
+      decoration: BoxDecoration(
+        color: _OlTheme.accentSoft,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Center(
+        child: Text(
+          _pluginInitials(plugin),
+          style: const TextStyle(
+            color: _OlTheme.accent,
+            fontWeight: FontWeight.w900,
+          ),
+        ),
+      ),
     );
   }
 }
@@ -1570,7 +1753,9 @@ class _CategoryPill extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Chip(
-      label: Text('${_categoryLabel(category)}${count == null ? '' : ' $count'}'),
+      label: Text(
+        '${_categoryLabel(category)}${count == null ? '' : ' $count'}',
+      ),
       avatar: Icon(_categoryIcon(category), size: 16),
       backgroundColor: _categoryColor(category),
       side: BorderSide.none,
@@ -1593,11 +1778,14 @@ bool _pluginMandatory(Map plugin) {
 
 bool _pluginConfigLocked(Map plugin) {
   final policy = plugin['organizationPolicy'];
-  return _pluginMandatory(plugin) || (policy is Map && policy['configLocked'] == true);
+  return _pluginMandatory(plugin) ||
+      (policy is Map && policy['configLocked'] == true);
 }
 
 int _comparePlugins(Map left, Map right) {
-  return _pluginName(left).toLowerCase().compareTo(_pluginName(right).toLowerCase());
+  return _pluginName(
+    left,
+  ).toLowerCase().compareTo(_pluginName(right).toLowerCase());
 }
 
 String _pluginName(Map plugin) {
@@ -1613,21 +1801,31 @@ String _pluginName(Map plugin) {
 
 String _pluginDescription(Map plugin) {
   final marketplace = plugin['marketplace'];
-  return (marketplace is Map ? marketplace['shortDescription']?.toString() : null) ??
+  return (marketplace is Map
+          ? marketplace['shortDescription']?.toString()
+          : null) ??
       plugin['description']?.toString() ??
       'OpenLeash plugin';
 }
 
 String _pluginInitials(Map plugin) {
-  final parts = _pluginName(plugin).split(RegExp(r'[^a-zA-Z0-9]+')).where((part) => part.isNotEmpty).toList();
-  if (parts.length > 1) return parts.take(2).map((part) => part[0]).join().toUpperCase();
+  final parts = _pluginName(
+    plugin,
+  ).split(RegExp(r'[^a-zA-Z0-9]+')).where((part) => part.isNotEmpty).toList();
+  if (parts.length > 1) {
+    return parts.take(2).map((part) => part[0]).join().toUpperCase();
+  }
   return _pluginName(plugin).padRight(2).substring(0, 2).toUpperCase();
 }
 
 String _pluginCategory(Map plugin) {
   final marketplace = plugin['marketplace'];
-  final marketplaceTags = marketplace is Map && marketplace['tags'] is List ? (marketplace['tags'] as List).join(' ') : '';
-  final pluginTags = plugin['tags'] is List ? (plugin['tags'] as List).join(' ') : '';
+  final marketplaceTags = marketplace is Map && marketplace['tags'] is List
+      ? (marketplace['tags'] as List).join(' ')
+      : '';
+  final pluginTags = plugin['tags'] is List
+      ? (plugin['tags'] as List).join(' ')
+      : '';
   final explicit = [
     marketplace is Map ? marketplace['category'] : null,
     plugin['category'],
@@ -1635,17 +1833,22 @@ String _pluginCategory(Map plugin) {
   ].whereType<Object>().map((item) => item.toString().toLowerCase()).join(' ');
   final text = explicit.isNotEmpty
       ? explicit
-      : '${plugin['id'] ?? ''} ${plugin['name'] ?? ''} ${plugin['description'] ?? ''} $marketplaceTags $pluginTags'.toLowerCase();
+      : '${plugin['id'] ?? ''} ${plugin['name'] ?? ''} ${plugin['description'] ?? ''} $marketplaceTags $pluginTags'
+            .toLowerCase();
   if (RegExp(r'siem-exporter').hasMatch(text)) {
     return 'utility';
   }
   if (RegExp(r'mcp-scanner|skill-scanner').hasMatch(text)) {
     return 'security';
   }
-  if (RegExp(r'security|policy|guard|skill|risk|approval|dlp|leak|secret|credential').hasMatch(text)) {
+  if (RegExp(
+    r'security|policy|guard|skill|risk|approval|dlp|leak|secret|credential',
+  ).hasMatch(text)) {
     return 'security';
   }
-  if (RegExp(r'visibility|observability|observe|log|mcp|siem|audit|telemetry|monitor').hasMatch(text)) {
+  if (RegExp(
+    r'visibility|observability|observe|log|mcp|siem|audit|telemetry|monitor',
+  ).hasMatch(text)) {
     return 'observability';
   }
   if (RegExp(r'cost|token|compression|usage|budget|spend').hasMatch(text)) {
@@ -1690,7 +1893,8 @@ Map<String, dynamic> _pluginConfig(Map plugin) {
   final defaultConfig = plugin['defaultConfig'];
   return {
     if (defaultConfig is Map) ...defaultConfig.cast<String, dynamic>(),
-    if (settings is Map && settings['config'] is Map) ...(settings['config'] as Map).cast<String, dynamic>(),
+    if (settings is Map && settings['config'] is Map)
+      ...(settings['config'] as Map).cast<String, dynamic>(),
   };
 }
 
@@ -1698,7 +1902,9 @@ List<String> _pluginSettingKeys(Map plugin, Map<String, dynamic> config) {
   final keys = <String>{...config.keys};
   final schema = plugin['configSchema'];
   final properties = schema is Map ? schema['properties'] : null;
-  if (properties is Map) keys.addAll(properties.keys.map((key) => key.toString()));
+  if (properties is Map) {
+    keys.addAll(properties.keys.map((key) => key.toString()));
+  }
   keys.remove('enabled');
   return keys.toList()..sort();
 }
@@ -1706,9 +1912,16 @@ List<String> _pluginSettingKeys(Map plugin, Map<String, dynamic> config) {
 String _settingLabel(String value) {
   final spaced = value
       .replaceAll(RegExp(r'[_-]+'), ' ')
-      .replaceAllMapped(RegExp(r'([a-z0-9])([A-Z])'), (match) => '${match[1]} ${match[2]}')
+      .replaceAllMapped(
+        RegExp(r'([a-z0-9])([A-Z])'),
+        (match) => '${match[1]} ${match[2]}',
+      )
       .trim();
-  return spaced.split(' ').where((part) => part.isNotEmpty).map((part) => '${part[0].toUpperCase()}${part.substring(1)}').join(' ');
+  return spaced
+      .split(' ')
+      .where((part) => part.isNotEmpty)
+      .map((part) => '${part[0].toUpperCase()}${part.substring(1)}')
+      .join(' ');
 }
 
 class ApprovalNotifications {
@@ -1846,6 +2059,7 @@ class Approval {
     this.agentKind,
     required this.project,
     required this.policy,
+    required this.plugin,
     this.purpose,
     this.quote,
     this.context = const [],
@@ -1858,6 +2072,7 @@ class Approval {
   final String? agentKind;
   final String project;
   final String policy;
+  final String plugin;
   final String? purpose;
   final String? quote;
   final List<ApprovalContextLine> context;
@@ -1870,6 +2085,7 @@ class Approval {
         'Why: ${purpose!.trim()}',
       'Project: $project',
       'Rule: $policy',
+      'Plugin: $plugin',
       if (quote != null && quote!.trim().isNotEmpty) 'Quote: ${quote!.trim()}',
       if (context.isNotEmpty) 'Context: ${context.last.content}',
     ];
@@ -2029,7 +2245,7 @@ class _TextLink extends StatelessWidget {
   const _TextLink({required this.label, required this.onPressed});
 
   final String label;
-  final VoidCallback onPressed;
+  final VoidCallback? onPressed;
 
   @override
   Widget build(BuildContext context) {
@@ -2113,7 +2329,7 @@ class _PrimaryButton extends StatelessWidget {
 
   final String label;
   final IconData icon;
-  final VoidCallback onPressed;
+  final VoidCallback? onPressed;
 
   @override
   Widget build(BuildContext context) {
@@ -3733,7 +3949,6 @@ class _ApprovalCard extends StatefulWidget {
 
 class _ApprovalCardState extends State<_ApprovalCard> {
   final _guidanceController = TextEditingController();
-  bool _showGuidance = false;
 
   @override
   void dispose() {
@@ -3773,7 +3988,7 @@ class _ApprovalCardState extends State<_ApprovalCard> {
             runSpacing: 8,
             children: [
               _Pill(icon: Icons.folder_outlined, label: approval.project),
-              _Pill(icon: Icons.shield_outlined, label: approval.policy),
+              _Pill(icon: Icons.extension_outlined, label: approval.plugin),
               _Pill(
                 icon: Icons.schedule,
                 label: DateFormat.MMMd().add_jm().format(approval.createdAt),
@@ -3787,53 +4002,41 @@ class _ApprovalCardState extends State<_ApprovalCard> {
           ],
           if (supportsGuidance) ...[
             const SizedBox(height: 14),
-            Align(
-              alignment: Alignment.centerLeft,
-              child: TextButton(
-                onPressed: () => setState(() => _showGuidance = !_showGuidance),
-                child: Text(
-                  _showGuidance
-                      ? 'Hide guidance'
-                      : 'Add guidance for the agent',
-                  style: const TextStyle(fontWeight: FontWeight.w900),
+            TextField(
+              controller: _guidanceController,
+              onChanged: (_) => setState(() {}),
+              maxLength: 500,
+              maxLines: 3,
+              decoration: InputDecoration(
+                hintText: 'Tell the agent what to do instead (Optional)',
+                filled: true,
+                fillColor: _OlTheme.bg2,
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: const BorderSide(color: _OlTheme.line2),
+                ),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: const BorderSide(color: _OlTheme.line2),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: const BorderSide(
+                    color: _OlTheme.accent,
+                    width: 1.4,
+                  ),
                 ),
               ),
             ),
-            if (_showGuidance) ...[
-              const SizedBox(height: 8),
-              TextField(
-                controller: _guidanceController,
-                maxLength: 500,
-                maxLines: 3,
-                decoration: InputDecoration(
-                  hintText: 'Optional: tell the agent what to do instead',
-                  filled: true,
-                  fillColor: _OlTheme.bg2,
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: const BorderSide(color: _OlTheme.line2),
-                  ),
-                  enabledBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: const BorderSide(color: _OlTheme.line2),
-                  ),
-                  focusedBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: const BorderSide(
-                      color: _OlTheme.accent,
-                      width: 1.4,
-                    ),
-                  ),
-                ),
-              ),
-            ],
           ],
           const SizedBox(height: 20),
           Row(
             children: [
               Expanded(
                 child: _SecondaryButton(
-                  label: 'Deny',
+                  label: _guidanceController.text.trim().isEmpty
+                      ? 'Deny'
+                      : 'Deny & guide',
                   onPressed: () => widget.onDeny(_guidanceController.text),
                 ),
               ),
@@ -3842,7 +4045,9 @@ class _ApprovalCardState extends State<_ApprovalCard> {
                 child: _PrimaryButton(
                   label: 'Allow',
                   icon: Icons.check,
-                  onPressed: widget.onAllow,
+                  onPressed: _guidanceController.text.trim().isEmpty
+                      ? widget.onAllow
+                      : null,
                 ),
               ),
             ],
@@ -3869,6 +4074,7 @@ class _ApprovalContextBox extends StatelessWidget {
           border: Border.all(color: _OlTheme.line),
         ),
         child: ExpansionTile(
+          initiallyExpanded: true,
           tilePadding: const EdgeInsets.symmetric(horizontal: 14),
           childrenPadding: const EdgeInsets.fromLTRB(14, 0, 14, 14),
           title: const Text(
