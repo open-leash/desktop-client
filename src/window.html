@@ -5178,6 +5178,7 @@
 
       function pluginIconText(plugin) {
         if (plugin.marketplace?.iconText) return plugin.marketplace.iconText;
+        if (plugin.iconText) return plugin.iconText;
         const source = pluginPackageName(plugin) || pluginName(plugin) || plugin.id || "plugin";
         const parts = String(source).split(/[^a-z0-9]+/i).filter(Boolean);
         return (parts.length > 1 ? parts.slice(0, 2).map((part) => part[0]).join("") : String(source).slice(0, 2)).toUpperCase();
