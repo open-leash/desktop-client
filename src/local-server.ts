@@ -661,7 +661,7 @@ export class LocalOpenLeashServer {
       };
     }
     const evaluatedResults = this.store.policies.filter((policy) => policy.enabled).map((policy) => evaluatePolicy(policy, request));
-    const results = shouldDeferPromptOnlyApproval(request, evaluatedResults) && !hasSensitivePromptOnlyFinding(request, evaluatedResults)
+    const results = isNonActionableHookEvent(request.event.eventName) || (shouldDeferPromptOnlyApproval(request, evaluatedResults) && !hasSensitivePromptOnlyFinding(request, evaluatedResults))
       ? deferPromptOnlyPolicyResults(evaluatedResults)
       : evaluatedResults;
     const failed = results.filter((result) => result.status === "failed" || result.status === "needs_question");
@@ -798,7 +798,7 @@ export class LocalOpenLeashServer {
           [OPENLEASH_API_VERSION_HEADER]: OPENLEASH_API_CONTRACTS.tenantHookEvaluate
         },
         body: JSON.stringify(body),
-        signal: AbortSignal.timeout(Number(process.env.OPENLEASH_REMOTE_HOOK_TIMEOUT_MS ?? 130000))
+        signal: AbortSignal.timeout(Number(process.env.OPENLEASH_REMOTE_HOOK_TIMEOUT_MS ?? 610000))
       });
       if (!response.ok) return undefined;
       return await response.json() as unknown;
@@ -814,8 +814,8 @@ export class LocalOpenLeashServer {
 
   private async waitForHookDecision(decision: { decision: "allow" | "ask" | "deny"; decisionId: string; summary: string; question?: string; results: PolicyResult[] }) {
     if (decision.decision !== "ask") return decision;
-    const timeoutMs = Number(process.env.OPENLEASH_HOOK_APPROVAL_TIMEOUT_MS ?? 120000);
-    const pollMs = Number(process.env.OPENLEASH_HOOK_APPROVAL_POLL_MS ?? 750);
+    const timeoutMs = Number(process.env.OPENLEASH_HOOK_APPROVAL_TIMEOUT_MS ?? 600000);
+    const pollMs = Number(process.env.OPENLEASH_HOOK_APPROVAL_POLL_MS ?? 250);
     const deadline = Date.now() + Math.max(1000, timeoutMs);
     while (Date.now() < deadline) {
       const item = this.store.history.find((entry) => entry.id === decision.decisionId);
@@ -978,7 +978,12 @@ export class LocalOpenLeashServer {
   }
 
   private readStore(): Store {
-    const token = this.getSetting("token") ?? `ol_personal_${crypto.randomBytes(18).toString("base64url")}`;
+    const devToken = String(process.env.OPENLEASH_DEV_TOKEN ?? "").trim() || undefined;
+    const token = devToken ?? this.getSetting("token") ?? `ol_personal_${crypto.randomBytes(18).toString("base64url")}`;
+    const configuredRemoteApiUrl = this.settingValue("remoteApiUrl");
+    const remoteToken = devToken && /^https?:\/\/(127\.0\.0\.1|localhost)(?::\d+)?\/?$/i.test(configuredRemoteApiUrl ?? "")
+      ? devToken
+      : this.settingValue("remoteToken");
     const policies = migrateDefaultPolicies(this.readPolicies());
     const store = {
       token,
@@ -987,8 +992,8 @@ export class LocalOpenLeashServer {
       introSeen: this.getSetting("introSeen") === "true",
       agentDoneSound: this.getSetting("agentDoneSound") === "true",
       clientMode: normalizeClientMode(this.settingValue<ClientMode>("clientMode") ?? initialClientMode()),
-      remoteApiUrl: this.settingValue("remoteApiUrl"),
-      remoteToken: this.settingValue("remoteToken"),
+      remoteApiUrl: configuredRemoteApiUrl,
+      remoteToken,
       remoteOrganization: this.settingValue("remoteOrganization"),
       remoteUser: this.settingValue("remoteUser"),
       apiProvider: undefined,
@@ -998,7 +1003,7 @@ export class LocalOpenLeashServer {
       policies: enforceLockedPolicies(policies.length > 0 ? policies : defaultPolicies()),
       history: this.readHistory()
     };
-    if (!this.getSetting("token") || policies.length === 0) {
+    if (this.getSetting("token") !== token || (devToken && this.getSetting("remoteToken") !== remoteToken) || policies.length === 0) {
       this.store = store;
       this.writeStore();
     }
@@ -2035,6 +2040,10 @@ function hasSensitivePromptOnlyFinding(request: EvaluationRequest, results: Poli
 
 function isPromptOnlyHook(request: EvaluationRequest) {
   return request.event.eventName === "UserPromptSubmit" && !request.event.tool?.name;
+}
+
+function isNonActionableHookEvent(eventName: string) {
+  return ["PostToolUse", "Stop", "SessionStart", "SessionEnd", "SubagentStart", "SubagentStop", "Notification"].includes(eventName);
 }
 
 function deferPromptOnlyPolicyResults(results: PolicyResult[]): PolicyResult[] {

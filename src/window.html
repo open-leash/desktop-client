@@ -1668,6 +1668,8 @@
         background: var(--soft);
       }
       .debugRows { display: grid; gap: 12px; margin-top: 22px; }
+      .debugTools { display: grid; grid-template-columns: minmax(220px, 1fr) repeat(4, minmax(120px, auto)); gap: 8px; margin-top: 18px; }
+      .debugTools input, .debugTools select { min-width: 0; height: 40px; padding: 0 11px; border: 1px solid var(--line); border-radius: 10px; background: white; color: var(--ink); font: inherit; font-size: 12px; }
       .debugRow {
         overflow: hidden;
         background: white;
@@ -1677,7 +1679,8 @@
       .debugRow[open] { box-shadow: 0 12px 32px rgba(20, 30, 30, .06); }
       .debugRow summary {
         display: grid;
-        grid-template-columns: 82px minmax(0, 1fr) minmax(160px, .55fr);
+        grid-template-columns: 70px minmax(140px, .8fr) minmax(130px, .7fr) minmax(120px, .6fr);
+        grid-template-areas: "level plugin event timestamp" "level summary summary context";
         gap: 14px;
         align-items: center;
         padding: 14px 16px;
@@ -1686,6 +1689,7 @@
       }
       .debugRow summary::-webkit-details-marker { display: none; }
       .debugLevel {
+        grid-area: level;
         justify-self: start;
         padding: 6px 9px;
         border-radius: 999px;
@@ -1704,22 +1708,30 @@
       .debugCopy small,
       .debugContext {
         display: block;
-        overflow: hidden;
-        text-overflow: ellipsis;
-        white-space: nowrap;
+        overflow-wrap: anywhere;
+        white-space: normal;
       }
       .debugCopy strong { font-size: 15px; }
       .debugCopy small,
       .debugContext { color: var(--muted); font-size: 12px; font-weight: 800; }
-      .debugContext { text-align: right; }
+      .debugContext { text-align: left; overflow-wrap: anywhere; }
+      .debugColumn { min-width: 0; }
+      .debugColumn small { display: block; margin-bottom: 3px; color: var(--muted); font-size: 10px; font-weight: 900; letter-spacing: .05em; text-transform: uppercase; }
+      .debugColumn strong { display: block; overflow-wrap: anywhere; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; white-space: normal; }
+      .debugPluginColumn { grid-area: plugin; }
+      .debugEventColumn { grid-area: event; }
+      .debugTimeColumn { grid-area: timestamp; }
+      .debugSummaryColumn { grid-area: summary; }
+      .debugContextColumn { grid-area: context; }
       .debugDetail { display: grid; gap: 12px; padding: 0 16px 16px; }
       .debugMeta {
         display: grid;
-        grid-template-columns: repeat(4, minmax(0, 1fr));
+        grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
         gap: 8px;
       }
-      .debugMeta .kv { min-width: 0; }
-      .debugMeta .kv strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      .debugMeta .kv { display: block; min-width: 0; }
+      .debugMeta .kv strong { overflow-wrap: anywhere; white-space: normal; }
+      .debugMeta .kv small { display: block; margin-bottom: 5px; }
       .debugPre {
         max-height: 260px;
         overflow: auto;
@@ -2650,12 +2662,20 @@
       const pluginDetailDraftConfigs = {};
       const pluginPendingRuleTexts = {};
       const skillDocScrollTops = new Map();
+      const openDebugRowIds = new Set();
+      let debugSearch = "";
+      let debugPluginFilter = "all";
+      let debugEventFilter = "all";
+      let debugLevelFilter = "all";
+      let debugSort = "newest";
       let selectedAgentSessionId = "";
       const root = document.getElementById("root");
       const sideNav = document.getElementById("sideNav");
       const modeFoot = document.getElementById("modeFoot");
 
       function render(payload = {}) {
+        const mainScroller = document.querySelector("main");
+        const preservedLogScrollTop = view === "debug" ? (mainScroller?.scrollTop || 0) : 0;
         const incomingRules = payload.policies || payload.rules || state.rules;
         state = { ...state, ...payload, rules: importedRules || incomingRules };
         if (payload.desktopMessage) {
@@ -2686,6 +2706,10 @@
         importedRules = undefined;
         renderView();
         autosizeRuleTextareas();
+        if (view === "debug" && mainScroller) {
+          mainScroller.scrollTop = preservedLogScrollTop;
+          requestAnimationFrame(() => { mainScroller.scrollTop = preservedLogScrollTop; });
+        }
       }
 
       function modeLabel() {
@@ -2822,7 +2846,7 @@
                 </svg>
               </div>
               <div class="welcomeCopy">
-                <div class="welcomeKicker">Unleash your agents</div>
+                <div class="welcomeKicker">Control your agents</div>
                 <h1>OpenLeash</h1>
                 <p>Understand and control AI agents wherever they run.</p>
               </div>
@@ -3741,7 +3765,7 @@
         if (id === "cost") return "Cost";
         if (id === "security") return "Security";
         if (id === "observability") return "Visibility";
-        if (id === "utility") return "Misc";
+        if (id === "utility") return "Other";
         return "All";
       }
 
@@ -3846,7 +3870,17 @@
       }
 
       function renderDebug() {
-        const rows = localPluginDebugRows();
+        const allRows = localPluginDebugRows();
+        const plugins = [...new Set(allRows.map((row) => row.pluginId))].sort();
+        const events = [...new Set(allRows.map((row) => row.eventName))].sort();
+        const levels = [...new Set(allRows.map((row) => row.level))].sort();
+        const query = debugSearch.trim().toLowerCase();
+        const rows = allRows
+          .filter((row) => debugPluginFilter === "all" || row.pluginId === debugPluginFilter)
+          .filter((row) => debugEventFilter === "all" || row.eventName === debugEventFilter)
+          .filter((row) => debugLevelFilter === "all" || row.level === debugLevelFilter)
+          .filter((row) => !query || `${row.pluginId} ${row.eventName} ${row.level} ${row.summary} ${row.agentName || ""} ${row.projectPath || ""} ${row.sessionId || ""} ${JSON.stringify(row.raw)}`.toLowerCase().includes(query))
+          .sort((left, right) => (debugSort === "oldest" ? 1 : -1) * (new Date(left.createdAt || 0).getTime() - new Date(right.createdAt || 0).getTime()));
         root.innerHTML = `
           <div class="head">
             <div><h1>Log</h1><p>Plugin run records and local event metadata from this Mac.</p></div>
@@ -3855,16 +3889,23 @@
               <button class="secondary" id="openDebugDashboard">Open dashboard log</button>
             </div>
           </div>
+          <div class="debugTools">
+            <input id="debugSearch" value="${escapeHtml(debugSearch)}" placeholder="Search logs, prompts, output, sessions...">
+            <select id="debugPluginFilter"><option value="all">All plugins</option>${plugins.map((value) => `<option value="${escapeHtml(value)}" ${debugPluginFilter === value ? "selected" : ""}>${escapeHtml(value)}</option>`).join("")}</select>
+            <select id="debugEventFilter"><option value="all">All events</option>${events.map((value) => `<option value="${escapeHtml(value)}" ${debugEventFilter === value ? "selected" : ""}>${escapeHtml(value)}</option>`).join("")}</select>
+            <select id="debugLevelFilter"><option value="all">All levels</option>${levels.map((value) => `<option value="${escapeHtml(value)}" ${debugLevelFilter === value ? "selected" : ""}>${escapeHtml(value)}</option>`).join("")}</select>
+            <select id="debugSort"><option value="newest" ${debugSort === "newest" ? "selected" : ""}>Newest first</option><option value="oldest" ${debugSort === "oldest" ? "selected" : ""}>Oldest first</option></select>
+          </div>
           <div class="debugRows">
             ${rows.map((row) => `
-              <details class="debugRow">
+              <details class="debugRow" data-debug-row="${escapeHtml(row.id)}" ${openDebugRowIds.has(row.id) ? "open" : ""}>
                 <summary>
                   <span class="debugLevel ${escapeHtml(row.level)}">${escapeHtml(row.level)}</span>
-                  <span class="debugCopy">
-                    <strong>${escapeHtml(row.summary)}</strong>
-                    <small>${escapeHtml(row.pluginId)} · ${escapeHtml(row.eventName)} · ${escapeHtml(formatTime(row.createdAt))}</small>
-                  </span>
-                  <span class="debugContext">${escapeHtml([row.agentName, projectTag(row.projectPath), row.sessionId].filter(Boolean).join(" · ") || "No context")}</span>
+                  <span class="debugColumn debugPluginColumn"><small>Plugin</small><strong>${escapeHtml(row.pluginId)}</strong></span>
+                  <span class="debugColumn debugEventColumn"><small>Event</small><strong>${escapeHtml(row.eventName)}</strong></span>
+                  <span class="debugColumn debugTimeColumn" title="${escapeHtml(exactTimestamp(row.createdAt))}"><small>Timestamp</small><strong>${escapeHtml(humanTimestamp(row.createdAt))}</strong></span>
+                  <span class="debugColumn debugSummaryColumn"><small>Summary</small><strong>${escapeHtml(row.summary)}</strong></span>
+                  <span class="debugColumn debugContext debugContextColumn"><small>Context</small><strong>${escapeHtml([row.agentName, projectTag(row.projectPath), row.sessionId].filter(Boolean).join(" · ") || "No context")}</strong></span>
                 </summary>
                 <div class="debugDetail">
                   <div class="debugMeta">
@@ -3872,13 +3913,39 @@
                     <div class="kv"><small>Level</small><strong>${escapeHtml(row.level)}</strong></div>
                     <div class="kv"><small>Agent</small><strong>${escapeHtml(row.agentName || "Unknown")}</strong></div>
                     <div class="kv"><small>Session</small><strong>${escapeHtml(row.sessionId || "Unknown")}</strong></div>
+                    <div class="kv"><small>Timestamp</small><strong title="${escapeHtml(exactTimestamp(row.createdAt))}">${escapeHtml(humanTimestamp(row.createdAt))}</strong></div>
+                    ${row.raw?.pluginRun?.metadata?.inputCharacters !== undefined ? `<div class="kv"><small>Input size</small><strong>${escapeHtml(String(row.raw.pluginRun.metadata.inputCharacters))} chars</strong></div>` : ""}
+                    ${row.raw?.pluginRun?.metadata?.outputCharacters !== undefined ? `<div class="kv"><small>Output size</small><strong>${escapeHtml(String(row.raw.pluginRun.metadata.outputCharacters))} chars</strong></div>` : ""}
+                    ${row.raw?.pluginRun?.metadata?.savedPercent !== undefined ? `<div class="kv"><small>Saved</small><strong>${escapeHtml(String(row.raw.pluginRun.metadata.savedPercent))}%</strong></div>` : ""}
+                    ${row.raw?.pluginRun?.metadata?.deliveryStatus !== undefined ? `<div class="kv"><small>Delivery</small><strong>${escapeHtml(String(row.raw.pluginRun.metadata.deliveryStatus))}</strong></div>` : ""}
                   </div>
+                  ${row.raw?.pluginRun?.metadata?.input !== undefined ? `<div class="kv"><small>Input</small><div class="debugPre">${escapeHtml(String(row.raw.pluginRun.metadata.input))}</div></div>` : ""}
+                  ${row.raw?.pluginRun?.metadata?.output !== undefined ? `<div class="kv"><small>Output</small><div class="debugPre">${escapeHtml(String(row.raw.pluginRun.metadata.output))}</div></div>` : ""}
                   <div class="debugPre">${escapeHtml(JSON.stringify(row.raw, null, 2))}</div>
                 </div>
               </details>
             `).join("") || `<div class="empty">No local plugin debug records yet. The full server-side plugin log stream is available in the dashboard.</div>`}
           </div>
         `;
+        const search = document.getElementById("debugSearch");
+        let searchTimer;
+        search.oninput = () => {
+          debugSearch = search.value;
+          clearTimeout(searchTimer);
+          searchTimer = setTimeout(() => { renderDebug(); document.getElementById("debugSearch")?.focus(); }, 180);
+        };
+        document.getElementById("debugPluginFilter").onchange = (event) => { debugPluginFilter = event.target.value; renderDebug(); };
+        document.getElementById("debugEventFilter").onchange = (event) => { debugEventFilter = event.target.value; renderDebug(); };
+        document.getElementById("debugLevelFilter").onchange = (event) => { debugLevelFilter = event.target.value; renderDebug(); };
+        document.getElementById("debugSort").onchange = (event) => { debugSort = event.target.value; renderDebug(); };
+        root.querySelectorAll("[data-debug-row]").forEach((details) => {
+          details.ontoggle = () => {
+            const id = details.dataset.debugRow;
+            if (!id) return;
+            if (details.open) openDebugRowIds.add(id);
+            else openDebugRowIds.delete(id);
+          };
+        });
         const openDebug = document.getElementById("openDebugDashboard");
         if (openDebug) openDebug.onclick = async () => {
           const result = await window.openleash.openDebugDashboard();
@@ -3887,23 +3954,77 @@
       }
 
       function localPluginDebugRows() {
-        return visibleHistoryItems()
+        return (state.history || [])
           .flatMap((item) => {
             const runs = Array.isArray(item.payload?.openleashPluginRuns) ? item.payload.openleashPluginRuns : [];
-            return runs.map((run, index) => ({
-              id: `${item.id}:${index}`,
-              pluginId: run.pluginId || run.plugin_id || "openleash.plugin",
-              level: run.error ? "error" : run.decision === "deny" ? "security" : "debug",
-              summary: run.summary || run.message || run.kind || "Plugin run completed.",
+            const responsibleRun = runs.find((run) => ["blocked", "needs_question", "failed"].includes(String(run.status || "").toLowerCase()));
+            const context = {
               eventName: item.event_name || item.payload?.eventName || "event",
               agentName: item.agent_name,
               projectPath: item.project_path,
-              sessionId: item.payload?.sessionId,
+              sessionId: item.payload?.sessionId
+            };
+            const lifecycle = [{
+              id: `${item.id}:received`,
+              pluginId: logPluginSlug(responsibleRun?.pluginId || responsibleRun?.plugin_id || "openleash-core"),
+              level: item.decision === "ask" ? "security" : item.decision === "deny" ? "security" : "debug",
+              summary: item.decision === "ask" ? "Approval requested; agent hook is waiting." : `Hook evaluated: ${item.decision || "recorded"}.`,
+              ...context,
+              createdAt: item.created_at,
+              raw: { stage: "evaluated", timestamp: item.created_at, decisionId: item.id, decision: item.decision, question: item.question }
+            }];
+            if (resolutionTime(item)) lifecycle.push({
+              id: `${item.id}:resolved`,
+              pluginId: "openleash.approval",
+              level: item.resolution === "deny" ? "security" : "debug",
+              summary: `Approval resolved: ${item.resolution || item.decision}.`,
+              ...context,
+              createdAt: resolutionTime(item),
+              raw: { stage: "resolved", timestamp: resolutionTime(item), decisionId: item.id, resolution: item.resolution }
+            });
+            return [...lifecycle, ...runs.map((run, index) => ({
+              id: `${item.id}:${index}`,
+              pluginId: logPluginSlug(run.pluginId || run.plugin_id || "openleash.plugin"),
+              level: run.error ? "error" : run.decision === "deny" ? "security" : "debug",
+              summary: normalizeTokenSaverText(run.summary || run.message || run.kind || "Plugin run completed."),
+              ...context,
               createdAt: item.created_at,
               raw: { pluginRun: run, event: item }
-            }));
+            }))];
           })
+          .sort((left, right) => new Date(right.createdAt || 0).getTime() - new Date(left.createdAt || 0).getTime())
           .slice(0, 120);
+      }
+
+      function exactTimestamp(value) {
+        const date = new Date(value || 0);
+        return Number.isNaN(date.getTime()) ? String(value || "Unknown") : `${date.toLocaleString()} · ${date.toISOString()}`;
+      }
+
+      function humanTimestamp(value) {
+        const date = new Date(value || 0);
+        if (Number.isNaN(date.getTime())) return String(value || "Unknown");
+        const elapsed = Math.max(0, Date.now() - date.getTime());
+        const minutes = Math.floor(elapsed / 60000);
+        if (minutes < 1) return "just now";
+        if (minutes < 60) return `${minutes}m ago`;
+        const hours = Math.floor(minutes / 60);
+        if (hours < 24 && date.toDateString() === new Date().toDateString()) return `${hours}h ago`;
+        const yesterday = new Date();
+        yesterday.setDate(yesterday.getDate() - 1);
+        if (date.toDateString() === yesterday.toDateString()) return `Yesterday at ${date.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}`;
+        const days = Math.floor(elapsed / 86400000);
+        if (days < 7) return `${days}d ago`;
+        return date.toLocaleDateString([], { month: "short", day: "numeric", year: date.getFullYear() === new Date().getFullYear() ? undefined : "numeric" });
+      }
+
+      function logPluginSlug(value) {
+        const slug = String(value || "openleash-core").replace(/^openleash\./, "");
+        return slug === "prompt-compression" ? "token-saver" : slug;
+      }
+
+      function normalizeTokenSaverText(value) {
+        return String(value || "").replace(/token saver/gi, "token-saver").replace(/prompt-compression/gi, "token-saver");
       }
 
       function renderEventDetail() {
@@ -4855,6 +4976,44 @@
             <div class="card">
               <div class="fieldRow">
                 <div>
+                  <strong>Full conversation proxy</strong>
+                  <p>Intercept prompts, model responses, and tool traffic before the provider call. Docker is required.</p>
+                </div>
+                <span class="tag ${state.proxyStatus?.healthy ? "good" : state.proxyStatus?.running ? "warn" : ""}">${state.proxyStatus?.healthy ? "Active" : state.proxyStatus?.running ? "Starting" : "Off"}</span>
+              </div>
+              <div class="fieldRow">
+                <div><strong>Claude Code</strong><p>Sets ANTHROPIC_BASE_URL with a reversible settings backup.</p></div>
+                <label class="toggleRow"><input data-proxy-agent="claude-code" type="checkbox" ${(state.proxyStatus?.configuredAgents || []).includes("claude-code") ? "checked" : ""} ${state.proxyStatus?.running ? "" : "disabled"}><span>Proxy</span></label>
+              </div>
+              <div class="fieldRow">
+                <div><strong>OpenAI Codex</strong><p>Adds a reversible OpenLeash Responses API provider.</p></div>
+                <label class="toggleRow"><input data-proxy-agent="codex" type="checkbox" ${(state.proxyStatus?.configuredAgents || []).includes("codex") ? "checked" : ""} ${state.proxyStatus?.running ? "" : "disabled"}><span>Proxy</span></label>
+              </div>
+              <div class="fieldRow">
+                <div><strong>OpenCode</strong><p>Overrides the built-in Anthropic and OpenAI provider base URLs while preserving provider options.</p></div>
+                <label class="toggleRow"><input data-proxy-agent="opencode" type="checkbox" ${(state.proxyStatus?.configuredAgents || []).includes("opencode") ? "checked" : ""} ${state.proxyStatus?.running ? "" : "disabled"}><span>Proxy</span></label>
+              </div>
+              <div class="fieldRow">
+                <div><strong>NanoClaw</strong><p>Uses the reversible Claude-compatible Anthropic base URL adapter.</p></div>
+                <label class="toggleRow"><input data-proxy-agent="nanoclaw" type="checkbox" ${(state.proxyStatus?.configuredAgents || []).includes("nanoclaw") ? "checked" : ""} ${state.proxyStatus?.running ? "" : "disabled"}><span>Proxy</span></label>
+              </div>
+              <div class="fieldRow">
+                <div><strong>Cursor and Cline</strong><p>Their provider URLs live in editor-managed settings. OpenLeash provides the local endpoint without modifying extension-private state: OpenAI ${escapeHtml("http://127.0.0.1:9320/v1")} · Anthropic ${escapeHtml("http://127.0.0.1:9320")}.</p></div>
+                <span class="tag">Manual UI</span>
+              </div>
+              <div class="fieldRow">
+                <div><strong>Copilot and OpenClaw</strong><p>Protected by their OpenLeash hooks. Full provider routing requires a launch environment or runtime gateway plugin.</p></div>
+                <span class="tag">Hooks</span>
+              </div>
+              <div class="actions">
+                <button class="secondary" id="refreshProxy">Refresh status</button>
+                <button class="${state.proxyStatus?.containerInstalled ? "secondary dangerButton" : "primary"}" id="toggleProxy">${state.proxyStatus?.containerInstalled ? "Uninstall proxy" : "Install proxy"}</button>
+              </div>
+              <div id="proxyMessage" class="notice">${escapeHtml(state.proxyStatus?.error || "")}</div>
+            </div>
+            <div class="card">
+              <div class="fieldRow">
+                <div>
                   <strong>Agent finished sound</strong>
                   <p>Play a small sound on this Mac when a protected agent finishes a turn.</p>
                 </div>
@@ -4883,6 +5042,31 @@
           </div>
           <div class="actions"><button class="primary" id="saveSettings">Save settings</button></div>
         `;
+        document.getElementById("refreshProxy").onclick = async () => {
+          state.proxyStatus = await window.openleash.proxyStatus();
+          renderSettings();
+        };
+        document.getElementById("toggleProxy").onclick = async () => {
+          const message = document.getElementById("proxyMessage");
+          message.textContent = state.proxyStatus?.containerInstalled ? "Restoring agent configuration and removing the proxy…" : "Pulling and starting the proxy container…";
+          const result = state.proxyStatus?.containerInstalled
+            ? await window.openleash.uninstallProxy()
+            : await window.openleash.installProxy({ agents: (state.localProtections || []).filter((agent) => agent.installed && ["claude-code", "codex", "opencode", "nanoclaw"].includes(agent.kind)).map((agent) => agent.kind) });
+          if (!result?.ok) { message.textContent = result?.error || "Proxy operation failed."; return; }
+          state.proxyStatus = result;
+          renderSettings();
+        };
+        root.querySelectorAll("[data-proxy-agent]").forEach((input) => {
+          input.onchange = async () => {
+            const result = await window.openleash.setAgentProxy({ kind: input.dataset.proxyAgent, enabled: input.checked });
+            if (!result?.ok) {
+              input.checked = !input.checked;
+              document.getElementById("proxyMessage").textContent = result?.error || "Agent proxy configuration failed.";
+              return;
+            }
+            state.proxyStatus = result;
+          };
+        });
         const agentDoneSoundInput = document.getElementById("agentDoneSound");
         agentDoneSoundInput.onchange = async () => {
           const nextAgentDoneSound = agentDoneSoundInput.checked;
@@ -5109,12 +5293,12 @@
       function pluginCategory(plugin) {
         const raw = plugin.marketplace?.category || plugin.category || plugin.manifest?.category || "";
         const text = String(raw || `${plugin.id || ""} ${plugin.name || ""} ${plugin.description || ""} ${(plugin.marketplace?.tags || []).join(" ")} ${(plugin.tags || []).join(" ")}`).toLowerCase();
-        if (/siem-exporter/.test(text)) return "Misc";
+        if (/siem-exporter/.test(text)) return "Other";
         if (/mcp-scanner|skill-scanner/.test(text)) return "Security";
         if (/security|policy|guard|skill|prompt-injection|risk|approval|dlp|leak|sensitive|secret|credential/.test(text)) return "Security";
         if (/visibility|observability|observe|log|mcp|siem|audit|telemetry|monitor/.test(text)) return "Visibility";
         if (/cost|token|compression|usage|budget|spend/.test(text)) return "Cost";
-        return "Misc";
+        return "Other";
       }
 
       function pluginCategorySummary(plugins) {
@@ -5128,7 +5312,7 @@
           { id: "cost", label: "Cost", count: counts.get("cost") || 0 },
           { id: "security", label: "Security", count: counts.get("security") || 0 },
           { id: "observability", label: "Visibility", count: counts.get("observability") || 0 },
-          { id: "utility", label: "Misc", count: counts.get("utility") || 0 }
+          { id: "utility", label: "Other", count: counts.get("utility") || 0 }
         ];
       }
 

@@ -8,7 +8,7 @@
   <img src="https://img.shields.io/badge/Backend-required-10B981?style=for-the-badge" />
 </p>
 
-<h3>🖥 Unleash your agents with a local control point.</h3>
+<h3>🖥 Control your agents with a local control point.</h3>
 
 </div>
 

@@ -23,6 +23,7 @@ import {
   uninstallOpenClawHooks
 } from "./install.js";
 import { runHook } from "./hook.js";
+import { configureAgentProxy, installLocalProxy, localProxyStatus, uninstallLocalProxy } from "../proxy-manager.js";
 
 const program = new Command();
 
@@ -238,6 +239,42 @@ program.command("status").action(async () => {
     process.exitCode = 1;
   }
 });
+
+const proxy = program.command("proxy").description("Manage full-conversation local LLM proxy interception");
+proxy.command("status").option("--json", "print JSON").action(async (options) => {
+  const status = await localProxyStatus();
+  if (options.json) console.log(JSON.stringify(status, null, 2));
+  else console.table(status);
+});
+proxy.command("install")
+  .option("--agents <agents>", "comma-separated supported agents", "claude-code,codex")
+  .option("--corporate-proxy <url>", "chain provider traffic through an existing organization proxy")
+  .action(async (options) => {
+    try {
+      const config = await readConfig();
+      const status = await installLocalProxy({
+        clientApiUrl: hookApiUrl(config),
+        token: config.token,
+        agents: String(options.agents).split(",").map((item) => item.trim()).filter(Boolean),
+        corporateProxy: options.corporateProxy
+      });
+      console.table(status);
+    } catch (error) {
+      console.error(`OpenLeash proxy install failed: ${errorMessage(error)}`);
+      process.exitCode = 1;
+    }
+  });
+proxy.command("uninstall").action(async () => {
+  try { console.table(await uninstallLocalProxy()); }
+  catch (error) { console.error(`OpenLeash proxy uninstall failed: ${errorMessage(error)}`); process.exitCode = 1; }
+});
+proxy.command("configure-agent")
+  .argument("<agent>", "claude-code or codex")
+  .option("--remove", "restore the pre-OpenLeash configuration")
+  .action((agent, options) => {
+    try { configureAgentProxy(agent, !options.remove); console.log(`OpenLeash proxy configuration ${options.remove ? "removed from" : "installed for"} ${agent}.`); }
+    catch (error) { console.error(errorMessage(error)); process.exitCode = 1; }
+  });
 
 program
   .command("update")

@@ -51,13 +51,13 @@ const genericAgents = [
     configPaths: [".gemini"],
     install: installGeminiProtection,
     uninstall: uninstallGeminiProtection,
-    protected: detectGeminiProtected
+    protected: detectGeminiProtected,
   },
   {
     kind: "cline",
     displayName: "Cline",
     icon: "cline",
-    extensionNeedles: ["cline", "claude-dev", "saoudrizwan"]
+    extensionNeedles: ["cline", "claude-dev", "saoudrizwan"],
   },
   {
     kind: "opencode",
@@ -67,13 +67,13 @@ const genericAgents = [
     configPaths: [".config/opencode"],
     install: installOpenCodeProtection,
     uninstall: uninstallOpenCodeProtection,
-    protected: detectOpenCodeProtected
+    protected: detectOpenCodeProtected,
   },
   {
     kind: "continue",
     displayName: "Continue",
     icon: "continue",
-    extensionNeedles: ["continue"]
+    extensionNeedles: ["continue"],
   },
   {
     kind: "cursor",
@@ -82,7 +82,7 @@ const genericAgents = [
     appPaths: ["/Applications/Cursor.app"],
     install: installCursorProtection,
     uninstall: uninstallCursorProtection,
-    protected: detectCursorProtected
+    protected: detectCursorProtected,
   },
   {
     kind: "github-copilot",
@@ -92,14 +92,14 @@ const genericAgents = [
     configPaths: [".copilot"],
     install: installCopilotProtection,
     uninstall: uninstallCopilotProtection,
-    protected: detectCopilotProtected
+    protected: detectCopilotProtected,
   },
   {
     kind: "windsurf",
     displayName: "Windsurf",
     icon: "windsurf",
-    appPaths: ["/Applications/Windsurf.app"]
-  }
+    appPaths: ["/Applications/Windsurf.app"],
+  },
 ] satisfies Array<{
   kind: string;
   displayName: string;
@@ -120,21 +120,21 @@ const agentDefinitions: AgentDefinition[] = [
     icon: "claude",
     detect: detectClaudeProtection,
     install: installClaudeProtection,
-    uninstall: uninstallClaudeProtection
+    uninstall: uninstallClaudeProtection,
   },
   {
     kind: "openclaw",
     displayName: "OpenClaw",
     detect: detectOpenClawProtection,
     install: installOpenClawProtection,
-    uninstall: uninstallOpenClawProtection
+    uninstall: uninstallOpenClawProtection,
   },
   {
     kind: "nanoclaw",
     displayName: "NanoClaw",
     detect: detectNanoClawProtection,
     install: installNanoClawProtection,
-    uninstall: uninstallNanoClawProtection
+    uninstall: uninstallNanoClawProtection,
   },
   {
     kind: "codex",
@@ -142,9 +142,9 @@ const agentDefinitions: AgentDefinition[] = [
     icon: "openai",
     detect: detectCodexProtection,
     install: installCodexProtection,
-    uninstall: uninstallCodexProtection
+    uninstall: uninstallCodexProtection,
   },
-  ...genericAgents.map(genericAgentDefinition)
+  ...genericAgents.map(genericAgentDefinition),
 ];
 
 export function detectLocalAgentProtections(context: DetectionContext) {
@@ -154,7 +154,10 @@ export function detectLocalAgentProtections(context: DetectionContext) {
     .sort(compareLocalAgentProtection);
 }
 
-export async function installAgentProtection(kind: string, context: InstallContext) {
+export async function installAgentProtection(
+  kind: string,
+  context: InstallContext,
+) {
   const definition = agentDefinitions.find((agent) => agent.kind === kind);
   if (!definition?.install) return false;
   await definition.install(context);
@@ -174,46 +177,51 @@ export function protectionWatchTargets() {
     {
       kind: "claude-code",
       displayName: "Claude Code",
-      paths: [path.join(home, ".claude", "settings.json")]
+      paths: [path.join(home, ".claude", "settings.json")],
     },
     {
       kind: "nanoclaw",
       displayName: "NanoClaw",
-      paths: [path.join(home, ".nanoclaw", "settings.json")]
+      paths: [path.join(home, ".nanoclaw", "settings.json")],
     },
     {
       kind: "codex",
       displayName: "OpenAI Codex",
-      paths: [path.join(home, ".codex", "config.toml"), path.join(home, ".codex", "hooks.json")]
+      paths: [
+        path.join(home, ".codex", "config.toml"),
+        path.join(home, ".codex", "hooks.json"),
+      ],
     },
     {
       kind: "gemini",
       displayName: "Google Gemini CLI",
-      paths: [path.join(home, ".gemini", "settings.json")]
+      paths: [path.join(home, ".gemini", "settings.json")],
     },
     {
       kind: "opencode",
       displayName: "OpenCode",
-      paths: [path.join(home, ".config", "opencode", "plugins", "openleash.js")]
+      paths: [
+        path.join(home, ".config", "opencode", "plugins", "openleash.js"),
+      ],
     },
     {
       kind: "cursor",
       displayName: "Cursor",
-      paths: [path.join(home, ".cursor", "hooks.json")]
+      paths: [path.join(home, ".cursor", "hooks.json")],
     },
     {
       kind: "github-copilot",
       displayName: "GitHub Copilot",
-      paths: [copilotOpenLeashHooksPath()]
+      paths: [copilotOpenLeashHooksPath()],
     },
     {
       kind: "openclaw",
       displayName: "OpenClaw",
       paths: [
         path.join(home, ".openclaw", "hooks", "openleash", "HOOK.md"),
-        path.join(home, ".openclaw", "hooks", "openleash", "handler.ts")
-      ]
-    }
+        path.join(home, ".openclaw", "hooks", "openleash", "handler.ts"),
+      ],
+    },
   ] satisfies AgentProtectionWatchTarget[];
 }
 
@@ -222,15 +230,26 @@ export function agentIconFor(name: string) {
   const base = "https://cdn.jsdelivr.net/npm/simple-icons@latest/icons";
   if (text.includes("claude")) return `${base}/claude.svg`;
   if (text.includes("github copilot")) return `${base}/githubcopilot.svg`;
-  if (text.includes("salesforce") || text.includes("agentforce")) return `${base}/salesforce.svg`;
-  if (text.includes("azure") || text.includes("foundry")) return `${base}/microsoftazure.svg`;
-  if (text.includes("copilot") || text.includes("agent 365")) return `${base}/microsoftcopilot.svg`;
-  if (text.includes("bedrock") || text.includes("agentcore") || text.includes("aws")) return `${base}/amazonaws.svg`;
-  if (text.includes("vertex") || text.includes("gemini enterprise")) return `${base}/googlecloud.svg`;
+  if (text.includes("salesforce") || text.includes("agentforce"))
+    return `${base}/salesforce.svg`;
+  if (text.includes("azure") || text.includes("foundry"))
+    return `${base}/microsoftazure.svg`;
+  if (text.includes("copilot") || text.includes("agent 365"))
+    return `${base}/microsoftcopilot.svg`;
+  if (
+    text.includes("bedrock") ||
+    text.includes("agentcore") ||
+    text.includes("aws")
+  )
+    return `${base}/amazonaws.svg`;
+  if (text.includes("vertex") || text.includes("gemini enterprise"))
+    return `${base}/googlecloud.svg`;
   if (text.includes("n8n")) return `${base}/n8n.svg`;
   if (text.includes("zapier")) return `${base}/zapier.svg`;
-  if (text.includes("openclaw") || text.includes("nanoclaw")) return `${base}/anthropic.svg`;
-  if (text.includes("codex") || text.includes("openai")) return `${base}/openai.svg`;
+  if (text.includes("openclaw") || text.includes("nanoclaw"))
+    return `${base}/anthropic.svg`;
+  if (text.includes("codex") || text.includes("openai"))
+    return `${base}/openai.svg`;
   if (text.includes("cursor")) return `${base}/cursor.svg`;
   if (text.includes("gemini")) return `${base}/googlegemini.svg`;
   if (text.includes("windsurf")) return `${base}/windsurf.svg`;
@@ -247,26 +266,33 @@ const canonicalAgentOrder = [
   "codex",
   "cline",
   "cursor",
-  "windsurf"
+  "windsurf",
 ];
 
-function compareLocalAgentProtection(left: LocalAgentProtection, right: LocalAgentProtection) {
+function compareLocalAgentProtection(
+  left: LocalAgentProtection,
+  right: LocalAgentProtection,
+) {
   const leftIndex = canonicalAgentOrder.indexOf(left.kind);
   const rightIndex = canonicalAgentOrder.indexOf(right.kind);
   const normalizedLeft = leftIndex < 0 ? canonicalAgentOrder.length : leftIndex;
-  const normalizedRight = rightIndex < 0 ? canonicalAgentOrder.length : rightIndex;
-  if (normalizedLeft !== normalizedRight) return normalizedLeft - normalizedRight;
+  const normalizedRight =
+    rightIndex < 0 ? canonicalAgentOrder.length : rightIndex;
+  if (normalizedLeft !== normalizedRight)
+    return normalizedLeft - normalizedRight;
   return left.displayName.localeCompare(right.displayName);
 }
 
-function genericAgentDefinition(agent: (typeof genericAgents)[number]): AgentDefinition {
+function genericAgentDefinition(
+  agent: (typeof genericAgents)[number],
+): AgentDefinition {
   return {
     kind: agent.kind,
     displayName: agent.displayName,
     icon: agent.icon,
     detect: () => detectGenericAgent(agent),
     install: agent.install,
-    uninstall: agent.uninstall
+    uninstall: agent.uninstall,
   };
 }
 
@@ -274,12 +300,26 @@ function detectClaudeProtection(): LocalAgentProtection {
   const executablePath = findOnPath("claude");
   const configDir = path.join(os.homedir(), ".claude");
   const settingsPath = path.join(os.homedir(), ".claude", "settings.json");
-  const installed = Boolean(executablePath) || pathExists(configDir) || fs.existsSync(settingsPath);
+  const installed =
+    Boolean(executablePath) ||
+    pathExists(configDir) ||
+    fs.existsSync(settingsPath) ||
+    extensionInstalled(["anthropic.claude-code"]);
   const settings = readJson(settingsPath);
-  const hookText = JSON.stringify((settings as { hooks?: unknown } | undefined)?.hooks ?? {});
+  const hookText = JSON.stringify(
+    (settings as { hooks?: unknown } | undefined)?.hooks ?? {},
+  );
   const approvalHandoff = hasClaudeCompatibleApprovalHandoff(settings);
-  const protectedEvents = ["UserPromptSubmit", "PreToolUse", "PostToolUse", "Stop"].filter((event) =>
-    hookText.includes(event) && (hookText.includes("hook --agent claude") || hookText.includes(`/v1/hooks/claude/${event}`))
+  const protectedEvents = [
+    "UserPromptSubmit",
+    "PreToolUse",
+    "PostToolUse",
+    "Stop",
+  ].filter(
+    (event) =>
+      hookText.includes(event) &&
+      (hookText.includes("hook --agent claude") ||
+        hookText.includes(`/v1/hooks/claude/${event}`)),
   );
   return agentStatus({
     kind: "claude-code",
@@ -294,7 +334,7 @@ function detectClaudeProtection(): LocalAgentProtection {
       ? protectedEvents.length >= 2
         ? "Active"
         : "Unmonitored"
-      : "Not installed"
+      : "Not installed",
   });
 }
 
@@ -304,7 +344,8 @@ function detectOpenClawProtection(): LocalAgentProtection {
   const hookDir = path.join(os.homedir(), ".openclaw", "hooks", "openleash");
   const hookMetadataPath = path.join(hookDir, "HOOK.md");
   const handlerPath = path.join(hookDir, "handler.ts");
-  const installed = Boolean(executablePath) || pathExists(configPath) || pathExists(hookDir);
+  const installed =
+    Boolean(executablePath) || pathExists(configPath) || pathExists(hookDir);
   const handler = readText(handlerPath);
   const protectedByOpenLeash =
     pathExists(hookMetadataPath) &&
@@ -316,19 +357,36 @@ function detectOpenClawProtection(): LocalAgentProtection {
     protected: protectedByOpenLeash,
     executablePath,
     supportsInstall: true,
-    detail: installed ? protectedByOpenLeash ? "Active" : "Unmonitored" : "Not installed"
+    detail: installed
+      ? protectedByOpenLeash
+        ? "Active"
+        : "Unmonitored"
+      : "Not installed",
   });
 }
 
 function detectNanoClawProtection(): LocalAgentProtection {
   const executablePath = findOnPath("nanoclaw");
   const settingsPath = path.join(os.homedir(), ".nanoclaw", "settings.json");
-  const installed = Boolean(executablePath) || pathExists(settingsPath) || pathExists("/Applications/NanoClaw.app");
+  const installed =
+    Boolean(executablePath) ||
+    pathExists(settingsPath) ||
+    pathExists("/Applications/NanoClaw.app");
   const settings = readJson(settingsPath);
-  const hookText = JSON.stringify((settings as { hooks?: unknown } | undefined)?.hooks ?? {});
+  const hookText = JSON.stringify(
+    (settings as { hooks?: unknown } | undefined)?.hooks ?? {},
+  );
   const approvalHandoff = hasClaudeCompatibleApprovalHandoff(settings);
-  const protectedEvents = ["UserPromptSubmit", "PreToolUse", "PostToolUse", "Stop"].filter((event) =>
-    hookText.includes(event) && (hookText.includes("hook --agent nanoclaw") || hookText.includes(`/v1/hooks/nanoclaw/${event}`))
+  const protectedEvents = [
+    "UserPromptSubmit",
+    "PreToolUse",
+    "PostToolUse",
+    "Stop",
+  ].filter(
+    (event) =>
+      hookText.includes(event) &&
+      (hookText.includes("hook --agent nanoclaw") ||
+        hookText.includes(`/v1/hooks/nanoclaw/${event}`)),
   );
   return agentStatus({
     kind: "nanoclaw",
@@ -338,22 +396,37 @@ function detectNanoClawProtection(): LocalAgentProtection {
     executablePath,
     supportsInstall: true,
     approvalHandoff,
-    detail: installed ? protectedEvents.length >= 2 ? "Active" : "Unmonitored" : "Not installed"
+    detail: installed
+      ? protectedEvents.length >= 2
+        ? "Active"
+        : "Unmonitored"
+      : "Not installed",
   });
 }
 
-function detectCodexProtection(context: DetectionContext): LocalAgentProtection {
+function detectCodexProtection(
+  context: DetectionContext,
+): LocalAgentProtection {
   const executablePath = findOnPath("codex");
   const configPath = path.join(os.homedir(), ".codex", "config.toml");
   const hooksPath = path.join(os.homedir(), ".codex", "hooks.json");
-  const installed = Boolean(executablePath) || fs.existsSync(configPath);
+  // The official VS Code extension is published as openai.chatgpt and shares
+  // ~/.codex with the CLI, so it must be treated as the same agent surface.
+  const installed =
+    Boolean(executablePath) ||
+    fs.existsSync(configPath) ||
+    extensionInstalled(["openai.chatgpt"]);
   const hooks = codexHooksStatus(context.appVersion);
   const allTrusted =
     hooks.length >= 4 &&
     ["preToolUse", "postToolUse", "userPromptSubmit", "stop"].every((event) =>
-      hooks.some((hook) => hook.eventName === event && hook.trustStatus === "trusted")
+      hooks.some(
+        (hook) => hook.eventName === event && hook.trustStatus === "trusted",
+      ),
     );
-  const hooksFileLooksInstalled = JSON.stringify(readJson(hooksPath) ?? {}).includes("hook --agent codex");
+  const hooksFileLooksInstalled = JSON.stringify(
+    readJson(hooksPath) ?? {},
+  ).includes("hook --agent codex");
   const approvalHandoff = codexApprovalHandoff(readText(configPath));
   return agentStatus({
     kind: "codex",
@@ -370,17 +443,25 @@ function detectCodexProtection(context: DetectionContext): LocalAgentProtection 
         : hooksFileLooksInstalled
           ? "Needs confirmation in Codex"
           : "Unmonitored"
-      : "Not installed"
+      : "Not installed",
   });
 }
 
-function detectGenericAgent(agent: (typeof genericAgents)[number]): LocalAgentProtection {
+function detectGenericAgent(
+  agent: (typeof genericAgents)[number],
+): LocalAgentProtection {
   const executablePath = agent.binaries?.map(findOnPath).find(Boolean);
   const installed =
     Boolean(executablePath) ||
-    Boolean(agent.configPaths?.some((configPath) => pathExists(path.join(os.homedir(), configPath)))) ||
+    Boolean(
+      agent.configPaths?.some((configPath) =>
+        pathExists(path.join(os.homedir(), configPath)),
+      ),
+    ) ||
     Boolean(agent.appPaths?.some(pathExists)) ||
-    Boolean(agent.extensionNeedles && extensionInstalled(agent.extensionNeedles));
+    Boolean(
+      agent.extensionNeedles && extensionInstalled(agent.extensionNeedles),
+    );
   const protectedByOpenLeash = Boolean(agent.protected?.());
   const supportsInstall = Boolean(agent.install && agent.uninstall);
   return agentStatus({
@@ -388,10 +469,16 @@ function detectGenericAgent(agent: (typeof genericAgents)[number]): LocalAgentPr
     displayName: agent.displayName,
     installed,
     protected: protectedByOpenLeash,
-    detail: installed ? protectedByOpenLeash ? "Active" : supportsInstall ? "Unmonitored" : "Support coming soon" : "Not installed",
+    detail: installed
+      ? protectedByOpenLeash
+        ? "Active"
+        : supportsInstall
+          ? "Unmonitored"
+          : "Support coming soon"
+      : "Not installed",
     executablePath,
     icon: agent.icon,
-    supportsInstall
+    supportsInstall,
   });
 }
 
@@ -400,48 +487,117 @@ function agentStatus(status: LocalAgentProtection): LocalAgentProtection {
 }
 
 function installClaudeProtection(context: InstallContext) {
-  installClaudeCompatibleProtection(path.join(os.homedir(), ".claude", "settings.json"), "claude", context);
+  installClaudeCompatibleProtection(
+    path.join(os.homedir(), ".claude", "settings.json"),
+    "claude",
+    context,
+  );
 }
 
 function uninstallClaudeProtection() {
-  uninstallClaudeCompatibleProtection(path.join(os.homedir(), ".claude", "settings.json"), "claude");
+  uninstallClaudeCompatibleProtection(
+    path.join(os.homedir(), ".claude", "settings.json"),
+    "claude",
+  );
 }
 
 function installNanoClawProtection(context: InstallContext) {
-  installClaudeCompatibleProtection(path.join(os.homedir(), ".nanoclaw", "settings.json"), "nanoclaw", context);
+  installClaudeCompatibleProtection(
+    path.join(os.homedir(), ".nanoclaw", "settings.json"),
+    "nanoclaw",
+    context,
+  );
 }
 
 function uninstallNanoClawProtection() {
-  uninstallClaudeCompatibleProtection(path.join(os.homedir(), ".nanoclaw", "settings.json"), "nanoclaw");
+  uninstallClaudeCompatibleProtection(
+    path.join(os.homedir(), ".nanoclaw", "settings.json"),
+    "nanoclaw",
+  );
 }
 
-function installClaudeCompatibleProtection(settingsPath: string, agent: "claude" | "nanoclaw", context: InstallContext) {
+function installClaudeCompatibleProtection(
+  settingsPath: string,
+  agent: "claude" | "nanoclaw",
+  context: InstallContext,
+) {
   fs.mkdirSync(path.dirname(settingsPath), { recursive: true });
   const existing = (readJson(settingsPath) as Record<string, unknown>) ?? {};
-  const hooks = existing.hooks && typeof existing.hooks === "object" ? existing.hooks as Record<string, unknown> : {};
+  const hooks =
+    existing.hooks && typeof existing.hooks === "object"
+      ? (existing.hooks as Record<string, unknown>)
+      : {};
   const metadata = openLeashMetadata(existing);
   metadata[agent] = {
     installedAt: new Date().toISOString(),
     hooks: snapshotHookEntries(hooks),
-    permissions: snapshotClaudePermissions(existing)
+    permissions: snapshotClaudePermissions(existing),
   };
   existing.__openleash = metadata;
   existing.hooks = {
     ...hooks,
-    UserPromptSubmit: [{ hooks: [{ type: "command", command: hookCommand(context, agent, "UserPromptSubmit") }] }],
-    PreToolUse: [{ matcher: "*", hooks: [{ type: "command", command: hookCommand(context, agent, "PreToolUse") }] }],
-    PostToolUse: [{ matcher: "*", hooks: [{ type: "command", command: hookCommand(context, agent, "PostToolUse") }] }],
-    Stop: [{ hooks: [{ type: "command", command: hookCommand(context, agent, "Stop") }] }]
+    UserPromptSubmit: [
+      {
+        hooks: [
+          {
+            type: "command",
+            command: hookCommand(context, agent, "UserPromptSubmit"),
+            timeout: HOOK_TIMEOUT_SECONDS,
+          },
+        ],
+      },
+    ],
+    PreToolUse: [
+      {
+        matcher: "*",
+        hooks: [
+          {
+            type: "command",
+            command: hookCommand(context, agent, "PreToolUse"),
+            timeout: HOOK_TIMEOUT_SECONDS,
+          },
+        ],
+      },
+    ],
+    PostToolUse: [
+      {
+        matcher: "*",
+        hooks: [
+          {
+            type: "command",
+            command: hookCommand(context, agent, "PostToolUse"),
+            timeout: HOOK_TIMEOUT_SECONDS,
+          },
+        ],
+      },
+    ],
+    Stop: [
+      {
+        hooks: [
+          {
+            type: "command",
+            command: hookCommand(context, agent, "Stop"),
+            timeout: HOOK_TIMEOUT_SECONDS,
+          },
+        ],
+      },
+    ],
   };
   enableClaudeCompatibleApprovalHandoff(existing);
   fs.writeFileSync(settingsPath, `${JSON.stringify(existing, null, 2)}\n`);
 }
 
-function uninstallClaudeCompatibleProtection(settingsPath: string, agent: "claude" | "nanoclaw") {
+function uninstallClaudeCompatibleProtection(
+  settingsPath: string,
+  agent: "claude" | "nanoclaw",
+) {
   const existing = (readJson(settingsPath) as Record<string, unknown>) ?? {};
   const metadata = openLeashMetadata(existing);
   const backup = metadata[agent];
-  const hooks = existing.hooks && typeof existing.hooks === "object" ? existing.hooks as Record<string, unknown> : {};
+  const hooks =
+    existing.hooks && typeof existing.hooks === "object"
+      ? (existing.hooks as Record<string, unknown>)
+      : {};
   restoreHookEntries(hooks, backup?.hooks);
   existing.hooks = hooks;
   restoreClaudePermissions(existing, backup?.permissions);
@@ -453,18 +609,33 @@ function uninstallClaudeCompatibleProtection(settingsPath: string, agent: "claud
 
 function openLeashMetadata(settings: Record<string, unknown>) {
   const existing = settings.__openleash;
-  return existing && typeof existing === "object" ? existing as Record<string, any> : {};
+  return existing && typeof existing === "object"
+    ? (existing as Record<string, any>)
+    : {};
 }
 
 function snapshotHookEntries(hooks: Record<string, unknown>) {
-  return Object.fromEntries(["UserPromptSubmit", "PreToolUse", "PostToolUse", "Stop"].map((event) => [event, {
-    existed: Object.prototype.hasOwnProperty.call(hooks, event),
-    value: hooks[event]
-  }]));
+  return Object.fromEntries(
+    ["UserPromptSubmit", "PreToolUse", "PostToolUse", "Stop"].map((event) => [
+      event,
+      {
+        existed: Object.prototype.hasOwnProperty.call(hooks, event),
+        value: hooks[event],
+      },
+    ]),
+  );
 }
 
-function restoreHookEntries(hooks: Record<string, unknown>, backup?: Record<string, { existed?: boolean; value?: unknown }>) {
-  for (const event of ["UserPromptSubmit", "PreToolUse", "PostToolUse", "Stop"]) {
+function restoreHookEntries(
+  hooks: Record<string, unknown>,
+  backup?: Record<string, { existed?: boolean; value?: unknown }>,
+) {
+  for (const event of [
+    "UserPromptSubmit",
+    "PreToolUse",
+    "PostToolUse",
+    "Stop",
+  ]) {
     const item = backup?.[event];
     if (item?.existed) hooks[event] = item.value;
     else delete hooks[event];
@@ -472,45 +643,76 @@ function restoreHookEntries(hooks: Record<string, unknown>, backup?: Record<stri
 }
 
 function snapshotClaudePermissions(settings: Record<string, unknown>) {
-  const permissions = settings.permissions && typeof settings.permissions === "object" ? settings.permissions as Record<string, unknown> : undefined;
+  const permissions =
+    settings.permissions && typeof settings.permissions === "object"
+      ? (settings.permissions as Record<string, unknown>)
+      : undefined;
   return {
     permissionsExisted: Boolean(permissions),
-    defaultModeExisted: Boolean(permissions && Object.prototype.hasOwnProperty.call(permissions, "defaultMode")),
+    defaultModeExisted: Boolean(
+      permissions &&
+      Object.prototype.hasOwnProperty.call(permissions, "defaultMode"),
+    ),
     defaultMode: permissions?.defaultMode,
-    skipPromptExisted: Object.prototype.hasOwnProperty.call(settings, "skipDangerousModePermissionPrompt"),
-    skipPrompt: settings.skipDangerousModePermissionPrompt
+    skipPromptExisted: Object.prototype.hasOwnProperty.call(
+      settings,
+      "skipDangerousModePermissionPrompt",
+    ),
+    skipPrompt: settings.skipDangerousModePermissionPrompt,
   };
 }
 
-function enableClaudeCompatibleApprovalHandoff(settings: Record<string, unknown>) {
-  const permissions = settings.permissions && typeof settings.permissions === "object" ? settings.permissions as Record<string, unknown> : {};
+function enableClaudeCompatibleApprovalHandoff(
+  settings: Record<string, unknown>,
+) {
+  const permissions =
+    settings.permissions && typeof settings.permissions === "object"
+      ? (settings.permissions as Record<string, unknown>)
+      : {};
   permissions.defaultMode = "bypassPermissions";
   settings.permissions = permissions;
   settings.skipDangerousModePermissionPrompt = true;
 }
 
-function restoreClaudePermissions(settings: Record<string, unknown>, backup?: ReturnType<typeof snapshotClaudePermissions>) {
+function restoreClaudePermissions(
+  settings: Record<string, unknown>,
+  backup?: ReturnType<typeof snapshotClaudePermissions>,
+) {
   if (!backup) return;
-  const permissions = settings.permissions && typeof settings.permissions === "object" ? settings.permissions as Record<string, unknown> : {};
+  const permissions =
+    settings.permissions && typeof settings.permissions === "object"
+      ? (settings.permissions as Record<string, unknown>)
+      : {};
   if (backup.defaultModeExisted) permissions.defaultMode = backup.defaultMode;
   else delete permissions.defaultMode;
-  if (backup.permissionsExisted || Object.keys(permissions).length > 0) settings.permissions = permissions;
+  if (backup.permissionsExisted || Object.keys(permissions).length > 0)
+    settings.permissions = permissions;
   else delete settings.permissions;
-  if (backup.skipPromptExisted) settings.skipDangerousModePermissionPrompt = backup.skipPrompt;
+  if (backup.skipPromptExisted)
+    settings.skipDangerousModePermissionPrompt = backup.skipPrompt;
   else delete settings.skipDangerousModePermissionPrompt;
 }
 
 function hasClaudeCompatibleApprovalHandoff(settings: unknown) {
   if (!settings || typeof settings !== "object") return false;
-  const record = settings as { permissions?: { defaultMode?: unknown }; skipDangerousModePermissionPrompt?: unknown };
-  return record.permissions?.defaultMode === "bypassPermissions" && record.skipDangerousModePermissionPrompt === true;
+  const record = settings as {
+    permissions?: { defaultMode?: unknown };
+    skipDangerousModePermissionPrompt?: unknown;
+  };
+  return (
+    record.permissions?.defaultMode === "bypassPermissions" &&
+    record.skipDangerousModePermissionPrompt === true
+  );
 }
 
 function installOpenClawProtection(context: InstallContext) {
   const hookDir = path.join(os.homedir(), ".openclaw", "hooks", "openleash");
   fs.mkdirSync(hookDir, { recursive: true });
   fs.writeFileSync(path.join(hookDir, "HOOK.md"), openClawHookMetadata());
-  fs.writeFileSync(path.join(hookDir, "handler.ts"), openClawHandlerSource(context));
+  fs.writeFileSync(
+    path.join(hookDir, "handler.ts"),
+    openClawHandlerSource(context),
+  );
   spawnSync("openclaw", ["hooks", "enable", "openleash"], { stdio: "ignore" });
 }
 
@@ -524,7 +726,10 @@ function installCodexProtection(context: InstallContext) {
   const configPath = path.join(os.homedir(), ".codex", "config.toml");
   const hooksPath = path.join(os.homedir(), ".codex", "hooks.json");
   fs.mkdirSync(path.dirname(configPath), { recursive: true });
-  fs.writeFileSync(configPath, enableCodexApprovalHandoff(readText(configPath)));
+  fs.writeFileSync(
+    configPath,
+    enableCodexApprovalHandoff(readText(configPath)),
+  );
   fs.writeFileSync(
     hooksPath,
     `${JSON.stringify(
@@ -533,12 +738,12 @@ function installCodexProtection(context: InstallContext) {
           PreToolUse: [codexHookGroup(context, "PreToolUse")],
           PostToolUse: [codexHookGroup(context, "PostToolUse")],
           UserPromptSubmit: [codexHookGroup(context, "UserPromptSubmit")],
-          Stop: [codexHookGroup(context, "Stop")]
-        }
+          Stop: [codexHookGroup(context, "Stop")],
+        },
       },
       null,
-      2
-    )}\n`
+      2,
+    )}\n`,
   );
   trustCodexHooks(configPath, hooksPath, context.clientVersion);
 }
@@ -547,10 +752,20 @@ function uninstallCodexProtection() {
   const configPath = path.join(os.homedir(), ".codex", "config.toml");
   const hooksPath = path.join(os.homedir(), ".codex", "hooks.json");
   fs.mkdirSync(path.dirname(configPath), { recursive: true });
-  const hooks = readJson(hooksPath) as { hooks?: Record<string, unknown> } | undefined;
-  const config = removeCodexOpenLeashHookTrust(disableCodexApprovalHandoff(readText(configPath)), hooksPath);
-  fs.writeFileSync(configPath, disableCodexHooksIfNoManagedHooks(config, hooks ?? {}));
-  if (hooks?.hooks && JSON.stringify(hooks.hooks).includes("/v1/hooks/codex/")) {
+  const hooks = readJson(hooksPath) as
+    { hooks?: Record<string, unknown> } | undefined;
+  const config = removeCodexOpenLeashHookTrust(
+    disableCodexApprovalHandoff(readText(configPath)),
+    hooksPath,
+  );
+  fs.writeFileSync(
+    configPath,
+    disableCodexHooksIfNoManagedHooks(config, hooks ?? {}),
+  );
+  if (
+    hooks?.hooks &&
+    JSON.stringify(hooks.hooks).includes("/v1/hooks/codex/")
+  ) {
     fs.rmSync(hooksPath, { force: true });
   }
 }
@@ -559,11 +774,19 @@ function installGeminiProtection(context: InstallContext) {
   const settingsPath = path.join(os.homedir(), ".gemini", "settings.json");
   fs.mkdirSync(path.dirname(settingsPath), { recursive: true });
   const existing = (readJson(settingsPath) as Record<string, unknown>) ?? {};
-  const hooks = existing.hooks && typeof existing.hooks === "object" ? existing.hooks as Record<string, unknown> : {};
+  const hooks =
+    existing.hooks && typeof existing.hooks === "object"
+      ? (existing.hooks as Record<string, unknown>)
+      : {};
   const metadata = openLeashMetadata(existing);
   metadata.gemini = {
     installedAt: new Date().toISOString(),
-    hooks: snapshotNamedHookEntries(hooks, ["BeforeAgent", "BeforeTool", "AfterTool", "AfterAgent"])
+    hooks: snapshotNamedHookEntries(hooks, [
+      "BeforeAgent",
+      "BeforeTool",
+      "AfterTool",
+      "AfterAgent",
+    ]),
   };
   existing.__openleash = metadata;
   existing.hooks = {
@@ -571,7 +794,7 @@ function installGeminiProtection(context: InstallContext) {
     BeforeAgent: [geminiHookGroup(context, "UserPromptSubmit")],
     BeforeTool: [geminiHookGroup(context, "PreToolUse", ".*")],
     AfterTool: [geminiHookGroup(context, "PostToolUse", ".*")],
-    AfterAgent: [geminiHookGroup(context, "Stop")]
+    AfterAgent: [geminiHookGroup(context, "Stop")],
   };
   fs.writeFileSync(settingsPath, `${JSON.stringify(existing, null, 2)}\n`);
 }
@@ -581,8 +804,16 @@ function uninstallGeminiProtection() {
   const existing = (readJson(settingsPath) as Record<string, unknown>) ?? {};
   const metadata = openLeashMetadata(existing);
   const backup = metadata.gemini;
-  const hooks = existing.hooks && typeof existing.hooks === "object" ? existing.hooks as Record<string, unknown> : {};
-  restoreNamedHookEntries(hooks, backup?.hooks, ["BeforeAgent", "BeforeTool", "AfterTool", "AfterAgent"], "/v1/hooks/gemini/");
+  const hooks =
+    existing.hooks && typeof existing.hooks === "object"
+      ? (existing.hooks as Record<string, unknown>)
+      : {};
+  restoreNamedHookEntries(
+    hooks,
+    backup?.hooks,
+    ["BeforeAgent", "BeforeTool", "AfterTool", "AfterAgent"],
+    "/v1/hooks/gemini/",
+  );
   existing.hooks = hooks;
   delete metadata.gemini;
   if (Object.keys(metadata).length > 0) existing.__openleash = metadata;
@@ -592,14 +823,26 @@ function uninstallGeminiProtection() {
 
 function detectGeminiProtected() {
   const settingsPath = path.join(os.homedir(), ".gemini", "settings.json");
-  const hooks = (readJson(settingsPath) as { hooks?: unknown } | undefined)?.hooks;
+  const hooks = (readJson(settingsPath) as { hooks?: unknown } | undefined)
+    ?.hooks;
   return JSON.stringify(hooks ?? {}).includes("/v1/hooks/gemini/");
 }
 
-function geminiHookGroup(context: InstallContext, event: string, matcher?: string) {
+function geminiHookGroup(
+  context: InstallContext,
+  event: string,
+  matcher?: string,
+) {
   return {
     ...(matcher ? { matcher } : {}),
-    hooks: [{ type: "command", command: hookCommand(context, "gemini", event), name: "OpenLeash", timeout: 120000 }]
+    hooks: [
+      {
+        type: "command",
+        command: hookCommand(context, "gemini", event),
+        name: "OpenLeash",
+        timeout: HOOK_TIMEOUT_MS,
+      },
+    ],
   };
 }
 
@@ -608,10 +851,19 @@ function installCursorProtection(context: InstallContext) {
   fs.mkdirSync(path.dirname(hooksPath), { recursive: true });
   const existing = (readJson(hooksPath) as Record<string, unknown>) ?? {};
   const metadata = openLeashMetadata(existing);
-  const hookKeys = ["beforeSubmitPrompt", "beforeShellExecution", "beforeReadFile", "afterFileEdit", "afterAgentResponse", "beforeMCPExecution", "afterMCPExecution", "stop"];
+  const hookKeys = [
+    "beforeSubmitPrompt",
+    "beforeShellExecution",
+    "beforeReadFile",
+    "afterFileEdit",
+    "afterAgentResponse",
+    "beforeMCPExecution",
+    "afterMCPExecution",
+    "stop",
+  ];
   metadata.cursor = {
     installedAt: new Date().toISOString(),
-    hooks: snapshotNamedHookEntries(existing, hookKeys)
+    hooks: snapshotNamedHookEntries(existing, hookKeys),
   };
   existing.__openleash = metadata;
   existing.beforeSubmitPrompt = [cursorHook(context, "UserPromptSubmit")];
@@ -629,8 +881,22 @@ function uninstallCursorProtection() {
   const hooksPath = path.join(os.homedir(), ".cursor", "hooks.json");
   const existing = (readJson(hooksPath) as Record<string, unknown>) ?? {};
   const metadata = openLeashMetadata(existing);
-  const hookKeys = ["beforeSubmitPrompt", "beforeShellExecution", "beforeReadFile", "afterFileEdit", "afterAgentResponse", "beforeMCPExecution", "afterMCPExecution", "stop"];
-  restoreNamedHookEntries(existing, metadata.cursor?.hooks, hookKeys, "/v1/hooks/cursor/");
+  const hookKeys = [
+    "beforeSubmitPrompt",
+    "beforeShellExecution",
+    "beforeReadFile",
+    "afterFileEdit",
+    "afterAgentResponse",
+    "beforeMCPExecution",
+    "afterMCPExecution",
+    "stop",
+  ];
+  restoreNamedHookEntries(
+    existing,
+    metadata.cursor?.hooks,
+    hookKeys,
+    "/v1/hooks/cursor/",
+  );
   delete metadata.cursor;
   if (Object.keys(metadata).length > 0) existing.__openleash = metadata;
   else delete existing.__openleash;
@@ -639,17 +905,26 @@ function uninstallCursorProtection() {
 
 function detectCursorProtected() {
   const hooksPath = path.join(os.homedir(), ".cursor", "hooks.json");
-  return JSON.stringify(readJson(hooksPath) ?? {}).includes("/v1/hooks/cursor/");
+  return JSON.stringify(readJson(hooksPath) ?? {}).includes(
+    "/v1/hooks/cursor/",
+  );
 }
 
 function cursorHook(context: InstallContext, event: string) {
-  return { command: hookCommand(context, "cursor", event), name: "OpenLeash", timeout: 120000 };
+  return {
+    command: hookCommand(context, "cursor", event),
+    name: "OpenLeash",
+    timeout: HOOK_TIMEOUT_MS,
+  };
 }
 
 function installCopilotProtection(context: InstallContext) {
   const hooksPath = copilotOpenLeashHooksPath();
   fs.mkdirSync(path.dirname(hooksPath), { recursive: true });
-  fs.writeFileSync(hooksPath, `${JSON.stringify(copilotHooksConfig(context), null, 2)}\n`);
+  fs.writeFileSync(
+    hooksPath,
+    `${JSON.stringify(copilotHooksConfig(context), null, 2)}\n`,
+  );
 }
 
 function uninstallCopilotProtection() {
@@ -657,11 +932,17 @@ function uninstallCopilotProtection() {
 }
 
 function detectCopilotProtected() {
-  return JSON.stringify(readJson(copilotOpenLeashHooksPath()) ?? {}).includes("/v1/hooks/copilot/");
+  return JSON.stringify(readJson(copilotOpenLeashHooksPath()) ?? {}).includes(
+    "/v1/hooks/copilot/",
+  );
 }
 
 function copilotOpenLeashHooksPath() {
-  return path.join(process.env.COPILOT_HOME || path.join(os.homedir(), ".copilot"), "hooks", "openleash.json");
+  return path.join(
+    process.env.COPILOT_HOME || path.join(os.homedir(), ".copilot"),
+    "hooks",
+    "openleash.json",
+  );
 }
 
 function copilotHooksConfig(context: InstallContext) {
@@ -672,32 +953,44 @@ function copilotHooksConfig(context: InstallContext) {
       UserPromptSubmit: [copilotCommandHook(context, "UserPromptSubmit")],
       PreToolUse: [copilotCommandHook(context, "PreToolUse", "*")],
       PostToolUse: [copilotCommandHook(context, "PostToolUse", "*")],
-      Stop: [copilotCommandHook(context, "Stop")]
-    }
+      Stop: [copilotCommandHook(context, "Stop")],
+    },
   };
 }
 
-function copilotCommandHook(context: InstallContext, event: string, matcher?: string) {
+function copilotCommandHook(
+  context: InstallContext,
+  event: string,
+  matcher?: string,
+) {
   return {
     type: "command",
     ...(matcher ? { matcher } : {}),
     command: hookCommand(context, "copilot", event),
-    timeoutSec: 120
+    timeoutSec: HOOK_TIMEOUT_SECONDS,
   };
 }
 
 function installOpenCodeProtection(context: InstallContext) {
   const pluginDir = path.join(os.homedir(), ".config", "opencode", "plugins");
   fs.mkdirSync(pluginDir, { recursive: true });
-  fs.writeFileSync(path.join(pluginDir, "openleash.js"), openCodePluginSource(context));
+  fs.writeFileSync(
+    path.join(pluginDir, "openleash.js"),
+    openCodePluginSource(context),
+  );
 }
 
 function uninstallOpenCodeProtection() {
-  fs.rmSync(path.join(os.homedir(), ".config", "opencode", "plugins", "openleash.js"), { force: true });
+  fs.rmSync(
+    path.join(os.homedir(), ".config", "opencode", "plugins", "openleash.js"),
+    { force: true },
+  );
 }
 
 function detectOpenCodeProtected() {
-  return readText(path.join(os.homedir(), ".config", "opencode", "plugins", "openleash.js")).includes("/v1/hooks/opencode/");
+  return readText(
+    path.join(os.homedir(), ".config", "opencode", "plugins", "openleash.js"),
+  ).includes("/v1/hooks/opencode/");
 }
 
 function openCodePluginSource(context: InstallContext) {
@@ -707,7 +1000,8 @@ function openCodePluginSource(context: InstallContext) {
   const headers = {
     "content-type": "application/json",
     "x-openleash-api-function": context.apiFunction ?? "localHookEvaluate",
-    "x-openleash-api-version": context.apiVersion ?? "2026-05-22.local-hook-evaluate.v1"
+    "x-openleash-api-version":
+      context.apiVersion ?? "2026-05-22.local-hook-evaluate.v1",
   };
   return `const headers = ${JSON.stringify(headers, null, 2)};
 
@@ -719,7 +1013,8 @@ async function evaluate(url, payload) {
       ...payload,
       cwd: payload.cwd || process.cwd(),
       session_id: payload.session_id || payload.sessionID || payload.session?.id
-    })
+    }),
+    signal: AbortSignal.timeout(${HOOK_TIMEOUT_MS})
   });
   if (!response.ok) return;
   const decision = await response.json().catch(() => ({}));
@@ -756,8 +1051,15 @@ export const OpenLeash = async () => ({
 `;
 }
 
-function hookEndpoint(context: InstallContext, agent: LocalHookAgent, event: string) {
-  const endpoint = new URL(`/v1/hooks/${agent}/${event}`, context.apiUrl.replace(/\/+$/, ""));
+function hookEndpoint(
+  context: InstallContext,
+  agent: LocalHookAgent,
+  event: string,
+) {
+  const endpoint = new URL(
+    `/v1/hooks/${agent}/${event}`,
+    context.apiUrl.replace(/\/+$/, ""),
+  );
   endpoint.searchParams.set("user_token", context.token);
   endpoint.searchParams.set("hostname", os.hostname());
   endpoint.searchParams.set("platform", os.platform());
@@ -766,29 +1068,47 @@ function hookEndpoint(context: InstallContext, agent: LocalHookAgent, event: str
   return endpoint.toString();
 }
 
-function snapshotNamedHookEntries(hooks: Record<string, unknown>, events: string[]) {
-  return Object.fromEntries(events.map((event) => [event, {
-    existed: Object.prototype.hasOwnProperty.call(hooks, event),
-    value: hooks[event]
-  }]));
+function snapshotNamedHookEntries(
+  hooks: Record<string, unknown>,
+  events: string[],
+) {
+  return Object.fromEntries(
+    events.map((event) => [
+      event,
+      {
+        existed: Object.prototype.hasOwnProperty.call(hooks, event),
+        value: hooks[event],
+      },
+    ]),
+  );
 }
 
 function restoreNamedHookEntries(
   hooks: Record<string, unknown>,
   backup: Record<string, { existed?: boolean; value?: unknown }> | undefined,
   events: string[],
-  managedNeedle: string
+  managedNeedle: string,
 ) {
   for (const event of events) {
     const item = backup?.[event];
     if (item?.existed) hooks[event] = item.value;
-    else if (JSON.stringify(hooks[event] ?? {}).includes(managedNeedle)) delete hooks[event];
+    else if (JSON.stringify(hooks[event] ?? {}).includes(managedNeedle))
+      delete hooks[event];
   }
 }
 
-function codexHookGroup(context: InstallContext, event: "UserPromptSubmit" | "PreToolUse" | "PostToolUse" | "Stop") {
+function codexHookGroup(
+  context: InstallContext,
+  event: "UserPromptSubmit" | "PreToolUse" | "PostToolUse" | "Stop",
+) {
   return {
-    hooks: [{ type: "command", command: hookCommand(context, "codex", event) }]
+    hooks: [
+      {
+        type: "command",
+        command: hookCommand(context, "codex", event),
+        timeout: HOOK_TIMEOUT_SECONDS,
+      },
+    ],
   };
 }
 
@@ -811,21 +1131,31 @@ function enableCodexApprovalHandoff(config: string) {
     `approval_policy = "never"`,
     `sandbox_mode = "danger-full-access"`,
     codexHandoffEnd,
-    ""
+    "",
   ].join("\n");
   return `${block}${withoutManagedKeys}`;
 }
 
 function disableCodexApprovalHandoff(config: string) {
-  const match = config.match(new RegExp(`${escapeRegExp(codexHandoffStart)}[\\s\\S]*?${escapeRegExp(codexHandoffEnd)}\\n?`));
+  const match = config.match(
+    new RegExp(
+      `${escapeRegExp(codexHandoffStart)}[\\s\\S]*?${escapeRegExp(codexHandoffEnd)}\\n?`,
+    ),
+  );
   if (!match) return config;
   const previousApproval = match[0].match(/previous_approval_policy=(.*)/)?.[1];
   const previousSandbox = match[0].match(/previous_sandbox_mode=(.*)/)?.[1];
   const restored: string[] = [];
-  const approval = previousApproval ? parseCommentJson(previousApproval) : undefined;
-  const sandbox = previousSandbox ? parseCommentJson(previousSandbox) : undefined;
-  if (typeof approval === "string") restored.push(`approval_policy = ${JSON.stringify(approval)}`);
-  if (typeof sandbox === "string") restored.push(`sandbox_mode = ${JSON.stringify(sandbox)}`);
+  const approval = previousApproval
+    ? parseCommentJson(previousApproval)
+    : undefined;
+  const sandbox = previousSandbox
+    ? parseCommentJson(previousSandbox)
+    : undefined;
+  if (typeof approval === "string")
+    restored.push(`approval_policy = ${JSON.stringify(approval)}`);
+  if (typeof sandbox === "string")
+    restored.push(`sandbox_mode = ${JSON.stringify(sandbox)}`);
   const clean = config.replace(match[0], "").trimStart();
   return `${restored.length ? `${restored.join("\n")}\n` : ""}${clean}`;
 }
@@ -833,35 +1163,62 @@ function disableCodexApprovalHandoff(config: string) {
 function removeCodexOpenLeashHookTrust(config: string, hooksPath: string) {
   const escapedHookPath = escapeRegExp(path.resolve(hooksPath));
   const withoutHookTables = config.replace(
-    new RegExp(`\\n?\\[hooks\\.state\\."${escapedHookPath}:[^"]+"\\]\\ntrusted_hash\\s*=\\s*"[^"]*"\\n?`, "g"),
-    "\n"
+    new RegExp(
+      `\\n?\\[hooks\\.state\\."${escapedHookPath}:[^"]+"\\]\\ntrusted_hash\\s*=\\s*"[^"]*"\\n?`,
+      "g",
+    ),
+    "\n",
   );
   return withoutHookTables.replace(/\n{3,}/g, "\n\n").trimEnd() + "\n";
 }
 
-function disableCodexHooksIfNoManagedHooks(config: string, hooks: Record<string, unknown>) {
+function disableCodexHooksIfNoManagedHooks(
+  config: string,
+  hooks: Record<string, unknown>,
+) {
   const hookText = JSON.stringify(hooks.hooks ?? {});
   const hasHookEntries = hookText !== "{}" && hookText !== "[]";
   if (hasHookEntries && !hookText.includes("/v1/hooks/codex/")) return config;
-  const withoutEmptyState = config.replace(/\n?\[hooks\.state\]\s*(?=\n\s*\[|$)/g, "\n");
-  if (!/^\s*\[features\]\s*$/m.test(withoutEmptyState)) return withoutEmptyState;
-  return withoutEmptyState
-    .replace(/(^\s*\[features\]\s*\n(?:[^\[]*\n)*?)^\s*hooks\s*=\s*true\s*$/m, (_match, prefix: string) => `${prefix}hooks = false`)
-    .replace(/\n{3,}/g, "\n\n")
-    .trimEnd() + "\n";
+  const withoutEmptyState = config.replace(
+    /\n?\[hooks\.state\]\s*(?=\n\s*\[|$)/g,
+    "\n",
+  );
+  if (!/^\s*\[features\]\s*$/m.test(withoutEmptyState))
+    return withoutEmptyState;
+  return (
+    withoutEmptyState
+      .replace(
+        /(^\s*\[features\]\s*\n(?:[^\[]*\n)*?)^\s*hooks\s*=\s*true\s*$/m,
+        (_match, prefix: string) => `${prefix}hooks = false`,
+      )
+      .replace(/\n{3,}/g, "\n\n")
+      .trimEnd() + "\n"
+  );
 }
 
 function stripCodexHandoff(config: string) {
-  return config.replace(new RegExp(`${escapeRegExp(codexHandoffStart)}[\\s\\S]*?${escapeRegExp(codexHandoffEnd)}\\n?`, "g"), "");
+  return config.replace(
+    new RegExp(
+      `${escapeRegExp(codexHandoffStart)}[\\s\\S]*?${escapeRegExp(codexHandoffEnd)}\\n?`,
+      "g",
+    ),
+    "",
+  );
 }
 
 function codexApprovalHandoff(config: string) {
-  return config.includes(codexHandoffStart) && /approval_policy\s*=\s*"never"/.test(config) && /sandbox_mode\s*=\s*"danger-full-access"/.test(config);
+  return (
+    config.includes(codexHandoffStart) &&
+    /approval_policy\s*=\s*"never"/.test(config) &&
+    /sandbox_mode\s*=\s*"danger-full-access"/.test(config)
+  );
 }
 
 function topLevelTomlValue(config: string, key: string) {
   const beforeFirstTable = config.split(/\n\s*\[/, 1)[0] ?? "";
-  return beforeFirstTable.match(new RegExp(`^\\s*${escapeRegExp(key)}\\s*=\\s*"([^"]*)"\\s*$`, "m"))?.[1];
+  return beforeFirstTable.match(
+    new RegExp(`^\\s*${escapeRegExp(key)}\\s*=\\s*"([^"]*)"\\s*$`, "m"),
+  )?.[1];
 }
 
 function parseCommentJson(value: string) {
@@ -872,28 +1229,63 @@ function parseCommentJson(value: string) {
   }
 }
 
-function trustCodexHooks(configPath: string, hooksPath: string, appVersion: string) {
+function trustCodexHooks(
+  configPath: string,
+  hooksPath: string,
+  appVersion: string,
+) {
   const hooks = codexHookMetadata(appVersion).filter(
-    (hook): hook is { eventName: string; trustStatus: string; key: string; sourcePath: string; currentHash: string } =>
+    (
+      hook,
+    ): hook is {
+      eventName: string;
+      trustStatus: string;
+      key: string;
+      sourcePath: string;
+      currentHash: string;
+    } =>
       typeof hook.key === "string" &&
       typeof hook.sourcePath === "string" &&
       typeof hook.currentHash === "string" &&
-      path.resolve(hook.sourcePath) === path.resolve(hooksPath)
+      path.resolve(hook.sourcePath) === path.resolve(hooksPath),
   );
   if (hooks.length === 0) return;
   let config = readText(configPath);
   for (const hook of hooks) {
     const table = `[hooks.state.${JSON.stringify(hook.key)}]`;
-    config = config.replace(new RegExp(`\\n?\\[hooks\\.state\\.${escapeRegExp(JSON.stringify(hook.key))}\\]\\ntrusted_hash\\s*=\\s*"[^"]*"\\n?`, "g"), "\n");
+    config = config.replace(
+      new RegExp(
+        `\\n?\\[hooks\\.state\\.${escapeRegExp(JSON.stringify(hook.key))}\\]\\ntrusted_hash\\s*=\\s*"[^"]*"\\n?`,
+        "g",
+      ),
+      "\n",
+    );
     config += `${config.endsWith("\n") || config.length === 0 ? "" : "\n"}${table}\ntrusted_hash = "${hook.currentHash}"\n`;
   }
   fs.writeFileSync(configPath, config);
 }
 
-type LocalHookAgent = "claude" | "codex" | "copilot" | "gemini" | "opencode" | "cursor" | "openclaw" | "nanoclaw";
+type LocalHookAgent =
+  | "claude"
+  | "codex"
+  | "copilot"
+  | "gemini"
+  | "opencode"
+  | "cursor"
+  | "openclaw"
+  | "nanoclaw";
+const HOOK_TIMEOUT_SECONDS = 600;
+const HOOK_TIMEOUT_MS = HOOK_TIMEOUT_SECONDS * 1000;
 
-function hookCommand(context: InstallContext, agent: LocalHookAgent, event: string) {
-  const endpoint = new URL(`/v1/hooks/${agent}/${event}`, context.apiUrl.replace(/\/+$/, ""));
+function hookCommand(
+  context: InstallContext,
+  agent: LocalHookAgent,
+  event: string,
+) {
+  const endpoint = new URL(
+    `/v1/hooks/${agent}/${event}`,
+    context.apiUrl.replace(/\/+$/, ""),
+  );
   endpoint.searchParams.set("user_token", context.token);
   endpoint.searchParams.set("hostname", os.hostname());
   endpoint.searchParams.set("platform", os.platform());
@@ -912,13 +1304,22 @@ function hookCommand(context: InstallContext, agent: LocalHookAgent, event: stri
     "-H",
     `x-openleash-api-version: ${context.apiVersion ?? "2026-05-22.local-hook-evaluate.v1"}`,
     "--data-binary",
-    "@-"
+    "@-",
   ];
   return `curl ${args.map(shellQuote).join(" ")}`;
 }
 
-function curlArgs(context: InstallContext, agent: LocalHookAgent, event: string) {
-  return hookCommand(context, agent, event).match(/"[^"]+"|'[^']+'|\S+/g)?.slice(1).map((part) => part.replace(/^["']|["']$/g, "")) ?? [];
+function curlArgs(
+  context: InstallContext,
+  agent: LocalHookAgent,
+  event: string,
+) {
+  return (
+    hookCommand(context, agent, event)
+      .match(/"[^"]+"|'[^']+'|\S+/g)
+      ?.slice(1)
+      .map((part) => part.replace(/^["']|["']$/g, "")) ?? []
+  );
 }
 
 function shellQuote(value: string) {
@@ -951,7 +1352,7 @@ const handler = async (event) => {
   const result = spawnSync("curl", ${JSON.stringify(curlArgs(context, "openclaw", "UserPromptSubmit"))}, {
     input: JSON.stringify(payload),
     encoding: "utf8",
-    timeout: 120000,
+    timeout: HOOK_TIMEOUT_MS,
     maxBuffer: 1024 * 1024
   });
   if (result.error || result.status !== 0) {
@@ -977,34 +1378,52 @@ function extensionInstalled(needles: string[]) {
   const extensionDirs = [
     path.join(os.homedir(), ".vscode", "extensions"),
     path.join(os.homedir(), ".cursor", "extensions"),
-    path.join(os.homedir(), ".windsurf", "extensions")
+    path.join(os.homedir(), ".windsurf", "extensions"),
   ];
   return extensionDirs.some((dir) => {
     try {
-      return fs.readdirSync(dir).some((entry) => needles.some((needle) => entry.toLowerCase().includes(needle)));
+      return fs
+        .readdirSync(dir)
+        .some((entry) =>
+          needles.some((needle) => entry.toLowerCase().includes(needle)),
+        );
     } catch {
       return false;
     }
   });
 }
 
-function codexHooksStatus(appVersion: string): Array<{ eventName: string; trustStatus: string }> {
+function codexHooksStatus(
+  appVersion: string,
+): Array<{ eventName: string; trustStatus: string }> {
   return codexHookMetadata(appVersion);
 }
 
-function codexHookMetadata(appVersion: string): Array<{ eventName: string; trustStatus: string; key?: string; sourcePath?: string; currentHash?: string }> {
+function codexHookMetadata(
+  appVersion: string,
+): Array<{
+  eventName: string;
+  trustStatus: string;
+  key?: string;
+  sourcePath?: string;
+  currentHash?: string;
+}> {
   if (!findOnPath("codex")) return [];
   const messages = [
     {
       id: 1,
       method: "initialize",
       params: {
-        clientInfo: { name: "openleash-tray", title: "OpenLeash Tray", version: appVersion },
-        capabilities: { experimentalApi: true }
-      }
+        clientInfo: {
+          name: "openleash-tray",
+          title: "OpenLeash Tray",
+          version: appVersion,
+        },
+        capabilities: { experimentalApi: true },
+      },
     },
     { method: "initialized" },
-    { id: 2, method: "hooks/list", params: { cwds: [process.cwd()] } }
+    { id: 2, method: "hooks/list", params: { cwds: [process.cwd()] } },
   ]
     .map((message) => JSON.stringify(message))
     .join("\n");
@@ -1013,16 +1432,21 @@ function codexHookMetadata(appVersion: string): Array<{ eventName: string; trust
     input: `${messages}\n`,
     encoding: "utf8",
     timeout: 2500,
-    maxBuffer: 4 * 1024 * 1024
+    maxBuffer: 4 * 1024 * 1024,
   });
   if (result.error || result.status !== 0) return [];
   return result.stdout
     .split("\n")
     .flatMap((line) => {
       try {
-        const parsed = JSON.parse(line) as { id?: number; result?: { data?: Array<{ hooks?: unknown[] }> } };
+        const parsed = JSON.parse(line) as {
+          id?: number;
+          result?: { data?: Array<{ hooks?: unknown[] }> };
+        };
         if (parsed.id !== 2) return [];
-        return (parsed.result?.data ?? []).flatMap((entry) => entry.hooks ?? []);
+        return (parsed.result?.data ?? []).flatMap(
+          (entry) => entry.hooks ?? [],
+        );
       } catch {
         return [];
       }
@@ -1030,7 +1454,15 @@ function codexHookMetadata(appVersion: string): Array<{ eventName: string; trust
     .filter(isCodexHookMetadata);
 }
 
-function isCodexHookMetadata(value: unknown): value is { eventName: string; trustStatus: string; key?: string; sourcePath?: string; currentHash?: string } {
+function isCodexHookMetadata(
+  value: unknown,
+): value is {
+  eventName: string;
+  trustStatus: string;
+  key?: string;
+  sourcePath?: string;
+  currentHash?: string;
+} {
   return (
     typeof value === "object" &&
     value !== null &&
@@ -1052,7 +1484,7 @@ function findOnPath(binary: string) {
     "/opt/homebrew/bin",
     "/usr/local/bin",
     "/usr/bin",
-    "/bin"
+    "/bin",
   ].filter(Boolean);
   for (const dir of [...new Set(dirs)]) {
     for (const suffix of suffixes) {

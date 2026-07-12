@@ -9,6 +9,10 @@ contextBridge.exposeInMainWorld("openleash", {
   saveRemoteModelKey: (payload: unknown) => ipcRenderer.invoke("openleash:save-remote-model-key", payload),
   dockerStatus: () => ipcRenderer.invoke("openleash:docker-status"),
   startSelfHosted: () => ipcRenderer.invoke("openleash:start-self-hosted"),
+  proxyStatus: () => ipcRenderer.invoke("openleash:proxy-status"),
+  installProxy: (payload: unknown) => ipcRenderer.invoke("openleash:install-proxy", payload),
+  uninstallProxy: () => ipcRenderer.invoke("openleash:uninstall-proxy"),
+  setAgentProxy: (payload: unknown) => ipcRenderer.invoke("openleash:set-agent-proxy", payload),
   openLocalConfig: () => ipcRenderer.invoke("openleash:open-local-config"),
   openDebugDashboard: () => ipcRenderer.invoke("openleash:open-debug-dashboard"),
   markIntroSeen: () => ipcRenderer.invoke("openleash:mark-intro-seen"),
@@ -26,7 +30,7 @@ contextBridge.exposeInMainWorld("openleash", {
   importRules: (payload: unknown) => ipcRenderer.invoke("openleash:import-rules", payload),
   importRuleListJson: () => ipcRenderer.invoke("openleash:import-rule-list-json"),
   discoverInstructionRules: () => ipcRenderer.invoke("openleash:discover-instruction-rules"),
-  resolve: (id: string, resolution: "allow" | "deny", resolutionGuidance?: string) => ipcRenderer.invoke("openleash:resolve", id, resolution, resolutionGuidance),
+  resolve: (id: string, resolution: "allow" | "deny", resolutionGuidance?: string, rememberForMs?: number) => ipcRenderer.invoke("openleash:resolve", id, resolution, resolutionGuidance, rememberForMs),
   dismissNotice: () => ipcRenderer.invoke("openleash:dismiss-notice"),
   onUpdate: (callback: (payload: unknown) => void) => {
     ipcRenderer.on("openleash:update", (_event, payload) => callback(payload));

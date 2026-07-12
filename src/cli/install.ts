@@ -16,6 +16,9 @@ import {
   openClawOpenLeashHookDir
 } from "./paths.js";
 
+const HOOK_TIMEOUT_SECONDS = 600;
+const HOOK_TIMEOUT_MS = HOOK_TIMEOUT_SECONDS * 1000;
+
 type HookAgent = "claude" | "codex" | "copilot" | "cursor" | "gemini" | "opencode" | "openclaw" | "nanoclaw";
 type HookEventName = "SessionStart" | "UserPromptSubmit" | "PreToolUse" | "PostToolUse" | "Stop";
 
@@ -75,24 +78,24 @@ async function installClaudeCompatibleHooks(settingsPath: string, agent: "claude
     ...hooks,
     UserPromptSubmit: [
       {
-        hooks: [{ type: "command", command: await hookCommand(agent, "UserPromptSubmit") }]
+        hooks: [{ type: "command", command: await hookCommand(agent, "UserPromptSubmit"), timeout: HOOK_TIMEOUT_SECONDS }]
       }
     ],
     PreToolUse: [
       {
         matcher: "*",
-        hooks: [{ type: "command", command: await hookCommand(agent, "PreToolUse") }]
+        hooks: [{ type: "command", command: await hookCommand(agent, "PreToolUse"), timeout: HOOK_TIMEOUT_SECONDS }]
       }
     ],
     PostToolUse: [
       {
         matcher: "*",
-        hooks: [{ type: "command", command: await hookCommand(agent, "PostToolUse") }]
+        hooks: [{ type: "command", command: await hookCommand(agent, "PostToolUse"), timeout: HOOK_TIMEOUT_SECONDS }]
       }
     ],
     Stop: [
       {
-        hooks: [{ type: "command", command: await hookCommand(agent, "Stop") }]
+        hooks: [{ type: "command", command: await hookCommand(agent, "Stop"), timeout: HOOK_TIMEOUT_SECONDS }]
       }
     ]
   };
@@ -336,19 +339,19 @@ function restoreClaudePermissions(settings: Record<string, unknown>, backup?: Re
 
 async function codexHookGroup(event: HookEventName) {
   return {
-    hooks: [{ type: "command", command: await hookCommand("codex", event) }]
+    hooks: [{ type: "command", command: await hookCommand("codex", event), timeout: HOOK_TIMEOUT_SECONDS }]
   };
 }
 
 async function geminiHookGroup(event: HookEventName, matcher?: string) {
   return {
     ...(matcher ? { matcher } : {}),
-    hooks: [{ type: "command", command: await hookCommand("gemini", event), name: "OpenLeash", timeout: 120000 }]
+    hooks: [{ type: "command", command: await hookCommand("gemini", event), name: "OpenLeash", timeout: HOOK_TIMEOUT_MS }]
   };
 }
 
 async function cursorHook(event: HookEventName) {
-  return { command: await hookCommand("cursor", event), name: "OpenLeash", timeout: 120000 };
+  return { command: await hookCommand("cursor", event), name: "OpenLeash", timeout: HOOK_TIMEOUT_MS };
 }
 
 async function copilotHooksConfig() {
@@ -369,7 +372,7 @@ async function copilotCommandHook(event: HookEventName, matcher?: string) {
     type: "command",
     ...(matcher ? { matcher } : {}),
     command: await hookCommand("copilot", event),
-    timeoutSec: 120
+    timeoutSec: HOOK_TIMEOUT_SECONDS
   };
 }
 
@@ -404,7 +407,8 @@ async function evaluate(url, payload) {
       ...payload,
       cwd: payload.cwd || process.cwd(),
       session_id: payload.session_id || payload.sessionID || payload.session?.id
-    })
+    }),
+    signal: AbortSignal.timeout(${HOOK_TIMEOUT_MS})
   });
   if (!response.ok) return;
   const decision = await response.json().catch(() => ({}));
@@ -479,7 +483,7 @@ const handler = async (event) => {
   const result = spawnSync("curl", ${JSON.stringify(curlArgs)}, {
     input: JSON.stringify(payload),
     encoding: "utf8",
-    timeout: 120000,
+    timeout: HOOK_TIMEOUT_MS,
     maxBuffer: 1024 * 1024
   });
   if (result.error || result.status !== 0) {
