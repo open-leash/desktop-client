@@ -5184,6 +5184,14 @@
         return (parts.length > 1 ? parts.slice(0, 2).map((part) => part[0]).join("") : String(source).slice(0, 2)).toUpperCase();
       }
 
+      function pluginIconHtml(plugin) {
+        const image = String(plugin.marketplace?.visualPng || plugin.visualPng || "").trim();
+        if (/^https:\/\//i.test(image) || /^data:image\/(png|jpeg|webp);base64,/i.test(image)) {
+          return `<img src="${escapeHtml(image)}" alt="">`;
+        }
+        return escapeHtml(pluginIconText(plugin));
+      }
+
       function ensurePluginSetupConfig(pluginId) {
         if (!pluginSetupConfigs[pluginId]) {
           const plugin = (state.plugins || []).find((item) => item.id === pluginId) || {};
@@ -5243,7 +5251,7 @@
               const categoryClass = pluginCategoryClass(category);
               return `
                 <article class="card pluginInstallLine ${checked ? "selected" : ""} ${expanded ? "expanded" : ""}">
-                  <span class="agentIcon" data-plugin-expand="${escapeHtml(plugin.id)}">${escapeHtml(pluginIconText(plugin))}</span>
+                  <span class="agentIcon" data-plugin-expand="${escapeHtml(plugin.id)}">${pluginIconHtml(plugin)}</span>
                   <span class="pluginCopy" data-plugin-expand="${escapeHtml(plugin.id)}">
                     <strong>${escapeHtml(pluginPackageName(plugin))}</strong>
                     <small>${escapeHtml(pluginName(plugin))}</small>
@@ -5679,7 +5687,7 @@
               return `
               <article class="card pluginOutcomeCard" data-open-plugin="${escapeHtml(plugin.id)}">
                 <div class="pluginOutcomeMain">
-                  <span class="agentIcon">${escapeHtml(pluginIconText(plugin))}</span>
+                  <span class="agentIcon">${pluginIconHtml(plugin)}</span>
                   <div class="pluginOutcomeCopy">
                     <strong>${escapeHtml(pluginPackageName(plugin))}</strong>
                     <p>${escapeHtml(plugin.marketplace?.shortDescription || plugin.description || "")}</p>
@@ -5742,7 +5750,7 @@
                 const categoryClass = pluginCategoryClass(categoryLabel);
                 return `
                   <article class="card pluginInstallLine">
-                    <span class="agentIcon">${escapeHtml(pluginIconText(plugin))}</span>
+                    <span class="agentIcon">${pluginIconHtml(plugin)}</span>
                     <span class="pluginCopy">
                       <strong>${escapeHtml(pluginPackageName(plugin))}</strong>
                       <small>${escapeHtml(pluginName(plugin))}</small>
