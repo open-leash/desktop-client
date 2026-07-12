@@ -4,4 +4,3 @@
 .env
 .env.*
 !.env.example
-
