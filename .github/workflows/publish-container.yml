@@ -42,9 +42,7 @@ jobs:
           platforms: linux/amd64,linux/arm64
           push: true
           tags: |
+            ghcr.io/open-leash/local-proxy:${{ steps.version.outputs.value }}
+            ghcr.io/open-leash/local-proxy:latest
             ghcr.io/open-leash/openleash-local-proxy:${{ steps.version.outputs.value }}
             ghcr.io/open-leash/openleash-local-proxy:latest
-      - name: Make package public
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: gh api --method PATCH /orgs/open-leash/packages/container/openleash-local-proxy -f visibility=public
