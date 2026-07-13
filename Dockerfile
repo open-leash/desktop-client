@@ -3,6 +3,8 @@ WORKDIR /src
 COPY . .
 RUN cargo build --release
 FROM debian:bookworm-slim
+LABEL org.opencontainers.image.source="https://github.com/open-leash/local-proxy"
+LABEL org.opencontainers.image.description="OpenLeash local policy enforcement proxy"
 RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates \
     && rm -rf /var/lib/apt/lists/* \
     && useradd --system --uid 10001 openleash
