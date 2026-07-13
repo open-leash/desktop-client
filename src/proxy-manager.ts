@@ -10,7 +10,7 @@ function agentProxyUrl(kind: string, openAi = false) {
 const CONTAINER_NAME = "openleash-local-proxy";
 const IMAGE =
   process.env.OPENLEASH_LOCAL_PROXY_IMAGE ||
-  "ghcr.io/open-leash/openleash-local-proxy:latest";
+  "ghcr.io/open-leash/local-proxy:latest";
 
 export type ProxyAgentKind = "claude-code" | "codex" | "nanoclaw" | "opencode";
 export const PROXY_AGENT_SUPPORT = {
