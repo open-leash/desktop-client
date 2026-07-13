@@ -174,6 +174,22 @@
         color: var(--ink-2);
         font-size: 13px;
       }
+      .navPluginIcon {
+        display: grid;
+        place-items: center;
+        width: 22px;
+        height: 22px;
+        flex: 0 0 22px;
+        overflow: hidden;
+        border-radius: 7px;
+        background: rgba(255, 255, 255, .72);
+        font-size: 15px;
+      }
+      .navPluginIcon img {
+        width: 18px;
+        height: 18px;
+        object-fit: contain;
+      }
       nav button.navPlugin.active {
         background: rgba(91, 79, 229, .1);
         color: var(--accent);
@@ -1236,6 +1252,21 @@
         gap: 14px;
         align-items: flex-start;
       }
+      .pluginDetailTitle {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        margin-top: 8px;
+      }
+      .pluginDetailTitle .agentIcon {
+        width: 48px;
+        height: 48px;
+        flex: 0 0 48px;
+        border: 1px solid var(--line);
+        background: #fff;
+        font-size: 25px;
+      }
+      .pluginDetailTitle h1 { margin: 0; }
       .pluginDetailSetting {
         display: grid;
         gap: 10px;
@@ -3675,6 +3706,7 @@
                 <div class="navSubmenu">
                   ${item.plugins.map((plugin) => `
                     <button type="button" class="navPlugin ${view === "plugin-detail" && selectedPluginId === plugin.id ? "active" : ""}" data-plugin-nav-id="${escapeHtml(plugin.id)}" data-plugin-view-category="${escapeHtml(item.id)}">
+                      <span class="navPluginIcon">${pluginIconHtml(plugin)}</span>
                       <span class="navLabel">${escapeHtml(plugin.packageId || pluginPackageName(plugin))}</span>
                     </button>
                   `).join("")}
@@ -5177,8 +5209,24 @@
       }
 
       function pluginIconText(plugin) {
-        if (plugin.marketplace?.iconText) return plugin.marketplace.iconText;
-        if (plugin.iconText) return plugin.iconText;
+        const marketplaceIcon = String(plugin.marketplace?.iconText || "").trim();
+        if (marketplaceIcon && !/^[A-Z0-9]{1,3}$/.test(marketplaceIcon)) return marketplaceIcon;
+        const directIcon = String(plugin.iconText || "").trim();
+        if (directIcon && !/^[A-Z0-9]{1,3}$/.test(directIcon)) return directIcon;
+        const selectedIcons = {
+          "token-saver": "✂️",
+          "blast-radius": "💥",
+          "data-leakage-prevention": "🤫",
+          "mcp-scanner": "📡",
+          "rules-enforcer": "📏",
+          "sensitive-access": "🔐",
+          "siem-exporter": "📤",
+          "skill-scanner": "🕵️"
+        };
+        const selected = selectedIcons[pluginPackageName(plugin)];
+        if (selected) return selected;
+        if (marketplaceIcon) return marketplaceIcon;
+        if (directIcon) return directIcon;
         const source = pluginPackageName(plugin) || pluginName(plugin) || plugin.id || "plugin";
         const parts = String(source).split(/[^a-z0-9]+/i).filter(Boolean);
         return (parts.length > 1 ? parts.slice(0, 2).map((part) => part[0]).join("") : String(source).slice(0, 2)).toUpperCase();
@@ -5802,7 +5850,10 @@
           <div class="head">
             <div>
               <button id="backPlugins" class="secondary">Back</button>
-              <h1>${escapeHtml(pluginPackageName(plugin))}</h1>
+              <div class="pluginDetailTitle">
+                <span class="agentIcon">${pluginIconHtml(plugin)}</span>
+                <h1>${escapeHtml(pluginPackageName(plugin))}</h1>
+              </div>
               <p>${escapeHtml(plugin.marketplace?.shortDescription || plugin.description || "")}</p>
             </div>
             <div class="actions">
