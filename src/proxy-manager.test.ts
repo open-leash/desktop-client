@@ -3,10 +3,22 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
-import { configureAgentProxy, LOCAL_PROXY_URL } from "./proxy-manager.js";
+import {
+  configureAgentProxy,
+  DEFAULT_LOCAL_PROXY_IMAGE,
+  LOCAL_PROXY_URL,
+} from "./proxy-manager.js";
 
 const home = fs.mkdtempSync(path.join(os.tmpdir(), "openleash-proxy-test-"));
 process.env.HOME = home;
+
+test("released desktop uses an immutable published proxy image", () => {
+  assert.equal(
+    DEFAULT_LOCAL_PROXY_IMAGE,
+    "ghcr.io/open-leash/local-proxy:0.36.1",
+  );
+  assert.doesNotMatch(DEFAULT_LOCAL_PROXY_IMAGE, /:latest$/);
+});
 
 test("Claude proxy configuration is reversible", () => {
   const file = path.join(home, ".claude", "settings.json");

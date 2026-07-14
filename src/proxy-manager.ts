@@ -4,13 +4,18 @@ import os from "node:os";
 import path from "node:path";
 
 export const LOCAL_PROXY_URL = "http://127.0.0.1:9320";
+// Keep this pinned to an immutable proxy release that is published alongside
+// the desktop. A mutable/missing `latest` tag makes existing desktop installs
+// impossible to repair after installation.
+export const DEFAULT_LOCAL_PROXY_IMAGE =
+  "ghcr.io/open-leash/local-proxy:0.36.1";
 function agentProxyUrl(kind: string, openAi = false) {
   return `${LOCAL_PROXY_URL}/agent/${kind}${openAi ? "/v1" : ""}`;
 }
 const CONTAINER_NAME = "openleash-local-proxy";
 const IMAGE =
   process.env.OPENLEASH_LOCAL_PROXY_IMAGE ||
-  "ghcr.io/open-leash/local-proxy:latest";
+  DEFAULT_LOCAL_PROXY_IMAGE;
 
 export type ProxyAgentKind = "claude-code" | "codex" | "nanoclaw" | "opencode";
 export const PROXY_AGENT_SUPPORT = {

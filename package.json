@@ -13,7 +13,8 @@
     "dev": "npm run build && env -u ELECTRON_RUN_AS_NODE electron .",
     "build": "tsc -p tsconfig.json && node src/copy-assets.mjs",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "test": "tsx --test src/proxy-manager.test.ts"
+    "test": "tsx --test src/proxy-manager.test.ts",
+    "verify:release-dependencies": "node scripts/verify-release-dependencies.mjs"
   },
   "dependencies": {
     "@openleash/shared": "0.1.0",
