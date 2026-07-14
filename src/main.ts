@@ -54,6 +54,7 @@ import {
   uninstallLocalProxy,
   type LocalProxyStatus,
 } from "./proxy-manager";
+import { reconcilePluginContainers } from "./plugin-container-manager";
 
 const APP_DISPLAY_NAME = app.isPackaged ? "OpenLeash" : "OpenLeash (Dev)";
 let proxyStatus: LocalProxyStatus = {
@@ -65,6 +66,19 @@ let proxyStatus: LocalProxyStatus = {
   image: "",
   configuredAgents: [],
 };
+let pluginContainerFingerprint = "";
+
+function pluginFingerprint(plugins: PluginCatalogItem[]) {
+  return JSON.stringify(plugins.map((plugin) => [
+    plugin.id,
+    plugin.version,
+    plugin.settings?.enabled,
+    plugin.settings?.installedVersion,
+    plugin.settings?.config,
+    plugin.execution?.image,
+    plugin.execution?.digest,
+  ]));
+}
 
 type PendingDecision = {
   id: string;
@@ -664,6 +678,13 @@ app
     }
     await localServer.start();
     startupLog("local server started");
+    const startupPluginStatuses = await reconcilePluginContainers(localServer.plugins);
+    localServer.syncPluginRuntimeStatuses(startupPluginStatuses);
+    pluginContainerFingerprint = pluginFingerprint(localServer.plugins);
+    const unhealthyStartupPlugins = startupPluginStatuses.filter((status) => !status.healthy);
+    if (unhealthyStartupPlugins.length > 0) {
+      startupLog(`plugin containers unhealthy at startup: ${unhealthyStartupPlugins.map((status) => `${status.pluginId}: ${status.error}`).join(", ")}`);
+    }
     await migrateLocalDevCloudTarget();
     const cliResult = handleCliRuleImport();
     if (cliResult && cliResult.exitAfter) {
@@ -1342,11 +1363,8 @@ ipcMain.handle(
           ok: false,
           error: "Complete backend setup before installing the proxy.",
         };
-      const clientApiUrl = normalizeRemoteApiUrl(
-        localServer.remoteApiUrl || desktopAuthSession?.apiUrl || cloudApiUrl,
-      );
       proxyStatus = await installLocalProxy({
-        clientApiUrl,
+        clientApiUrl: apiUrl,
         token,
         agents: payload?.agents ?? [],
         corporateProxy: payload?.corporateProxy,
@@ -1988,6 +2006,17 @@ async function poll() {
     latestAgents = body.agents;
     latestSessionMetrics = body.sessionMetrics ?? {};
     latestPlugins = body.plugins;
+    localServer.syncPlugins(latestPlugins);
+    const nextPluginContainerFingerprint = pluginFingerprint(latestPlugins);
+    if (nextPluginContainerFingerprint !== pluginContainerFingerprint) {
+      const statuses = await reconcilePluginContainers(latestPlugins);
+      localServer.syncPluginRuntimeStatuses(statuses);
+      const failed = statuses.filter((status) => !status.healthy);
+      if (failed.length > 0) {
+        startupLog(`plugin containers unhealthy: ${failed.map((status) => `${status.pluginId}: ${status.error}`).join(", ")}`);
+      }
+      pluginContainerFingerprint = nextPluginContainerFingerprint;
+    }
     latestOutcomes = body.outcomes ?? [];
     latestViewModel = body.viewModel ?? latestViewModel;
     setTrayStatus(latestPending.length > 0 ? "pending" : "ok");
@@ -3077,6 +3106,12 @@ async function fetchUpdateManifest(): Promise<UpdateManifest | undefined> {
       throw new Error("Update feed is missing a DMG download URL.");
     }
   }
+  if (
+    compareVersions(version, app.getVersion()) > 0 &&
+    !/^[a-f0-9]{64}$/i.test(manifest.sha256 ?? "")
+  ) {
+    throw new Error("Update feed is missing a valid SHA-256 checksum.");
+  }
   return manifest as UpdateManifest;
 }
 
@@ -3132,6 +3167,14 @@ async function installUpdate(manifest: UpdateManifest) {
       "The app will close for a moment while the new version is installed. Your local settings and history will stay in place.",
   });
   await downloadFile(dmgUrl, downloadPath);
+  const actualSha256 = crypto
+    .createHash("sha256")
+    .update(fs.readFileSync(downloadPath))
+    .digest("hex");
+  if (actualSha256.toLowerCase() !== manifest.sha256?.toLowerCase()) {
+    fs.rmSync(downloadPath, { force: true });
+    throw new Error("Downloaded update failed SHA-256 verification.");
+  }
   const installer = installerScriptPath();
   if (!fs.existsSync(installer)) {
     await openTrustedExternalUrl(dmgUrl);
@@ -3644,11 +3687,8 @@ function isAutomaticProxyAgent(kind: string) {
 async function installProxyForMonitoredAgents(agents: string[]) {
   const token = localServer.effectiveToken || desktopAuthSession?.token;
   if (!token) throw new Error("OpenLeash backend token is unavailable.");
-  const clientApiUrl = normalizeRemoteApiUrl(
-    localServer.remoteApiUrl || desktopAuthSession?.apiUrl || cloudApiUrl,
-  );
   return installLocalProxy({
-    clientApiUrl,
+    clientApiUrl: apiUrl,
     token,
     agents: agents.filter(isAutomaticProxyAgent),
   });
@@ -4974,7 +5014,7 @@ function ensureIndividualOpenSourceRuntime(runtimeDir: string) {
       envPath,
       [
         "OPENLEASH_IMAGE_REGISTRY=ghcr.io/open-leash",
-        `OPENLEASH_VERSION=${process.env.OPENLEASH_BACKEND_VERSION || "latest"}`,
+        `OPENLEASH_VERSION=${process.env.OPENLEASH_BACKEND_VERSION || "0.36.3@sha256:c01b6c9997968ddcd9f07d0a9c87ac9537bd829233c9ece9550786e52e29c157"}`,
         "OPENLEASH_POSTGRES_DB=openleash",
         "OPENLEASH_POSTGRES_USER=openleash",
         `OPENLEASH_POSTGRES_PASSWORD=${randomHexSecret()}`,
@@ -5028,7 +5068,7 @@ function individualOpenSourceCompose() {
 
 services:
   postgres:
-    image: postgres:16-alpine
+    image: postgres:16-alpine@sha256:57c72fd2a128e416c7fcc499958864df5301e940bca0a56f58fddf30ffc07777
     container_name: openleash-individual-postgres
     environment:
       POSTGRES_DB: \${OPENLEASH_POSTGRES_DB:-openleash}
@@ -5043,7 +5083,7 @@ services:
       retries: 20
 
   migrate:
-    image: \${OPENLEASH_IMAGE_REGISTRY:-ghcr.io/open-leash}/openleash-client-api:\${OPENLEASH_VERSION:-latest}
+    image: \${OPENLEASH_IMAGE_REGISTRY:-ghcr.io/open-leash}/openleash-client-api:\${OPENLEASH_VERSION:-0.36.3@sha256:c01b6c9997968ddcd9f07d0a9c87ac9537bd829233c9ece9550786e52e29c157}
     profiles: ["setup"]
     environment:
       DATABASE_URL: postgres://\${OPENLEASH_POSTGRES_USER:-openleash}:\${OPENLEASH_POSTGRES_PASSWORD:-openleash}@postgres:5432/\${OPENLEASH_POSTGRES_DB:-openleash}
@@ -5058,7 +5098,7 @@ services:
         condition: service_healthy
 
   seed:
-    image: \${OPENLEASH_IMAGE_REGISTRY:-ghcr.io/open-leash}/openleash-client-api:\${OPENLEASH_VERSION:-latest}
+    image: \${OPENLEASH_IMAGE_REGISTRY:-ghcr.io/open-leash}/openleash-client-api:\${OPENLEASH_VERSION:-0.36.3@sha256:c01b6c9997968ddcd9f07d0a9c87ac9537bd829233c9ece9550786e52e29c157}
     profiles: ["setup"]
     environment:
       DATABASE_URL: postgres://\${OPENLEASH_POSTGRES_USER:-openleash}:\${OPENLEASH_POSTGRES_PASSWORD:-openleash}@postgres:5432/\${OPENLEASH_POSTGRES_DB:-openleash}
@@ -5068,7 +5108,7 @@ services:
         condition: service_healthy
 
   client-api:
-    image: \${OPENLEASH_IMAGE_REGISTRY:-ghcr.io/open-leash}/openleash-client-api:\${OPENLEASH_VERSION:-latest}
+    image: \${OPENLEASH_IMAGE_REGISTRY:-ghcr.io/open-leash}/openleash-client-api:\${OPENLEASH_VERSION:-0.36.3@sha256:c01b6c9997968ddcd9f07d0a9c87ac9537bd829233c9ece9550786e52e29c157}
     container_name: openleash-individual-client-api
     environment:
       DATABASE_URL: postgres://\${OPENLEASH_POSTGRES_USER:-openleash}:\${OPENLEASH_POSTGRES_PASSWORD:-openleash}@postgres:5432/\${OPENLEASH_POSTGRES_DB:-openleash}

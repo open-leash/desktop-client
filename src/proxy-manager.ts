@@ -8,7 +8,7 @@ export const LOCAL_PROXY_URL = "http://127.0.0.1:9320";
 // the desktop. A mutable/missing `latest` tag makes existing desktop installs
 // impossible to repair after installation.
 export const DEFAULT_LOCAL_PROXY_IMAGE =
-  "ghcr.io/open-leash/local-proxy:0.36.1";
+  "ghcr.io/open-leash/local-proxy:0.36.3@sha256:a82ab662a520cca6879b359f13f51e5e45e3a0679db4ebcb93c51e7d7cd382f0";
 function agentProxyUrl(kind: string, openAi = false) {
   return `${LOCAL_PROXY_URL}/agent/${kind}${openAi ? "/v1" : ""}`;
 }

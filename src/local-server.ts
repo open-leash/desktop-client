@@ -17,6 +17,7 @@ import {
   OPENLEASH_DESKTOP_MICROSOFT_REDIRECT_URI
 } from "./public-config";
 import { bundledPluginCatalog, type PluginCatalogItem } from "./plugin-catalog";
+import { executeViaLocalPluginContainer, transformViaLocalPluginContainers, type PluginContainerStatus } from "./plugin-container-manager";
 
 const ACTION_PURPOSE_CONTEXT_MESSAGES = Number(process.env.OPENLEASH_ACTION_PURPOSE_MESSAGES ?? 5);
 type ClientMode = "personal" | "cloud" | "custom";
@@ -240,6 +241,8 @@ type SetupConfig = {
 type LocalServerOptions = {
   onAgentStop?: (event: { agent: string; eventName: string; body: unknown }) => void;
   onRemoteHookForward?: (event: { agent: string; eventName: string; body: unknown }) => void;
+  apiPort?: number;
+  legacyAuthPort?: number;
 };
 
 function desktopExchangeRedirectUri(pathname: string) {
@@ -302,11 +305,11 @@ function escapeHtml(value: string) {
 }
 
 export class LocalOpenLeashServer {
-  readonly apiUrl = "http://127.0.0.1:9317";
   private server?: http.Server;
   private legacyAuthServer?: http.Server;
   private db: Database.Database;
   private store!: Store;
+  private pluginRuntimeStatuses: PluginContainerStatus[] = [];
 
   constructor(private readonly dir: string, private readonly options: LocalServerOptions = {}) {
     fs.mkdirSync(dir, { recursive: true });
@@ -316,6 +319,12 @@ export class LocalOpenLeashServer {
     this.migrateSchema();
     this.migrateLegacyJsonStore();
     this.store = this.readStore();
+  }
+
+  get apiUrl() {
+    const address = this.server?.address();
+    const port = address && typeof address === "object" ? address.port : (this.options.apiPort ?? 9317);
+    return `http://127.0.0.1:${port}`;
   }
 
   get token() {
@@ -457,13 +466,25 @@ export class LocalOpenLeashServer {
     this.server = http.createServer((req, res) => void this.route(req, res));
     await new Promise<void>((resolve, reject) => {
       this.server?.once("error", reject);
-      this.server?.listen(9317, "127.0.0.1", () => resolve());
+      this.server?.listen(this.options.apiPort ?? 9317, "127.0.0.1", () => resolve());
     });
     this.legacyAuthServer = http.createServer((req, res) => void this.routeLegacyAuth(req, res));
     this.legacyAuthServer.once("error", () => {
       this.legacyAuthServer = undefined;
     });
-    this.legacyAuthServer.listen(4317, "127.0.0.1");
+    this.legacyAuthServer.listen(this.options.legacyAuthPort ?? 4317, "127.0.0.1");
+  }
+
+  async stop() {
+    const servers = [this.server, this.legacyAuthServer].filter((server): server is http.Server => Boolean(server));
+    for (const server of servers) {
+      server.closeIdleConnections();
+      server.closeAllConnections();
+    }
+    await Promise.all(servers.map((server) => new Promise<void>((resolve) => server.close(() => resolve()))));
+    this.server = undefined;
+    this.legacyAuthServer = undefined;
+    this.db.close();
   }
 
   completeSetup(policies: Policy[], config: SetupConfig) {
@@ -486,6 +507,15 @@ export class LocalOpenLeashServer {
 
   get plugins() {
     return this.store.plugins;
+  }
+
+  syncPlugins(plugins: PluginCatalogItem[]) {
+    this.store.plugins = plugins;
+    this.writeStore();
+  }
+
+  syncPluginRuntimeStatuses(statuses: PluginContainerStatus[]) {
+    this.pluginRuntimeStatuses = statuses;
   }
 
   updateSettings(apiProvider: "openai" | "anthropic", apiKey?: string, agentDoneSound?: boolean) {
@@ -591,6 +621,51 @@ export class LocalOpenLeashServer {
         const request = await readJson(req) as EvaluationRequest;
         return json(res, await this.evaluate(request));
       }
+      if (req.method === "POST" && req.url === "/v1/plugin-runtime/transform") {
+        if (!this.isAuthorizedLocalClient(req)) return json(res, { error: "unauthorized" }, 401);
+        const body = await readJson(req) as {
+          provider?: string;
+          agentKind?: string;
+          sessionId?: string;
+          requestBody?: Record<string, unknown>;
+        };
+        if (!body.requestBody || typeof body.requestBody !== "object" || Array.isArray(body.requestBody)) {
+          return json(res, { error: "requestBody must be a JSON object" }, 400);
+        }
+        return json(res, await transformViaLocalPluginContainers({
+          plugins: this.store.plugins,
+          provider: String(body.provider ?? "unknown"),
+          agentKind: String(body.agentKind ?? "unknown"),
+          sessionId: String(body.sessionId ?? "proxy"),
+          organizationId: this.store.remoteOrganization ?? this.store.installIdentity ?? "local",
+          userId: this.store.remoteUser ?? "local-user",
+          requestBody: body.requestBody,
+        }));
+      }
+      if (req.method === "GET" && req.url === "/personal/plugin-runtime") {
+        return json(res, { containers: this.pluginRuntimeStatuses });
+      }
+      if (req.method === "POST" && req.url === "/v1/plugin-runtime/tools/execute") {
+        if (!this.isAuthorizedLocalClient(req)) return json(res, { error: "unauthorized" }, 401);
+        const body = await readJson(req) as { pluginId?: string; sessionId?: string; tool?: string; arguments?: Record<string, unknown> };
+        const plugin = this.store.plugins.find((candidate) => candidate.id === body.pluginId);
+        if (!plugin) return json(res, { error: "enabled plugin not found" }, 404);
+        if (!body.tool || !body.arguments || typeof body.arguments !== "object" || Array.isArray(body.arguments)) {
+          return json(res, { error: "tool and object arguments are required" }, 400);
+        }
+        return json(res, await executeViaLocalPluginContainer({
+          plugin,
+          sessionId: String(body.sessionId ?? "proxy"),
+          organizationId: this.store.remoteOrganization ?? this.store.installIdentity ?? "local",
+          userId: this.store.remoteUser ?? "local-user",
+          tool: body.tool,
+          arguments: body.arguments,
+        }));
+      }
+      if (req.method === "POST" && req.url === "/v1/agent-events") {
+        const body = await readJson(req);
+        return json(res, await this.forwardRemoteAgentEvent(body));
+      }
       const hookMatch = req.url?.match(/^\/v1\/hooks\/([^/?]+)\/([^/?]+)(?:\?.*)?$/);
       if (req.method === "POST" && hookMatch) {
         const body = await readJson(req);
@@ -617,6 +692,19 @@ export class LocalOpenLeashServer {
       res.writeHead(500, { "content-type": "application/json" });
       res.end(JSON.stringify({ error: error instanceof Error ? error.message : "unknown error" }));
     }
+  }
+
+  private isAuthorizedLocalClient(req: http.IncomingMessage) {
+    const authorization = String(req.headers.authorization ?? "");
+    const token = authorization.startsWith("Bearer ") ? authorization.slice(7).trim() : "";
+    if (!token) return false;
+    return [this.store.token, this.store.remoteToken]
+      .filter((candidate): candidate is string => Boolean(candidate))
+      .some((candidate) => {
+        const actual = Buffer.from(token);
+        const expected = Buffer.from(candidate);
+        return actual.length === expected.length && crypto.timingSafeEqual(actual, expected);
+      });
   }
 
   private async routeLegacyAuth(req: http.IncomingMessage, res: http.ServerResponse) {
@@ -805,6 +893,24 @@ export class LocalOpenLeashServer {
     } catch {
       return undefined;
     }
+  }
+
+  private async forwardRemoteAgentEvent(body: unknown) {
+    if (!this.store.remoteApiUrl || !this.store.remoteToken) {
+      throw new Error("OpenLeash backend is unavailable");
+    }
+    const response = await fetch(new URL("/v1/agent-events", this.store.remoteApiUrl.replace(/\/+$/, "")), {
+      method: "POST",
+      headers: {
+        authorization: `Bearer ${this.store.remoteToken}`,
+        "content-type": "application/json",
+      },
+      body: JSON.stringify(body),
+      signal: AbortSignal.timeout(120_000),
+    });
+    const result = await response.json().catch(() => ({ error: `HTTP ${response.status}` }));
+    if (!response.ok) throw new Error((result as { error?: string }).error ?? `OpenLeash backend returned HTTP ${response.status}`);
+    return result;
   }
 
   private notifyAgentStop(agent: string, eventName: string, body: unknown) {
@@ -2390,7 +2496,14 @@ function truncate(value: string, max: number) {
 
 async function readJson(req: http.IncomingMessage) {
   const chunks: Buffer[] = [];
-  for await (const chunk of req) chunks.push(Buffer.from(chunk));
+  let size = 0;
+  const limit = Number(process.env.OPENLEASH_DESKTOP_EDGE_MAX_BODY_BYTES ?? 20 * 1024 * 1024);
+  for await (const chunk of req) {
+    const buffer = Buffer.from(chunk);
+    size += buffer.length;
+    if (size > limit) throw new Error(`request body exceeds ${limit} bytes`);
+    chunks.push(buffer);
+  }
   const raw = Buffer.concat(chunks).toString("utf8");
   return raw ? JSON.parse(raw) : {};
 }
@@ -2740,7 +2853,7 @@ function applyLocalContract(req: http.IncomingMessage, res: http.ServerResponse,
   return true;
 }
 
-function json(res: http.ServerResponse, body: unknown) {
-  res.writeHead(200, { "content-type": "application/json", "access-control-allow-origin": "*" });
+function json(res: http.ServerResponse, body: unknown, status = 200) {
+  res.writeHead(status, { "content-type": "application/json", "access-control-allow-origin": "*" });
   res.end(JSON.stringify(body));
 }

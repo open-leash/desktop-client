@@ -6,7 +6,23 @@ export type BundledPluginManifest = {
   repositoryUrl?: string;
   version: string;
   publisher: string;
-  runtime: "openleash-core" | "node";
+  runtime: "openleash-core" | "node" | "container";
+  execution?: {
+    type: "container";
+    placement: "edge" | "server" | "either";
+    protocol: "openleash-container-plugin.v1";
+    image: string;
+    digest?: string;
+    healthPath?: string;
+    transformPath?: string;
+    toolExecutePath?: string;
+    edgePort?: number;
+    timeoutMs?: number;
+    failureMode?: "open" | "closed";
+    isolation?: "shared-trusted" | "tenant-dedicated" | "customer-hosted";
+    resources?: { memoryMb?: number; cpuShares?: number };
+    storage?: { persistent: boolean; volumeName?: string };
+  };
   entrypoint: string;
   events: string[];
   permissions: string[];
@@ -39,12 +55,28 @@ export const bundledFirstPartyPlugins: BundledPluginManifest[] = [
     name: "token-saver",
     description: "Trim noisy context before every model call.",
     repositoryUrl: "https://github.com/open-leash/plugin-token-saver",
-    version: "1.0.0",
+    version: "1.1.0",
     publisher: "openleash",
-    runtime: "openleash-core",
-    entrypoint: "plugins/prompt-compression",
-    events: ["prompt.beforeSubmit"],
-    permissions: ["event:read", "prompt:read", "prompt:write", "model:invoke", "audit:write"],
+    runtime: "container",
+    execution: {
+      type: "container",
+      placement: "either",
+      protocol: "openleash-container-plugin.v1",
+      image: "ghcr.io/open-leash/token-saver:1.1.0",
+      digest: "sha256:bc36ea66eb9694cc9e45d160a0a589c410fd61a6b4b0b91caaaedd6a370637f1",
+      healthPath: "/healthz",
+      transformPath: "/v1/transform",
+      toolExecutePath: "/v1/tools/execute",
+      edgePort: 9331,
+      timeoutMs: 30000,
+      failureMode: "open",
+      isolation: "shared-trusted",
+      resources: { memoryMb: 1024, cpuShares: 1024 },
+      storage: { persistent: true, volumeName: "openleash-token-saver-data" }
+    },
+    entrypoint: "container",
+    events: ["provider.request.beforeSend", "plugin.tool.execute", "prompt.beforeSubmit"],
+    permissions: ["event:read", "prompt:read", "prompt:write", "provider-request:read", "provider-request:write", "local-model:run", "storage:read", "storage:write", "audit:write", "log:write", "usage:write"],
     effects: ["transform", "observe"],
     ordering: { priority: 100, before: ["openleash.dlp"] },
     configSchema: {
@@ -54,10 +86,14 @@ export const bundledFirstPartyPlugins: BundledPluginManifest[] = [
         enabled: { type: "boolean" },
         level: { enum: ["light", "standard", "maximum"] },
         conciseResponse: { type: "boolean" },
-        model: { type: "string" }
+        model: { type: "string" },
+        minimumChars: { type: "number", minimum: 256 },
+        protectRecent: { type: "number", minimum: 0 },
+        ccrEnabled: { type: "boolean" },
+        ccrTtlSeconds: { type: "number", minimum: 60 }
       }
     },
-    defaultConfig: { enabled: false, level: "standard", conciseResponse: false },
+    defaultConfig: { enabled: false, level: "standard", conciseResponse: false, minimumChars: 1200, protectRecent: 2, ccrEnabled: false, ccrTtlSeconds: 3600 },
     tags: ["tokens", "cost", "prompt"]
   },
   {

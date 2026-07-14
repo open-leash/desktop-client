@@ -15,7 +15,7 @@ process.env.HOME = home;
 test("released desktop uses an immutable published proxy image", () => {
   assert.equal(
     DEFAULT_LOCAL_PROXY_IMAGE,
-    "ghcr.io/open-leash/local-proxy:0.36.1",
+    "ghcr.io/open-leash/local-proxy:0.36.3@sha256:a82ab662a520cca6879b359f13f51e5e45e3a0679db4ebcb93c51e7d7cd382f0",
   );
   assert.doesNotMatch(DEFAULT_LOCAL_PROXY_IMAGE, /:latest$/);
 });
