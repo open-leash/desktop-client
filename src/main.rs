@@ -129,6 +129,15 @@ struct Decision {
     #[serde(rename = "finalPrompt")]
     final_prompt: Option<String>,
 }
+#[derive(Deserialize)]
+struct TransformDecision {
+    #[serde(rename = "requestBody")]
+    request_body: Value,
+    #[serde(rename = "appliedPluginIds", default)]
+    applied_plugin_ids: Vec<String>,
+    #[serde(default)]
+    runs: Vec<Value>,
+}
 #[derive(Serialize)]
 struct Health {
     ok: bool,
@@ -312,10 +321,48 @@ async fn forward(
         )
     };
     let mut transformed = false;
+    let mut applied_plugin_ids = Vec::new();
+    let mut container_plugin_runs = Vec::new();
     if intercept {
+        let transformation = tokio::time::timeout(
+            Duration::from_secs(app.config.evaluation_timeout_seconds),
+            transform_request(&app, &parts.uri.to_string(), &value, &agent_kind),
+        )
+        .await;
+        match transformation {
+            Ok(Ok(result)) => {
+                if result.request_body != value {
+                    value = result.request_body;
+                    transformed = true;
+                }
+                applied_plugin_ids = result.applied_plugin_ids;
+                container_plugin_runs = result.runs;
+            }
+            Ok(Err(error)) if !app.config.fail_open => {
+                return Err((
+                    StatusCode::SERVICE_UNAVAILABLE,
+                    format!("OpenLeash plugin runtime unavailable: {error}"),
+                ));
+            }
+            Ok(Err(_)) => {}
+            Err(_) if !app.config.fail_open => {
+                return Err((
+                    StatusCode::SERVICE_UNAVAILABLE,
+                    "OpenLeash plugin transformation timed out".to_owned(),
+                ));
+            }
+            Err(_) => {}
+        }
         let evaluation = tokio::time::timeout(
             Duration::from_secs(app.config.evaluation_timeout_seconds),
-            evaluate(&app, &parts.uri.to_string(), &value, &agent_kind),
+            evaluate(
+                &app,
+                &parts.uri.to_string(),
+                &value,
+                &agent_kind,
+                &applied_plugin_ids,
+                &container_plugin_runs,
+            ),
         )
         .await;
         match evaluation {
@@ -911,6 +958,8 @@ async fn evaluate(
     path: &str,
     body: &Value,
     agent_kind: &str,
+    applied_plugin_ids: &[String],
+    container_plugin_runs: &[Value],
 ) -> Result<Decision, reqwest::Error> {
     let prompt = latest_prompt(body).unwrap_or_default();
     let (event_name, tool) = request_event(body);
@@ -927,7 +976,7 @@ async fn evaluate(
       "request": { "computer": {"hostname":"local-proxy","platform":std::env::consts::OS},
         "agent":{"kind":agent_kind,"displayName":agent_display_name(agent_kind)},
         "event":{"eventName":event_name,"agentKind":agent_kind,"sessionId":session,"prompt":prompt,"tool":tool,"transcript":transcript,
-          "raw":{"proxyPath":path},"occurredAt":occurred_at}}
+          "raw":{"proxyPath":path,"containerPluginApplied":applied_plugin_ids,"containerPluginRuns":container_plugin_runs},"occurredAt":occurred_at}}
     });
     app.client
         .post(format!(
@@ -936,6 +985,32 @@ async fn evaluate(
         ))
         .bearer_auth(&app.config.token)
         .json(&envelope)
+        .send()
+        .await?
+        .error_for_status()?
+        .json()
+        .await
+}
+
+async fn transform_request(
+    app: &App,
+    path: &str,
+    body: &Value,
+    agent_kind: &str,
+) -> Result<TransformDecision, reqwest::Error> {
+    let session_id = provider_session_id(body).unwrap_or_else(|| "proxy".to_owned());
+    app.client
+        .post(format!(
+            "{}/v1/plugin-runtime/transform",
+            app.config.client_api.trim_end_matches('/')
+        ))
+        .bearer_auth(&app.config.token)
+        .json(&json!({
+            "provider": provider(path, body),
+            "agentKind": agent_kind,
+            "sessionId": session_id,
+            "requestBody": body,
+        }))
         .send()
         .await?
         .error_for_status()?

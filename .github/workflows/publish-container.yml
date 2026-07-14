@@ -6,7 +6,7 @@ on:
       version:
         description: Version tag to publish
         required: true
-        default: 0.36.1
+        default: 0.36.3
   push:
     tags:
       - "v*"
@@ -36,13 +36,19 @@ jobs:
           else
             echo "value=${{ inputs.version }}" >> "$GITHUB_OUTPUT"
           fi
+      - name: Refuse mutable release tags
+        shell: bash
+        run: |
+          image="ghcr.io/open-leash/local-proxy:${{ steps.version.outputs.value }}"
+          if docker buildx imagetools inspect "$image" >/dev/null 2>&1; then
+            echo "Release tag already exists and is immutable: $image" >&2
+            exit 1
+          fi
       - uses: docker/build-push-action@v6
         with:
           context: .
           platforms: linux/amd64,linux/arm64
           push: true
-          tags: |
-            ghcr.io/open-leash/local-proxy:${{ steps.version.outputs.value }}
-            ghcr.io/open-leash/local-proxy:latest
-            ghcr.io/open-leash/openleash-local-proxy:${{ steps.version.outputs.value }}
-            ghcr.io/open-leash/openleash-local-proxy:latest
+          provenance: true
+          sbom: true
+          tags: ghcr.io/open-leash/local-proxy:${{ steps.version.outputs.value }}
