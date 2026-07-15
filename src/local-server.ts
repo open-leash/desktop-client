@@ -626,6 +626,7 @@ export class LocalOpenLeashServer {
         const body = await readJson(req) as {
           provider?: string;
           agentKind?: string;
+          agentId?: string;
           sessionId?: string;
           requestBody?: Record<string, unknown>;
         };
@@ -636,6 +637,7 @@ export class LocalOpenLeashServer {
           plugins: this.store.plugins,
           provider: String(body.provider ?? "unknown"),
           agentKind: String(body.agentKind ?? "unknown"),
+          agentId: body.agentId ? String(body.agentId) : undefined,
           sessionId: String(body.sessionId ?? "proxy"),
           organizationId: this.store.remoteOrganization ?? this.store.installIdentity ?? "local",
           userId: this.store.remoteUser ?? "local-user",

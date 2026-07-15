@@ -5918,6 +5918,7 @@
               <div class="pluginDetailSettings" style="margin-top:18px">
                 ${pluginDetailSettingsFields(plugin)}
               </div>
+              ${pluginProfileSettings(plugin, locked || !installed)}
               <div class="actions">
                 <span id="pluginDetailSaveStatus" class="detailSettingStatus"></span>
                 <button id="savePluginDetailSettings" class="primary" ${locked || !installed ? "disabled" : ""}>Save settings</button>
@@ -6142,6 +6143,63 @@
         const fields = pluginSettingDefinitions(plugin, config);
         if (fields.length === 0) return `<div class="empty">No settings exposed.</div>`;
         return fields.map((field) => pluginDetailSettingField(plugin, config, field)).join("");
+      }
+
+      const profileAgentKinds = [
+        "codex", "claude-code", "cursor", "github-copilot", "gemini", "opencode",
+        "cline", "continue", "windsurf", "kiro", "aider", "zed", "openclaw",
+        "nanoclaw", "n8n", "zapier-agents", "openai-codex-cloud", "unknown"
+      ];
+
+      function pluginProfileSettings(plugin, disabled) {
+        const inherited = plugin.settings?.inheritedProfiles || [];
+        const profiles = plugin.settings?.profiles || [];
+        return `
+          <div class="pluginDetailHeader" style="margin-top:24px">
+            <div><strong>Agent-specific settings</strong><p>Override this plugin for an agent type or one enrolled agent. The same container handles every profile.</p></div>
+            ${disabled ? "" : `<button type="button" class="secondary" id="addPluginProfile">Add profile</button>`}
+          </div>
+          ${inherited.length ? `<div class="empty" style="margin-top:12px">${escapeHtml(String(inherited.length))} organization profile${inherited.length === 1 ? "" : "s"} will apply before your profiles.</div>` : ""}
+          <div class="cardList" id="pluginProfileList" style="margin-top:12px">
+            ${profiles.map((profile) => pluginProfileCard(plugin, profile, disabled)).join("") || `<div class="empty">No agent-specific overrides.</div>`}
+          </div>
+        `;
+      }
+
+      function pluginProfileCard(plugin, profile, disabled) {
+        const safeId = escapeHtml(profile.id);
+        const knownAgents = (state.agents || []).filter((agent) => agent.id || agent.instanceId);
+        return `
+          <article class="card" data-plugin-profile="${safeId}">
+            <div class="fieldRow">
+              <label><strong>Profile name</strong><input class="detailSettingInput" data-profile-name value="${escapeHtml(profile.name || profile.id)}" ${disabled ? "disabled" : ""}></label>
+              ${disabled ? "" : `<button type="button" class="secondary" data-remove-plugin-profile="${safeId}">Remove</button>`}
+            </div>
+            <div class="fieldRow" style="margin-top:12px">
+              <label><strong>Agent types</strong><select class="detailSettingInput" data-profile-agent-kinds multiple size="5" ${disabled ? "disabled" : ""}>${profileAgentKinds.map((kind) => `<option value="${kind}" ${(profile.agentKinds || []).includes(kind) ? "selected" : ""}>${escapeHtml(settingLabel(kind))}</option>`).join("")}</select></label>
+              <label><strong>Exact enrolled agents (optional)</strong><select class="detailSettingInput" data-profile-agent-ids multiple size="5" ${disabled ? "disabled" : ""}>${knownAgents.map((agent) => { const id = String(agent.instanceId || agent.id); return `<option value="${escapeHtml(id)}" ${(profile.agentIds || []).includes(id) ? "selected" : ""}>${escapeHtml(agent.displayName || agent.name || id)}</option>`; }).join("")}</select></label>
+              <label><strong>Enabled override</strong><select class="detailSettingInput" data-profile-enabled ${disabled ? "disabled" : ""}><option value="inherit" ${typeof profile.enabled !== "boolean" ? "selected" : ""}>Use base setting</option><option value="true" ${profile.enabled === true ? "selected" : ""}>Enabled</option><option value="false" ${profile.enabled === false ? "selected" : ""}>Disabled</option></select></label>
+            </div>
+            <label style="display:block;margin-top:12px"><strong>Setting overrides (JSON)</strong><textarea class="detailSettingInput" data-profile-config ${disabled ? "disabled" : ""}>${escapeHtml(JSON.stringify(profile.config || {}, null, 2))}</textarea></label>
+          </article>
+        `;
+      }
+
+      function collectPluginProfiles(plugin) {
+        return [...root.querySelectorAll("[data-plugin-profile]")].map((card, index) => {
+          const enabledValue = card.querySelector("[data-profile-enabled]")?.value;
+          let config = {};
+          try { config = JSON.parse(card.querySelector("[data-profile-config]")?.value || "{}"); }
+          catch { throw new Error(`Profile ${index + 1} has invalid settings JSON.`); }
+          return {
+            id: card.dataset.pluginProfile,
+            name: card.querySelector("[data-profile-name]")?.value || card.dataset.pluginProfile,
+            agentKinds: [...(card.querySelector("[data-profile-agent-kinds]")?.selectedOptions || [])].map((option) => option.value),
+            agentIds: [...(card.querySelector("[data-profile-agent-ids]")?.selectedOptions || [])].map((option) => option.value),
+            ...(enabledValue === "true" ? { enabled: true } : enabledValue === "false" ? { enabled: false } : {}),
+            config
+          };
+        });
       }
 
       function pluginDetailSettingField(plugin, config, field) {
@@ -6403,6 +6461,18 @@
         const importRules = document.getElementById("importPluginRules");
         const addRule = document.getElementById("addPluginRule");
         const scanRules = document.getElementById("scanPluginRules");
+        const addProfile = document.getElementById("addPluginProfile");
+        if (addProfile) addProfile.onclick = () => {
+          const profiles = plugin.settings?.profiles || (plugin.settings.profiles = []);
+          profiles.push({ id: `profile-${Date.now()}`, name: "Agent override", agentKinds: [], config: {} });
+          renderPluginDetail();
+        };
+        root.querySelectorAll("[data-remove-plugin-profile]").forEach((removeButton) => {
+          removeButton.onclick = () => {
+            plugin.settings.profiles = (plugin.settings?.profiles || []).filter((profile) => profile.id !== removeButton.dataset.removePluginProfile);
+            renderPluginDetail();
+          };
+        });
         root.querySelectorAll(`[data-rule-remove="${cssEscape(plugin.id)}"]`).forEach((removeButton) => {
           removeButton.onclick = () => removeButton.closest(".ruleListRow")?.remove();
         });
@@ -6475,10 +6545,18 @@
           button.disabled = true;
           status.textContent = "Saving...";
           const config = collectPluginDetailConfig(plugin);
+          let profiles;
+          try { profiles = collectPluginProfiles(plugin); }
+          catch (error) {
+            status.textContent = error?.message || "Invalid agent-specific settings.";
+            button.disabled = false;
+            return;
+          }
           const result = await window.openleash.savePluginSettings({
             pluginId: plugin.id,
             enabled: pluginInstalled(plugin),
             config,
+            profiles,
             orderingPriority: plugin.settings?.orderingPriority ?? plugin.ordering?.priority ?? null,
             marketplace: plugin.marketplace || null
           }).catch((error) => ({ ok: false, error: error?.message || "Could not save plugin settings." }));

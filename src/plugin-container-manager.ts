@@ -47,6 +47,7 @@ export async function transformViaLocalPluginContainers(input: {
   plugins: PluginCatalogItem[];
   provider: string;
   agentKind: string;
+  agentId?: string;
   sessionId: string;
   organizationId: string;
   userId: string;
@@ -55,7 +56,10 @@ export async function transformViaLocalPluginContainers(input: {
   let payload: unknown = structuredClone(input.requestBody);
   const appliedPluginIds: string[] = [];
   const runs: Array<Record<string, unknown>> = [];
-  for (const plugin of input.plugins.filter(isDesiredEdgeContainer)) {
+  const scopedPlugins = input.plugins
+    .map((plugin) => pluginForAgent(plugin, input.agentKind, input.agentId))
+    .filter((plugin) => plugin.settings.enabled && isDesiredEdgeContainer(plugin));
+  for (const plugin of scopedPlugins) {
     const requestId = crypto.randomUUID();
     const envelope = {
       protocol: PROTOCOL,
@@ -66,8 +70,10 @@ export async function transformViaLocalPluginContainers(input: {
       context: {
         provider: input.provider,
         agentKind: input.agentKind,
+        agentId: input.agentId,
         sessionId: input.sessionId,
       },
+      settings: settingsContext(plugin.settings),
       config: plugin.settings.config,
       payload,
     };
@@ -93,6 +99,11 @@ export async function transformViaLocalPluginContainers(input: {
         summary?: string;
         metrics?: Record<string, unknown>;
         ccrHashes?: string[];
+        emissions?: {
+          logs?: Array<Record<string, unknown>>;
+          signals?: Array<Record<string, unknown>>;
+          usage?: Array<Record<string, unknown>>;
+        };
       };
       if (result.protocol !== PROTOCOL || result.requestId !== requestId)
         throw new Error("incompatible or uncorrelated plugin response");
@@ -100,7 +111,7 @@ export async function transformViaLocalPluginContainers(input: {
         payload = applyProviderPatches(payload, result.patches ?? []);
         appliedPluginIds.push(plugin.id);
       }
-      runs.push({ pluginId: plugin.id, status: result.status, summary: result.summary, metrics: result.metrics, ccrHashes: result.ccrHashes });
+      runs.push({ pluginId: plugin.id, status: result.status, summary: result.summary, metrics: result.metrics, ccrHashes: result.ccrHashes, emissions: result.emissions });
     } catch (error) {
       runs.push({ pluginId: plugin.id, status: "failed", summary: error instanceof Error ? error.message : String(error) });
       if ((plugin.execution?.failureMode ?? "open") === "closed") throw error;
@@ -129,6 +140,7 @@ export async function executeViaLocalPluginContainer(input: {
     tenant: { organizationId: input.organizationId, userId: input.userId },
     event: "plugin.tool.execute",
     context: { sessionId: input.sessionId },
+    settings: settingsContext(input.plugin.settings),
     config: input.plugin.settings.config,
     tool: input.tool,
     arguments: input.arguments,
@@ -188,11 +200,40 @@ export function containerRunArgs(
 
 function isDesiredEdgeContainer(plugin: PluginCatalogItem) {
   return Boolean(
-    plugin.settings?.enabled &&
+    plugin.settings?.runtimeAvailable !== false &&
+      (plugin.settings?.enabled || plugin.settings?.profiles?.some((profile) => profile.enabled === true)) &&
       plugin.runtime === "container" &&
       plugin.execution?.type === "container" &&
       ["edge", "either"].includes(plugin.execution.placement),
   );
+}
+
+function pluginForAgent(plugin: PluginCatalogItem, agentKind: string, agentId?: string): PluginCatalogItem {
+  let enabled = plugin.settings.enabled;
+  let config = { ...plugin.settings.config };
+  const effectiveProfileIds: string[] = [];
+  const apply = (scope: "organization" | "user", profiles = plugin.settings.profiles ?? []) => {
+    for (const profile of [...profiles].sort((a, b) => (a.priority ?? 0) - (b.priority ?? 0) || a.id.localeCompare(b.id))) {
+      if (profile.agentKinds.length > 0 && !profile.agentKinds.includes(agentKind)) continue;
+      if ((profile.agentIds?.length ?? 0) > 0 && (!agentId || !profile.agentIds!.includes(agentId))) continue;
+      if (typeof profile.enabled === "boolean") enabled = profile.enabled;
+      config = { ...config, ...profile.config };
+      effectiveProfileIds.push(`${scope}:${profile.id}`);
+    }
+  };
+  apply("organization", plugin.settings.inheritedProfiles ?? []);
+  apply("user", plugin.settings.profiles ?? []);
+  return {
+    ...plugin,
+    settings: { ...plugin.settings, enabled, config, effectiveProfileIds },
+  };
+}
+
+function settingsContext(settings: PluginCatalogItem["settings"]) {
+  return {
+    profileIds: settings.effectiveProfileIds ?? [],
+    configHash: crypto.createHash("sha256").update(JSON.stringify(settings.config)).digest("hex"),
+  };
 }
 
 async function reconcileOne(plugin: PluginCatalogItem): Promise<PluginContainerStatus> {

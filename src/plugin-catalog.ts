@@ -36,6 +36,19 @@ export type BundledPluginManifest = {
 export type PluginSettingState = {
   enabled: boolean;
   config: Record<string, unknown>;
+  profiles?: Array<{
+    id: string;
+    name: string;
+    agentKinds: string[];
+    agentIds?: string[];
+    enabled?: boolean;
+    config: Record<string, unknown>;
+    priority?: number;
+  }>;
+  inheritedProfiles?: PluginSettingState["profiles"];
+  effectiveProfileIds?: string[];
+  runtimeAvailable?: boolean;
+  runtimeError?: string;
   orderingPriority?: number | null;
   installedVersion?: string;
   availableVersion?: string;
