@@ -5014,7 +5014,7 @@ function ensureIndividualOpenSourceRuntime(runtimeDir: string) {
       envPath,
       [
         "OPENLEASH_IMAGE_REGISTRY=ghcr.io/open-leash",
-        `OPENLEASH_VERSION=${process.env.OPENLEASH_BACKEND_VERSION || "0.36.3@sha256:c01b6c9997968ddcd9f07d0a9c87ac9537bd829233c9ece9550786e52e29c157"}`,
+        `OPENLEASH_VERSION=${process.env.OPENLEASH_BACKEND_VERSION || "0.36.4@sha256:2ae3b6a99848b0c076a964a422af2b7321c3bc7fbfdebd906809f32885a844ab"}`,
         "OPENLEASH_POSTGRES_DB=openleash",
         "OPENLEASH_POSTGRES_USER=openleash",
         `OPENLEASH_POSTGRES_PASSWORD=${randomHexSecret()}`,
@@ -5083,7 +5083,7 @@ services:
       retries: 20
 
   migrate:
-    image: \${OPENLEASH_IMAGE_REGISTRY:-ghcr.io/open-leash}/openleash-client-api:\${OPENLEASH_VERSION:-0.36.3@sha256:c01b6c9997968ddcd9f07d0a9c87ac9537bd829233c9ece9550786e52e29c157}
+    image: \${OPENLEASH_IMAGE_REGISTRY:-ghcr.io/open-leash}/client-api:\${OPENLEASH_VERSION:-0.36.4@sha256:2ae3b6a99848b0c076a964a422af2b7321c3bc7fbfdebd906809f32885a844ab}
     profiles: ["setup"]
     environment:
       DATABASE_URL: postgres://\${OPENLEASH_POSTGRES_USER:-openleash}:\${OPENLEASH_POSTGRES_PASSWORD:-openleash}@postgres:5432/\${OPENLEASH_POSTGRES_DB:-openleash}
@@ -5098,17 +5098,17 @@ services:
         condition: service_healthy
 
   seed:
-    image: \${OPENLEASH_IMAGE_REGISTRY:-ghcr.io/open-leash}/openleash-client-api:\${OPENLEASH_VERSION:-0.36.3@sha256:c01b6c9997968ddcd9f07d0a9c87ac9537bd829233c9ece9550786e52e29c157}
+    image: \${OPENLEASH_IMAGE_REGISTRY:-ghcr.io/open-leash}/client-api:\${OPENLEASH_VERSION:-0.36.4@sha256:2ae3b6a99848b0c076a964a422af2b7321c3bc7fbfdebd906809f32885a844ab}
     profiles: ["setup"]
     environment:
       DATABASE_URL: postgres://\${OPENLEASH_POSTGRES_USER:-openleash}:\${OPENLEASH_POSTGRES_PASSWORD:-openleash}@postgres:5432/\${OPENLEASH_POSTGRES_DB:-openleash}
-    command: ["node", "scripts/db-create-organization.mjs", "--name", "Individual Open Source", "--slug", "individual-open-source", "--mode", "private"]
+    command: ["node", "apps/client-api/dist/create-organization.js", "--name", "Individual Open Source", "--slug", "individual-open-source", "--mode", "private"]
     depends_on:
       postgres:
         condition: service_healthy
 
   client-api:
-    image: \${OPENLEASH_IMAGE_REGISTRY:-ghcr.io/open-leash}/openleash-client-api:\${OPENLEASH_VERSION:-0.36.3@sha256:c01b6c9997968ddcd9f07d0a9c87ac9537bd829233c9ece9550786e52e29c157}
+    image: \${OPENLEASH_IMAGE_REGISTRY:-ghcr.io/open-leash}/client-api:\${OPENLEASH_VERSION:-0.36.4@sha256:2ae3b6a99848b0c076a964a422af2b7321c3bc7fbfdebd906809f32885a844ab}
     container_name: openleash-individual-client-api
     environment:
       DATABASE_URL: postgres://\${OPENLEASH_POSTGRES_USER:-openleash}:\${OPENLEASH_POSTGRES_PASSWORD:-openleash}@postgres:5432/\${OPENLEASH_POSTGRES_DB:-openleash}
