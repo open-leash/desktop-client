@@ -4499,6 +4499,12 @@ function closeNoticeWithoutOpeningMainWindow() {
   if (noticeWindow && !noticeWindow.isDestroyed()) noticeWindow.destroy();
   noticeWindow = undefined;
   activeNoticeKey = undefined;
+  if (window && !window.isDestroyed() && !window.isVisible()) {
+    window.hide();
+    window.setSkipTaskbar(!setupNeedsDockIcon());
+    hideDockIconIfTrayMode();
+  }
+  if (process.platform === "darwin" && !setupNeedsDockIcon()) app.hide();
 }
 
 function showAgentDetail(_agent: AgentStatus) {
@@ -5023,7 +5029,7 @@ function ensureIndividualOpenSourceRuntime(runtimeDir: string) {
       envPath,
       [
         "OPENLEASH_IMAGE_REGISTRY=ghcr.io/open-leash",
-        `OPENLEASH_VERSION=${process.env.OPENLEASH_BACKEND_VERSION || "0.36.5@sha256:4cb1f00c69cb9b8f14be8bc54bd931e200e8bbaf419f8025545d474e38245679"}`,
+        `OPENLEASH_VERSION=${process.env.OPENLEASH_BACKEND_VERSION || "0.36.6@sha256:f05d628440442faee4a23d3b7296cf43590fda8a6f51def73b43a619ba753f21"}`,
         "OPENLEASH_POSTGRES_DB=openleash",
         "OPENLEASH_POSTGRES_USER=openleash",
         `OPENLEASH_POSTGRES_PASSWORD=${randomHexSecret()}`,
@@ -5092,7 +5098,7 @@ services:
       retries: 20
 
   migrate:
-    image: \${OPENLEASH_IMAGE_REGISTRY:-ghcr.io/open-leash}/client-api:\${OPENLEASH_VERSION:-0.36.5@sha256:4cb1f00c69cb9b8f14be8bc54bd931e200e8bbaf419f8025545d474e38245679}
+    image: \${OPENLEASH_IMAGE_REGISTRY:-ghcr.io/open-leash}/client-api:\${OPENLEASH_VERSION:-0.36.6@sha256:f05d628440442faee4a23d3b7296cf43590fda8a6f51def73b43a619ba753f21}
     profiles: ["setup"]
     environment:
       DATABASE_URL: postgres://\${OPENLEASH_POSTGRES_USER:-openleash}:\${OPENLEASH_POSTGRES_PASSWORD:-openleash}@postgres:5432/\${OPENLEASH_POSTGRES_DB:-openleash}
@@ -5107,7 +5113,7 @@ services:
         condition: service_healthy
 
   seed:
-    image: \${OPENLEASH_IMAGE_REGISTRY:-ghcr.io/open-leash}/client-api:\${OPENLEASH_VERSION:-0.36.5@sha256:4cb1f00c69cb9b8f14be8bc54bd931e200e8bbaf419f8025545d474e38245679}
+    image: \${OPENLEASH_IMAGE_REGISTRY:-ghcr.io/open-leash}/client-api:\${OPENLEASH_VERSION:-0.36.6@sha256:f05d628440442faee4a23d3b7296cf43590fda8a6f51def73b43a619ba753f21}
     profiles: ["setup"]
     environment:
       DATABASE_URL: postgres://\${OPENLEASH_POSTGRES_USER:-openleash}:\${OPENLEASH_POSTGRES_PASSWORD:-openleash}@postgres:5432/\${OPENLEASH_POSTGRES_DB:-openleash}
@@ -5117,7 +5123,7 @@ services:
         condition: service_healthy
 
   client-api:
-    image: \${OPENLEASH_IMAGE_REGISTRY:-ghcr.io/open-leash}/client-api:\${OPENLEASH_VERSION:-0.36.5@sha256:4cb1f00c69cb9b8f14be8bc54bd931e200e8bbaf419f8025545d474e38245679}
+    image: \${OPENLEASH_IMAGE_REGISTRY:-ghcr.io/open-leash}/client-api:\${OPENLEASH_VERSION:-0.36.6@sha256:f05d628440442faee4a23d3b7296cf43590fda8a6f51def73b43a619ba753f21}
     container_name: openleash-individual-client-api
     environment:
       DATABASE_URL: postgres://\${OPENLEASH_POSTGRES_USER:-openleash}:\${OPENLEASH_POSTGRES_PASSWORD:-openleash}@postgres:5432/\${OPENLEASH_POSTGRES_DB:-openleash}

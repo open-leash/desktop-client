@@ -9,9 +9,9 @@ assert(match, "Could not find DEFAULT_LOCAL_PROXY_IMAGE in proxy-manager.ts");
 const image = match[1];
 assert(!image.endsWith(":latest"), `Desktop proxy image must be immutable, received ${image}`);
 
-const parsed = /^ghcr\.io\/([^/]+)\/([^:@]+):([^@]+)$/.exec(image);
-assert(parsed, `Expected a versioned GHCR image, received ${image}`);
-const [, owner, repository, tag] = parsed;
+const parsed = /^ghcr\.io\/([^/]+)\/([^:@]+):([^@]+)@(sha256:[a-f0-9]{64})$/.exec(image);
+assert(parsed, `Expected a versioned, digest-pinned GHCR image, received ${image}`);
+const [, owner, repository, tag, digest] = parsed;
 const scope = `repository:${owner}/${repository}:pull`;
 
 // Deliberately request an anonymous registry token. Using the release runner's
@@ -24,7 +24,7 @@ const { token } = await tokenResponse.json();
 assert(token, `GHCR anonymous token response was empty for ${image}`);
 
 const manifestResponse = await fetch(
-  `https://ghcr.io/v2/${owner}/${repository}/manifests/${tag}`,
+  `https://ghcr.io/v2/${owner}/${repository}/manifests/${digest}`,
   {
     headers: {
       authorization: `Bearer ${token}`,
