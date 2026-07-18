@@ -468,11 +468,19 @@ export class LocalOpenLeashServer {
       this.server?.once("error", reject);
       this.server?.listen(this.options.apiPort ?? 9317, "127.0.0.1", () => resolve());
     });
-    this.legacyAuthServer = http.createServer((req, res) => void this.routeLegacyAuth(req, res));
-    this.legacyAuthServer.once("error", () => {
-      this.legacyAuthServer = undefined;
+    const legacyAuthServer = http.createServer((req, res) => void this.routeLegacyAuth(req, res));
+    this.legacyAuthServer = legacyAuthServer;
+    await new Promise<void>((resolve) => {
+      const onError = () => {
+        if (this.legacyAuthServer === legacyAuthServer) this.legacyAuthServer = undefined;
+        resolve();
+      };
+      legacyAuthServer.once("error", onError);
+      legacyAuthServer.listen(this.options.legacyAuthPort ?? 4317, "127.0.0.1", () => {
+        legacyAuthServer.off("error", onError);
+        resolve();
+      });
     });
-    this.legacyAuthServer.listen(this.options.legacyAuthPort ?? 4317, "127.0.0.1");
   }
 
   async stop() {
