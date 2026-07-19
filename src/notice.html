@@ -7,7 +7,7 @@
     <style>
       :root {
         color-scheme: dark;
-        --black: rgba(3, 4, 5, .985);
+        --black: #000000;
         --panel: rgba(17, 19, 22, .94);
         --panel-hover: rgba(27, 30, 34, .96);
         --ink: #f8f8f7;
@@ -52,9 +52,7 @@
         overflow: hidden;
         border: 1px solid rgba(255, 255, 255, .115);
         border-radius: 18px;
-        background:
-          radial-gradient(circle at 24% -20%, rgba(255,255,255,.075), transparent 34%),
-          linear-gradient(180deg, rgba(9,10,12,.995), var(--black));
+        background: var(--black);
         box-shadow:
           0 18px 46px rgba(0, 0, 0, .5),
           0 2px 8px rgba(0, 0, 0, .34),
@@ -459,6 +457,7 @@
         return {
           hasNotch: document.body.classList.contains("has-display-notch"),
           safeTop,
+          backgroundColor: getComputedStyle(island).backgroundColor,
           contentTop: copyRect?.top ?? 0,
           contentClearsNotch: !document.body.classList.contains("has-display-notch") || (copyRect?.top ?? 0) >= safeTop,
         };

@@ -67,6 +67,7 @@ try {
   } });
   const compact = await inspectAfter(450);
   assert.equal(compact.visible, true);
+  assert.equal(compact.layout.backgroundColor, "rgb(0, 0, 0)");
   assert.equal(compact.frame.topInset, 0);
   assert.ok(compact.frame.width >= 285 && compact.frame.width <= 320, `unexpected compact width ${compact.frame.width}`);
   assert.ok(compact.frame.height < 135, `unexpected compact height ${compact.frame.height}`);
@@ -90,6 +91,7 @@ try {
   } });
   const expanded = await inspectAfter(700);
   assert.equal(expanded.visible, true);
+  assert.equal(expanded.layout.backgroundColor, "rgb(0, 0, 0)");
   assert.equal(expanded.frame.topInset, 0);
   assert.ok(expanded.frame.width >= 560 && expanded.frame.width <= 570, `unexpected expanded width ${expanded.frame.width}`);
   assert.ok(expanded.frame.height > 300, `unexpected expanded height ${expanded.frame.height}`);
