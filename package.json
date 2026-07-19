@@ -27,6 +27,8 @@
     "@types/better-sqlite3": "^7.6.13",
     "@types/node": "^22.15.21",
     "electron-builder": "26.15.3",
+    "sharp": "0.34.5",
+    "simple-icons": "^16.19.0",
     "tsx": "^4.23.1",
     "typescript": "^5.8.3"
   }

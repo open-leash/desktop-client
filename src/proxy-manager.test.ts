@@ -11,6 +11,7 @@ import {
 
 const home = fs.mkdtempSync(path.join(os.tmpdir(), "openleash-proxy-test-"));
 process.env.HOME = home;
+process.env.USERPROFILE = home;
 
 test("released desktop uses an immutable published proxy image", () => {
   assert.equal(

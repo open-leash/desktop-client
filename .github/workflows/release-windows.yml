@@ -48,6 +48,7 @@ jobs:
       - name: Test and build
         shell: pwsh
         run: |
+          $PSNativeCommandUseErrorActionPreference = $true
           npm run build -w @openleash/shared
           npm run typecheck -w @openleash/desktop-client
           npm run test -w @openleash/desktop-client
