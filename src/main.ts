@@ -4886,7 +4886,7 @@ function formatNotice(notice: DecisionNotice) {
       kind: "ask",
       id: item.id,
       agentName: item.agent_name,
-      agentIcon: agentIconFor(item.agent_name),
+      agentIcon: noticeAgentIconFor(item.agent_name),
       action,
       summary: item.summary,
       purpose: item.purpose_summary ?? noticePurpose(item),
@@ -4909,7 +4909,7 @@ function formatNotice(notice: DecisionNotice) {
       eventId: notice.event.id,
       agentName: notice.event.agent?.name ?? "AI agent",
       agentKind: notice.event.agent?.kind ?? "unknown",
-      agentIcon: agentIconFor(notice.event.agent?.name ?? ""),
+      agentIcon: noticeAgentIconFor(notice.event.agent?.name ?? ""),
       title: notice.event.title,
       summary: notice.event.body,
       project: projectTag(notice.event.session?.projectPath),
@@ -4922,13 +4922,31 @@ function formatNotice(notice: DecisionNotice) {
     return {
       kind: "sample",
       agentName: notice.agentName,
-      agentIcon: agentIconFor(notice.agentName),
+      agentIcon: noticeAgentIconFor(notice.agentName),
       summary: notice.summary,
       policy: notice.policy,
       project: notice.project,
       time: "example",
     };
   }
+}
+
+function noticeAgentIconFor(name: string) {
+  const value = name.toLowerCase();
+  const local = value.includes("claude")
+    ? "claude"
+    : value.includes("codex") || value.includes("openai")
+      ? "openai"
+      : value.includes("opencode")
+        ? "opencode"
+        : value.includes("gemini")
+          ? "gemini"
+          : value.includes("github") || value.includes("copilot")
+            ? "copilot"
+            : value.includes("cursor")
+              ? "cursor"
+              : undefined;
+  return local ? `agent-icons/${local}.svg` : agentIconFor(name);
 }
 
 function noticePluginName(item: PendingDecision) {
