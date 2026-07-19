@@ -311,6 +311,10 @@ let tray: Tray | undefined;
 let traySingleClickTimer: NodeJS.Timeout | undefined;
 let window: BrowserWindow | undefined;
 let noticeWindow: BrowserWindow | undefined;
+let nativeIslandProcess: ReturnType<typeof spawn> | undefined;
+let nativeIslandReady = false;
+let nativeIslandOutput = "";
+let pendingNativeIslandPayload: Record<string, unknown> | undefined;
 let latestPending: PendingDecision[] = [];
 let latestAgents: AgentStatus[] = [];
 let latestSessionMetrics: SessionMetrics = {};
@@ -1945,78 +1949,22 @@ ipcMain.handle(
     resolutionGuidance?: string,
     rememberForMs?: number,
     responsePayload?: Record<string, unknown>,
-  ) => {
-    const pending = latestPending.find((item) => item.id === id);
-    if (pending && Number(rememberForMs) > 0) {
-      rememberedApprovalChoices.set(rememberedDecisionKey(pending), {
-        resolution,
-        expiresAt: Date.now() + Math.min(Number(rememberForMs), 5 * 60_000),
-      });
-    }
-    const noticeKey = pending ? decisionNoticeKey(pending) : activeNoticeKey;
-    if (noticeKey) suppressedNoticeKeys.add(noticeKey);
-    const idsToResolve = pending
-      ? latestPending
-          .filter(
-            (item) => pendingNoticeKey(item) === pendingNoticeKey(pending),
-          )
-          .map((item) => item.id)
-      : [id];
-    for (const decisionId of idsToResolve) resolvingDecisionIds.add(decisionId);
-    for (const decisionId of idsToResolve) {
-      if (!localServer.resolve(decisionId, resolution, resolutionGuidance, responsePayload)) {
-        startupLog(`approval resolve missing local decision ${decisionId}`);
-      }
-    }
-    closeNoticeWithoutOpeningMainWindow();
-    latestPending = latestPending.filter(
-      (item) => !idsToResolve.includes(item.id),
-    );
-    refreshMenu();
-    window?.webContents.send("openleash:update", {
-      apiUrl,
-      pending: latestPending,
-      agents: latestAgents,
-      sessionMetrics: latestSessionMetrics,
-      plugins: latestPlugins,
-      outcomes: latestOutcomes,
-      viewModel: latestViewModel,
-      history: localServer.history,
-      mcpServers: localServer.mcpServers,
-      skills: localServer.skills,
-    });
-    void Promise.all(
-      idsToResolve.map((decisionId) =>
-        syncRemoteDecision(decisionId, resolution, resolutionGuidance, responsePayload),
-      ),
-    )
-      .catch((error) => {
-        startupLog(
-          `remote approval resolve failed: ${error instanceof Error ? error.stack || error.message : String(error)}`,
-        );
-      })
-      .finally(() => {
-        for (const decisionId of idsToResolve)
-          resolvingDecisionIds.delete(decisionId);
-      });
-    setTimeout(() => {
-      if (noticeKey) suppressedNoticeKeys.delete(noticeKey);
-    }, 5 * 60_000);
-    return { ok: true };
-  },
+  ) => resolveDecision(id, resolution, resolutionGuidance, rememberForMs, responsePayload),
 );
 ipcMain.handle("openleash:dismiss-notice", () => {
   closeNoticeWithoutOpeningMainWindow();
 });
-ipcMain.handle("openleash:resize-notice", (_event, requestedHeight: number) => {
+ipcMain.handle("openleash:resize-notice", (_event, requestedSize: number | { width?: number; height?: number }) => {
   if (!noticeWindow || noticeWindow.isDestroyed()) return { ok: false };
-  const height = Math.max(72, Math.min(680, Math.round(Number(requestedHeight) || 118)));
+  const requestedWidth = typeof requestedSize === "object" ? requestedSize?.width : undefined;
+  const requestedHeight = typeof requestedSize === "object" ? requestedSize?.height : requestedSize;
+  const width = Math.max(230, Math.min(620, Math.round(Number(requestedWidth) || noticeWindow.getBounds().width)));
+  const height = Math.max(44, Math.min(680, Math.round(Number(requestedHeight) || 52)));
   const display = screen.getDisplayNearestPoint(screen.getCursorScreenPoint()).bounds;
-  const bounds = noticeWindow.getBounds();
   noticeWindow.setBounds({
-    x: Math.round(display.x + (display.width - bounds.width) / 2),
-    y: Math.round(display.y + (process.platform === "darwin" ? 5 : 10)),
-    width: bounds.width,
+    x: Math.round(display.x + (display.width - width) / 2),
+    y: Math.round(display.y + (process.platform === "darwin" ? 0 : 10)),
+    width,
     height,
   });
   return { ok: true };
@@ -2024,6 +1972,67 @@ ipcMain.handle("openleash:resize-notice", (_event, requestedHeight: number) => {
 ipcMain.handle("openleash:jump-to-agent", async (_event, payload: { agentKind?: string }) => {
   return openAgentApplication(payload?.agentKind);
 });
+
+async function resolveDecision(
+  id: string,
+  resolution: "allow" | "deny",
+  resolutionGuidance?: string,
+  rememberForMs?: number,
+  responsePayload?: Record<string, unknown>,
+) {
+  const pending = latestPending.find((item) => item.id === id);
+  if (pending && Number(rememberForMs) > 0) {
+    rememberedApprovalChoices.set(rememberedDecisionKey(pending), {
+      resolution,
+      expiresAt: Date.now() + Math.min(Number(rememberForMs), 5 * 60_000),
+    });
+  }
+  const noticeKey = pending ? decisionNoticeKey(pending) : activeNoticeKey;
+  if (noticeKey) suppressedNoticeKeys.add(noticeKey);
+  const idsToResolve = pending
+    ? latestPending
+        .filter((item) => pendingNoticeKey(item) === pendingNoticeKey(pending))
+        .map((item) => item.id)
+    : [id];
+  for (const decisionId of idsToResolve) resolvingDecisionIds.add(decisionId);
+  for (const decisionId of idsToResolve) {
+    if (!localServer.resolve(decisionId, resolution, resolutionGuidance, responsePayload)) {
+      startupLog(`approval resolve missing local decision ${decisionId}`);
+    }
+  }
+  closeNoticeWithoutOpeningMainWindow();
+  latestPending = latestPending.filter((item) => !idsToResolve.includes(item.id));
+  refreshMenu();
+  window?.webContents.send("openleash:update", {
+    apiUrl,
+    pending: latestPending,
+    agents: latestAgents,
+    sessionMetrics: latestSessionMetrics,
+    plugins: latestPlugins,
+    outcomes: latestOutcomes,
+    viewModel: latestViewModel,
+    history: localServer.history,
+    mcpServers: localServer.mcpServers,
+    skills: localServer.skills,
+  });
+  void Promise.all(
+    idsToResolve.map((decisionId) =>
+      syncRemoteDecision(decisionId, resolution, resolutionGuidance, responsePayload),
+    ),
+  )
+    .catch((error) => {
+      startupLog(
+        `remote approval resolve failed: ${error instanceof Error ? error.stack || error.message : String(error)}`,
+      );
+    })
+    .finally(() => {
+      for (const decisionId of idsToResolve) resolvingDecisionIds.delete(decisionId);
+    });
+  setTimeout(() => {
+    if (noticeKey) suppressedNoticeKeys.delete(noticeKey);
+  }, 5 * 60_000);
+  return { ok: true };
+}
 
 async function poll() {
   try {
@@ -4539,6 +4548,9 @@ function quitOpenLeash() {
   if (noticeDismissTimer) clearTimeout(noticeDismissTimer);
   noticeWindow?.destroy();
   noticeWindow = undefined;
+  sendNativeIsland({ type: "quit" });
+  nativeIslandProcess?.kill();
+  nativeIslandProcess = undefined;
   window?.destroy();
   window = undefined;
   for (const watcher of protectionWatchers.values()) watcher.close();
@@ -4581,6 +4593,8 @@ function closeNoticeWithoutOpeningMainWindow() {
   noticeDismissTimer = undefined;
   if (noticeWindow && !noticeWindow.isDestroyed()) noticeWindow.destroy();
   noticeWindow = undefined;
+  pendingNativeIslandPayload = undefined;
+  sendNativeIsland({ type: "dismiss" });
   activeNoticeKey = undefined;
   if (window && !window.isDestroyed() && !window.isVisible()) {
     window.hide();
@@ -4655,9 +4669,122 @@ function noticeWorkArea(notice: DecisionNotice) {
   return largestDisplay().bounds;
 }
 
+function nativeIslandExecutable() {
+  const names = app.isPackaged
+    ? [
+        path.join(process.resourcesPath, "app.asar.unpacked", "apps", "desktop-client", "dist", "openleash-island"),
+        path.join(process.resourcesPath, "app.asar.unpacked", "dist", "openleash-island"),
+      ]
+    : [path.join(here, "openleash-island")];
+  return names.find((candidate) => fs.existsSync(candidate));
+}
+
+function ensureNativeIsland() {
+  if (process.platform !== "darwin") return false;
+  if (nativeIslandProcess && !nativeIslandProcess.killed) return true;
+  const executable = nativeIslandExecutable();
+  const html = path.join(here, "notice.html");
+  if (!executable || !fs.existsSync(html)) return false;
+
+  try {
+    const child = spawn(executable, [html], { stdio: ["pipe", "pipe", "pipe"] });
+    nativeIslandProcess = child;
+    nativeIslandReady = false;
+    nativeIslandOutput = "";
+    child.stdout?.setEncoding("utf8");
+    child.stdout?.on("data", (chunk: string) => {
+      nativeIslandOutput += chunk;
+      let newline = nativeIslandOutput.indexOf("\n");
+      while (newline >= 0) {
+        const line = nativeIslandOutput.slice(0, newline).trim();
+        nativeIslandOutput = nativeIslandOutput.slice(newline + 1);
+        if (line) handleNativeIslandMessage(line);
+        newline = nativeIslandOutput.indexOf("\n");
+      }
+    });
+    child.stderr?.setEncoding("utf8");
+    child.stderr?.on("data", (chunk: string) => {
+      const message = chunk.trim();
+      if (message) startupLog(`native island: ${message}`);
+    });
+    child.once("error", (error) => {
+      startupLog(`native island failed: ${error.message}`);
+    });
+    child.once("exit", (code, signal) => {
+      if (!quitting) startupLog(`native island exited (${code ?? signal ?? "unknown"})`);
+      if (nativeIslandProcess === child) nativeIslandProcess = undefined;
+      nativeIslandReady = false;
+    });
+    return true;
+  } catch (error) {
+    startupLog(`native island launch failed: ${error instanceof Error ? error.message : String(error)}`);
+    nativeIslandProcess = undefined;
+    return false;
+  }
+}
+
+function sendNativeIsland(message: Record<string, unknown>) {
+  if (!nativeIslandProcess?.stdin || nativeIslandProcess.stdin.destroyed) return false;
+  nativeIslandProcess.stdin.write(`${JSON.stringify(message)}\n`);
+  return true;
+}
+
+function showNativeIsland(payload: Record<string, unknown>, noticeKey: string) {
+  if (!ensureNativeIsland()) return false;
+  suppressMainWindowActivation();
+  noticeWindow?.destroy();
+  noticeWindow = undefined;
+  activeNoticeKey = noticeKey;
+  pendingNativeIslandPayload = payload;
+  if (nativeIslandReady) sendNativeIsland({ type: "show", payload });
+  return true;
+}
+
+function handleNativeIslandMessage(line: string) {
+  let message: Record<string, unknown>;
+  try {
+    message = JSON.parse(line) as Record<string, unknown>;
+  } catch {
+    startupLog("native island returned malformed JSON");
+    return;
+  }
+  if (message.type === "ready") {
+    nativeIslandReady = true;
+    if (pendingNativeIslandPayload) {
+      sendNativeIsland({ type: "show", payload: pendingNativeIslandPayload });
+    }
+    return;
+  }
+  if (message.type !== "action") return;
+  if (message.action === "dismiss") {
+    closeNoticeWithoutOpeningMainWindow();
+    return;
+  }
+  if (message.action === "jump") {
+    const payload = message.payload && typeof message.payload === "object"
+      ? message.payload as { agentKind?: string }
+      : undefined;
+    void openAgentApplication(payload?.agentKind);
+    return;
+  }
+  if (message.action === "resolve") {
+    const resolution = message.resolution === "allow" ? "allow" : "deny";
+    const response = message.response && typeof message.response === "object"
+      ? message.response as Record<string, unknown>
+      : undefined;
+    void resolveDecision(
+      String(message.id ?? ""),
+      resolution,
+      typeof message.guidance === "string" ? message.guidance : "",
+      Number(message.rememberForMs ?? 0),
+      response,
+    );
+  }
+}
+
 function showDecisionNotice(notice: DecisionNotice) {
   const display = noticeWorkArea(notice);
-  const width = 430;
+  const width = 300;
   const supportsGuidance =
     notice.kind === "ask"
       ? supportsAgentGuidance(notice.pending.agent_kind)
@@ -4669,12 +4796,17 @@ function showDecisionNotice(notice: DecisionNotice) {
       : notice.kind === "attention"
         ? notice.event.id
         : "sample";
+  const payload = formatNotice(notice) as Record<string, unknown>;
+  if (process.platform === "darwin" && showNativeIsland(payload, noticeKey)) {
+    if (notice.kind === "attention") scheduleAttentionDismiss(noticeKey);
+    return;
+  }
   if (
     activeNoticeKey === noticeKey &&
     noticeWindow &&
     !noticeWindow.isDestroyed()
   ) {
-    noticeWindow.webContents.send("openleash:notice", formatNotice(notice));
+    noticeWindow.webContents.send("openleash:notice", payload);
     if (!noticeWindow.isVisible()) noticeWindow.showInactive();
     return;
   }
@@ -4686,14 +4818,20 @@ function showDecisionNotice(notice: DecisionNotice) {
     width,
     height,
     x: Math.round(display.x + (display.width - width) / 2),
-    y: Math.round(display.y + (process.platform === "darwin" ? 5 : 10)),
+    y: Math.round(display.y + (process.platform === "darwin" ? 0 : 10)),
     show: false,
     frame: false,
     resizable: false,
     alwaysOnTop: true,
     skipTaskbar: true,
     transparent: true,
+    backgroundColor: "#00000000",
     hasShadow: false,
+    hiddenInMissionControl: true,
+    movable: false,
+    minimizable: false,
+    maximizable: false,
+    fullscreenable: false,
     focusable: true,
     acceptFirstMouse: true,
     webPreferences: {
@@ -4722,18 +4860,20 @@ function showDecisionNotice(notice: DecisionNotice) {
       return;
     createdNoticeWindow.webContents.send(
       "openleash:notice",
-      formatNotice(notice),
+      payload,
     );
     createdNoticeWindow.showInactive();
     createdNoticeWindow.setAlwaysOnTop(true, "screen-saver");
     createdNoticeWindow.moveTop();
-    if (notice.kind === "attention") {
-      if (noticeDismissTimer) clearTimeout(noticeDismissTimer);
-      noticeDismissTimer = setTimeout(() => {
-        if (activeNoticeKey === noticeKey) closeNoticeWithoutOpeningMainWindow();
-      }, 5200);
-    }
+    if (notice.kind === "attention") scheduleAttentionDismiss(noticeKey);
   });
+}
+
+function scheduleAttentionDismiss(noticeKey: string) {
+  if (noticeDismissTimer) clearTimeout(noticeDismissTimer);
+  noticeDismissTimer = setTimeout(() => {
+    if (activeNoticeKey === noticeKey) closeNoticeWithoutOpeningMainWindow();
+  }, 5200);
 }
 
 function formatNotice(notice: DecisionNotice) {

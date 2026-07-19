@@ -32,7 +32,7 @@ contextBridge.exposeInMainWorld("openleash", {
   discoverInstructionRules: () => ipcRenderer.invoke("openleash:discover-instruction-rules"),
   resolve: (id: string, resolution: "allow" | "deny", resolutionGuidance?: string, rememberForMs?: number, response?: Record<string, unknown>) => ipcRenderer.invoke("openleash:resolve", id, resolution, resolutionGuidance, rememberForMs, response),
   dismissNotice: () => ipcRenderer.invoke("openleash:dismiss-notice"),
-  resizeNotice: (height: number) => ipcRenderer.invoke("openleash:resize-notice", height),
+  resizeNotice: (size: number | { width?: number; height?: number }) => ipcRenderer.invoke("openleash:resize-notice", size),
   jumpToAgent: (payload: unknown) => ipcRenderer.invoke("openleash:jump-to-agent", payload),
   onUpdate: (callback: (payload: unknown) => void) => {
     ipcRenderer.on("openleash:update", (_event, payload) => callback(payload));
