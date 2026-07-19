@@ -18,6 +18,10 @@ import {
 } from "./public-config";
 import { bundledPluginCatalog, type PluginCatalogItem } from "./plugin-catalog";
 import { executeViaLocalPluginContainer, transformViaLocalPluginContainers, type PluginContainerStatus } from "./plugin-container-manager";
+import {
+  handledIntentKeysMatch,
+  isReusableHandledIntent,
+} from "./intent-dedupe";
 
 const ACTION_PURPOSE_CONTEXT_MESSAGES = Number(process.env.OPENLEASH_ACTION_PURPOSE_MESSAGES ?? 5);
 type ClientMode = "personal" | "cloud" | "custom";
@@ -990,11 +994,9 @@ export class LocalOpenLeashServer {
 
   private findRecentHandledIntent(intentKey: string, request: EvaluationRequest) {
     const cutoff = Date.now() - 5 * 60_000;
-    const canonicalKey = canonicalIntentKey(intentKey);
     return this.store.history.find((entry) => {
-      if (entry.event_name === "UserPromptSubmit") return false;
-      const entryIntentKey = canonicalIntentKey(entry.intentKey);
-      if (entryIntentKey !== canonicalKey && entry.fingerprint !== intentKey) return false;
+      if (!isReusableHandledIntent({ eventName: entry.event_name, decision: entry.decision })) return false;
+      if (!handledIntentKeysMatch(entry.intentKey, intentKey) && entry.fingerprint !== intentKey) return false;
       if (entry.id === request.event.raw && typeof request.event.raw === "string") return false;
       const created = new Date(entry.created_at).getTime();
       return Number.isNaN(created) || created >= cutoff;
