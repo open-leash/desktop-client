@@ -72,6 +72,7 @@ jobs:
           CSC_LINK: ${{ secrets.WINDOWS_CSC_LINK }}
           CSC_KEY_PASSWORD: ${{ secrets.WINDOWS_CSC_KEY_PASSWORD }}
         run: |
+          $PSNativeCommandUseErrorActionPreference = $true
           npx electron-rebuild -v 40.10.6 -w better-sqlite3 --force
           npx electron-builder --config electron-builder.windows.yml --win --x64 --publish never
           node scripts/verify-packaged-windows.mjs

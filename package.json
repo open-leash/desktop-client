@@ -1,6 +1,8 @@
 {
   "name": "@openleash/desktop-client",
   "version": "0.36.8",
+  "description": "OpenLeash desktop agent policy and attention client.",
+  "author": "OpenLeash",
   "type": "commonjs",
   "main": "dist/main.js",
   "bin": {
@@ -19,13 +21,13 @@
   "dependencies": {
     "@openleash/shared": "0.1.0",
     "better-sqlite3": "^12.10.0",
-    "commander": "^12.1.0",
-    "electron": "^40.10.6"
+    "commander": "^12.1.0"
   },
   "devDependencies": {
     "@electron/rebuild": "^4.0.4",
     "@types/better-sqlite3": "^7.6.13",
     "@types/node": "^22.15.21",
+    "electron": "^40.10.6",
     "electron-builder": "26.15.3",
     "sharp": "0.34.5",
     "simple-icons": "^16.19.0",
