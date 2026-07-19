@@ -256,6 +256,35 @@
         white-space: nowrap;
       }
       .questions { margin-top: 12px; }
+      .install-success {
+        padding: 8px 6px 3px;
+        text-align: center;
+      }
+      .install-fireworks {
+        width: 172px;
+        height: 128px;
+        margin: -4px auto -2px;
+        overflow: hidden;
+        pointer-events: none;
+      }
+      .install-success h2 {
+        margin: 0;
+        color: var(--ink);
+        font-size: 19px;
+        font-weight: 680;
+        line-height: 1.2;
+        letter-spacing: -.025em;
+      }
+      .install-success p {
+        max-width: 360px;
+        margin: 7px auto 2px;
+        color: var(--muted);
+        font-size: 11.5px;
+        line-height: 1.45;
+      }
+      @media (prefers-reduced-motion: reduce) {
+        .install-fireworks { opacity: .9; }
+      }
       .question + .question { margin-top: 15px; padding-top: 14px; border-top: 1px solid var(--line); }
       .question-label { margin: 0 1px 8px; color: var(--ink); font-size: 13px; font-weight: 620; line-height: 1.35; }
       .option {
@@ -323,6 +352,8 @@
       }
       .actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 13px; }
       .actions.single { grid-template-columns: 1fr; }
+      .actions.install-complete { display: flex; justify-content: center; }
+      .actions.install-complete .action { width: 112px; min-height: 38px; }
       .action {
         min-height: 41px;
         border: 1px solid var(--line);
@@ -367,6 +398,11 @@
         </button>
       </header>
       <section class="reveal" id="reveal" inert aria-hidden="true"><div class="reveal-clip"><div class="content">
+        <div class="install-success" id="installSuccess" hidden>
+          <div class="install-fireworks" id="installFireworks" aria-hidden="true"></div>
+          <h2>OpenLeash installed</h2>
+          <p>Your agents are connected. OpenLeash will appear here when something needs your attention.</p>
+        </div>
         <p class="summary" id="summary"></p>
         <div class="purpose" id="purpose" hidden></div>
         <div class="evidence-block" id="evidenceBlock" hidden>
@@ -383,14 +419,16 @@
       </div></div></section>
     </main>
 
+    <script src="./lottie.min.js"></script>
     <script>
       let current;
       let currentKind = "approval";
       let selectedAnswers = new Map();
       let expandTimer;
+      let installAnimation;
       const $ = (id) => document.getElementById(id);
       const island = $("island"), cap = $("cap"), glyph = $("glyph"), status = $("status"), eyebrow = $("eyebrow"), title = $("title"), count = $("count");
-      const summary = $("summary"), purpose = $("purpose"), evidenceBlock = $("evidenceBlock"), evidence = $("evidence"), chips = $("chips"), questions = $("questions"), plan = $("plan");
+      const installSuccess = $("installSuccess"), installFireworks = $("installFireworks"), summary = $("summary"), purpose = $("purpose"), evidenceBlock = $("evidenceBlock"), evidence = $("evidence"), chips = $("chips"), questions = $("questions"), plan = $("plan");
       const guidance = $("guidance"), rememberRow = $("rememberRow"), remember = $("remember"), actions = $("actions"), hint = $("hint");
 
       if (window.__OPENLEASH_NATIVE_ISLAND__) document.body.classList.add("native-macos");
@@ -419,6 +457,7 @@
       }
       function reset() {
         clearTimeout(expandTimer);
+        installAnimation?.destroy(); installAnimation = undefined; installFireworks.innerHTML = ""; installSuccess.hidden = true;
         selectedAnswers = new Map(); questions.innerHTML = ""; actions.innerHTML = ""; chips.innerHTML = ""; guidance.value = "";
         actions.className = "actions"; summary.hidden = false; purpose.hidden = true; evidenceBlock.hidden = true; plan.hidden = true;
         guidance.hidden = true; rememberRow.hidden = true; hint.textContent = ""; island.classList.remove("expanded", "expandable", "leaving");
@@ -446,15 +485,16 @@
 
         if (currentKind === "question") renderQuestions(payload);
         else if (currentKind === "plan_review") renderPlan(payload);
+        else if (currentKind === "install_success") renderInstallSuccess();
         else if (payload.id) renderApproval(payload);
         else renderActivity(payload);
 
-        const expandable = Boolean(payload.id || currentKind === "sample" || currentKind === "blocked" || currentKind === "question" || currentKind === "plan_review" || payload.summary);
+        const expandable = Boolean(payload.id || currentKind === "install_success" || currentKind === "sample" || currentKind === "blocked" || currentKind === "question" || currentKind === "plan_review" || payload.summary);
         island.classList.toggle("expandable", expandable);
         requestAnimationFrame(() => {
           island.classList.add("presented");
           resize();
-          if (payload.id || ["sample", "blocked", "question", "plan_review"].includes(currentKind)) {
+          if (payload.id || ["install_success", "sample", "blocked", "question", "plan_review"].includes(currentKind)) {
             expandTimer = setTimeout(() => setExpanded(true), 170);
           }
         });
@@ -538,6 +578,24 @@
         if (payload.canJump) actions.append(button("Open agent", "secondary", "jump"));
         actions.append(button("Dismiss", "primary", "dismiss"));
       }
+      function renderInstallSuccess() {
+        summary.hidden = true;
+        installSuccess.hidden = false;
+        actions.className = "actions install-complete";
+        actions.append(button("OK", "primary", "dismiss"));
+        if (!window.lottie) return;
+        installAnimation = window.lottie.loadAnimation({
+          container: installFireworks,
+          renderer: "svg",
+          loop: false,
+          autoplay: !window.matchMedia("(prefers-reduced-motion: reduce)").matches,
+          path: "./Fireworks.json",
+          rendererSettings: { preserveAspectRatio: "xMidYMid meet" },
+        });
+        if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+          installAnimation.addEventListener("DOMLoaded", () => installAnimation?.goToAndStop(18, true));
+        }
+      }
 
       function requestDismiss() { island.classList.add("leaving"); setTimeout(() => bridge.dismissNotice(), 120); }
       actions.addEventListener("click", (event) => {
@@ -567,6 +625,7 @@
           question: { kind: "question", id: "preview", agentName: "Claude Code", title: "Claude asks", project: "openleash", time: "now", interaction: { type: "questions", questions: [{ question: "Which deployment target?", options: [{ label: "Production" }, { label: "Staging" }, { label: "Local only" }] }] } },
           plan: { kind: "plan_review", id: "preview", agentName: "OpenAI Codex", title: "Codex has a plan", summary: "Review the proposed changes before work begins.", project: "desktop-client", time: "now", interaction: { type: "plan", markdown: "1. Add the native top-edge panel\n2. Share the renderer with Windows\n3. Verify expansion, focus, and dismissal\n4. Package and run upgrade tests" } },
           completed: { kind: "completed", agentName: "Claude Code", agentKind: "claude", title: "Claude finished", summary: "Authentication middleware updated and all tests pass.", project: "openleash", time: "now", canJump: true },
+          installed: { kind: "install_success", agentName: "OpenLeash", agentIcon: "openleash-icon.png", title: "Installation complete", summary: "OpenLeash installed" },
         };
         renderNotice(fixtures[preview] || fixtures.approval);
       }

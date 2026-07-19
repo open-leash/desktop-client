@@ -7,6 +7,8 @@ await fs.mkdir("dist", { recursive: true });
 await fs.copyFile(path.join("src", "window.html"), path.join("dist", "window.html"));
 await fs.copyFile(path.join("src", "notice.html"), path.join("dist", "notice.html"));
 await fs.copyFile(path.join("src", "openleash-icon.png"), path.join("dist", "openleash-icon.png"));
+await fs.copyFile(path.join("..", "..", "assets", "Fireworks.json"), path.join("dist", "Fireworks.json"));
+await fs.copyFile(path.join("..", "..", "node_modules", "lottie-web", "build", "player", "lottie.min.js"), path.join("dist", "lottie.min.js"));
 await copyIntroVideo();
 await copyWelcomeAgentIcons();
 await fs.mkdir(path.join("dist", "agent-icons"), { recursive: true });

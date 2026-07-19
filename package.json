@@ -1,6 +1,6 @@
 {
   "name": "@openleash/desktop-client",
-  "version": "0.36.15",
+  "version": "0.36.16",
   "description": "OpenLeash desktop agent policy and attention client.",
   "author": "OpenLeash",
   "type": "commonjs",
@@ -22,7 +22,8 @@
   "dependencies": {
     "@openleash/shared": "0.1.0",
     "better-sqlite3": "^12.10.0",
-    "commander": "^12.1.0"
+    "commander": "^12.1.0",
+    "lottie-web": "^5.13.0"
   },
   "devDependencies": {
     "@electron/rebuild": "^4.0.4",

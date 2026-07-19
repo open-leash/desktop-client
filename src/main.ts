@@ -1626,12 +1626,10 @@ ipcMain.handle(
     };
     window?.webContents.send("openleash:update", setupState);
     showDecisionNotice({
-      kind: "sample",
-      agentName: "Claude Code",
-      summary:
-        "This is what an OpenLeash approval looks like. When an agent tries something sensitive, you can allow it once or deny it.",
-      policy: "Credential files access",
-      project: "Example project",
+      kind: "install_success",
+      agentName: "OpenLeash",
+      title: "Installation complete",
+      summary: "OpenLeash installed",
     });
     return { ok: true, ...setupState };
   },
@@ -4684,6 +4682,12 @@ type DecisionNotice =
   | { kind: "ask"; pending: PendingDecision }
   | { kind: "attention"; event: AttentionEvent }
   | {
+      kind: "install_success";
+      agentName: string;
+      title: string;
+      summary: string;
+    }
+  | {
       kind: "sample";
       agentName: string;
       summary: string;
@@ -4826,7 +4830,7 @@ function showDecisionNotice(notice: DecisionNotice) {
       ? decisionNoticeKey(notice.pending)
       : notice.kind === "attention"
         ? notice.event.id
-        : "sample";
+        : notice.kind;
   const payload = formatNotice(notice) as Record<string, unknown>;
   if (process.platform === "darwin" && showNativeIsland(payload, noticeKey)) {
     if (notice.kind === "attention") scheduleAttentionDismiss(noticeKey);
@@ -4958,10 +4962,19 @@ function formatNotice(notice: DecisionNotice) {
       time: "example",
     };
   }
+  return {
+    kind: "install_success",
+    agentName: notice.agentName,
+    agentIcon: noticeAgentIconFor(notice.agentName),
+    title: notice.title,
+    summary: notice.summary,
+    time: "ready",
+  };
 }
 
 function noticeAgentIconFor(name: string) {
   const value = name.toLowerCase();
+  if (value.includes("openleash")) return "openleash-icon.png";
   const local = value.includes("claude")
     ? "claude"
     : value.includes("codex") || value.includes("openai")
