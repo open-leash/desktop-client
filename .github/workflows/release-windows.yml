@@ -54,7 +54,8 @@ jobs:
           npm run test -w @openleash/desktop-client
           npm run build -w @openleash/desktop-client
 
-      - name: Require signing certificate for a public release
+      - name: Check signing certificate for a public release
+        id: signing
         if: startsWith(github.ref, 'refs/tags/')
         shell: pwsh
         env:
@@ -62,10 +63,14 @@ jobs:
           CSC_KEY_PASSWORD: ${{ secrets.WINDOWS_CSC_KEY_PASSWORD }}
         run: |
           if (-not $env:CSC_LINK -or -not $env:CSC_KEY_PASSWORD) {
-            throw "WINDOWS_CSC_LINK and WINDOWS_CSC_KEY_PASSWORD are required for tagged releases"
+            "available=false" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+            Write-Warning "Skipping the public Windows artifact: WINDOWS_CSC_LINK and WINDOWS_CSC_KEY_PASSWORD are not configured."
+          } else {
+            "available=true" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
           }
 
       - name: Rebuild native dependency and package NSIS installer
+        if: github.event_name == 'workflow_dispatch' || steps.signing.outputs.available == 'true'
         working-directory: apps/desktop-client
         shell: pwsh
         env:
@@ -78,6 +83,7 @@ jobs:
           node scripts/verify-packaged-windows.mjs
 
       - name: Create checksums
+        if: github.event_name == 'workflow_dispatch' || steps.signing.outputs.available == 'true'
         working-directory: apps/desktop-client/release/windows
         shell: pwsh
         run: |
@@ -87,6 +93,7 @@ jobs:
           } | Set-Content -Encoding ascii SHA256SUMS-WINDOWS
 
       - name: Upload workflow artifact
+        if: github.event_name == 'workflow_dispatch' || steps.signing.outputs.available == 'true'
         uses: actions/upload-artifact@v4
         with:
           name: OpenLeash-Windows-x64-${{ github.ref_name }}
@@ -97,7 +104,7 @@ jobs:
             apps/desktop-client/release/windows/SHA256SUMS-WINDOWS
 
       - name: Attach immutable assets to GitHub release
-        if: startsWith(github.ref, 'refs/tags/')
+        if: startsWith(github.ref, 'refs/tags/') && steps.signing.outputs.available == 'true'
         working-directory: apps/desktop-client
         shell: pwsh
         env:
