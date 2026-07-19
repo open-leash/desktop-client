@@ -11,8 +11,12 @@ if (process.platform !== "darwin") {
   process.exit(0);
 }
 
-const executable = path.resolve("dist/openleash-island");
-const html = path.resolve("dist/notice.html");
+const valueAfter = (flag) => {
+  const index = process.argv.indexOf(flag);
+  return index >= 0 ? process.argv[index + 1] : undefined;
+};
+const executable = path.resolve(valueAfter("--executable") ?? "dist/openleash-island");
+const html = path.resolve(valueAfter("--html") ?? "dist/notice.html");
 await Promise.all([access(executable), access(html)]);
 
 const child = spawn(executable, [html], { stdio: ["pipe", "pipe", "pipe"] });

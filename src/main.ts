@@ -4683,7 +4683,9 @@ function ensureNativeIsland() {
   if (process.platform !== "darwin") return false;
   if (nativeIslandProcess && !nativeIslandProcess.killed) return true;
   const executable = nativeIslandExecutable();
-  const html = path.join(here, "notice.html");
+  const html = executable && app.isPackaged
+    ? path.join(path.dirname(executable), "notice.html")
+    : path.join(here, "notice.html");
   if (!executable || !fs.existsSync(html)) return false;
 
   try {
