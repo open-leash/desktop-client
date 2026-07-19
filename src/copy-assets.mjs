@@ -5,7 +5,16 @@ import * as simpleIcons from "simple-icons";
 
 await fs.mkdir("dist", { recursive: true });
 await fs.copyFile(path.join("src", "window.html"), path.join("dist", "window.html"));
-await fs.copyFile(path.join("src", "notice.html"), path.join("dist", "notice.html"));
+const noticeTemplate = await fs.readFile(path.join("src", "notice.html"), "utf8");
+const fireworksJson = await fs.readFile(path.join("..", "..", "assets", "Fireworks.json"), "utf8");
+const embeddedFireworks = fireworksJson
+  .replaceAll("<", "\\u003c")
+  .replaceAll("\u2028", "\\u2028")
+  .replaceAll("\u2029", "\\u2029");
+await fs.writeFile(
+  path.join("dist", "notice.html"),
+  noticeTemplate.replace("__OPENLEASH_FIREWORKS_DATA__", embeddedFireworks),
+);
 await fs.copyFile(path.join("src", "openleash-icon.png"), path.join("dist", "openleash-icon.png"));
 await fs.copyFile(path.join("..", "..", "assets", "Fireworks.json"), path.join("dist", "Fireworks.json"));
 await fs.copyFile(path.join("..", "..", "node_modules", "lottie-web", "build", "player", "lottie.min.js"), path.join("dist", "lottie.min.js"));

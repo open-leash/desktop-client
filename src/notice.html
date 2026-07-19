@@ -419,6 +419,7 @@
       </div></div></section>
     </main>
 
+    <script id="installFireworksData" type="application/json">__OPENLEASH_FIREWORKS_DATA__</script>
     <script src="./lottie.min.js"></script>
     <script>
       let current;
@@ -515,6 +516,7 @@
           backgroundColor: getComputedStyle(island).backgroundColor,
           contentTop: copyRect?.top ?? 0,
           contentClearsNotch: !document.body.classList.contains("has-display-notch") || (copyRect?.top ?? 0) >= safeTop,
+          fireworksRendered: Boolean(installFireworks.querySelector("svg")),
         };
       };
       window.dismissOpenLeashNotice = () => { island.classList.add("leaving"); island.classList.remove("expanded"); resize(); };
@@ -584,12 +586,15 @@
         actions.className = "actions install-complete";
         actions.append(button("OK", "primary", "dismiss"));
         if (!window.lottie) return;
+        let animationData;
+        try { animationData = JSON.parse($("installFireworksData").textContent); }
+        catch { return; }
         installAnimation = window.lottie.loadAnimation({
           container: installFireworks,
           renderer: "svg",
           loop: false,
           autoplay: !window.matchMedia("(prefers-reduced-motion: reduce)").matches,
-          path: "./Fireworks.json",
+          animationData,
           rendererSettings: { preserveAspectRatio: "xMidYMid meet" },
         });
         if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {

@@ -78,6 +78,16 @@ try {
   }
 
   send({ type: "show", payload: {
+    kind: "install_success",
+    agentName: "OpenLeash",
+    title: "Installation complete",
+    project: "ready",
+  } });
+  const installed = await inspectAfter(900);
+  assert.equal(installed.visible, true);
+  assert.equal(installed.layout.fireworksRendered, true, "installation popup did not render the fireworks SVG");
+
+  send({ type: "show", payload: {
     kind: "ask",
     id: "verification",
     agentName: "Claude Code",
@@ -103,7 +113,7 @@ try {
   send({ type: "dismiss" });
   const dismissed = await inspectAfter(300);
   assert.equal(dismissed.visible, false);
-  console.log(`native macOS island top-anchor, notch-safe content, compact, expansion, and dismissal ok (notch=${compact.display.hasNotch}, safeTop=${compact.display.safeTop})`);
+  console.log(`native macOS island top-anchor, notch-safe content, fireworks, compact, expansion, and dismissal ok (notch=${compact.display.hasNotch}, safeTop=${compact.display.safeTop})`);
 } finally {
   send({ type: "quit" });
   child.stdin.end();
