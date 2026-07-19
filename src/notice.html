@@ -20,6 +20,7 @@
         --amber: #ffb64a;
         --red: #ff6b64;
         --ease: cubic-bezier(.22, .9, .26, 1);
+        --hardware-safe-top: 0px;
       }
 
       * { box-sizing: border-box; }
@@ -89,6 +90,9 @@
         gap: 9px;
         padding: 7px 10px;
         cursor: default;
+      }
+      body.native-macos.has-display-notch .cap {
+        padding-top: calc(7px + var(--hardware-safe-top));
       }
       .island.expandable .cap { cursor: pointer; }
       .agent-mark {
@@ -443,6 +447,22 @@
         });
       }
       window.renderOpenLeashNotice = renderNotice;
+      window.setOpenLeashDisplayMetrics = (metrics = {}) => {
+        const safeTop = Math.max(0, Math.ceil(Number(metrics.safeTop) || 0));
+        document.documentElement.style.setProperty("--hardware-safe-top", `${safeTop}px`);
+        document.body.classList.toggle("has-display-notch", Boolean(metrics.hasNotch) && safeTop > 0);
+        resize();
+      };
+      window.inspectOpenLeashIsland = () => {
+        const copyRect = document.querySelector(".cap-copy")?.getBoundingClientRect();
+        const safeTop = parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--hardware-safe-top")) || 0;
+        return {
+          hasNotch: document.body.classList.contains("has-display-notch"),
+          safeTop,
+          contentTop: copyRect?.top ?? 0,
+          contentClearsNotch: !document.body.classList.contains("has-display-notch") || (copyRect?.top ?? 0) >= safeTop,
+        };
+      };
       window.dismissOpenLeashNotice = () => { island.classList.add("leaving"); island.classList.remove("expanded"); resize(); };
 
       function setExpanded(expanded) {

@@ -109,7 +109,12 @@ private final class IslandController: NSObject, WKNavigationDelegate, WKScriptMe
               let json = String(data: data, encoding: .utf8) else { return }
         let quoted = String(data: try! JSONSerialization.data(withJSONObject: [json]), encoding: .utf8)!
         let stringLiteral = String(quoted.dropFirst().dropLast())
-        webView.evaluateJavaScript("window.renderOpenLeashNotice(JSON.parse(\(stringLiteral)))")
+        let metrics = displayMetrics(for: screen ?? activeScreen())
+        let metricsJSON = String(
+            data: try! JSONSerialization.data(withJSONObject: metrics),
+            encoding: .utf8
+        )!
+        webView.evaluateJavaScript("window.setOpenLeashDisplayMetrics(\(metricsJSON)); window.renderOpenLeashNotice(JSON.parse(\(stringLiteral)))")
     }
 
     func dismiss() {
@@ -123,17 +128,26 @@ private final class IslandController: NSObject, WKNavigationDelegate, WKScriptMe
 
     func inspect() {
         let display = screen ?? activeScreen()
-        writeMessage([
-            "type": "state",
-            "visible": panel.isVisible,
-            "frame": [
-                "x": panel.frame.origin.x,
-                "y": panel.frame.origin.y,
-                "width": panel.frame.width,
-                "height": panel.frame.height,
-                "topInset": display.frame.maxY - panel.frame.maxY
+        let metrics = displayMetrics(for: display)
+        webView.evaluateJavaScript("window.inspectOpenLeashIsland && window.inspectOpenLeashIsland()") { [weak self] result, _ in
+            guard let self else { return }
+            var state: [String: Any] = [
+                "type": "state",
+                "visible": self.panel.isVisible,
+                "frame": [
+                    "x": self.panel.frame.origin.x,
+                    "y": self.panel.frame.origin.y,
+                    "width": self.panel.frame.width,
+                    "height": self.panel.frame.height,
+                    "topInset": display.frame.maxY - self.panel.frame.maxY
+                ],
+                "display": metrics
             ]
-        ])
+            if let layout = result as? [String: Any] {
+                state["layout"] = layout
+            }
+            writeMessage(state)
+        }
     }
 
     private func resize(width requestedWidth: Double, height requestedHeight: Double) {
@@ -156,6 +170,32 @@ private final class IslandController: NSObject, WKNavigationDelegate, WKScriptMe
         if panel.isVisible {
             panel.orderFrontRegardless()
         }
+    }
+
+    private func displayMetrics(for display: NSScreen) -> [String: Any] {
+        var safeTop: CGFloat = 0
+        var notchWidth: CGFloat = 0
+        var hasNotch = false
+
+        if #available(macOS 12.0, *) {
+            safeTop = max(0, display.safeAreaInsets.top)
+            if let leftArea = display.auxiliaryTopLeftArea,
+               let rightArea = display.auxiliaryTopRightArea {
+                notchWidth = max(0, rightArea.minX - leftArea.maxX)
+                hasNotch = notchWidth > 1
+                if hasNotch {
+                    safeTop = max(safeTop, min(leftArea.height, rightArea.height))
+                }
+            } else {
+                hasNotch = safeTop > 0
+            }
+        }
+
+        return [
+            "hasNotch": hasNotch,
+            "safeTop": safeTop.rounded(.up),
+            "notchWidth": notchWidth.rounded(.up)
+        ]
     }
 
     private func activeScreen() -> NSScreen {

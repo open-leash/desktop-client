@@ -69,7 +69,12 @@ try {
   assert.equal(compact.visible, true);
   assert.equal(compact.frame.topInset, 0);
   assert.ok(compact.frame.width >= 285 && compact.frame.width <= 320, `unexpected compact width ${compact.frame.width}`);
-  assert.ok(compact.frame.height < 90, `unexpected compact height ${compact.frame.height}`);
+  assert.ok(compact.frame.height < 135, `unexpected compact height ${compact.frame.height}`);
+  assert.equal(compact.layout.contentClearsNotch, true);
+  if (compact.display.hasNotch) {
+    assert.ok(compact.display.safeTop > 0, "notched display did not report a safe top inset");
+    assert.ok(compact.layout.contentTop >= compact.display.safeTop, `compact content overlaps notch: ${compact.layout.contentTop} < ${compact.display.safeTop}`);
+  }
 
   send({ type: "show", payload: {
     kind: "ask",
@@ -88,11 +93,15 @@ try {
   assert.equal(expanded.frame.topInset, 0);
   assert.ok(expanded.frame.width >= 560 && expanded.frame.width <= 570, `unexpected expanded width ${expanded.frame.width}`);
   assert.ok(expanded.frame.height > 300, `unexpected expanded height ${expanded.frame.height}`);
+  assert.equal(expanded.layout.contentClearsNotch, true);
+  if (expanded.display.hasNotch) {
+    assert.ok(expanded.layout.contentTop >= expanded.display.safeTop, `expanded content overlaps notch: ${expanded.layout.contentTop} < ${expanded.display.safeTop}`);
+  }
 
   send({ type: "dismiss" });
   const dismissed = await inspectAfter(300);
   assert.equal(dismissed.visible, false);
-  console.log("native macOS island top-anchor, compact, expansion, and dismissal ok");
+  console.log(`native macOS island top-anchor, notch-safe content, compact, expansion, and dismissal ok (notch=${compact.display.hasNotch}, safeTop=${compact.display.safeTop})`);
 } finally {
   send({ type: "quit" });
   child.stdin.end();
