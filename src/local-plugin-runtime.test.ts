@@ -32,8 +32,9 @@ test("desktop client-api edge transforms provider requests through a container A
   assert.ok(runtimeAddress && typeof runtimeAddress === "object");
   const pluginPort = runtimeAddress.port;
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "openleash-edge-test-"));
-  const edge = new LocalOpenLeashServer(dir, { apiPort: 0, legacyAuthPort: 0 });
+  let edge: LocalOpenLeashServer | undefined;
   try {
+    edge = new LocalOpenLeashServer(dir, { apiPort: 0, legacyAuthPort: 0 });
     const plugin: PluginCatalogItem = {
       id: "openleash.test-container",
       name: "test-container",
@@ -67,8 +68,9 @@ test("desktop client-api edge transforms provider requests through a container A
         requestBody: { messages: [{ role: "tool", content: "large" }] },
       }),
     });
-    assert.equal(response.status, 200);
-    const result = await response.json() as any;
+    const responseText = await response.text();
+    assert.equal(response.status, 200, responseText);
+    const result = JSON.parse(responseText) as any;
     assert.equal(result.requestBody.messages[0].content, "compressed");
     assert.deepEqual(result.appliedPluginIds, [plugin.id]);
     const toolResponse = await fetch(`${edge.apiUrl}/v1/plugin-runtime/tools/execute`, {
@@ -76,10 +78,11 @@ test("desktop client-api edge transforms provider requests through a container A
       headers: { authorization: `Bearer ${edge.token}`, "content-type": "application/json" },
       body: JSON.stringify({ pluginId: plugin.id, sessionId: "edge-test", tool: "retrieve", arguments: { hash: "abc" } }),
     });
-    assert.equal(toolResponse.status, 200);
-    assert.equal((await toolResponse.json() as any).content, "original");
+    const toolResponseText = await toolResponse.text();
+    assert.equal(toolResponse.status, 200, toolResponseText);
+    assert.equal((JSON.parse(toolResponseText) as any).content, "original");
   } finally {
-    await edge.stop();
+    if (edge) await edge.stop();
     runtime.closeIdleConnections();
     runtime.closeAllConnections();
     await new Promise<void>((resolve) => runtime.close(() => resolve()));

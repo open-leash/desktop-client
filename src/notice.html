@@ -36,7 +36,7 @@
         display: flex;
         justify-content: center;
         align-items: flex-start;
-        padding: 0 12px 18px;
+        padding: 0 28px 34px;
         color: var(--ink);
         font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI Variable Text", "Segoe UI", sans-serif;
         font-synthesis: none;
@@ -54,8 +54,8 @@
         border-radius: 18px;
         background: var(--black);
         box-shadow:
-          0 18px 46px rgba(0, 0, 0, .5),
-          0 2px 8px rgba(0, 0, 0, .34),
+          0 22px 48px rgba(0, 0, 0, .34),
+          0 6px 18px rgba(0, 0, 0, .22),
           inset 0 1px rgba(255, 255, 255, .055);
         opacity: 0;
         transform: translateY(-14px) scale(.92, .72);
@@ -72,8 +72,8 @@
         border-top: 0;
         border-radius: 0 0 18px 18px;
         box-shadow:
-          0 20px 48px rgba(0, 0, 0, .52),
-          0 2px 8px rgba(0, 0, 0, .35),
+          0 24px 52px rgba(0, 0, 0, .36),
+          0 6px 18px rgba(0, 0, 0, .22),
           inset 0 -1px rgba(255, 255, 255, .05);
       }
       .island.presented { opacity: 1; transform: translateY(0) scale(1); }
@@ -209,7 +209,7 @@
         letter-spacing: -.012em;
         white-space: pre-wrap;
       }
-      .purpose, .evidence {
+      .purpose, .evidence-block {
         margin: 10px 0 0;
         padding: 10px 11px;
         border: 1px solid rgba(255,255,255,.055);
@@ -220,7 +220,19 @@
         line-height: 1.42;
       }
       .purpose b { color: var(--soft-ink); font-weight: 620; }
+      .evidence-block { padding: 0; overflow: hidden; }
+      .evidence-label {
+        padding: 9px 11px 7px;
+        border-bottom: 1px solid rgba(255,255,255,.055);
+        color: var(--soft-ink);
+        font-size: 10px;
+        font-weight: 650;
+        letter-spacing: .055em;
+        text-transform: uppercase;
+      }
       .evidence {
+        margin: 0;
+        padding: 10px 11px 11px;
         max-height: 128px;
         overflow: auto;
         color: #bfc2c7;
@@ -357,7 +369,10 @@
       <section class="reveal" id="reveal" inert aria-hidden="true"><div class="reveal-clip"><div class="content">
         <p class="summary" id="summary"></p>
         <div class="purpose" id="purpose" hidden></div>
-        <pre class="evidence" id="evidence" hidden></pre>
+        <div class="evidence-block" id="evidenceBlock" hidden>
+          <div class="evidence-label">Request</div>
+          <pre class="evidence" id="evidence"></pre>
+        </div>
         <div class="chips" id="chips"></div>
         <div class="questions" id="questions"></div>
         <pre class="plan" id="plan" hidden></pre>
@@ -375,7 +390,7 @@
       let expandTimer;
       const $ = (id) => document.getElementById(id);
       const island = $("island"), cap = $("cap"), glyph = $("glyph"), status = $("status"), eyebrow = $("eyebrow"), title = $("title"), count = $("count");
-      const summary = $("summary"), purpose = $("purpose"), evidence = $("evidence"), chips = $("chips"), questions = $("questions"), plan = $("plan");
+      const summary = $("summary"), purpose = $("purpose"), evidenceBlock = $("evidenceBlock"), evidence = $("evidence"), chips = $("chips"), questions = $("questions"), plan = $("plan");
       const guidance = $("guidance"), rememberRow = $("rememberRow"), remember = $("remember"), actions = $("actions"), hint = $("hint");
 
       if (window.__OPENLEASH_NATIVE_ISLAND__) document.body.classList.add("native-macos");
@@ -405,14 +420,14 @@
       function reset() {
         clearTimeout(expandTimer);
         selectedAnswers = new Map(); questions.innerHTML = ""; actions.innerHTML = ""; chips.innerHTML = ""; guidance.value = "";
-        actions.className = "actions"; summary.hidden = false; purpose.hidden = true; evidence.hidden = true; plan.hidden = true;
+        actions.className = "actions"; summary.hidden = false; purpose.hidden = true; evidenceBlock.hidden = true; plan.hidden = true;
         guidance.hidden = true; rememberRow.hidden = true; hint.textContent = ""; island.classList.remove("expanded", "expandable", "leaving");
         $("reveal").inert = true; $("reveal").setAttribute("aria-hidden", "true");
       }
       function resize() {
         requestAnimationFrame(() => {
           const rect = island.getBoundingClientRect();
-          bridge.resizeNotice({ width: Math.ceil(rect.width + 24), height: Math.ceil(rect.height + 18) });
+          bridge.resizeNotice({ width: Math.ceil(rect.width + 56), height: Math.ceil(rect.height + 34) });
         });
       }
       new ResizeObserver(resize).observe(island);
@@ -426,7 +441,7 @@
         count.hidden = !(payload.pendingCount > 1); count.textContent = payload.pendingCount || "";
         summary.textContent = payload.summary || "The agent is waiting for you.";
         if (payload.purpose && currentKind === "approval") { purpose.hidden = false; purpose.innerHTML = ""; const label = document.createElement("b"); label.textContent = "Why now · "; purpose.append(label, document.createTextNode(payload.purpose)); }
-        if (payload.evidence && currentKind === "approval") { evidence.hidden = false; evidence.textContent = payload.evidence; }
+        if (payload.evidence && currentKind === "approval") { evidenceBlock.hidden = false; evidence.textContent = payload.evidence; }
         for (const value of [payload.project, payload.pluginName].filter(Boolean)) { const chip = document.createElement("span"); chip.className = "chip"; chip.textContent = value; chips.appendChild(chip); }
 
         if (currentKind === "question") renderQuestions(payload);
