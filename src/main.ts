@@ -60,6 +60,11 @@ import {
   AutomaticNoticeRegistry,
   noticeIsCurrentlyPresented,
 } from "./notice-presentation";
+import {
+  activeAgentSessions,
+  activityIslandKey,
+  type ActiveAgentSession,
+} from "./activity-island";
 
 const APP_DISPLAY_NAME = app.isPackaged ? "OpenLeash" : "OpenLeash (Dev)";
 let proxyStatus: LocalProxyStatus = {
@@ -147,6 +152,9 @@ type AgentStatus = {
 
 type AgentSession = {
   id: string;
+  agent_kind?: string;
+  agent_name?: string;
+  hostname?: string;
   title: string;
   summary?: string;
   project_path?: string;
@@ -319,6 +327,7 @@ let nativeIslandProcess: ReturnType<typeof spawn> | undefined;
 let nativeIslandReady = false;
 let nativeIslandOutput = "";
 let pendingNativeIslandPayload: Record<string, unknown> | undefined;
+let activeActivityFingerprint: string | undefined;
 let latestPending: PendingDecision[] = [];
 let latestAgents: AgentStatus[] = [];
 let latestSessionMetrics: SessionMetrics = {};
@@ -388,6 +397,7 @@ function isPersonalEmailDomain(email?: string) {
 let activeNoticeKey: string | undefined;
 let noticeDismissTimer: NodeJS.Timeout | undefined;
 let suppressedNoticeKeys = new Set<string>();
+const dismissedActivityKeys = new Set<string>();
 const automaticallyPresentedDecisionNotices = new AutomaticNoticeRegistry();
 const rememberedApprovalChoices = new Map<
   string,
@@ -1955,7 +1965,7 @@ ipcMain.handle(
   ) => resolveDecision(id, resolution, resolutionGuidance, rememberForMs, responsePayload),
 );
 ipcMain.handle("openleash:dismiss-notice", () => {
-  closeNoticeWithoutOpeningMainWindow();
+  dismissNoticeByUser();
 });
 ipcMain.handle("openleash:resize-notice", (_event, requestedSize: number | { width?: number; height?: number }) => {
   if (!noticeWindow || noticeWindow.isDestroyed()) return { ok: false };
@@ -2144,7 +2154,11 @@ async function poll() {
         ) {
           playAgentDoneSound();
         }
+      } else if (!activeNoticeKey || activeNoticeKey.startsWith("activity:")) {
+        syncActivityIsland();
       }
+    } else if (activeNoticeKey?.startsWith("activity:")) {
+      syncActivityIsland();
     }
   } catch {
     await refreshLocalProtections();
@@ -4623,12 +4637,44 @@ function closeNoticeWithoutOpeningMainWindow() {
   pendingNativeIslandPayload = undefined;
   sendNativeIsland({ type: "dismiss" });
   activeNoticeKey = undefined;
+  activeActivityFingerprint = undefined;
   if (window && !window.isDestroyed() && !window.isVisible()) {
     window.hide();
     window.setSkipTaskbar(!setupNeedsDockIcon());
     hideDockIconIfTrayMode();
   }
   if (process.platform === "darwin" && !setupNeedsDockIcon()) app.hide();
+}
+
+function dismissNoticeByUser() {
+  if (activeNoticeKey?.startsWith("activity:")) {
+    dismissedActivityKeys.add(activeNoticeKey);
+    while (dismissedActivityKeys.size > 100) {
+      const oldest = dismissedActivityKeys.values().next().value as string | undefined;
+      if (!oldest) break;
+      dismissedActivityKeys.delete(oldest);
+    }
+  }
+  closeNoticeWithoutOpeningMainWindow();
+}
+
+function syncActivityIsland() {
+  const sessions = activeAgentSessions(latestAgents);
+  if (sessions.length === 0) {
+    if (activeNoticeKey?.startsWith("activity:")) closeNoticeWithoutOpeningMainWindow();
+    return;
+  }
+  const key = activityIslandKey(sessions);
+  if (dismissedActivityKeys.has(key)) return;
+  const fingerprint = JSON.stringify(sessions.map((session) => [
+    session.id,
+    session.lastActivityAt,
+    session.latestAction,
+    session.eventCount,
+  ]));
+  if (activeNoticeKey === key && activeActivityFingerprint === fingerprint) return;
+  activeActivityFingerprint = fingerprint;
+  showDecisionNotice({ kind: "activity", sessions });
 }
 
 function showAgentDetail(_agent: AgentStatus) {
@@ -4681,6 +4727,7 @@ function fitMainWindowOnLargestDisplay(target: BrowserWindow) {
 type DecisionNotice =
   | { kind: "ask"; pending: PendingDecision }
   | { kind: "attention"; event: AttentionEvent }
+  | { kind: "activity"; sessions: ActiveAgentSession[] }
   | {
       kind: "install_success";
       agentName: string;
@@ -4696,7 +4743,7 @@ type DecisionNotice =
     };
 
 function noticeWorkArea(notice: DecisionNotice) {
-  if (notice.kind === "attention" || notice.kind === "ask") {
+  if (notice.kind === "attention" || notice.kind === "ask" || notice.kind === "activity") {
     return screen.getDisplayNearestPoint(screen.getCursorScreenPoint()).bounds;
   }
   return largestDisplay().bounds;
@@ -4792,7 +4839,7 @@ function handleNativeIslandMessage(line: string) {
   }
   if (message.type !== "action") return;
   if (message.action === "dismiss") {
-    closeNoticeWithoutOpeningMainWindow();
+    dismissNoticeByUser();
     return;
   }
   if (message.action === "jump") {
@@ -4830,6 +4877,8 @@ function showDecisionNotice(notice: DecisionNotice) {
       ? decisionNoticeKey(notice.pending)
       : notice.kind === "attention"
         ? notice.event.id
+        : notice.kind === "activity"
+          ? activityIslandKey(notice.sessions)
         : notice.kind;
   const payload = formatNotice(notice) as Record<string, unknown>;
   if (process.platform === "darwin" && showNativeIsland(payload, noticeKey)) {
@@ -4949,6 +4998,21 @@ function formatNotice(notice: DecisionNotice) {
       time: timeAgo(notice.event.createdAt),
       session: notice.event.session,
       canJump: canOpenAgent(notice.event.agent?.kind),
+    };
+  }
+  if (notice.kind === "activity") {
+    return {
+      kind: "activity",
+      agentName: "OpenLeash",
+      agentIcon: noticeAgentIconFor("OpenLeash"),
+      title: notice.sessions.length === 1 ? "Agent working" : `${notice.sessions.length} agents working`,
+      project: `${notice.sessions.length} active session${notice.sessions.length === 1 ? "" : "s"}`,
+      sessions: notice.sessions.map((session) => ({
+        ...session,
+        agentIcon: noticeAgentIconFor(session.agentName),
+        canJump: canOpenAgent(session.agentKind),
+        time: timeAgo(session.lastActivityAt),
+      })),
     };
   }
   if (notice.kind === "sample") {

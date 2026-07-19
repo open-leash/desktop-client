@@ -88,6 +88,22 @@ try {
   assert.equal(installed.layout.fireworksRendered, true, "installation popup did not render the fireworks SVG");
 
   send({ type: "show", payload: {
+    kind: "activity",
+    agentName: "OpenLeash",
+    title: "3 agents working",
+    project: "3 active sessions",
+    sessions: [
+      { id: "claude", agentKind: "claude-code", agentName: "Claude Code", project: "client-api", title: "Test Claude", latestAction: "Running tests", eventCount: 3 },
+      { id: "codex", agentKind: "codex", agentName: "OpenAI Codex", project: "desktop", title: "Test Codex", latestAction: "Editing files", eventCount: 5 },
+      { id: "gemini", agentKind: "gemini", agentName: "Gemini CLI", project: "docs", title: "Test Gemini", latestAction: "Reading docs", eventCount: 2 },
+    ],
+  } });
+  const activity = await inspectAfter(650);
+  assert.equal(activity.visible, true);
+  assert.equal(activity.layout.sessionCount, 3, "activity island did not render every active session");
+  assert.equal(activity.layout.activityDetailVisible, false, "multi-session activity opened a detail without selection");
+
+  send({ type: "show", payload: {
     kind: "ask",
     id: "verification",
     agentName: "Claude Code",
@@ -113,7 +129,7 @@ try {
   send({ type: "dismiss" });
   const dismissed = await inspectAfter(300);
   assert.equal(dismissed.visible, false);
-  console.log(`native macOS island top-anchor, notch-safe content, fireworks, compact, expansion, and dismissal ok (notch=${compact.display.hasNotch}, safeTop=${compact.display.safeTop})`);
+  console.log(`native macOS island top-anchor, notch-safe content, activity sessions, fireworks, compact, expansion, and dismissal ok (notch=${compact.display.hasNotch}, safeTop=${compact.display.safeTop})`);
 } finally {
   send({ type: "quit" });
   child.stdin.end();
