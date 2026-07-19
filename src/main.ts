@@ -56,6 +56,10 @@ import {
   type LocalProxyStatus,
 } from "./proxy-manager";
 import { reconcilePluginContainers } from "./plugin-container-manager";
+import {
+  AutomaticNoticeRegistry,
+  noticeIsCurrentlyPresented,
+} from "./notice-presentation";
 
 const APP_DISPLAY_NAME = app.isPackaged ? "OpenLeash" : "OpenLeash (Dev)";
 let proxyStatus: LocalProxyStatus = {
@@ -384,6 +388,7 @@ function isPersonalEmailDomain(email?: string) {
 let activeNoticeKey: string | undefined;
 let noticeDismissTimer: NodeJS.Timeout | undefined;
 let suppressedNoticeKeys = new Set<string>();
+const automaticallyPresentedDecisionNotices = new AutomaticNoticeRegistry();
 const rememberedApprovalChoices = new Map<
   string,
   { resolution: "allow" | "deny"; expiresAt: number }
@@ -2095,9 +2100,26 @@ async function poll() {
     const nextPending = latestPending[0];
     if (nextPending) {
       const key = decisionNoticeKey(nextPending);
+      const alreadyPresented = noticeIsCurrentlyPresented({
+        requestedKey: key,
+        activeKey: activeNoticeKey,
+        nativeVisible: Boolean(
+          nativeIslandProcess &&
+          !nativeIslandProcess.killed &&
+          pendingNativeIslandPayload,
+        ),
+        browserVisible: Boolean(
+          noticeWindow &&
+          !noticeWindow.isDestroyed() &&
+          noticeWindow.isVisible(),
+        ),
+      });
       if (
         !suppressedNoticeKeys.has(key) &&
-        (activeNoticeKey !== key || !noticeWindow || !noticeWindow.isVisible())
+        !alreadyPresented &&
+        automaticallyPresentedDecisionNotices.shouldPresent(
+          automaticDecisionNoticeKey(nextPending),
+        )
       ) {
         showDecisionNotice({ kind: "ask", pending: nextPending });
       }
@@ -2634,6 +2656,13 @@ function pendingNoticeKey(item: PendingDecision) {
 
 function decisionNoticeKey(item: PendingDecision) {
   return `ask:${item.id}`;
+}
+
+function automaticDecisionNoticeKey(item: PendingDecision) {
+  const intentKey = canonicalIntentKey(rawIntentKey(item.payload));
+  return intentKey
+    ? `intent:${item.agent_kind}:${item.project_path ?? ""}:${intentKey}`
+    : decisionNoticeKey(item);
 }
 
 function rememberedDecisionKey(item: PendingDecision) {
