@@ -592,7 +592,7 @@
         installAnimation = window.lottie.loadAnimation({
           container: installFireworks,
           renderer: "svg",
-          loop: false,
+          loop: true,
           autoplay: !window.matchMedia("(prefers-reduced-motion: reduce)").matches,
           animationData,
           rendererSettings: { preserveAspectRatio: "xMidYMid meet" },
