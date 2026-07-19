@@ -132,6 +132,7 @@ type Evaluation = {
   decision: "allow" | "ask" | "deny";
   resolution?: "allow" | "deny" | null;
   resolution_guidance?: string | null;
+  resolution_payload?: Record<string, unknown> | null;
   summary: string;
   question?: string;
   created_at: string;
@@ -556,13 +557,15 @@ export class LocalOpenLeashServer {
     return this.store.policies;
   }
 
-  resolve(id: string, resolution: "allow" | "deny", resolutionGuidance?: string) {
+  resolve(id: string, resolution: "allow" | "deny", resolutionGuidance?: string, responsePayload?: Record<string, unknown>) {
     const item = this.store.history.find((entry) => entry.id === id);
     if (!item) return undefined;
     const resolvedAt = new Date().toISOString();
     const guidance = resolution === "deny" ? cleanResolutionGuidance(resolutionGuidance) : undefined;
+    const response = resolution === "allow" ? cleanInteractionResponse(responsePayload) : undefined;
     item.resolution = resolution;
     item.resolution_guidance = guidance ?? null;
+    item.resolution_payload = response ?? null;
     item.resolved_at = resolvedAt;
     const cutoff = Date.now() - 5 * 60_000;
     const itemIntentKey = canonicalIntentKey(item.intentKey);
@@ -575,6 +578,7 @@ export class LocalOpenLeashServer {
       if (!Number.isNaN(created) && created < cutoff) continue;
       entry.resolution = resolution;
       entry.resolution_guidance = guidance ?? null;
+      entry.resolution_payload = response ?? null;
       entry.resolved_at = resolvedAt;
     }
     const skillPath = skillPathFromEvaluation(item);
@@ -694,7 +698,7 @@ export class LocalOpenLeashServer {
       const resolveMatch = req.url?.match(/^\/admin\/decisions\/([^/]+)\/resolve$/);
       if (req.method === "POST" && resolveMatch) {
         const body = await readJson(req);
-        return json(res, this.resolve(resolveMatch[1], body.resolution === "allow" ? "allow" : "deny", body.resolutionGuidance) ?? null);
+        return json(res, this.resolve(resolveMatch[1], body.resolution === "allow" ? "allow" : "deny", body.resolutionGuidance, body.response) ?? null);
       }
       res.writeHead(404, { "content-type": "application/json" });
       res.end(JSON.stringify({ error: "not found" }));
@@ -755,6 +759,7 @@ export class LocalOpenLeashServer {
         decisionId: handledIntent.id,
         summary: handledIntent.summary,
         question: handledIntent.resolution ? undefined : handledIntent.question,
+        resolutionPayload: handledIntent.resolution === "allow" ? handledIntent.resolution_payload ?? undefined : undefined,
         results: []
       };
     }
@@ -763,10 +768,13 @@ export class LocalOpenLeashServer {
       ? deferPromptOnlyPolicyResults(evaluatedResults)
       : evaluatedResults;
     const failed = results.filter((result) => result.status === "failed" || result.status === "needs_question");
-    const decision: "ask" | "allow" = failed.length > 0 ? "ask" : "allow";
+    const nativeInteraction = agentInteractionForRequest(request);
+    const decision: "ask" | "allow" = failed.length > 0 || nativeInteraction ? "ask" : "allow";
     const filePath = await this.extractFilePath(request, failed);
     const summary = failed[0]
       ? summarizeBlockedAction(request, failed[0].policyName)
+      : nativeInteraction?.summary
+        ? nativeInteraction.summary
       : summarizeAllowedAction(request, filePath);
     if (decision === "allow" && !request.event.tool?.name) {
       return { decision, decisionId: "", summary, results };
@@ -780,11 +788,14 @@ export class LocalOpenLeashServer {
         decisionId: duplicate.id,
         summary: duplicate.summary,
         question: duplicate.resolution ? undefined : duplicate.question,
+        resolutionPayload: duplicate.resolution === "allow" ? duplicate.resolution_payload ?? undefined : undefined,
         results
       };
     }
     const id = crypto.randomUUID();
-    const purposeSummary = decision === "ask" ? await this.summarizeActionPurpose(request) : undefined;
+    const purposeSummary = decision === "ask"
+      ? nativeInteraction?.purpose ?? await this.summarizeActionPurpose(request)
+      : undefined;
     const evaluation: Evaluation = {
       id,
       fingerprint,
@@ -793,7 +804,7 @@ export class LocalOpenLeashServer {
       decision,
       resolution: decision === "allow" ? "allow" : null,
       summary,
-      question: decision === "ask" ? `${summary} Allow this action once?` : undefined,
+      question: decision === "ask" ? nativeInteraction?.question ?? `${summary} Allow this action once?` : undefined,
       created_at: new Date().toISOString(),
       resolved_at: decision === "allow" ? new Date().toISOString() : undefined,
       user_name: "Max Brin",
@@ -924,11 +935,11 @@ export class LocalOpenLeashServer {
   }
 
   private notifyAgentStop(agent: string, eventName: string, body: unknown) {
-    if (eventName !== "Stop" || !this.agentDoneSound) return;
+    if (eventName !== "Stop") return;
     this.options.onAgentStop?.({ agent, eventName, body });
   }
 
-  private async waitForHookDecision(decision: { decision: "allow" | "ask" | "deny"; decisionId: string; summary: string; question?: string; results: PolicyResult[] }) {
+  private async waitForHookDecision(decision: { decision: "allow" | "ask" | "deny"; decisionId: string; summary: string; question?: string; resolutionPayload?: Record<string, unknown>; results: PolicyResult[] }) {
     if (decision.decision !== "ask") return decision;
     const timeoutMs = Number(process.env.OPENLEASH_HOOK_APPROVAL_TIMEOUT_MS ?? 600000);
     const pollMs = Number(process.env.OPENLEASH_HOOK_APPROVAL_POLL_MS ?? 250);
@@ -941,6 +952,7 @@ export class LocalOpenLeashServer {
           decision: item.resolution,
           summary: item.resolution === "allow" ? "OpenLeash approved this action." : item.summary,
           resolutionGuidance: item.resolution === "deny" ? item.resolution_guidance ?? undefined : undefined,
+          resolutionPayload: item.resolution === "allow" ? item.resolution_payload ?? undefined : undefined,
           question: undefined
         };
       }
@@ -1261,12 +1273,12 @@ export class LocalOpenLeashServer {
 
       const insertEvaluation = this.db.prepare(`
         insert into evaluations (
-        id, fingerprint, intent_key, file_path, decision, resolution, resolution_guidance, summary, question, created_at, resolved_at,
+        id, fingerprint, intent_key, file_path, decision, resolution, resolution_guidance, resolution_payload_json, summary, question, created_at, resolved_at,
           user_name, hostname, agent_name, agent_kind, event_name, tool_name, project_path,
           payload_json, triggered_policies_json
         )
         values (
-        @id, @fingerprint, @intent_key, @file_path, @decision, @resolution, @resolution_guidance, @summary, @question, @created_at, @resolved_at,
+        @id, @fingerprint, @intent_key, @file_path, @decision, @resolution, @resolution_guidance, @resolution_payload_json, @summary, @question, @created_at, @resolved_at,
           @user_name, @hostname, @agent_name, @agent_kind, @event_name, @tool_name, @project_path,
           @payload_json, @triggered_policies_json
         )
@@ -1280,6 +1292,7 @@ export class LocalOpenLeashServer {
           decision: item.decision,
           resolution: item.resolution ?? null,
           resolution_guidance: item.resolution_guidance ?? null,
+          resolution_payload_json: item.resolution_payload ? JSON.stringify(item.resolution_payload) : null,
           summary: item.summary,
           question: item.question ?? null,
           created_at: item.created_at,
@@ -1448,6 +1461,7 @@ export class LocalOpenLeashServer {
         decision text not null,
         resolution text,
         resolution_guidance text,
+        resolution_payload_json text,
         summary text not null,
         question text,
         created_at text not null,
@@ -1530,6 +1544,7 @@ export class LocalOpenLeashServer {
     this.addColumnIfMissing("evaluations", "file_path", "text");
     this.addColumnIfMissing("evaluations", "resolution", "text");
     this.addColumnIfMissing("evaluations", "resolution_guidance", "text");
+    this.addColumnIfMissing("evaluations", "resolution_payload_json", "text");
     this.addColumnIfMissing("policies", "locked", "integer not null default 0");
     this.addColumnIfMissing("skills", "content", "text");
     this.addColumnIfMissing("skills", "content_preview", "text");
@@ -1537,6 +1552,10 @@ export class LocalOpenLeashServer {
     this.addColumnIfMissing("skills", "content_updated_at", "text");
     this.db.prepare("create index if not exists evaluations_intent_key_idx on evaluations(intent_key)").run();
     this.recordLocalSchemaMigration("0001_desktop_local_schema", "inline-local-server-migrate-schema-v1");
+    this.recordLocalSchemaMigration(
+      "0002_agent_interaction_responses",
+      "evaluations-resolution-payload-json-v1",
+    );
   }
 
   private recordLocalSchemaMigration(id: string, checksum: string) {
@@ -1656,6 +1675,7 @@ export class LocalOpenLeashServer {
       decision: "allow" | "ask" | "deny";
       resolution: "allow" | "deny" | null;
       resolution_guidance?: string | null;
+      resolution_payload_json?: string | null;
       summary: string;
       question: string | null;
       created_at: string;
@@ -1678,6 +1698,9 @@ export class LocalOpenLeashServer {
       decision: row.decision,
       resolution: row.resolution,
       resolution_guidance: row.resolution_guidance ?? null,
+      resolution_payload: row.resolution_payload_json
+        ? parseJson<Record<string, unknown> | null>(row.resolution_payload_json, null)
+        : null,
       summary: row.summary,
       question: row.question ?? undefined,
       created_at: row.created_at,
@@ -2162,6 +2185,34 @@ function isNonActionableHookEvent(eventName: string) {
   return ["PostToolUse", "Stop", "SessionStart", "SessionEnd", "SubagentStart", "SubagentStop", "Notification"].includes(eventName);
 }
 
+function agentInteractionForRequest(request: EvaluationRequest) {
+  if (request.event.eventName !== "PreToolUse") return undefined;
+  const toolName = String(request.event.tool?.name ?? "").toLowerCase();
+  const input = request.event.tool?.input;
+  if (toolName === "askuserquestion") {
+    const record = input && typeof input === "object" && !Array.isArray(input)
+      ? input as { questions?: unknown }
+      : undefined;
+    const first = Array.isArray(record?.questions)
+      ? record.questions.find((item) => item && typeof item === "object") as { question?: unknown } | undefined
+      : undefined;
+    const firstQuestion = typeof first?.question === "string" ? first.question.trim() : "";
+    return {
+      summary: firstQuestion || `${request.agent.displayName} has a question for you.`,
+      question: "Answer in OpenLeash to continue the agent.",
+      purpose: `${request.agent.displayName} is waiting for your input.`
+    };
+  }
+  if (toolName === "exitplanmode") {
+    return {
+      summary: `${request.agent.displayName} finished a plan and is waiting for review.`,
+      question: "Approve the plan, or deny it with feedback.",
+      purpose: "Review the proposed plan before the agent starts making changes."
+    };
+  }
+  return undefined;
+}
+
 function deferPromptOnlyPolicyResults(results: PolicyResult[]): PolicyResult[] {
   return results.map((result) => result.status === "passed"
     ? result
@@ -2614,7 +2665,7 @@ function normalizeHookTranscript(value: unknown) {
   return turns.length > 0 ? turns.slice(-20) as Array<{ role: string; content: string; at?: string }> : undefined;
 }
 
-function nativeHookDecision(agent: string, eventName: string, decision: { decision: "allow" | "ask" | "deny"; summary: string; question?: string; resolutionGuidance?: string }) {
+function nativeHookDecision(agent: string, eventName: string, decision: { decision: "allow" | "ask" | "deny"; summary: string; question?: string; resolutionGuidance?: string; resolutionPayload?: Record<string, unknown> }) {
   const reason = decision.decision === "deny" && decision.resolutionGuidance
     ? `OpenLeash denied this action. User guidance: ${decision.resolutionGuidance}`
     : decision.decision === "allow"
@@ -2632,14 +2683,24 @@ function nativeHookDecision(agent: string, eventName: string, decision: { decisi
         hookSpecificOutput: {
           hookEventName: "PreToolUse",
           permissionDecision: decision.decision,
-          permissionDecisionReason: reason
+          permissionDecisionReason: reason,
+          ...(decision.resolutionPayload ? { updatedInput: decision.resolutionPayload } : {})
         },
         suppressOutput: true
       };
     }
     return { continue: decision.decision !== "deny", stopReason: reason, suppressOutput: true };
   }
-  return { decision: decision.decision === "deny" ? "block" : decision.decision, reason };
+  return {
+    decision: decision.decision === "deny" ? "block" : decision.decision,
+    reason,
+    ...(decision.resolutionPayload
+      ? {
+          response: decision.resolutionPayload,
+          updatedInput: decision.resolutionPayload
+        }
+      : {})
+  };
 }
 
 function backendUnavailableHookDecision(agent: string, eventName: string) {
@@ -2837,6 +2898,13 @@ function cleanModel(value: unknown) {
 function cleanResolutionGuidance(value?: string) {
   const cleaned = String(value ?? "").replace(/\s+/g, " ").trim();
   return cleaned ? truncate(cleaned, 500) : undefined;
+}
+
+function cleanInteractionResponse(value: unknown) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return undefined;
+  const serialized = JSON.stringify(value);
+  if (serialized.length > 32_000) throw new Error("interaction response exceeds 32 KB");
+  return JSON.parse(serialized) as Record<string, unknown>;
 }
 
 function localApiFunction(method: string, url: string): OpenLeashApiFunction | undefined {

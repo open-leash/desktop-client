@@ -1,6 +1,6 @@
 {
   "name": "@openleash/desktop-client",
-  "version": "0.36.7",
+  "version": "0.36.8",
   "type": "commonjs",
   "main": "dist/main.js",
   "bin": {
@@ -13,7 +13,7 @@
     "dev": "npm run build && env -u ELECTRON_RUN_AS_NODE electron .",
     "build": "tsc -p tsconfig.json && node src/copy-assets.mjs",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "test": "tsx --test src/proxy-manager.test.ts src/plugin-container-manager.test.ts src/local-plugin-runtime.test.ts",
+    "test": "tsx --test src/proxy-manager.test.ts src/plugin-container-manager.test.ts src/local-plugin-runtime.test.ts src/agent-registry.test.ts",
     "verify:release-dependencies": "node scripts/verify-release-dependencies.mjs"
   },
   "dependencies": {
@@ -23,8 +23,10 @@
     "electron": "^40.10.6"
   },
   "devDependencies": {
+    "@electron/rebuild": "^4.0.4",
     "@types/better-sqlite3": "^7.6.13",
     "@types/node": "^22.15.21",
+    "electron-builder": "26.15.3",
     "tsx": "^4.23.1",
     "typescript": "^5.8.3"
   }

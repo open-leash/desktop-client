@@ -45,6 +45,7 @@ import {
 import type { PluginCatalogItem } from "./plugin-catalog";
 import type {
   OpenLeashClientViewModel,
+  OpenLeashAttentionEvent,
   OpenLeashOutcomeRecord,
 } from "@openleash/shared";
 import {
@@ -100,6 +101,8 @@ type PendingDecision = {
   plugin_name?: string;
   quote?: string | null;
 };
+
+type AttentionEvent = OpenLeashAttentionEvent;
 
 type AgentStatus = {
   id: string;
@@ -223,6 +226,7 @@ type RemoteMobileState = {
     payload?: unknown;
   }>;
   sessionMetrics?: Record<string, unknown>;
+  attentionEvents?: AttentionEvent[];
 };
 
 type PluginOutcome = OpenLeashOutcomeRecord;
@@ -313,6 +317,9 @@ let latestSessionMetrics: SessionMetrics = {};
 let latestPlugins: PluginCatalogItem[] = [];
 let latestOutcomes: PluginOutcome[] = [];
 let latestViewModel: OpenLeashClientViewModel | undefined;
+let latestAttentionEvents: AttentionEvent[] = [];
+const seenAttentionEventIds = new Set<string>();
+const desktopStartedAt = Date.now();
 let localProtections: LocalAgentProtection[] = [];
 let localProtectionCheckedAt = 0;
 
@@ -371,6 +378,7 @@ function isPersonalEmailDomain(email?: string) {
   ]).has(domain);
 }
 let activeNoticeKey: string | undefined;
+let noticeDismissTimer: NodeJS.Timeout | undefined;
 let suppressedNoticeKeys = new Set<string>();
 const rememberedApprovalChoices = new Map<
   string,
@@ -667,7 +675,7 @@ app
     });
     startupLog("login item set");
     localServer = new LocalOpenLeashServer(app.getPath("userData"), {
-      onAgentStop: playAgentDoneSound,
+      onAgentStop: handleLocalAgentStop,
       onRemoteHookForward: refreshPendingApprovalsSoon,
     });
     startupLog(`local server constructed at ${app.getPath("userData")}`);
@@ -1936,6 +1944,7 @@ ipcMain.handle(
     resolution: "allow" | "deny",
     resolutionGuidance?: string,
     rememberForMs?: number,
+    responsePayload?: Record<string, unknown>,
   ) => {
     const pending = latestPending.find((item) => item.id === id);
     if (pending && Number(rememberForMs) > 0) {
@@ -1955,7 +1964,7 @@ ipcMain.handle(
       : [id];
     for (const decisionId of idsToResolve) resolvingDecisionIds.add(decisionId);
     for (const decisionId of idsToResolve) {
-      if (!localServer.resolve(decisionId, resolution, resolutionGuidance)) {
+      if (!localServer.resolve(decisionId, resolution, resolutionGuidance, responsePayload)) {
         startupLog(`approval resolve missing local decision ${decisionId}`);
       }
     }
@@ -1978,7 +1987,7 @@ ipcMain.handle(
     });
     void Promise.all(
       idsToResolve.map((decisionId) =>
-        syncRemoteDecision(decisionId, resolution, resolutionGuidance),
+        syncRemoteDecision(decisionId, resolution, resolutionGuidance, responsePayload),
       ),
     )
       .catch((error) => {
@@ -1998,6 +2007,22 @@ ipcMain.handle(
 );
 ipcMain.handle("openleash:dismiss-notice", () => {
   closeNoticeWithoutOpeningMainWindow();
+});
+ipcMain.handle("openleash:resize-notice", (_event, requestedHeight: number) => {
+  if (!noticeWindow || noticeWindow.isDestroyed()) return { ok: false };
+  const height = Math.max(72, Math.min(680, Math.round(Number(requestedHeight) || 118)));
+  const display = screen.getDisplayNearestPoint(screen.getCursorScreenPoint()).bounds;
+  const bounds = noticeWindow.getBounds();
+  noticeWindow.setBounds({
+    x: Math.round(display.x + (display.width - bounds.width) / 2),
+    y: Math.round(display.y + (process.platform === "darwin" ? 5 : 10)),
+    width: bounds.width,
+    height,
+  });
+  return { ok: true };
+});
+ipcMain.handle("openleash:jump-to-agent", async (_event, payload: { agentKind?: string }) => {
+  return openAgentApplication(payload?.agentKind);
 });
 
 async function poll() {
@@ -2028,6 +2053,7 @@ async function poll() {
     }
     latestOutcomes = body.outcomes ?? [];
     latestViewModel = body.viewModel ?? latestViewModel;
+    latestAttentionEvents = body.attentionEvents ?? [];
     setTrayStatus(latestPending.length > 0 ? "pending" : "ok");
     refreshMenu();
     window?.webContents.send("openleash:update", {
@@ -2070,6 +2096,26 @@ async function poll() {
       noticeWindow?.close();
       noticeWindow = undefined;
       activeNoticeKey = undefined;
+    } else if (
+      !noticeWindow ||
+      noticeWindow.isDestroyed() ||
+      !noticeWindow.isVisible()
+    ) {
+      const attention = latestAttentionEvents
+        .filter((event) => event.state !== "waiting")
+        .filter((event) => !seenAttentionEventIds.has(event.id))
+        .filter((event) => new Date(event.createdAt).getTime() >= desktopStartedAt - 5_000)
+        .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime())[0];
+      if (attention) {
+        seenAttentionEventIds.add(attention.id);
+        showDecisionNotice({ kind: "attention", event: attention });
+        if (
+          localServer.agentDoneSound &&
+          (attention.kind === "completed" || attention.kind === "subagent_completed")
+        ) {
+          playAgentDoneSound();
+        }
+      }
     }
   } catch {
     await refreshLocalProtections();
@@ -2093,6 +2139,7 @@ async function fetchTrayState(): Promise<
       pending: PendingDecision[];
       agents: AgentStatus[];
       sessionMetrics?: SessionMetrics;
+      attentionEvents?: AttentionEvent[];
       plugins: PluginCatalogItem[];
       outcomes?: PluginOutcome[];
       viewModel?: OpenLeashClientViewModel;
@@ -2133,11 +2180,20 @@ async function fetchTrayState(): Promise<
       ),
       fetchRemotePluginOutcomes(remoteApiUrl, remoteToken),
     ]);
-    if (!stateResponse.ok)
-      return localState ? { ...localState, plugins, outcomes } : undefined;
+    if (!stateResponse.ok) {
+      return notifications
+        ? mergeTrayState(localState, notifications, plugins, outcomes)
+        : localState
+          ? { ...localState, plugins, outcomes }
+          : undefined;
+    }
+    const remoteState = mapRemoteMobileState(
+      (await stateResponse.json()) as RemoteMobileState,
+    );
+    remoteState.attentionEvents = notifications?.attentionEvents ?? [];
     return mergeTrayState(
       localState,
-      mapRemoteMobileState((await stateResponse.json()) as RemoteMobileState),
+      remoteState,
       plugins,
       outcomes,
     );
@@ -2175,6 +2231,7 @@ async function fetchRemoteNotifications(
       pending: PendingDecision[];
       agents: AgentStatus[];
       sessionMetrics?: SessionMetrics;
+      attentionEvents?: AttentionEvent[];
     }
   | undefined
 > {
@@ -2505,12 +2562,14 @@ function mergeTrayState(
         plugins: PluginCatalogItem[];
         outcomes?: PluginOutcome[];
         viewModel?: OpenLeashClientViewModel;
+        attentionEvents?: AttentionEvent[];
       }
     | undefined,
   remoteState: {
     pending: PendingDecision[];
     agents: AgentStatus[];
     sessionMetrics?: SessionMetrics;
+    attentionEvents?: AttentionEvent[];
   },
   plugins: PluginCatalogItem[],
   outcomes: PluginOutcome[] = [],
@@ -2521,6 +2580,10 @@ function mergeTrayState(
     pending: dedupePending([...localState.pending, ...remoteState.pending]),
     agents: dedupeById([...localState.agents, ...remoteState.agents]),
     sessionMetrics: remoteState.sessionMetrics ?? localState.sessionMetrics,
+    attentionEvents: dedupeById([
+      ...(remoteState.attentionEvents ?? []),
+      ...(localState.attentionEvents ?? []),
+    ]),
     plugins,
     outcomes,
     viewModel: latestViewModel ?? localState.viewModel,
@@ -2635,6 +2698,7 @@ function mapRemoteMobileState(state: RemoteMobileState): {
   pending: PendingDecision[];
   agents: AgentStatus[];
   sessionMetrics?: SessionMetrics;
+  attentionEvents?: AttentionEvent[];
 } {
   return {
     pending: (state.pendingApprovals ?? []).map((item) => ({
@@ -2681,6 +2745,9 @@ function mapRemoteMobileState(state: RemoteMobileState): {
         friendlyAction(agent.event_name, agent.tool_name),
     })),
     sessionMetrics: mapRemoteSessionMetrics(state.sessionMetrics),
+    attentionEvents: Array.isArray(state.attentionEvents)
+      ? state.attentionEvents
+      : [],
   };
 }
 
@@ -2716,6 +2783,7 @@ async function syncRemoteDecision(
   id: string,
   resolution: "allow" | "deny",
   resolutionGuidance?: string,
+  responsePayload?: Record<string, unknown>,
 ) {
   const guidance =
     resolution === "deny"
@@ -2737,6 +2805,9 @@ async function syncRemoteDecision(
       body: JSON.stringify({
         resolution,
         ...(guidance ? { resolutionGuidance: guidance } : {}),
+        ...(resolution === "allow" && responsePayload
+          ? { response: responsePayload }
+          : {}),
       }),
     },
   );
@@ -3112,7 +3183,7 @@ async function fetchUpdateManifest(): Promise<UpdateManifest | undefined> {
   manifest.version = version;
   if (!manifest.dmgUrl && !manifest.downloadUrl) {
     if (compareVersions(version, app.getVersion()) > 0) {
-      throw new Error("Update feed is missing a DMG download URL.");
+      throw new Error("Update feed is missing an installer download URL.");
     }
   }
   if (
@@ -3163,11 +3234,16 @@ function wasUpdatePromptedRecently(state: UpdateState, version: string) {
 }
 
 async function installUpdate(manifest: UpdateManifest) {
-  const dmgUrl = manifest.dmgUrl ?? manifest.downloadUrl;
-  if (!dmgUrl) throw new Error("Update has no DMG URL.");
+  const installerUrl = manifest.downloadUrl ?? manifest.dmgUrl;
+  if (!installerUrl) throw new Error("Update has no installer URL.");
+  if (process.platform !== "darwin" && process.platform !== "win32") {
+    await openTrustedExternalUrl(installerUrl);
+    throw new Error("Automatic updates are currently supported on macOS and Windows.");
+  }
+  const extension = process.platform === "win32" ? "exe" : "dmg";
   const downloadPath = path.join(
     app.getPath("temp"),
-    `OpenLeash-${manifest.version}.dmg`,
+    `OpenLeash-${manifest.version}.${extension}`,
   );
   await dialog.showMessageBox({
     type: "info",
@@ -3175,7 +3251,7 @@ async function installUpdate(manifest: UpdateManifest) {
     detail:
       "The app will close for a moment while the new version is installed. Your local settings and history will stay in place.",
   });
-  await downloadFile(dmgUrl, downloadPath);
+  await downloadFile(installerUrl, downloadPath);
   const actualSha256 = crypto
     .createHash("sha256")
     .update(fs.readFileSync(downloadPath))
@@ -3184,27 +3260,31 @@ async function installUpdate(manifest: UpdateManifest) {
     fs.rmSync(downloadPath, { force: true });
     throw new Error("Downloaded update failed SHA-256 verification.");
   }
-  const installer = installerScriptPath();
-  if (!fs.existsSync(installer)) {
-    await openTrustedExternalUrl(dmgUrl);
-    throw new Error(
-      "Installer helper was not found, so the DMG was opened in your browser instead.",
-    );
-  }
-  const child = spawn(
-    "/bin/bash",
-    [installer, "--dmg", downloadPath, "--keep-settings", "--quiet"],
-    {
-      detached: true,
-      stdio: "ignore",
-    },
-  );
+  const child =
+    process.platform === "win32"
+      ? spawn(downloadPath, ["/S"], { detached: true, stdio: "ignore" })
+      : spawnMacUpdateInstaller(installerUrl, downloadPath);
   child.unref();
   quitting = true;
   noticeWindow?.destroy();
   window?.destroy();
   tray?.destroy();
   setTimeout(() => app.quit(), 250);
+}
+
+function spawnMacUpdateInstaller(installerUrl: string, downloadPath: string) {
+  const installer = installerScriptPath();
+  if (!fs.existsSync(installer)) {
+    void openTrustedExternalUrl(installerUrl);
+    throw new Error(
+      "Installer helper was not found, so the DMG was opened in your browser instead.",
+    );
+  }
+  return spawn(
+    "/bin/bash",
+    [installer, "--dmg", downloadPath, "--keep-settings", "--quiet"],
+    { detached: true, stdio: "ignore" },
+  );
 }
 
 async function downloadFile(url: string, targetPath: string) {
@@ -4456,6 +4536,7 @@ function showMainWindow(
 
 function quitOpenLeash() {
   quitting = true;
+  if (noticeDismissTimer) clearTimeout(noticeDismissTimer);
   noticeWindow?.destroy();
   noticeWindow = undefined;
   window?.destroy();
@@ -4496,6 +4577,8 @@ function suppressMainWindowActivation(durationMs = 30000) {
 
 function closeNoticeWithoutOpeningMainWindow() {
   suppressMainWindowActivation();
+  if (noticeDismissTimer) clearTimeout(noticeDismissTimer);
+  noticeDismissTimer = undefined;
   if (noticeWindow && !noticeWindow.isDestroyed()) noticeWindow.destroy();
   noticeWindow = undefined;
   activeNoticeKey = undefined;
@@ -4556,6 +4639,7 @@ function fitMainWindowOnLargestDisplay(target: BrowserWindow) {
 
 type DecisionNotice =
   | { kind: "ask"; pending: PendingDecision }
+  | { kind: "attention"; event: AttentionEvent }
   | {
       kind: "sample";
       agentName: string;
@@ -4565,19 +4649,26 @@ type DecisionNotice =
     };
 
 function noticeWorkArea(notice: DecisionNotice) {
-  return largestDisplay().workArea;
+  if (notice.kind === "attention" || notice.kind === "ask") {
+    return screen.getDisplayNearestPoint(screen.getCursorScreenPoint()).bounds;
+  }
+  return largestDisplay().bounds;
 }
 
 function showDecisionNotice(notice: DecisionNotice) {
   const display = noticeWorkArea(notice);
-  const width = 486;
+  const width = 430;
   const supportsGuidance =
     notice.kind === "ask"
       ? supportsAgentGuidance(notice.pending.agent_kind)
       : false;
-  const height = notice.kind === "sample" ? 362 : 650;
+  const height = 118;
   const noticeKey =
-    notice.kind === "ask" ? decisionNoticeKey(notice.pending) : "sample";
+    notice.kind === "ask"
+      ? decisionNoticeKey(notice.pending)
+      : notice.kind === "attention"
+        ? notice.event.id
+        : "sample";
   if (
     activeNoticeKey === noticeKey &&
     noticeWindow &&
@@ -4594,8 +4685,8 @@ function showDecisionNotice(notice: DecisionNotice) {
   const createdNoticeWindow = new BrowserWindow({
     width,
     height,
-    x: Math.round(display.x + display.width - width - 18),
-    y: Math.round(display.y + 18),
+    x: Math.round(display.x + (display.width - width) / 2),
+    y: Math.round(display.y + (process.platform === "darwin" ? 5 : 10)),
     show: false,
     frame: false,
     resizable: false,
@@ -4603,7 +4694,7 @@ function showDecisionNotice(notice: DecisionNotice) {
     skipTaskbar: true,
     transparent: true,
     hasShadow: false,
-    focusable: supportsGuidance,
+    focusable: true,
     acceptFirstMouse: true,
     webPreferences: {
       contextIsolation: true,
@@ -4636,7 +4727,12 @@ function showDecisionNotice(notice: DecisionNotice) {
     createdNoticeWindow.showInactive();
     createdNoticeWindow.setAlwaysOnTop(true, "screen-saver");
     createdNoticeWindow.moveTop();
-    createdNoticeWindow.flashFrame(true);
+    if (notice.kind === "attention") {
+      if (noticeDismissTimer) clearTimeout(noticeDismissTimer);
+      noticeDismissTimer = setTimeout(() => {
+        if (activeNoticeKey === noticeKey) closeNoticeWithoutOpeningMainWindow();
+      }, 5200);
+    }
   });
 }
 
@@ -4660,6 +4756,24 @@ function formatNotice(notice: DecisionNotice) {
       project: projectTag(item.project_path),
       time: timeAgo(item.created_at),
       supportsGuidance: supportsAgentGuidance(item.agent_kind),
+      pendingCount: latestPending.length,
+      interaction: interactionForPending(item),
+    };
+  }
+  if (notice.kind === "attention") {
+    return {
+      kind: notice.event.kind,
+      id: undefined,
+      eventId: notice.event.id,
+      agentName: notice.event.agent?.name ?? "AI agent",
+      agentKind: notice.event.agent?.kind ?? "unknown",
+      agentIcon: agentIconFor(notice.event.agent?.name ?? ""),
+      title: notice.event.title,
+      summary: notice.event.body,
+      project: projectTag(notice.event.session?.projectPath),
+      time: timeAgo(notice.event.createdAt),
+      session: notice.event.session,
+      canJump: canOpenAgent(notice.event.agent?.kind),
     };
   }
   if (notice.kind === "sample") {
@@ -4818,6 +4932,47 @@ function friendlyAction(eventName?: string, toolName?: string) {
 }
 
 let lastAgentDoneSoundAt = 0;
+function handleLocalAgentStop(event: { agent: string; body: unknown }) {
+  const body = objectValue(event.body);
+  const agentName = localAgentDisplayName(event.agent);
+  const attention: AttentionEvent = {
+    schemaVersion: "2026-07-19.v1",
+    id: `local-completed:${event.agent}:${String(body?.session_id ?? body?.sessionId ?? Date.now())}`,
+    kind: "completed",
+    state: "resolved",
+    title: `${agentName} finished`,
+    body:
+      [body?.last_assistant_message, body?.prompt_response, body?.message]
+        .find((value): value is string => typeof value === "string" && value.trim().length > 0)
+        ?.trim()
+        .slice(0, 180) ?? "The agent finished its latest turn.",
+    createdAt: new Date().toISOString(),
+    agent: { kind: event.agent, name: agentName, hostname: os.hostname() },
+    session: {
+      id: String(body?.session_id ?? body?.sessionId ?? "unknown"),
+      projectPath:
+        typeof body?.cwd === "string" ? body.cwd : undefined,
+    },
+  };
+  seenAttentionEventIds.add(attention.id);
+  if (!latestPending.length) showDecisionNotice({ kind: "attention", event: attention });
+  if (localServer.agentDoneSound) playAgentDoneSound();
+}
+
+function localAgentDisplayName(agent: string) {
+  const names: Record<string, string> = {
+    claude: "Claude Code",
+    codex: "OpenAI Codex",
+    gemini: "Gemini CLI",
+    opencode: "OpenCode",
+    cursor: "Cursor",
+    copilot: "GitHub Copilot",
+    nanoclaw: "NanoClaw",
+    openclaw: "OpenClaw",
+  };
+  return names[agent] ?? agent;
+}
+
 function playAgentDoneSound() {
   const now = Date.now();
   if (now - lastAgentDoneSoundAt < 1200) return;
@@ -4831,6 +4986,47 @@ function playAgentDoneSound() {
     return;
   }
   process.stdout.write("\x07");
+}
+
+function openAgentApplication(agentKind?: string) {
+  const kind = String(agentKind ?? "").toLowerCase();
+  try {
+    if (process.platform === "darwin") {
+      const appName = kind === "cursor"
+        ? "Cursor"
+        : kind === "github-copilot"
+          ? "Visual Studio Code"
+          : "Terminal";
+      const child = spawn("open", ["-a", appName], {
+        stdio: "ignore",
+        detached: true,
+      });
+      child.unref();
+      closeNoticeWithoutOpeningMainWindow();
+      return { ok: true, exact: false };
+    }
+    if (process.platform === "win32") {
+      const candidates = kind === "cursor"
+        ? ["Cursor"]
+        : kind === "github-copilot"
+          ? ["Code", "Visual Studio Code"]
+          : ["WindowsTerminal", "Windows Terminal", "Code", "Cursor"];
+      const script = `$shell = New-Object -ComObject WScript.Shell; $names = @(${candidates.map((name) => `'${name.replace(/'/g, "''")}'`).join(",")}); foreach ($name in $names) { if ($shell.AppActivate($name)) { exit 0 } }; exit 1`;
+      const child = spawn("powershell.exe", ["-NoProfile", "-NonInteractive", "-Command", script], {
+        stdio: "ignore",
+        detached: true,
+      });
+      child.unref();
+      closeNoticeWithoutOpeningMainWindow();
+      return { ok: true, exact: false };
+    }
+    return { ok: false, error: "Agent activation is supported on macOS and Windows." };
+  } catch (error) {
+    return {
+      ok: false,
+      error: error instanceof Error ? error.message : "Could not open the agent.",
+    };
+  }
 }
 
 async function configureLocalAgent() {
@@ -4862,6 +5058,62 @@ function localHookInstallContext() {
     apiFunction: "localHookEvaluate",
     apiVersion: "2026-05-22.local-hook-evaluate.v1",
   };
+}
+
+function interactionForPending(item: PendingDecision) {
+  const payload = objectValue(item.payload);
+  const tool = objectValue(payload?.tool);
+  const input = objectValue(tool?.input) ?? {};
+  if (/^AskUserQuestion$/i.test(item.tool_name ?? "")) {
+    const questions = Array.isArray(input.questions)
+      ? input.questions
+          .map((value) => objectValue(value))
+          .filter((value): value is Record<string, unknown> => Boolean(value))
+          .slice(0, 4)
+          .map((question) => ({
+            question: String(question.question ?? "").trim(),
+            header: String(question.header ?? "Question").trim().slice(0, 40),
+            multiSelect: Boolean(question.multiSelect ?? question.multiple),
+            options: (Array.isArray(question.options) ? question.options : [])
+              .map((value) => objectValue(value))
+              .filter((value): value is Record<string, unknown> => Boolean(value))
+              .slice(0, 12)
+              .map((option) => ({
+                label: String(option.label ?? "").trim(),
+                description:
+                  typeof option.description === "string"
+                    ? option.description.trim()
+                    : undefined,
+              }))
+              .filter((option) => option.label),
+          }))
+          .filter((question) => question.question)
+      : [];
+    return { type: "questions", questions, originalInput: input };
+  }
+  if (/^ExitPlanMode$/i.test(item.tool_name ?? "")) {
+    const raw = objectValue(payload?.raw);
+    const markdown = [
+      input.plan,
+      input.content,
+      input.planContent,
+      raw?.plan,
+      raw?.plan_content,
+      raw?.planContent,
+    ].find((value): value is string => typeof value === "string" && value.trim().length > 0);
+    return { type: "plan", markdown, originalInput: input };
+  }
+  return { type: "approval" };
+}
+
+function objectValue(value: unknown): Record<string, unknown> | undefined {
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : undefined;
+}
+
+function canOpenAgent(kind?: string) {
+  return Boolean(kind && kind !== "unknown");
 }
 
 function hookInstallContext() {

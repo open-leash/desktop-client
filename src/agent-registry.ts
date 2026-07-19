@@ -993,7 +993,7 @@ function detectOpenCodeProtected() {
   ).includes("/v1/hooks/opencode/");
 }
 
-function openCodePluginSource(context: InstallContext) {
+export function openCodePluginSource(context: InstallContext) {
   const preToolUrl = hookEndpoint(context, "opencode", "PreToolUse");
   const postToolUrl = hookEndpoint(context, "opencode", "PostToolUse");
   const stopUrl = hookEndpoint(context, "opencode", "Stop");
@@ -1016,21 +1016,95 @@ async function evaluate(url, payload) {
     }),
     signal: AbortSignal.timeout(${HOOK_TIMEOUT_MS})
   });
-  if (!response.ok) return;
-  const decision = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    throw new Error(\`OpenLeash backend unavailable (HTTP \${response.status}).\`);
+  }
+  return await response.json().catch(() => ({}));
+}
+
+function enforce(decision) {
   if (decision.decision === "deny" || decision.decision === "block") {
     throw new Error(decision.reason || "OpenLeash denied this action.");
   }
+  return decision;
 }
 
-export const OpenLeash = async () => ({
+function questionAnswers(questions, decision) {
+  const payload = decision.response || decision.updatedInput || {};
+  const answers = payload.answers && typeof payload.answers === "object"
+    ? payload.answers
+    : {};
+  return questions.map((question) => {
+    const value = answers[question.question];
+    if (Array.isArray(value)) return value.map(String);
+    return value === undefined || value === null || value === ""
+      ? []
+      : [String(value)];
+  });
+}
+
+async function replyToQuestion(client, serverUrl, directory, request, decision) {
+  if (decision.decision === "deny" || decision.decision === "block") {
+    if (client?.question?.reject) {
+      await client.question.reject({ requestID: request.id, directory });
+      return;
+    }
+    await fetch(new URL(\`/question/\${encodeURIComponent(request.id)}/reject?directory=\${encodeURIComponent(directory)}\`, serverUrl), { method: "POST" });
+    return;
+  }
+  const answers = questionAnswers(request.questions || [], decision);
+  if (client?.question?.reply) {
+    await client.question.reply({ requestID: request.id, directory, answers });
+    return;
+  }
+  await fetch(new URL(\`/question/\${encodeURIComponent(request.id)}/reply?directory=\${encodeURIComponent(directory)}\`, serverUrl), {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ answers })
+  });
+}
+
+export const OpenLeash = async ({ client, directory, serverUrl }) => ({
+  event: async ({ event }) => {
+    if (event?.type === "question.asked") {
+      const request = event.properties || {};
+      const decision = await evaluate(${JSON.stringify(preToolUrl)}, {
+        tool_name: "AskUserQuestion",
+        tool_input: { questions: request.questions || [] },
+        session_id: request.sessionID,
+        cwd: directory
+      });
+      await replyToQuestion(client, serverUrl, directory, request, decision);
+      return;
+    }
+    if (event?.type === "session.idle") {
+      await evaluate(${JSON.stringify(stopUrl)}, {
+        session_id: event.properties?.sessionID,
+        cwd: directory
+      });
+    }
+  },
+  "permission.ask": async (input, output) => {
+    const decision = await evaluate(${JSON.stringify(preToolUrl)}, {
+      tool_name: input?.permission || "PermissionRequest",
+      tool_input: {
+        patterns: input?.patterns || [],
+        metadata: input?.metadata || {}
+      },
+      session_id: input?.sessionID,
+      cwd: directory
+    });
+    output.status = decision.decision === "deny" || decision.decision === "block"
+      ? "deny"
+      : "allow";
+  },
   "tool.execute.before": async (input, output) => {
-    await evaluate(${JSON.stringify(preToolUrl)}, {
+    enforce(await evaluate(${JSON.stringify(preToolUrl)}, {
       tool_name: input?.tool,
       tool_input: output?.args || input?.args || input,
       session_id: input?.sessionID || input?.session?.id,
       cwd: input?.cwd
-    });
+    }));
   },
   "tool.execute.after": async (input, output) => {
     await evaluate(${JSON.stringify(postToolUrl)}, {
@@ -1039,12 +1113,6 @@ export const OpenLeash = async () => ({
       tool_response: output,
       session_id: input?.sessionID || input?.session?.id,
       cwd: input?.cwd
-    });
-  },
-  "session.idle": async (input) => {
-    await evaluate(${JSON.stringify(stopUrl)}, {
-      session_id: input?.sessionID || input?.session?.id,
-      prompt_response: input?.message || input?.summary
     });
   }
 });

@@ -18,6 +18,25 @@
 
 `desktop-client` is the installed OpenLeash client: tray app, local helper API, approval UI, hook installer, update checks, and deployment CLI.
 
+The attention island is a non-activating, top-center overlay for the moments
+when an agent needs a person. It presents OpenLeash policy approvals, native
+agent questions and plan reviews, blocked actions, and completion notices
+without opening the main window or stealing focus from the terminal.
+
+Native interaction support is capability-based:
+
+| Agent adapter | Policy approvals | Native questions | Plan review | Completion |
+| --- | --- | --- | --- | --- |
+| Claude Code / NanoClaw | Yes | Yes, answers resume the hook | Yes | Yes |
+| OpenCode | Yes | Yes, answers use OpenCode's question API | Agent-dependent | Yes |
+| Codex / Copilot / Gemini and other installed hooks | Yes | When their stable hook contract exposes structured answers | When exposed | When their stop hook is available |
+
+The overlay is implemented with Electron primitives available on macOS and
+Windows (`showInactive`, frameless transparent windows, skip-taskbar, and
+always-on-top). "Open agent" activates a likely host application; it is not
+described as an exact session jump unless that agent publishes a stable deep
+link.
+
 Installed hooks call the configured managed OpenLeash API:
 
 ```text
