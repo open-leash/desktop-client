@@ -154,16 +154,16 @@
         font-weight: 750;
       }
       .cap-agent img { width: 15px; height: 15px; object-fit: contain; }
-      .island.activity-mode:not(.expanded) { width: 180px; }
+      .island.activity-mode:not(.expanded) { width: var(--activity-compact-width, 180px); }
       .island.activity-mode:not(.expanded) .agent-mark,
       .island.activity-mode:not(.expanded) .signal-wrap,
       .island.activity-mode:not(.expanded) .cap-copy { display: none; }
       .island.activity-mode:not(.expanded) .cap-agents { display: flex; }
       body.native-macos.has-display-notch .island.activity-mode:not(.expanded) {
-        width: 430px;
+        width: var(--activity-compact-width, 320px);
         height: var(--hardware-safe-top);
         min-height: var(--hardware-safe-top);
-        border-radius: 0;
+        border-radius: 0 0 18px 18px;
       }
       body.native-macos.has-display-notch .island.activity-mode:not(.expanded) .cap { display: none; }
       body.native-macos.has-display-notch .island.activity-mode:not(.expanded) .notch-rail {
@@ -627,6 +627,31 @@
           bridge.resizeNotice({ width: Math.ceil(rect.width + 192), height: Math.ceil(rect.height + 112) });
         });
       }
+      function visibleRowWidth(element) {
+        const style = getComputedStyle(element);
+        const children = [...element.children].filter((child) => {
+          const childStyle = getComputedStyle(child);
+          return childStyle.display !== "none" && child.getBoundingClientRect().width > 0;
+        });
+        const content = children.reduce((width, child) => width + child.getBoundingClientRect().width, 0);
+        const gap = parseFloat(style.columnGap || style.gap) || 0;
+        return content + Math.max(0, children.length - 1) * gap + (parseFloat(style.paddingLeft) || 0) + (parseFloat(style.paddingRight) || 0);
+      }
+      function updateActivityCompactWidth() {
+        if (!island.classList.contains("activity-mode")) return;
+        const hasNotch = document.body.classList.contains("has-display-notch");
+        let width;
+        if (hasNotch) {
+          const notchWidth = parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--hardware-notch-width")) || 0;
+          const sideWidth = Math.max(visibleRowWidth(notchAgents), visibleRowWidth(notchMetric));
+          width = notchWidth + (2 * (sideWidth + 8));
+          width = Math.max(notchWidth + 64, Math.min(430, width));
+        } else {
+          width = Math.max(112, Math.min(360, visibleRowWidth(cap)));
+        }
+        island.style.setProperty("--activity-compact-width", `${Math.ceil(width)}px`);
+        resize();
+      }
       new ResizeObserver(resize).observe(island);
 
       function renderNotice(payload) {
@@ -667,6 +692,7 @@
         document.documentElement.style.setProperty("--hardware-safe-top", `${safeTop}px`);
         document.documentElement.style.setProperty("--hardware-notch-width", `${notchWidth}px`);
         document.body.classList.toggle("has-display-notch", Boolean(metrics.hasNotch) && safeTop > 0);
+        requestAnimationFrame(updateActivityCompactWidth);
         resize();
       };
       window.inspectOpenLeashIsland = () => {
@@ -688,6 +714,9 @@
           capTokenSaving: capMetric.textContent.trim(),
           historyButtonVisible: Boolean(actions.querySelector('[data-action="show-history"]')),
           islandHeight: island.getBoundingClientRect().height,
+          islandWidth: island.getBoundingClientRect().width,
+          activityCompactWidth: parseFloat(getComputedStyle(island).getPropertyValue("--activity-compact-width")) || 0,
+          islandBorderRadius: getComputedStyle(island).borderRadius,
           expanded: island.classList.contains("expanded"),
         };
       };
@@ -816,6 +845,7 @@
           notchMetric.appendChild(value);
           capMetric.hidden = false; capMetric.textContent = `✂ ${tokenSaver.value}`; capMetric.title = value.title;
         }
+        requestAnimationFrame(updateActivityCompactWidth);
       }
 
       function selectActivitySession(session, card) {

@@ -151,7 +151,7 @@ private final class IslandController: NSObject, WKNavigationDelegate, WKScriptMe
     }
 
     func expandActivityForVerification() {
-        webView.evaluateJavaScript("document.body.classList.contains('has-display-notch') ? document.getElementById('notchRail').click() : document.getElementById('cap').click()")
+        webView.evaluateJavaScript("document.getElementById('toggle').click()")
     }
 
     private func resize(width requestedWidth: Double, height requestedHeight: Double) {

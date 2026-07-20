@@ -115,15 +115,39 @@ try {
   assert.equal(activity.layout.capAgentCount, 3, "plain-display compact pill did not render active agent icons");
   assert.match(activity.layout.notchTokenSaving, /42% saved/, "notch rail did not render token savings");
   assert.match(activity.layout.capTokenSaving, /42% saved/, "compact header did not retain token savings for displays without a notch");
+  assert.equal(activity.layout.islandWidth, activity.layout.activityCompactWidth, "collapsed activity island did not use its measured content width");
   if (activity.display.hasNotch) {
     assert.equal(activity.layout.islandHeight, activity.display.safeTop, "notched compact activity grew below the hardware notch");
+    assert.ok(activity.layout.islandWidth < 430, `notched compact activity retained the oversized fixed width: ${activity.layout.islandWidth}`);
+    assert.ok(activity.layout.islandWidth >= activity.display.notchWidth, "notched compact activity is narrower than the hardware notch");
+    assert.equal(activity.layout.islandBorderRadius, "0px 0px 18px 18px", "notched compact activity does not have rounded lower corners");
   } else {
     assert.ok(activity.layout.islandHeight >= 42 && activity.layout.islandHeight <= 55, `plain compact activity height is not one line: ${activity.layout.islandHeight}`);
+    assert.ok(activity.layout.islandWidth >= 112 && activity.layout.islandWidth <= 360, `plain compact activity escaped its content-fit bounds: ${activity.layout.islandWidth}`);
+    assert.notEqual(activity.layout.islandBorderRadius, "0px", "plain compact activity has square corners");
   }
   send({ type: "expandActivity" });
   const expandedActivity = await inspectAfter(450);
   assert.equal(expandedActivity.layout.expanded, true, "compact activity rail did not expand");
   assert.ok(expandedActivity.layout.islandHeight > activity.layout.islandHeight, "expanded activity did not reveal its details");
+  assert.ok(expandedActivity.layout.islandWidth > activity.layout.islandWidth, "expanded activity did not grow wider than its compact content");
+  send({ type: "expandActivity" });
+  const collapsedActivity = await inspectAfter(450);
+  assert.equal(collapsedActivity.layout.expanded, false, "expanded activity did not collapse again");
+  assert.equal(collapsedActivity.layout.islandWidth, activity.layout.islandWidth, "collapsed activity did not return to its measured content width");
+
+  send({ type: "show", payload: {
+    kind: "activity",
+    agentName: "OpenLeash",
+    title: "Agent working",
+    project: "1 active session",
+    sessions: [
+      { id: "claude-only", agentKind: "claude-code", agentName: "Claude Code", project: "client-api", title: "Test Claude", latestAction: "Running tests", eventCount: 3 },
+    ],
+  } });
+  const singleAgentActivity = await inspectAfter(650);
+  assert.equal(singleAgentActivity.layout.sessionCount, 1, "single-agent compact fixture did not render");
+  assert.ok(singleAgentActivity.layout.islandWidth < activity.layout.islandWidth, `compact island did not shrink with less content: ${singleAgentActivity.layout.islandWidth} >= ${activity.layout.islandWidth}`);
 
   send({ type: "show", payload: {
     kind: "ask",
