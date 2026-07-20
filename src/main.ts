@@ -4697,7 +4697,10 @@ function syncActivityIsland() {
   const contributions = latestIslandContributions.filter((contribution) =>
     Date.parse(contribution.expiresAt) > Date.now()
   );
-  if (sessions.length === 0 && contributions.length === 0) {
+  const hasNonTokenSaverContribution = contributions.some(
+    (contribution) => contribution.pluginId !== "openleash.prompt-compression",
+  );
+  if (sessions.length === 0 && !hasNonTokenSaverContribution) {
     if (activeNoticeKey?.startsWith("activity:")) closeNoticeWithoutOpeningMainWindow();
     return;
   }
