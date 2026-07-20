@@ -151,8 +151,8 @@ private final class IslandController: NSObject, WKNavigationDelegate, WKScriptMe
     }
 
     private func resize(width requestedWidth: Double, height requestedHeight: Double) {
-        let width = CGFloat(max(220, min(680, requestedWidth.rounded(.up))))
-        let height = CGFloat(max(42, min(680, requestedHeight.rounded(.up))))
+        let width = CGFloat(max(220, min(780, requestedWidth.rounded(.up))))
+        let height = CGFloat(max(42, min(760, requestedHeight.rounded(.up))))
         place(width: width, height: height)
     }
 

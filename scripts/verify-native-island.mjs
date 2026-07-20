@@ -69,8 +69,8 @@ try {
   assert.equal(compact.visible, true);
   assert.equal(compact.layout.backgroundColor, "rgb(0, 0, 0)");
   assert.equal(compact.frame.topInset, 0);
-  if (compact.display.hasNotch) assert.ok(compact.frame.width >= 540 && compact.frame.width <= 545, `unexpected notched compact width ${compact.frame.width}`);
-  else assert.ok(compact.frame.width >= 375 && compact.frame.width <= 385, `unexpected compact width ${compact.frame.width}`);
+  if (compact.display.hasNotch) assert.ok(compact.frame.width >= 620 && compact.frame.width <= 625, `unexpected notched compact width ${compact.frame.width}`);
+  else assert.ok(compact.frame.width >= 455 && compact.frame.width <= 465, `unexpected compact width ${compact.frame.width}`);
   assert.ok(compact.frame.height < 175, `unexpected compact height ${compact.frame.height}`);
   assert.equal(compact.layout.contentClearsNotch, true);
   if (compact.display.hasNotch) {
@@ -98,15 +98,18 @@ try {
       { id: "codex", sessionId: "codex-session", agentKind: "codex", agentName: "OpenAI Codex", project: "desktop", title: "Test Codex", latestAction: "Editing files", eventCount: 5, contributions: [{ pluginId: "openleash.blast-radius", pluginName: "blast-radius", pluginIcon: "💥", kind: "annotation", label: "Destructive operation", tone: "danger" }, { pluginId: "openleash.prompt-compression", pluginName: "token-saver", pluginIcon: "✂️", kind: "annotation", label: "Token saver", value: "42% saved", tone: "success" }] },
       { id: "gemini", agentKind: "gemini", agentName: "Gemini CLI", project: "docs", title: "Test Gemini", latestAction: "Reading docs", eventCount: 2 },
     ],
+    tokenSaver: { pluginId: "openleash.prompt-compression", pluginName: "token-saver", value: "42% saved", tone: "success" },
     contributions: [{ pluginId: "community.tests", pluginName: "test-progress", kind: "status", title: "Tests running", tone: "info", progress: { current: 3, total: 5 } }],
   } });
   const activity = await inspectAfter(650);
   assert.equal(activity.visible, true);
   assert.equal(activity.layout.sessionCount, 3, "activity island did not render every active session");
   assert.equal(activity.layout.activityDetailVisible, false, "multi-session activity opened a detail without selection");
+  assert.equal(activity.layout.historyButtonVisible, true, "activity island did not offer optional history");
   assert.ok(activity.layout.contributionCount >= 2, "activity island did not render plugin contributions");
   assert.equal(activity.layout.notchAgentCount, 3, "notch rail did not render active agent icons");
   assert.match(activity.layout.notchTokenSaving, /42% saved/, "notch rail did not render token savings");
+  assert.match(activity.layout.capTokenSaving, /42% saved/, "compact header did not retain token savings for displays without a notch");
 
   send({ type: "show", payload: {
     kind: "ask",
@@ -124,7 +127,7 @@ try {
   assert.equal(expanded.visible, true);
   assert.equal(expanded.layout.backgroundColor, "rgb(0, 0, 0)");
   assert.equal(expanded.frame.topInset, 0);
-  assert.ok(expanded.frame.width >= 650 && expanded.frame.width <= 660, `unexpected expanded width ${expanded.frame.width}`);
+  assert.ok(expanded.frame.width >= 730 && expanded.frame.width <= 740, `unexpected expanded width ${expanded.frame.width}`);
   assert.ok(expanded.frame.height > 300, `unexpected expanded height ${expanded.frame.height}`);
   assert.equal(expanded.layout.contentClearsNotch, true);
   if (expanded.display.hasNotch) {

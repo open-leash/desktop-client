@@ -5041,6 +5041,26 @@ function formatNotice(notice: DecisionNotice) {
   }
   if (notice.kind === "activity") {
     const decorated = notice.contributions.map(decorateIslandContribution);
+    const sourceSessionIds = notice.sessions.flatMap((session) => session.sourceSessionIds);
+    const ambient = ambientIslandContributions(decorated, sourceSessionIds);
+    const tokenSaverContribution = decorated
+      .filter((item) => item.pluginId === "openleash.prompt-compression" && item.value)
+      .sort((left, right) => Date.parse(right.updatedAt) - Date.parse(left.updatedAt))[0];
+    const tokenSaverPlugin = latestPlugins.find((plugin) => plugin.id === "openleash.prompt-compression");
+    const tokenSaver = tokenSaverContribution ?? (
+      tokenSaverPlugin?.settings?.enabled
+        ? {
+            pluginId: "openleash.prompt-compression",
+            pluginName: "token-saver",
+            pluginIcon: "✂️",
+            value: tokenSaverPlugin.settings.runtimeAvailable === false ? "Unavailable" : "Ready",
+            detail: tokenSaverPlugin.settings.runtimeAvailable === false
+              ? tokenSaverPlugin.settings.runtimeError ?? "Token Saver is unavailable."
+              : "Watching model requests sent through the OpenLeash proxy. Savings appear after compression.",
+            tone: tokenSaverPlugin.settings.runtimeAvailable === false ? "danger" : "success",
+          }
+        : undefined
+    );
     return {
       kind: "activity",
       agentName: "OpenLeash",
@@ -5056,9 +5076,10 @@ function formatNotice(notice: DecisionNotice) {
         agentIcon: noticeAgentIconFor(session.agentName),
         canJump: canOpenAgent(session.agentKind),
         time: timeAgo(session.lastActivityAt),
-        contributions: contributionsForSession(decorated, session.sessionId),
+        contributions: contributionsForSession(decorated, session.sourceSessionIds),
       })),
-      contributions: ambientIslandContributions(decorated),
+      contributions: ambient,
+      tokenSaver,
     };
   }
   if (notice.kind === "sample") {

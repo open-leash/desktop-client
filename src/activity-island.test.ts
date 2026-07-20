@@ -55,6 +55,34 @@ test("shows the latest user request and explains tools in plain language", () =>
   assert.equal(session?.summary, "11 actions · 2 approval requests · 1 blocked");
 });
 
+test("removes transport session tags and merges duplicate hook and proxy views", () => {
+  const now = Date.parse("2026-07-20T10:00:00.000Z");
+  const sessions = activeAgentSessions([{
+    kind: "claude-code",
+    display_name: "Claude Code",
+    sessions: [
+      {
+        id: "hook-session",
+        session_id: "hook-session",
+        project_path: "/code/MyProj",
+        last_activity_at: new Date(now - 10_000).toISOString(),
+        events: [{ event_name: "PreToolUse", tool_name: "Write", prompt: "write a short story to story.txt" }],
+      },
+      {
+        id: "proxy-session",
+        session_id: "proxy-session",
+        project_path: "/code/MyProj",
+        last_activity_at: new Date(now - 20_000).toISOString(),
+        events: [{ event_name: "UserPromptSubmit", prompt: "<session>write a short story to story.txt</session> Workspace metadata" }],
+      },
+    ],
+  }], now);
+
+  assert.equal(sessions.length, 1);
+  assert.equal(sessions[0]?.title, "write a short story to story.txt");
+  assert.deepEqual(sessions[0]?.sourceSessionIds.sort(), ["hook-session", "proxy-session"]);
+});
+
 test("excludes completed and stale sessions and keeps the key stable across updates", () => {
   const now = Date.parse("2026-07-20T10:00:00.000Z");
   const agents = [{
@@ -89,5 +117,6 @@ test("attaches plugin annotations and related global status to the intended sess
   ];
 
   assert.deepEqual(contributionsForSession(contributions, "session-1").map((item) => item.id), ["one", "two"]);
-  assert.deepEqual(ambientIslandContributions(contributions).map((item) => item.id), ["two", "three"]);
+  assert.deepEqual(ambientIslandContributions(contributions, ["session-1"]).map((item) => item.id), ["three"]);
+  assert.deepEqual(ambientIslandContributions(contributions, ["other-session"]).map((item) => item.id), ["one", "two", "three"]);
 });

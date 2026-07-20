@@ -37,7 +37,7 @@
         display: flex;
         justify-content: center;
         align-items: flex-start;
-        padding: 0 56px 72px;
+        padding: 0 96px 112px;
         color: var(--ink);
         font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI Variable Text", "Segoe UI", sans-serif;
         font-synthesis: none;
@@ -55,8 +55,8 @@
         border-radius: 18px;
         background: var(--black);
         box-shadow:
-          0 22px 48px rgba(0, 0, 0, .34),
-          0 6px 18px rgba(0, 0, 0, .22),
+          0 30px 76px rgba(0, 0, 0, .27),
+          0 10px 30px rgba(0, 0, 0, .18),
           inset 0 1px rgba(255, 255, 255, .055);
         opacity: 0;
         transform: translateY(-14px) scale(.92, .72);
@@ -73,8 +73,8 @@
         border-top: 0;
         border-radius: 0 0 18px 18px;
         box-shadow:
-          0 24px 52px rgba(0, 0, 0, .36),
-          0 6px 18px rgba(0, 0, 0, .22),
+          0 34px 84px rgba(0, 0, 0, .29),
+          0 10px 30px rgba(0, 0, 0, .18),
           inset 0 -1px rgba(255, 255, 255, .05);
       }
       .island.presented { opacity: 1; transform: translateY(0) scale(1); }
@@ -111,6 +111,11 @@
       .notch-agents, .notch-metric { min-width: 0; display: flex; align-items: center; gap: 5px; }
       .notch-agents { justify-content: flex-end; padding-right: 9px; }
       .notch-metric { justify-content: flex-start; padding-left: 9px; }
+      body.native-macos.has-display-notch .island.expanded .notch-agents {
+        justify-content: flex-start;
+        padding-right: 0;
+        padding-left: 12px;
+      }
       .notch-agent {
         width: 18px;
         height: 18px;
@@ -126,6 +131,9 @@
       }
       .notch-agent img { width: 12px; height: 12px; object-fit: contain; }
       .notch-metric-value { overflow: hidden; color: var(--green); font-size: 9px; font-weight: 700; text-overflow: ellipsis; white-space: nowrap; }
+      .notch-metric-value.danger { color: var(--red); background: transparent; border: 0; }
+      .cap-metric { color: var(--green); font-size: 9px; font-weight: 700; white-space: nowrap; }
+      body.native-macos.has-display-notch .cap-metric { display: none; }
       .island.expandable .cap { cursor: pointer; }
       .agent-mark {
         width: 31px;
@@ -341,6 +349,7 @@
       .activity-events { margin-top: 8px; display: grid; gap: 5px; }
       .activity-event { display: flex; justify-content: space-between; gap: 10px; color: var(--soft-ink); font: 9.5px/1.35 ui-monospace, "SFMono-Regular", Consolas, monospace; }
       .activity-event span:last-child { color: var(--faint); white-space: nowrap; }
+      .history-heading { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
       .island-contributions { display: grid; gap: 7px; margin-top: 9px; }
       .island-contribution { padding: 9px 10px; border: 1px solid var(--line); border-radius: 12px; background: rgba(255,255,255,.035); }
       .island-contribution.warning { border-color: rgba(255,182,74,.22); }
@@ -492,6 +501,7 @@
           <div class="eyebrow" id="eyebrow">OpenLeash</div>
           <div class="cap-title" id="title">Agent activity</div>
         </div>
+        <span class="cap-metric" id="capMetric" hidden></span>
         <span class="queue-count" id="count" hidden></span>
         <button class="icon-button close" id="close" aria-label="Dismiss">
           <svg width="13" height="13" viewBox="0 0 16 16" fill="none"><path d="m4 4 8 8m0-8-8 8" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
@@ -536,7 +546,7 @@
       let expandTimer;
       let installAnimation;
       const $ = (id) => document.getElementById(id);
-      const island = $("island"), cap = $("cap"), glyph = $("glyph"), status = $("status"), eyebrow = $("eyebrow"), title = $("title"), count = $("count"), notchAgents = $("notchAgents"), notchMetric = $("notchMetric");
+      const island = $("island"), cap = $("cap"), glyph = $("glyph"), status = $("status"), eyebrow = $("eyebrow"), title = $("title"), count = $("count"), capMetric = $("capMetric"), notchAgents = $("notchAgents"), notchMetric = $("notchMetric");
       const installSuccess = $("installSuccess"), installFireworks = $("installFireworks"), activityPanel = $("activityPanel"), sessionList = $("sessionList"), activityDetail = $("activityDetail"), ambientContributions = $("ambientContributions"), summary = $("summary"), purpose = $("purpose"), evidenceBlock = $("evidenceBlock"), evidence = $("evidence"), chips = $("chips"), questions = $("questions"), plan = $("plan");
       const guidance = $("guidance"), rememberRow = $("rememberRow"), remember = $("remember"), actions = $("actions"), hint = $("hint");
 
@@ -569,7 +579,7 @@
         clearTimeout(expandTimer);
         installAnimation?.destroy(); installAnimation = undefined; installFireworks.innerHTML = ""; installSuccess.hidden = true;
         activityPanel.hidden = true; sessionList.innerHTML = ""; activityDetail.hidden = true; activityDetail.innerHTML = ""; ambientContributions.innerHTML = "";
-        notchAgents.innerHTML = ""; notchMetric.innerHTML = "";
+        notchAgents.innerHTML = ""; notchMetric.innerHTML = ""; capMetric.hidden = true; capMetric.textContent = "";
         selectedAnswers = new Map(); questions.innerHTML = ""; actions.innerHTML = ""; chips.innerHTML = ""; guidance.value = "";
         actions.className = "actions"; summary.hidden = false; purpose.hidden = true; evidenceBlock.hidden = true; plan.hidden = true;
         guidance.hidden = true; rememberRow.hidden = true; hint.textContent = ""; island.classList.remove("expanded", "expandable", "leaving");
@@ -578,7 +588,7 @@
       function resize() {
         requestAnimationFrame(() => {
           const rect = island.getBoundingClientRect();
-          bridge.resizeNotice({ width: Math.ceil(rect.width + 112), height: Math.ceil(rect.height + 72) });
+          bridge.resizeNotice({ width: Math.ceil(rect.width + 192), height: Math.ceil(rect.height + 112) });
         });
       }
       new ResizeObserver(resize).observe(island);
@@ -587,7 +597,9 @@
         current = payload; reset(); setGlyph(payload);
         currentKind = payload.interaction?.type === "questions" ? "question" : payload.interaction?.type === "plan" ? "plan_review" : payload.interaction?.type === "approval" ? "approval" : payload.kind;
         status.className = `signal ${currentKind || "approval"}`;
-        eyebrow.textContent = `${payload.agentName || "Agent"} · ${payload.project || payload.time || "now"}`;
+        eyebrow.textContent = currentKind === "activity"
+          ? (payload.agentName || "OpenLeash")
+          : `${payload.agentName || "Agent"} · ${payload.project || payload.time || "now"}`;
         title.textContent = payload.title || (currentKind === "question" ? `${payload.agentName} asks` : currentKind === "plan_review" ? `${payload.agentName} has a plan` : payload.id ? "Permission request" : "Agent activity");
         count.hidden = !(payload.pendingCount > 1); count.textContent = payload.pendingCount || "";
         summary.textContent = payload.summary || "The agent is waiting for you.";
@@ -636,6 +648,8 @@
           contributionCount: document.querySelectorAll(".island-contribution, .contribution-pill").length,
           notchAgentCount: notchAgents.children.length,
           notchTokenSaving: notchMetric.textContent.trim(),
+          capTokenSaving: capMetric.textContent.trim(),
+          historyButtonVisible: Boolean(actions.querySelector('[data-action="show-history"]')),
         };
       };
       window.dismissOpenLeashNotice = () => { island.classList.add("leaving"); island.classList.remove("expanded"); resize(); };
@@ -725,7 +739,7 @@
         summary.hidden = true;
         activityPanel.hidden = false;
         const sessions = Array.isArray(payload.sessions) ? payload.sessions : [];
-        renderNotchRail(sessions, payload.contributions || []);
+        renderNotchRail(sessions, payload.contributions || [], payload.tokenSaver);
         sessions.forEach((session, index) => {
           const card = document.createElement("button"); card.type = "button"; card.className = "session-card";
           const icon = document.createElement("span"); icon.className = "session-agent-icon";
@@ -733,7 +747,7 @@
           else icon.textContent = initials(session.agentName);
           const copy = document.createElement("span"); copy.className = "session-copy";
           const heading = document.createElement("span"); heading.className = "session-title"; heading.textContent = session.project && session.project !== "Workspace" ? `${session.project} · ${session.title}` : session.title;
-          const meta = document.createElement("span"); meta.className = "session-meta"; meta.textContent = `${session.agentName} · ${session.time || "now"} · ${session.eventCount || 1} event${session.eventCount === 1 ? "" : "s"}`;
+          const meta = document.createElement("span"); meta.className = "session-meta"; meta.textContent = `${session.agentName} · ${session.time || "now"}`;
           const action = document.createElement("span"); action.className = "session-action"; action.textContent = session.latestAction || "Working";
           copy.append(heading, meta, action);
           renderContributionPills(copy, session.contributions || []);
@@ -741,15 +755,13 @@
           card.append(icon, copy, live);
           card.addEventListener("click", () => selectActivitySession(session, card));
           sessionList.appendChild(card);
-          if (sessions.length === 1 && index === 0) selectActivitySession(session, card);
+          if (index === 0) selectActivitySession(session, card);
         });
         (payload.contributions || []).forEach((contribution) => ambientContributions.appendChild(contributionCard(contribution)));
-        hint.textContent = sessions.length
-          ? `${sessions.length} session${sessions.length === 1 ? "" : "s"} active across your agents`
-          : `${(payload.contributions || []).length} plugin update${(payload.contributions || []).length === 1 ? "" : "s"}`;
+        hint.textContent = "";
       }
 
-      function renderNotchRail(sessions, ambient) {
+      function renderNotchRail(sessions, ambient, tokenSaverStatus) {
         sessions.slice(0, 4).forEach((session) => {
           const agent = document.createElement("span"); agent.className = "notch-agent"; agent.title = `${session.agentName} working`;
           if (session.agentIcon) { const image = document.createElement("img"); image.src = session.agentIcon; image.alt = ""; agent.appendChild(image); }
@@ -757,32 +769,42 @@
           notchAgents.appendChild(agent);
         });
         const contributions = [...sessions.flatMap((session) => session.contributions || []), ...ambient];
-        const tokenSaver = contributions.find((item) => item.pluginId === "openleash.prompt-compression" && item.value);
+        const tokenSaver = contributions.find((item) => item.pluginId === "openleash.prompt-compression" && item.value) || tokenSaverStatus;
         if (tokenSaver) {
-          const value = document.createElement("span"); value.className = "notch-metric-value"; value.textContent = `✂ ${tokenSaver.value}`; value.title = tokenSaver.detail || "Token saver result";
+          const value = document.createElement("span"); value.className = `notch-metric-value ${tokenSaver.tone || ""}`; value.textContent = `✂ ${tokenSaver.value}`; value.title = tokenSaver.detail || "Token Saver";
           notchMetric.appendChild(value);
+          capMetric.hidden = false; capMetric.textContent = `✂ ${tokenSaver.value}`; capMetric.title = value.title;
         }
       }
 
       function selectActivitySession(session, card) {
         current.selectedSession = session;
         sessionList.querySelectorAll(".session-card").forEach((item) => item.classList.toggle("selected", item === card));
+        activityDetail.hidden = true; activityDetail.innerHTML = "";
+        actions.innerHTML = ""; actions.className = "actions";
+        actions.append(button("View history", "secondary", "show-history"));
+        if (session.canJump) actions.append(button(`Open ${session.agentName}`, "secondary", "jump-session"));
+        if (!session.canJump) actions.className = "actions single";
+        resize();
+      }
+
+      function renderActivityHistory(session) {
         activityDetail.hidden = false; activityDetail.innerHTML = "";
-        const heading = document.createElement("h3"); heading.textContent = session.title;
-        const description = document.createElement("p"); description.textContent = session.summary || `${session.agentName} is active in ${session.project}.`;
+        const headingRow = document.createElement("div"); headingRow.className = "history-heading";
+        const heading = document.createElement("h3"); heading.textContent = "Recent activity";
+        headingRow.appendChild(heading);
         const events = document.createElement("div"); events.className = "activity-events";
-        (session.events || []).slice(0, 3).forEach((event) => {
+        (session.events || []).slice(0, 5).forEach((event) => {
           const row = document.createElement("div"); row.className = "activity-event";
           const label = document.createElement("span"); label.textContent = friendlyEventLabel(event);
           const when = document.createElement("span"); when.textContent = event.created_at ? relativeTime(event.created_at) : "";
           row.append(label, when); events.appendChild(row);
         });
-        activityDetail.append(heading, description); if (events.childElementCount) activityDetail.appendChild(events);
-        const contributionList = document.createElement("div"); contributionList.className = "island-contributions";
-        (session.contributions || []).forEach((contribution) => contributionList.appendChild(contributionCard(contribution, session)));
-        if (contributionList.childElementCount) activityDetail.appendChild(contributionList);
-        actions.innerHTML = ""; actions.className = "actions single";
-        if (session.canJump) actions.append(button(`Open ${session.agentName}`, "secondary", "jump-session"));
+        activityDetail.appendChild(headingRow);
+        if (events.childElementCount) activityDetail.appendChild(events);
+        else { const empty = document.createElement("p"); empty.textContent = "No earlier activity yet."; activityDetail.appendChild(empty); }
+        const historyButton = actions.querySelector('[data-action="show-history"]');
+        if (historyButton) historyButton.textContent = "Hide history";
         resize();
       }
 
@@ -844,8 +866,14 @@
       function requestDismiss() { island.classList.add("leaving"); setTimeout(() => bridge.dismissNotice(), 120); }
       actions.addEventListener("click", (event) => {
         const target = event.target.closest("button"); if (!target || !current || target.disabled) return;
-        actions.querySelectorAll("button").forEach((item) => item.disabled = true);
         const action = target.dataset.action;
+        if (action === "show-history") {
+          if (!current.selectedSession) return;
+          if (activityDetail.hidden) renderActivityHistory(current.selectedSession);
+          else { activityDetail.hidden = true; activityDetail.innerHTML = ""; target.textContent = "View history"; resize(); }
+          return;
+        }
+        actions.querySelectorAll("button").forEach((item) => item.disabled = true);
         if (action === "dismiss") return requestDismiss();
         if (action === "jump-session") return bridge.jumpToAgent({ agentKind: current.selectedSession?.agentKind, session: current.selectedSession });
         if (action === "jump") return bridge.jumpToAgent({ agentKind: current.agentKind, session: current.session });

@@ -34,6 +34,7 @@ export type ActivityIslandSourceAgent = {
 export type ActiveAgentSession = {
   id: string;
   sessionId: string;
+  sourceSessionIds: string[];
   agentKind: string;
   agentName: string;
   project: string;
@@ -53,7 +54,7 @@ export function activeAgentSessions(
   now = Date.now(),
   activeWithinMs = 2 * 60_000,
 ): ActiveAgentSession[] {
-  return agents.flatMap((agent) => {
+  const sessions = agents.flatMap((agent) => {
     const sessions = agent.sessions?.length ? agent.sessions : [syntheticSession(agent)];
     return sessions.flatMap((session, index) => {
       const lastActivityAt = session.last_activity_at ?? agent.activity_at;
@@ -66,6 +67,7 @@ export function activeAgentSessions(
       return [{
         id: session.id,
         sessionId: session.session_id ?? session.id,
+        sourceSessionIds: [session.session_id ?? session.id],
         agentKind: agent.kind,
         agentName: agent.display_name,
         project: projectName(projectPath),
@@ -79,6 +81,7 @@ export function activeAgentSessions(
       }];
     });
   }).sort((left, right) => Date.parse(right.lastActivityAt) - Date.parse(left.lastActivityAt));
+  return dedupeSessions(sessions);
 }
 
 export function activityIslandKey(sessions: ActiveAgentSession[]) {
@@ -87,15 +90,63 @@ export function activityIslandKey(sessions: ActiveAgentSession[]) {
 
 export function contributionsForSession(
   contributions: PluginIslandContribution[],
-  sessionId: string,
+  sessionIds: string | string[],
 ) {
+  const ids = new Set(Array.isArray(sessionIds) ? sessionIds : [sessionIds]);
   return contributions.filter((contribution) =>
-    contribution.sessionId === sessionId || contribution.relatedSessionIds?.includes(sessionId)
+    (contribution.sessionId ? ids.has(contribution.sessionId) : false) ||
+    contribution.relatedSessionIds?.some((sessionId) => ids.has(sessionId))
   );
 }
 
-export function ambientIslandContributions(contributions: PluginIslandContribution[]) {
-  return contributions.filter((contribution) => !contribution.sessionId);
+export function ambientIslandContributions(
+  contributions: PluginIslandContribution[],
+  activeSessionIds: string[] = [],
+) {
+  const active = new Set(activeSessionIds);
+  return contributions.filter((contribution) => {
+    if (!contribution.sessionId && !(contribution.relatedSessionIds?.length)) return true;
+    if (contribution.sessionId && active.has(contribution.sessionId)) return false;
+    if (contribution.relatedSessionIds?.some((sessionId) => active.has(sessionId))) return false;
+    return true;
+  });
+}
+
+function dedupeSessions(sessions: ActiveAgentSession[]) {
+  const deduped: ActiveAgentSession[] = [];
+  for (const session of sessions) {
+    const duplicate = deduped.find((candidate) =>
+      candidate.agentKind === session.agentKind &&
+      candidate.project === session.project &&
+      comparableTitle(candidate.title) === comparableTitle(session.title) &&
+      Math.abs(Date.parse(candidate.lastActivityAt) - Date.parse(session.lastActivityAt)) <= 2 * 60_000
+    );
+    if (!duplicate) {
+      deduped.push(session);
+      continue;
+    }
+    duplicate.sourceSessionIds = [...new Set([...duplicate.sourceSessionIds, ...session.sourceSessionIds])];
+    duplicate.events = uniqueEvents([...duplicate.events, ...session.events]).slice(0, 5);
+    duplicate.eventCount = Math.max(duplicate.eventCount, session.eventCount, duplicate.events.length);
+    duplicate.durationSeconds = Math.max(duplicate.durationSeconds, session.durationSeconds);
+  }
+  return deduped;
+}
+
+function comparableTitle(value: string) {
+  return value.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+}
+
+function uniqueEvents(events: ActivityIslandEvent[]) {
+  const seen = new Set<string>();
+  return events
+    .sort((left, right) => Date.parse(right.created_at ?? "") - Date.parse(left.created_at ?? ""))
+    .filter((event) => {
+      const key = [event.event_name, event.tool_name, cleanText(event.prompt), event.created_at].join("|");
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
 }
 
 function syntheticSession(agent: ActivityIslandSourceAgent): ActivityIslandSourceSession {
@@ -151,6 +202,12 @@ function humanize(value: string) {
 }
 
 function cleanText(value: unknown) {
-  return typeof value === "string" ? value.replace(/\s+/g, " ").trim().slice(0, 180) : "";
+  if (typeof value !== "string") return "";
+  const session = value.match(/<session(?:\s[^>]*)?>([\s\S]*?)<\/session>/i)?.[1];
+  return (session ?? value)
+    .replace(/<\/?[a-z][^>]*>/gi, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, 180);
 }
 import type { PluginIslandContribution } from "@openleash/shared";
