@@ -37,6 +37,12 @@ always-on-top). "Open agent" activates a likely host application; it is not
 described as an exact session jump unless that agent publishes a stable deep
 link.
 
+Enabled plugins can contribute typed, expiring annotations, activity, progress,
+and ambient status to Live Sessions through the shared Island API. OpenLeash
+owns layout, accessibility, truncation, animation, and safe navigation. Plugins
+cannot inject HTML, CSS, JavaScript, arbitrary URLs, shell commands, or custom
+Electron IPC.
+
 Installed hooks call the configured managed OpenLeash API:
 
 ```text
@@ -51,8 +57,20 @@ Private Cloud installs use the customer-hosted `client-api` URL. The desktop loc
 
 | Mode | Behavior |
 | --- | --- |
+| 🧑‍💻 Individual Open Source | Desktop uses the locally running public `client-api` and Postgres; hooks target that local API. |
 | 🏢 Private Cloud | Hooks target customer-hosted `client-api`; desktop receives state and approvals from that backend. |
 | ☁️ OpenLeash Cloud | Hooks target OpenLeash-hosted cloud APIs; desktop receives state and approvals from OpenLeash Cloud. |
+
+---
+
+## 🧩 Plugin settings and organization policy
+
+Personal users can configure plugins globally, by agent kind, or by exact
+authenticated/enrolled agent runtime. In organization modes, desktop displays
+the effective backend-owned policy: mandatory plugins cannot be removed or
+disabled, optional installs may be blocked, and settings may be locked. When an
+admin leaves configuration unlocked, employees may keep personal and per-agent
+settings even for a mandatory plugin.
 
 ---
 
