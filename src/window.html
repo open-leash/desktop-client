@@ -5683,17 +5683,18 @@
       function selectedPluginSettingsPayloads() {
         return (state.plugins || []).map((plugin) => {
           const enabled = Boolean(plugin.organizationPolicy?.mandatory || selectedPlugins?.has(plugin.id));
-          const config = {
-            ...(plugin.defaultConfig || {}),
-            ...(plugin.settings?.config || {}),
-            ...ensurePluginSetupConfig(plugin.id),
-            enabled
-          };
           return {
             pluginId: plugin.id,
             enabled,
-            config,
-            orderingPriority: plugin.settings?.orderingPriority ?? plugin.ordering?.priority ?? null,
+            ...(enabled ? {
+              config: {
+                ...(plugin.defaultConfig || {}),
+                ...(plugin.settings?.config || {}),
+                ...ensurePluginSetupConfig(plugin.id),
+                enabled
+              },
+              orderingPriority: plugin.settings?.orderingPriority ?? plugin.ordering?.priority ?? null
+            } : {}),
             marketplace: plugin.marketplace || null
           };
         });

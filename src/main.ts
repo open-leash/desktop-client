@@ -1291,7 +1291,7 @@ ipcMain.handle(
         },
         body: JSON.stringify({
           enabled: payload.enabled !== false,
-          config: payload.config ?? {},
+          ...(payload.config !== undefined ? { config: payload.config } : {}),
           profiles: payload.profiles ?? undefined,
           orderingPriority: payload.orderingPriority ?? undefined,
           marketplace: payload.marketplace ?? undefined,
