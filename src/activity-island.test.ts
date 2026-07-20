@@ -126,6 +126,30 @@ test("removes transport session tags and merges duplicate hook and proxy views",
   assert.deepEqual(sessions[0]?.sourceSessionIds.sort(), ["hook-session", "proxy-session"]);
 });
 
+test("merges one project hook view with its generic proxy activity", () => {
+  const now = Date.parse("2026-07-20T10:00:00.000Z");
+  const sessions = activeAgentSessions([{
+    kind: "claude-code",
+    display_name: "Claude Code",
+    sessions: [
+      {
+        id: "hook-session",
+        project_path: "/code/MyProj",
+        title: "delete my tables in sqlite file here",
+        last_activity_at: new Date(now - 5_000).toISOString(),
+      },
+      {
+        id: "proxy-session",
+        title: "Agent working",
+        last_activity_at: new Date(now - 8_000).toISOString(),
+      },
+    ],
+  }], now);
+
+  assert.equal(sessions.length, 1);
+  assert.deepEqual(sessions[0]?.sourceSessionIds.sort(), ["hook-session", "proxy-session"]);
+});
+
 test("excludes completed and stale sessions and keeps the key stable across updates", () => {
   const now = Date.parse("2026-07-20T10:00:00.000Z");
   const agents = [{

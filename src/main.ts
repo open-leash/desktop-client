@@ -61,6 +61,7 @@ import {
   AutomaticNoticeRegistry,
   noticeIsCurrentlyPresented,
 } from "./notice-presentation";
+import { pendingIntentKey as stablePendingIntentKey } from "./intent-dedupe";
 import {
   activeAgentSessions,
   activityIslandKey,
@@ -2064,11 +2065,11 @@ async function poll() {
     const body = await fetchTrayState();
     if (!body) return setDisconnected();
     applyRememberedApprovalChoices(body.pending);
-    latestPending = body.pending.filter(
+    latestPending = dedupePending(body.pending.filter(
       (item) =>
         !resolvingDecisionIds.has(item.id) &&
         !suppressedNoticeKeys.has(decisionNoticeKey(item)),
-    );
+    ));
     latestAgents = body.agents;
     latestSessionMetrics = body.sessionMetrics ?? {};
     latestPlugins = body.plugins;
@@ -2673,13 +2674,14 @@ function pendingNoticeKey(item: PendingDecision) {
   return (
     canonicalIntentKey(rawIntentKey(item.payload)) ??
     credentialPendingKey(item) ??
-    [
-      item.agent_kind,
-      item.project_path ?? "",
-      item.tool_name ?? item.event_name,
-      item.summary,
-      primaryPendingResource(item),
-    ].join("|")
+    stablePendingIntentKey({
+      agentKind: item.agent_kind,
+      projectPath: item.project_path,
+      prompt: requestText(item.payload),
+      toolName: item.tool_name,
+      eventName: item.event_name,
+      summary: item.summary,
+    })
   );
 }
 
@@ -5012,8 +5014,9 @@ function formatNotice(notice: DecisionNotice) {
       agentName: item.agent_name,
       agentIcon: noticeAgentIconFor(item.agent_name),
       action,
-      summary: item.summary,
-      purpose: item.purpose_summary ?? noticePurpose(item),
+      title: approvalTitle(item),
+      summary: approvalSummary(item),
+      purpose: undefined,
       evidence: item.quote || requestText(item.payload),
       contextSummary: precedingContextSummary(item),
       detail: noticeDetail(item),
@@ -5146,6 +5149,24 @@ function noticePluginName(item: PendingDecision) {
   if (!pluginId || pluginId === "openleash.core") return "openleash-core";
   const slug = pluginId.replace(/^openleash\./, "");
   return slug === "prompt-compression" ? "token-saver" : slug;
+}
+
+function approvalTitle(item: PendingDecision) {
+  const text = `${requestText(item.payload) ?? ""} ${item.summary ?? ""}`;
+  if (/\b(?:drop|delete|remove)\b[\s\S]{0,80}\b(?:sqlite\s+)?tables?\b/i.test(text)) {
+    return "Delete database tables?";
+  }
+  return "Permission request";
+}
+
+function approvalSummary(item: PendingDecision) {
+  const plugin = noticePluginName(item);
+  const text = `${requestText(item.payload) ?? ""} ${item.summary ?? ""}`;
+  if (plugin === "blast-radius" && /\b(?:drop|delete|remove)\b[\s\S]{0,80}\btables?\b/i.test(text)) {
+    return "This can permanently erase data in the SQLite database.";
+  }
+  const policy = item.triggered_policies?.[0];
+  return truncate(policy?.explanation || item.summary || "This action needs your approval.", 150);
 }
 
 function decorateIslandContribution(contribution: PluginIslandContribution) {

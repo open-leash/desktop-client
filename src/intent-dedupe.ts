@@ -19,6 +19,33 @@ export function isReusableHandledIntent(input: {
   return input.eventName !== "UserPromptSubmit" || input.decision === "ask";
 }
 
+export function pendingIntentKey(input: {
+  intentKey?: string | null;
+  agentKind?: string | null;
+  projectPath?: string | null;
+  prompt?: string | null;
+  toolName?: string | null;
+  eventName?: string | null;
+  summary?: string | null;
+}) {
+  const explicit = input.intentKey ? canonicalIntentKey(input.intentKey) : undefined;
+  if (explicit) return explicit;
+  const normalizedPrompt = String(input.prompt ?? "")
+    .replace(/<\/?session>/gi, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .toLowerCase();
+  const prompt = /\b(?:drop|delete|remove)\b[\s\S]{0,80}\b(?:all|every|my)?\s*(?:sqlite\s+)?tables?\b|\b(?:all|every|my)\s+(?:sqlite\s+)?tables?\b[\s\S]{0,80}\b(?:drop|delete|remove)\b/.test(normalizedPrompt)
+    ? "database:drop-all-tables"
+    : normalizedPrompt.slice(0, 1_000);
+  return [
+    input.agentKind ?? "",
+    input.projectPath ?? "",
+    prompt ? `prompt:${prompt}` : input.toolName ?? input.eventName ?? "",
+    prompt ? "" : input.summary ?? "",
+  ].join("|");
+}
+
 function canonicalIntentKey(intentKey: string) {
   const parts = intentKey.split("|");
   if (parts.length === 4 && parts[2]?.startsWith("credential-")) {

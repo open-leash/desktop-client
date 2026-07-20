@@ -118,7 +118,12 @@ function dedupeSessions(sessions: ActiveAgentSession[]) {
     const duplicate = deduped.find((candidate) =>
       candidate.agentKind === session.agentKind &&
       (candidate.project === session.project || candidate.project === "Workspace" || session.project === "Workspace") &&
-      comparableTitle(candidate.title) === comparableTitle(session.title) &&
+      (
+        comparableTitle(candidate.title) === comparableTitle(session.title) ||
+        (candidate.project === "Workspace") !== (session.project === "Workspace") ||
+        candidate.title === "Agent working" ||
+        session.title === "Agent working"
+      ) &&
       Math.abs(Date.parse(candidate.lastActivityAt) - Date.parse(session.lastActivityAt)) <= 2 * 60_000
     );
     if (!duplicate) {

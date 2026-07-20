@@ -109,12 +109,11 @@
         pointer-events: none;
       }
       .notch-agents, .notch-metric { min-width: 0; display: flex; align-items: center; gap: 5px; }
-      .notch-agents { justify-content: flex-end; padding-right: 9px; }
-      .notch-metric { justify-content: flex-start; padding-left: 9px; }
+      .notch-agents { justify-content: flex-end; padding: 0 9px 0 12px; }
+      .notch-metric { justify-content: flex-start; padding: 0 12px 0 9px; }
       body.native-macos.has-display-notch .island.expanded .notch-agents {
         justify-content: flex-start;
-        padding-right: 0;
-        padding-left: 12px;
+        padding: 0 9px 0 12px;
       }
       .notch-agent {
         width: 18px;
@@ -278,7 +277,7 @@
         border-top: 1px solid rgba(255,255,255,.075);
       }
       .summary {
-        margin: 14px 1px 0;
+        margin: 10px 1px 0;
         color: #ececeb;
         font-size: 14px;
         font-weight: 470;
@@ -318,17 +317,18 @@
         white-space: pre-wrap;
         user-select: text;
       }
-      .chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+      .chips { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 13px; }
       .chip {
         min-width: 0;
         max-width: 220px;
         overflow: hidden;
-        padding: 5px 8px;
-        border: 1px solid rgba(255,255,255,.055);
-        border-radius: 999px;
-        color: var(--muted);
-        background: rgba(255,255,255,.045);
-        font-size: 10px;
+        padding: 6px 9px;
+        border: 1px solid rgba(255,255,255,.105);
+        border-radius: 9px;
+        color: var(--soft-ink);
+        background: rgba(255,255,255,.065);
+        font-size: 10.5px;
+        font-weight: 620;
         text-overflow: ellipsis;
         white-space: nowrap;
       }
@@ -557,13 +557,13 @@
           <div class="activity-detail" id="activityDetail" hidden></div>
           <div class="island-contributions" id="ambientContributions"></div>
         </div>
+        <div class="chips" id="chips"></div>
         <p class="summary" id="summary"></p>
         <div class="purpose" id="purpose" hidden></div>
         <div class="evidence-block" id="evidenceBlock" hidden>
           <div class="evidence-label">Request</div>
           <pre class="evidence" id="evidence"></pre>
         </div>
-        <div class="chips" id="chips"></div>
         <div class="questions" id="questions"></div>
         <pre class="plan" id="plan" hidden></pre>
         <textarea id="guidance" maxlength="500" placeholder="Optional guidance for the agent" hidden></textarea>
@@ -666,7 +666,7 @@
         summary.textContent = payload.summary || "The agent is waiting for you.";
         if (payload.purpose && currentKind === "approval") { purpose.hidden = false; purpose.innerHTML = ""; const label = document.createElement("b"); label.textContent = "Why now · "; purpose.append(label, document.createTextNode(payload.purpose)); }
         if (payload.evidence && currentKind === "approval") { evidenceBlock.hidden = false; evidence.textContent = payload.evidence; }
-        for (const value of (currentKind === "activity" ? [] : [payload.project, payload.pluginName]).filter(Boolean)) { const chip = document.createElement("span"); chip.className = "chip"; chip.textContent = value; chips.appendChild(chip); }
+        for (const [label, value] of (currentKind === "activity" ? [] : [["Folder", payload.project], ["Plugin", payload.pluginName]]).filter((item) => item[1])) { const chip = document.createElement("span"); chip.className = "chip"; chip.textContent = `${label} · ${value === "blast-radius" ? "Blast Radius" : value}`; chips.appendChild(chip); }
 
         if (currentKind === "question") renderQuestions(payload);
         else if (currentKind === "plan_review") renderPlan(payload);
