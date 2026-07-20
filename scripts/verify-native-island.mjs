@@ -94,14 +94,16 @@ try {
     project: "3 active sessions",
     sessions: [
       { id: "claude", agentKind: "claude-code", agentName: "Claude Code", project: "client-api", title: "Test Claude", latestAction: "Running tests", eventCount: 3 },
-      { id: "codex", agentKind: "codex", agentName: "OpenAI Codex", project: "desktop", title: "Test Codex", latestAction: "Editing files", eventCount: 5 },
+      { id: "codex", sessionId: "codex-session", agentKind: "codex", agentName: "OpenAI Codex", project: "desktop", title: "Test Codex", latestAction: "Editing files", eventCount: 5, contributions: [{ pluginId: "openleash.blast-radius", pluginName: "blast-radius", pluginIcon: "💥", kind: "annotation", label: "Destructive operation", tone: "danger" }] },
       { id: "gemini", agentKind: "gemini", agentName: "Gemini CLI", project: "docs", title: "Test Gemini", latestAction: "Reading docs", eventCount: 2 },
     ],
+    contributions: [{ pluginId: "community.tests", pluginName: "test-progress", kind: "status", title: "Tests running", tone: "info", progress: { current: 3, total: 5 } }],
   } });
   const activity = await inspectAfter(650);
   assert.equal(activity.visible, true);
   assert.equal(activity.layout.sessionCount, 3, "activity island did not render every active session");
   assert.equal(activity.layout.activityDetailVisible, false, "multi-session activity opened a detail without selection");
+  assert.ok(activity.layout.contributionCount >= 2, "activity island did not render plugin contributions");
 
   send({ type: "show", payload: {
     kind: "ask",

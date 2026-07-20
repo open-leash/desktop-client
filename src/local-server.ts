@@ -1073,6 +1073,7 @@ export class LocalOpenLeashServer {
       const risky = sorted.filter((item) => item.decision === "ask" || item.decision === "deny" || item.resolution === "deny" || item.triggered_policies.length > 0);
       return {
         id: key,
+        session_id: String(latest.payload?.sessionId ?? "unknown"),
         agent_kind: latest.agent_kind,
         agent_name: latest.agent_name,
         hostname: latest.hostname,

@@ -295,12 +295,30 @@
       .session-action { margin-top: 5px; color: var(--soft-ink); font-size: 10.5px; }
       .session-live { display: flex; align-items: center; gap: 5px; padding-left: 4px; color: var(--green); font-size: 9px; font-weight: 650; white-space: nowrap; }
       .session-live::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: currentColor; box-shadow: 0 0 8px currentColor; }
+      .contribution-pills { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 7px; }
+      .contribution-pill { max-width: 100%; overflow: hidden; padding: 4px 6px; border: 1px solid var(--line); border-radius: 7px; color: var(--soft-ink); background: rgba(255,255,255,.04); font-size: 8.5px; text-overflow: ellipsis; white-space: nowrap; }
+      .contribution-pill.info { color: var(--cyan); border-color: rgba(88,216,255,.22); }
+      .contribution-pill.success { color: var(--green); border-color: rgba(85,231,167,.22); }
+      .contribution-pill.warning { color: var(--amber); border-color: rgba(255,182,74,.24); }
+      .contribution-pill.danger { color: var(--red); border-color: rgba(255,107,100,.25); }
       .activity-detail { margin-top: 9px; padding: 11px; border: 1px solid var(--line); border-radius: 14px; background: rgba(255,255,255,.035); }
       .activity-detail h3 { margin: 0; color: var(--ink); font-size: 12px; }
       .activity-detail p { margin: 6px 0 0; color: var(--muted); font-size: 10.5px; line-height: 1.4; }
       .activity-events { margin-top: 8px; display: grid; gap: 5px; }
       .activity-event { display: flex; justify-content: space-between; gap: 10px; color: var(--soft-ink); font: 9.5px/1.35 ui-monospace, "SFMono-Regular", Consolas, monospace; }
       .activity-event span:last-child { color: var(--faint); white-space: nowrap; }
+      .island-contributions { display: grid; gap: 7px; margin-top: 9px; }
+      .island-contribution { padding: 9px 10px; border: 1px solid var(--line); border-radius: 12px; background: rgba(255,255,255,.035); }
+      .island-contribution.warning { border-color: rgba(255,182,74,.22); }
+      .island-contribution.danger { border-color: rgba(255,107,100,.24); }
+      .contribution-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+      .contribution-title { min-width: 0; overflow: hidden; color: var(--ink); font-size: 10.5px; font-weight: 630; text-overflow: ellipsis; white-space: nowrap; }
+      .contribution-plugin { color: var(--faint); font-size: 8.5px; white-space: nowrap; }
+      .contribution-detail { margin-top: 4px; color: var(--muted); font-size: 9.5px; line-height: 1.35; }
+      .contribution-progress { height: 4px; margin-top: 7px; overflow: hidden; border-radius: 999px; background: rgba(255,255,255,.08); }
+      .contribution-progress span { display: block; height: 100%; border-radius: inherit; background: var(--cyan); }
+      .contribution-foot { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 7px; color: var(--faint); font-size: 8.5px; }
+      .contribution-button { padding: 5px 8px; border: 1px solid var(--line); border-radius: 8px; color: var(--soft-ink); background: rgba(255,255,255,.055); font: inherit; font-size: 9px; font-weight: 600; line-height: 1; cursor: pointer; }
       .questions { margin-top: 12px; }
       .install-success {
         padding: 8px 6px 3px;
@@ -452,6 +470,7 @@
         <div class="activity-panel" id="activityPanel" hidden>
           <div class="session-list" id="sessionList"></div>
           <div class="activity-detail" id="activityDetail" hidden></div>
+          <div class="island-contributions" id="ambientContributions"></div>
         </div>
         <p class="summary" id="summary"></p>
         <div class="purpose" id="purpose" hidden></div>
@@ -479,7 +498,7 @@
       let installAnimation;
       const $ = (id) => document.getElementById(id);
       const island = $("island"), cap = $("cap"), glyph = $("glyph"), status = $("status"), eyebrow = $("eyebrow"), title = $("title"), count = $("count");
-      const installSuccess = $("installSuccess"), installFireworks = $("installFireworks"), activityPanel = $("activityPanel"), sessionList = $("sessionList"), activityDetail = $("activityDetail"), summary = $("summary"), purpose = $("purpose"), evidenceBlock = $("evidenceBlock"), evidence = $("evidence"), chips = $("chips"), questions = $("questions"), plan = $("plan");
+      const installSuccess = $("installSuccess"), installFireworks = $("installFireworks"), activityPanel = $("activityPanel"), sessionList = $("sessionList"), activityDetail = $("activityDetail"), ambientContributions = $("ambientContributions"), summary = $("summary"), purpose = $("purpose"), evidenceBlock = $("evidenceBlock"), evidence = $("evidence"), chips = $("chips"), questions = $("questions"), plan = $("plan");
       const guidance = $("guidance"), rememberRow = $("rememberRow"), remember = $("remember"), actions = $("actions"), hint = $("hint");
 
       if (window.__OPENLEASH_NATIVE_ISLAND__) document.body.classList.add("native-macos");
@@ -492,9 +511,10 @@
         resolve: (id, resolution, resolutionGuidance = "", rememberForMs = 0, response) => nativeHandler.postMessage({ type: "action", action: "resolve", id, resolution, guidance: resolutionGuidance, rememberForMs, response }),
         dismissNotice: () => nativeHandler.postMessage({ type: "action", action: "dismiss" }),
         jumpToAgent: (payload) => nativeHandler.postMessage({ type: "action", action: "jump", payload }),
+        pluginIslandAction: (payload) => nativeHandler.postMessage({ type: "action", action: "plugin-action", payload }),
         onNotice: () => {},
       } : {
-        resizeNotice: () => {}, resolve: () => {}, dismissNotice: () => {}, jumpToAgent: () => {}, onNotice: () => {},
+        resizeNotice: () => {}, resolve: () => {}, dismissNotice: () => {}, jumpToAgent: () => {}, pluginIslandAction: () => {}, onNotice: () => {},
       });
 
       function initials(name) { return (name || "AI").split(/\s+/).map((part) => part[0]).join("").slice(0, 2).toUpperCase(); }
@@ -509,7 +529,7 @@
       function reset() {
         clearTimeout(expandTimer);
         installAnimation?.destroy(); installAnimation = undefined; installFireworks.innerHTML = ""; installSuccess.hidden = true;
-        activityPanel.hidden = true; sessionList.innerHTML = ""; activityDetail.hidden = true; activityDetail.innerHTML = "";
+        activityPanel.hidden = true; sessionList.innerHTML = ""; activityDetail.hidden = true; activityDetail.innerHTML = ""; ambientContributions.innerHTML = "";
         selectedAnswers = new Map(); questions.innerHTML = ""; actions.innerHTML = ""; chips.innerHTML = ""; guidance.value = "";
         actions.className = "actions"; summary.hidden = false; purpose.hidden = true; evidenceBlock.hidden = true; plan.hidden = true;
         guidance.hidden = true; rememberRow.hidden = true; hint.textContent = ""; island.classList.remove("expanded", "expandable", "leaving");
@@ -571,6 +591,7 @@
           fireworksRendered: Boolean(installFireworks.querySelector("svg")),
           sessionCount: sessionList.querySelectorAll(".session-card").length,
           activityDetailVisible: !activityDetail.hidden,
+          contributionCount: document.querySelectorAll(".island-contribution, .contribution-pill").length,
         };
       };
       window.dismissOpenLeashNotice = () => { island.classList.add("leaving"); island.classList.remove("expanded"); resize(); };
@@ -670,13 +691,17 @@
           const meta = document.createElement("span"); meta.className = "session-meta"; meta.textContent = `${session.agentName} · ${session.time || "now"} · ${session.eventCount || 1} event${session.eventCount === 1 ? "" : "s"}`;
           const action = document.createElement("span"); action.className = "session-action"; action.textContent = session.latestAction || "Working";
           copy.append(heading, meta, action);
+          renderContributionPills(copy, session.contributions || []);
           const live = document.createElement("span"); live.className = "session-live"; live.textContent = "Active";
           card.append(icon, copy, live);
           card.addEventListener("click", () => selectActivitySession(session, card));
           sessionList.appendChild(card);
           if (sessions.length === 1 && index === 0) selectActivitySession(session, card);
         });
-        hint.textContent = sessions.length === 1 ? "Select the session for more context" : `${sessions.length} sessions active across your agents`;
+        (payload.contributions || []).forEach((contribution) => ambientContributions.appendChild(contributionCard(contribution)));
+        hint.textContent = sessions.length
+          ? `${sessions.length} session${sessions.length === 1 ? "" : "s"} active across your agents`
+          : `${(payload.contributions || []).length} plugin update${(payload.contributions || []).length === 1 ? "" : "s"}`;
       }
 
       function selectActivitySession(session, card) {
@@ -693,9 +718,48 @@
           row.append(label, when); events.appendChild(row);
         });
         activityDetail.append(heading, description); if (events.childElementCount) activityDetail.appendChild(events);
+        const contributionList = document.createElement("div"); contributionList.className = "island-contributions";
+        (session.contributions || []).forEach((contribution) => contributionList.appendChild(contributionCard(contribution, session)));
+        if (contributionList.childElementCount) activityDetail.appendChild(contributionList);
         actions.innerHTML = ""; actions.className = "actions single";
         if (session.canJump) actions.append(button(`Open ${session.agentName}`, "secondary", "jump-session"));
         resize();
+      }
+
+      function renderContributionPills(parent, contributions) {
+        if (!contributions.length) return;
+        const pills = document.createElement("span"); pills.className = "contribution-pills";
+        contributions.slice(0, 3).forEach((contribution) => {
+          const pill = document.createElement("span"); pill.className = `contribution-pill ${contribution.tone || "neutral"}`;
+          pill.textContent = `${contribution.pluginIcon || "OL"} ${contribution.label || contribution.title || "Plugin update"}${contribution.value ? ` · ${contribution.value}` : ""}`;
+          pills.appendChild(pill);
+        });
+        parent.appendChild(pills);
+      }
+
+      function contributionCard(contribution, session) {
+        const card = document.createElement("div"); card.className = `island-contribution ${contribution.tone || "neutral"}`;
+        const head = document.createElement("div"); head.className = "contribution-head";
+        const title = document.createElement("div"); title.className = "contribution-title"; title.textContent = contribution.label || contribution.title || "Plugin update";
+        const plugin = document.createElement("div"); plugin.className = "contribution-plugin"; plugin.textContent = `${contribution.pluginIcon || "OL"} ${contribution.pluginName || contribution.pluginId}`;
+        head.append(title, plugin); card.appendChild(head);
+        if (contribution.detail) { const detail = document.createElement("div"); detail.className = "contribution-detail"; detail.textContent = contribution.detail; card.appendChild(detail); }
+        if (contribution.progress) {
+          const progress = document.createElement("div"); progress.className = "contribution-progress";
+          const fill = document.createElement("span"); const total = Number(contribution.progress.total || 0); const current = Number(contribution.progress.current || 0);
+          fill.style.width = `${total > 0 ? Math.max(0, Math.min(100, current / total * 100)) : 100}%`; progress.appendChild(fill); card.appendChild(progress);
+        }
+        if (contribution.value || contribution.status || contribution.progress?.label || contribution.action) {
+          const foot = document.createElement("div"); foot.className = "contribution-foot";
+          const value = document.createElement("span"); value.textContent = contribution.value || contribution.progress?.label || contribution.status || ""; foot.appendChild(value);
+          if (contribution.action) {
+            const action = document.createElement("button"); action.type = "button"; action.className = "contribution-button"; action.textContent = contribution.action.label;
+            action.addEventListener("click", (event) => { event.stopPropagation(); bridge.pluginIslandAction({ pluginId: contribution.pluginId, action: contribution.action, session }); });
+            foot.appendChild(action);
+          }
+          card.appendChild(foot);
+        }
+        return card;
       }
 
       function relativeTime(value) {
@@ -735,9 +799,9 @@
           installed: { kind: "install_success", agentName: "OpenLeash", agentIcon: "openleash-icon.png", title: "Installation complete", summary: "OpenLeash installed" },
           activity: { kind: "activity", agentName: "OpenLeash", agentIcon: "openleash-icon.png", title: "3 agents working", project: "3 active sessions", sessions: [
             { id: "claude", agentKind: "claude-code", agentName: "Claude Code", agentIcon: "agent-icons/claude.svg", project: "client-api", title: "Correct approval attribution", summary: "Tracing policy ownership and notification labels.", latestAction: "Running tests", time: "now", eventCount: 8, canJump: true, events: [{ tool_name: "Bash", created_at: new Date().toISOString() }] },
-            { id: "codex", agentKind: "codex", agentName: "OpenAI Codex", agentIcon: "agent-icons/openai.svg", project: "desktop-client", title: "Build multi-agent activity island", summary: "Implementing the compact and expanded session experience.", latestAction: "Editing notice.html", time: "now", eventCount: 12, canJump: true, events: [{ tool_name: "Edit", created_at: new Date().toISOString() }] },
+            { id: "codex", sessionId: "codex-session", agentKind: "codex", agentName: "OpenAI Codex", agentIcon: "agent-icons/openai.svg", project: "desktop-client", title: "Build multi-agent activity island", summary: "Implementing the compact and expanded session experience.", latestAction: "Editing notice.html", time: "now", eventCount: 12, canJump: true, events: [{ tool_name: "Edit", created_at: new Date().toISOString() }], contributions: [{ pluginId: "openleash.blast-radius", pluginName: "blast-radius", pluginIcon: "💥", kind: "annotation", label: "Destructive filesystem operation", detail: "Recursive deletion affects this workspace.", value: "critical", tone: "danger", action: { id: "open", label: "Open session", type: "open-session" } }] },
             { id: "gemini", agentKind: "gemini", agentName: "Google Gemini CLI", agentIcon: "agent-icons/gemini.svg", project: "docs-web", title: "Review agent setup docs", summary: "Checking supported-agent instructions.", latestAction: "Reading documentation", time: "1m", eventCount: 4, canJump: false, events: [{ event_name: "PostToolUse", created_at: new Date(Date.now() - 60_000).toISOString() }] },
-          ] },
+          ], contributions: [{ pluginId: "community.test-progress", pluginName: "test-progress", pluginIcon: "TP", kind: "status", title: "Test suite running", detail: "18 of 24 tests passed.", tone: "info", progress: { current: 18, total: 24, label: "18 / 24" } }] },
         };
         renderNotice(fixtures[preview] || fixtures.approval);
       }

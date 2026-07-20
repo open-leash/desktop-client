@@ -8,6 +8,7 @@ export type ActivityIslandEvent = {
 
 export type ActivityIslandSourceSession = {
   id: string;
+  session_id?: string;
   title?: string;
   summary?: string;
   project_path?: string;
@@ -32,6 +33,7 @@ export type ActivityIslandSourceAgent = {
 
 export type ActiveAgentSession = {
   id: string;
+  sessionId: string;
   agentKind: string;
   agentName: string;
   project: string;
@@ -62,6 +64,7 @@ export function activeAgentSessions(
       const projectPath = session.project_path ?? agent.project_path;
       return [{
         id: session.id,
+        sessionId: session.session_id ?? session.id,
         agentKind: agent.kind,
         agentName: agent.display_name,
         project: projectName(projectPath),
@@ -79,6 +82,19 @@ export function activeAgentSessions(
 
 export function activityIslandKey(sessions: ActiveAgentSession[]) {
   return `activity:${sessions.map((session) => session.id).sort().join("|")}`;
+}
+
+export function contributionsForSession(
+  contributions: PluginIslandContribution[],
+  sessionId: string,
+) {
+  return contributions.filter((contribution) =>
+    contribution.sessionId === sessionId || contribution.relatedSessionIds?.includes(sessionId)
+  );
+}
+
+export function ambientIslandContributions(contributions: PluginIslandContribution[]) {
+  return contributions.filter((contribution) => !contribution.sessionId);
 }
 
 function syntheticSession(agent: ActivityIslandSourceAgent): ActivityIslandSourceSession {
@@ -119,3 +135,4 @@ function humanize(value: string) {
 function cleanText(value: unknown) {
   return typeof value === "string" ? value.replace(/\s+/g, " ").trim().slice(0, 180) : "";
 }
+import type { PluginIslandContribution } from "@openleash/shared";

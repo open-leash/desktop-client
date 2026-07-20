@@ -47,6 +47,7 @@ import type {
   OpenLeashClientViewModel,
   OpenLeashAttentionEvent,
   OpenLeashOutcomeRecord,
+  PluginIslandContribution,
 } from "@openleash/shared";
 import {
   configureAgentProxy,
@@ -63,6 +64,8 @@ import {
 import {
   activeAgentSessions,
   activityIslandKey,
+  ambientIslandContributions,
+  contributionsForSession,
   type ActiveAgentSession,
 } from "./activity-island";
 
@@ -152,6 +155,7 @@ type AgentStatus = {
 
 type AgentSession = {
   id: string;
+  session_id?: string;
   agent_kind?: string;
   agent_name?: string;
   hostname?: string;
@@ -239,6 +243,7 @@ type RemoteMobileState = {
   }>;
   sessionMetrics?: Record<string, unknown>;
   attentionEvents?: AttentionEvent[];
+  islandContributions?: PluginIslandContribution[];
 };
 
 type PluginOutcome = OpenLeashOutcomeRecord;
@@ -335,6 +340,7 @@ let latestPlugins: PluginCatalogItem[] = [];
 let latestOutcomes: PluginOutcome[] = [];
 let latestViewModel: OpenLeashClientViewModel | undefined;
 let latestAttentionEvents: AttentionEvent[] = [];
+let latestIslandContributions: PluginIslandContribution[] = [];
 const seenAttentionEventIds = new Set<string>();
 const desktopStartedAt = Date.now();
 let localProtections: LocalAgentProtection[] = [];
@@ -1985,6 +1991,9 @@ ipcMain.handle("openleash:resize-notice", (_event, requestedSize: number | { wid
 ipcMain.handle("openleash:jump-to-agent", async (_event, payload: { agentKind?: string }) => {
   return openAgentApplication(payload?.agentKind);
 });
+ipcMain.handle("openleash:plugin-island-action", async (_event, payload: unknown) => {
+  return handlePluginIslandAction(payload);
+});
 
 async function resolveDecision(
   id: string,
@@ -2076,6 +2085,7 @@ async function poll() {
     latestOutcomes = body.outcomes ?? [];
     latestViewModel = body.viewModel ?? latestViewModel;
     latestAttentionEvents = body.attentionEvents ?? [];
+    latestIslandContributions = body.islandContributions ?? [];
     setTrayStatus(latestPending.length > 0 ? "pending" : "ok");
     refreshMenu();
     window?.webContents.send("openleash:update", {
@@ -2183,6 +2193,7 @@ async function fetchTrayState(): Promise<
       agents: AgentStatus[];
       sessionMetrics?: SessionMetrics;
       attentionEvents?: AttentionEvent[];
+      islandContributions?: PluginIslandContribution[];
       plugins: PluginCatalogItem[];
       outcomes?: PluginOutcome[];
       viewModel?: OpenLeashClientViewModel;
@@ -2234,6 +2245,7 @@ async function fetchTrayState(): Promise<
       (await stateResponse.json()) as RemoteMobileState,
     );
     remoteState.attentionEvents = notifications?.attentionEvents ?? [];
+    remoteState.islandContributions = notifications?.islandContributions ?? remoteState.islandContributions ?? [];
     return mergeTrayState(
       localState,
       remoteState,
@@ -2275,6 +2287,7 @@ async function fetchRemoteNotifications(
       agents: AgentStatus[];
       sessionMetrics?: SessionMetrics;
       attentionEvents?: AttentionEvent[];
+      islandContributions?: PluginIslandContribution[];
     }
   | undefined
 > {
@@ -2606,6 +2619,7 @@ function mergeTrayState(
         outcomes?: PluginOutcome[];
         viewModel?: OpenLeashClientViewModel;
         attentionEvents?: AttentionEvent[];
+        islandContributions?: PluginIslandContribution[];
       }
     | undefined,
   remoteState: {
@@ -2613,6 +2627,7 @@ function mergeTrayState(
     agents: AgentStatus[];
     sessionMetrics?: SessionMetrics;
     attentionEvents?: AttentionEvent[];
+    islandContributions?: PluginIslandContribution[];
   },
   plugins: PluginCatalogItem[],
   outcomes: PluginOutcome[] = [],
@@ -2627,6 +2642,7 @@ function mergeTrayState(
       ...(remoteState.attentionEvents ?? []),
       ...(localState.attentionEvents ?? []),
     ]),
+    islandContributions: remoteState.islandContributions ?? localState.islandContributions ?? [],
     plugins,
     outcomes,
     viewModel: latestViewModel ?? localState.viewModel,
@@ -2749,6 +2765,7 @@ function mapRemoteMobileState(state: RemoteMobileState): {
   agents: AgentStatus[];
   sessionMetrics?: SessionMetrics;
   attentionEvents?: AttentionEvent[];
+  islandContributions?: PluginIslandContribution[];
 } {
   return {
     pending: (state.pendingApprovals ?? []).map((item) => ({
@@ -2797,6 +2814,9 @@ function mapRemoteMobileState(state: RemoteMobileState): {
     sessionMetrics: mapRemoteSessionMetrics(state.sessionMetrics),
     attentionEvents: Array.isArray(state.attentionEvents)
       ? state.attentionEvents
+      : [],
+    islandContributions: Array.isArray(state.islandContributions)
+      ? state.islandContributions
       : [],
   };
 }
@@ -4658,23 +4678,37 @@ function dismissNoticeByUser() {
   closeNoticeWithoutOpeningMainWindow();
 }
 
+function handlePluginIslandAction(payload: unknown) {
+  if (!payload || typeof payload !== "object") return { ok: false };
+  const input = payload as { action?: { type?: string }; session?: { agentKind?: string } };
+  const type = input.action?.type;
+  if (type === "open-session") return openAgentApplication(input.session?.agentKind);
+  if (type === "open-plugin-settings" || type === "open-plugin-outcome") {
+    closeNoticeWithoutOpeningMainWindow();
+    showMainWindow("settings");
+    return { ok: true };
+  }
+  return { ok: false };
+}
+
 function syncActivityIsland() {
   const sessions = activeAgentSessions(latestAgents);
-  if (sessions.length === 0) {
+  const contributions = latestIslandContributions.filter((contribution) =>
+    Date.parse(contribution.expiresAt) > Date.now()
+  );
+  if (sessions.length === 0 && contributions.length === 0) {
     if (activeNoticeKey?.startsWith("activity:")) closeNoticeWithoutOpeningMainWindow();
     return;
   }
-  const key = activityIslandKey(sessions);
+  const key = `${activityIslandKey(sessions)}:${contributions.map((item) => `${item.pluginId}:${item.key}`).sort().join("|")}`;
   if (dismissedActivityKeys.has(key)) return;
-  const fingerprint = JSON.stringify(sessions.map((session) => [
-    session.id,
-    session.lastActivityAt,
-    session.latestAction,
-    session.eventCount,
-  ]));
+  const fingerprint = JSON.stringify({
+    sessions: sessions.map((session) => [session.id, session.lastActivityAt, session.latestAction, session.eventCount]),
+    contributions: contributions.map((item) => [item.id, item.updatedAt, item.expiresAt]),
+  });
   if (activeNoticeKey === key && activeActivityFingerprint === fingerprint) return;
   activeActivityFingerprint = fingerprint;
-  showDecisionNotice({ kind: "activity", sessions });
+  showDecisionNotice({ kind: "activity", sessions, contributions });
 }
 
 function showAgentDetail(_agent: AgentStatus) {
@@ -4727,7 +4761,7 @@ function fitMainWindowOnLargestDisplay(target: BrowserWindow) {
 type DecisionNotice =
   | { kind: "ask"; pending: PendingDecision }
   | { kind: "attention"; event: AttentionEvent }
-  | { kind: "activity"; sessions: ActiveAgentSession[] }
+  | { kind: "activity"; sessions: ActiveAgentSession[]; contributions: PluginIslandContribution[] }
   | {
       kind: "install_success";
       agentName: string;
@@ -4849,6 +4883,10 @@ function handleNativeIslandMessage(line: string) {
     void openAgentApplication(payload?.agentKind);
     return;
   }
+  if (message.action === "plugin-action") {
+    void handlePluginIslandAction(message.payload);
+    return;
+  }
   if (message.action === "resolve") {
     const resolution = message.resolution === "allow" ? "allow" : "deny";
     const response = message.response && typeof message.response === "object"
@@ -4878,7 +4916,7 @@ function showDecisionNotice(notice: DecisionNotice) {
       : notice.kind === "attention"
         ? notice.event.id
         : notice.kind === "activity"
-          ? activityIslandKey(notice.sessions)
+          ? `${activityIslandKey(notice.sessions)}:${notice.contributions.map((item) => `${item.pluginId}:${item.key}`).sort().join("|")}`
         : notice.kind;
   const payload = formatNotice(notice) as Record<string, unknown>;
   if (process.platform === "darwin" && showNativeIsland(payload, noticeKey)) {
@@ -5001,18 +5039,25 @@ function formatNotice(notice: DecisionNotice) {
     };
   }
   if (notice.kind === "activity") {
+    const decorated = notice.contributions.map(decorateIslandContribution);
     return {
       kind: "activity",
       agentName: "OpenLeash",
       agentIcon: noticeAgentIconFor("OpenLeash"),
-      title: notice.sessions.length === 1 ? "Agent working" : `${notice.sessions.length} agents working`,
-      project: `${notice.sessions.length} active session${notice.sessions.length === 1 ? "" : "s"}`,
+      title: notice.sessions.length === 0
+        ? `${notice.contributions.length} plugin update${notice.contributions.length === 1 ? "" : "s"}`
+        : notice.sessions.length === 1 ? "Agent working" : `${notice.sessions.length} agents working`,
+      project: notice.sessions.length === 0
+        ? "Plugin activity"
+        : `${notice.sessions.length} active session${notice.sessions.length === 1 ? "" : "s"}`,
       sessions: notice.sessions.map((session) => ({
         ...session,
         agentIcon: noticeAgentIconFor(session.agentName),
         canJump: canOpenAgent(session.agentKind),
         time: timeAgo(session.lastActivityAt),
+        contributions: contributionsForSession(decorated, session.sessionId),
       })),
+      contributions: ambientIslandContributions(decorated),
     };
   }
   if (notice.kind === "sample") {
@@ -5078,6 +5123,17 @@ function noticePluginName(item: PendingDecision) {
   if (!pluginId || pluginId === "openleash.core") return "openleash-core";
   const slug = pluginId.replace(/^openleash\./, "");
   return slug === "prompt-compression" ? "token-saver" : slug;
+}
+
+function decorateIslandContribution(contribution: PluginIslandContribution) {
+  const plugin = latestPlugins.find((item) => item.id === contribution.pluginId);
+  const pluginName = plugin?.name || plugin?.slug || contribution.pluginId.replace(/^openleash\./, "");
+  const iconText = (plugin as { marketplace?: { iconText?: unknown } } | undefined)?.marketplace?.iconText;
+  return {
+    ...contribution,
+    pluginName,
+    pluginIcon: typeof iconText === "string" && iconText.trim() ? iconText.trim() : "OL",
+  };
 }
 
 function precedingContextSummary(item: PendingDecision) {
