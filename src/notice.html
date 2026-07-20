@@ -21,6 +21,7 @@
         --red: #ff6b64;
         --ease: cubic-bezier(.22, .9, .26, 1);
         --hardware-safe-top: 0px;
+        --hardware-notch-width: 0px;
       }
 
       * { box-sizing: border-box; }
@@ -36,7 +37,7 @@
         display: flex;
         justify-content: center;
         align-items: flex-start;
-        padding: 0 28px 34px;
+        padding: 0 56px 72px;
         color: var(--ink);
         font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI Variable Text", "Segoe UI", sans-serif;
         font-synthesis: none;
@@ -92,6 +93,39 @@
       body.native-macos.has-display-notch .cap {
         padding-top: calc(7px + var(--hardware-safe-top));
       }
+      body.native-macos.has-display-notch .island { width: 430px; }
+      body.native-macos.has-display-notch .island.expanded { width: 540px; }
+      .notch-rail { display: none; }
+      body.native-macos.has-display-notch .notch-rail {
+        position: absolute;
+        z-index: 3;
+        top: 0;
+        left: 0;
+        right: 0;
+        height: var(--hardware-safe-top);
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) var(--hardware-notch-width) minmax(0, 1fr);
+        align-items: center;
+        pointer-events: none;
+      }
+      .notch-agents, .notch-metric { min-width: 0; display: flex; align-items: center; gap: 5px; }
+      .notch-agents { justify-content: flex-end; padding-right: 9px; }
+      .notch-metric { justify-content: flex-start; padding-left: 9px; }
+      .notch-agent {
+        width: 18px;
+        height: 18px;
+        display: grid;
+        place-items: center;
+        overflow: hidden;
+        border: 1px solid rgba(255,255,255,.13);
+        border-radius: 6px;
+        background: #1a1d21;
+        color: var(--soft-ink);
+        font-size: 7px;
+        font-weight: 750;
+      }
+      .notch-agent img { width: 12px; height: 12px; object-fit: contain; }
+      .notch-metric-value { overflow: hidden; color: var(--green); font-size: 9px; font-weight: 700; text-overflow: ellipsis; white-space: nowrap; }
       .island.expandable .cap { cursor: pointer; }
       .agent-mark {
         width: 31px;
@@ -446,6 +480,11 @@
   </head>
   <body>
     <main class="island" id="island" aria-live="polite">
+      <div class="notch-rail" id="notchRail" aria-label="Active agents and token savings">
+        <div class="notch-agents" id="notchAgents"></div>
+        <span aria-hidden="true"></span>
+        <div class="notch-metric" id="notchMetric"></div>
+      </div>
       <header class="cap" id="cap">
         <div class="agent-mark" id="glyph">OL</div>
         <span class="signal-wrap"><span class="signal" id="status"></span></span>
@@ -497,7 +536,7 @@
       let expandTimer;
       let installAnimation;
       const $ = (id) => document.getElementById(id);
-      const island = $("island"), cap = $("cap"), glyph = $("glyph"), status = $("status"), eyebrow = $("eyebrow"), title = $("title"), count = $("count");
+      const island = $("island"), cap = $("cap"), glyph = $("glyph"), status = $("status"), eyebrow = $("eyebrow"), title = $("title"), count = $("count"), notchAgents = $("notchAgents"), notchMetric = $("notchMetric");
       const installSuccess = $("installSuccess"), installFireworks = $("installFireworks"), activityPanel = $("activityPanel"), sessionList = $("sessionList"), activityDetail = $("activityDetail"), ambientContributions = $("ambientContributions"), summary = $("summary"), purpose = $("purpose"), evidenceBlock = $("evidenceBlock"), evidence = $("evidence"), chips = $("chips"), questions = $("questions"), plan = $("plan");
       const guidance = $("guidance"), rememberRow = $("rememberRow"), remember = $("remember"), actions = $("actions"), hint = $("hint");
 
@@ -530,6 +569,7 @@
         clearTimeout(expandTimer);
         installAnimation?.destroy(); installAnimation = undefined; installFireworks.innerHTML = ""; installSuccess.hidden = true;
         activityPanel.hidden = true; sessionList.innerHTML = ""; activityDetail.hidden = true; activityDetail.innerHTML = ""; ambientContributions.innerHTML = "";
+        notchAgents.innerHTML = ""; notchMetric.innerHTML = "";
         selectedAnswers = new Map(); questions.innerHTML = ""; actions.innerHTML = ""; chips.innerHTML = ""; guidance.value = "";
         actions.className = "actions"; summary.hidden = false; purpose.hidden = true; evidenceBlock.hidden = true; plan.hidden = true;
         guidance.hidden = true; rememberRow.hidden = true; hint.textContent = ""; island.classList.remove("expanded", "expandable", "leaving");
@@ -538,7 +578,7 @@
       function resize() {
         requestAnimationFrame(() => {
           const rect = island.getBoundingClientRect();
-          bridge.resizeNotice({ width: Math.ceil(rect.width + 56), height: Math.ceil(rect.height + 34) });
+          bridge.resizeNotice({ width: Math.ceil(rect.width + 112), height: Math.ceil(rect.height + 72) });
         });
       }
       new ResizeObserver(resize).observe(island);
@@ -575,7 +615,9 @@
       window.renderOpenLeashNotice = renderNotice;
       window.setOpenLeashDisplayMetrics = (metrics = {}) => {
         const safeTop = Math.max(0, Math.ceil(Number(metrics.safeTop) || 0));
+        const notchWidth = Math.max(0, Math.ceil(Number(metrics.notchWidth) || 0));
         document.documentElement.style.setProperty("--hardware-safe-top", `${safeTop}px`);
+        document.documentElement.style.setProperty("--hardware-notch-width", `${notchWidth}px`);
         document.body.classList.toggle("has-display-notch", Boolean(metrics.hasNotch) && safeTop > 0);
         resize();
       };
@@ -592,6 +634,8 @@
           sessionCount: sessionList.querySelectorAll(".session-card").length,
           activityDetailVisible: !activityDetail.hidden,
           contributionCount: document.querySelectorAll(".island-contribution, .contribution-pill").length,
+          notchAgentCount: notchAgents.children.length,
+          notchTokenSaving: notchMetric.textContent.trim(),
         };
       };
       window.dismissOpenLeashNotice = () => { island.classList.add("leaving"); island.classList.remove("expanded"); resize(); };
@@ -681,13 +725,14 @@
         summary.hidden = true;
         activityPanel.hidden = false;
         const sessions = Array.isArray(payload.sessions) ? payload.sessions : [];
+        renderNotchRail(sessions, payload.contributions || []);
         sessions.forEach((session, index) => {
           const card = document.createElement("button"); card.type = "button"; card.className = "session-card";
           const icon = document.createElement("span"); icon.className = "session-agent-icon";
           if (session.agentIcon) { const image = document.createElement("img"); image.src = session.agentIcon; image.alt = ""; icon.appendChild(image); }
           else icon.textContent = initials(session.agentName);
           const copy = document.createElement("span"); copy.className = "session-copy";
-          const heading = document.createElement("span"); heading.className = "session-title"; heading.textContent = `${session.project} · ${session.title}`;
+          const heading = document.createElement("span"); heading.className = "session-title"; heading.textContent = session.project && session.project !== "Workspace" ? `${session.project} · ${session.title}` : session.title;
           const meta = document.createElement("span"); meta.className = "session-meta"; meta.textContent = `${session.agentName} · ${session.time || "now"} · ${session.eventCount || 1} event${session.eventCount === 1 ? "" : "s"}`;
           const action = document.createElement("span"); action.className = "session-action"; action.textContent = session.latestAction || "Working";
           copy.append(heading, meta, action);
@@ -704,6 +749,21 @@
           : `${(payload.contributions || []).length} plugin update${(payload.contributions || []).length === 1 ? "" : "s"}`;
       }
 
+      function renderNotchRail(sessions, ambient) {
+        sessions.slice(0, 4).forEach((session) => {
+          const agent = document.createElement("span"); agent.className = "notch-agent"; agent.title = `${session.agentName} working`;
+          if (session.agentIcon) { const image = document.createElement("img"); image.src = session.agentIcon; image.alt = ""; agent.appendChild(image); }
+          else agent.textContent = initials(session.agentName);
+          notchAgents.appendChild(agent);
+        });
+        const contributions = [...sessions.flatMap((session) => session.contributions || []), ...ambient];
+        const tokenSaver = contributions.find((item) => item.pluginId === "openleash.prompt-compression" && item.value);
+        if (tokenSaver) {
+          const value = document.createElement("span"); value.className = "notch-metric-value"; value.textContent = `✂ ${tokenSaver.value}`; value.title = tokenSaver.detail || "Token saver result";
+          notchMetric.appendChild(value);
+        }
+      }
+
       function selectActivitySession(session, card) {
         current.selectedSession = session;
         sessionList.querySelectorAll(".session-card").forEach((item) => item.classList.toggle("selected", item === card));
@@ -713,7 +773,7 @@
         const events = document.createElement("div"); events.className = "activity-events";
         (session.events || []).slice(0, 3).forEach((event) => {
           const row = document.createElement("div"); row.className = "activity-event";
-          const label = document.createElement("span"); label.textContent = event.tool_name || event.event_name || "Activity";
+          const label = document.createElement("span"); label.textContent = friendlyEventLabel(event);
           const when = document.createElement("span"); when.textContent = event.created_at ? relativeTime(event.created_at) : "";
           row.append(label, when); events.appendChild(row);
         });
@@ -765,6 +825,20 @@
       function relativeTime(value) {
         const seconds = Math.max(0, Math.round((Date.now() - new Date(value).getTime()) / 1000));
         return seconds < 60 ? `${seconds}s` : `${Math.floor(seconds / 60)}m`;
+      }
+
+      function friendlyEventLabel(event) {
+        const tool = String(event.tool_name || "").toLowerCase().replace(/[_-]+/g, " ");
+        if (/^(read|cat|view|open)$/.test(tool)) return "Reviewed project files";
+        if (/^(write|edit|multiedit|apply patch)$/.test(tool)) return "Updated a file";
+        if (/^(bash|shell|terminal|command)$/.test(tool)) return "Ran a command";
+        if (/^(grep|glob|search|find)$/.test(tool)) return "Searched the project";
+        if (/^(task|agent|subagent)$/.test(tool)) return "Delegated work";
+        if (tool) return "Used a project tool";
+        if (event.event_name === "UserPromptSubmit") return "Received your request";
+        if (event.event_name === "SubagentStart") return "Started delegated work";
+        if (event.event_name === "SubagentStop") return "Finished delegated work";
+        return "Continued working";
       }
 
       function requestDismiss() { island.classList.add("leaving"); setTimeout(() => bridge.dismissNotice(), 120); }

@@ -59,6 +59,7 @@ export function activeAgentSessions(
       const lastActivityAt = session.last_activity_at ?? agent.activity_at;
       if (!lastActivityAt || !isRecent(lastActivityAt, now, activeWithinMs)) return [];
       const latestEvent = session.events?.[0];
+      const latestPrompt = session.events?.find((event) => cleanText(event.prompt));
       const eventName = latestEvent?.event_name ?? (index === 0 ? agent.event_name : undefined);
       if (eventName && TERMINAL_EVENTS.has(eventName.toLowerCase())) return [];
       const projectPath = session.project_path ?? agent.project_path;
@@ -68,8 +69,8 @@ export function activeAgentSessions(
         agentKind: agent.kind,
         agentName: agent.display_name,
         project: projectName(projectPath),
-        title: cleanText(session.title) || cleanText(latestEvent?.prompt) || "Agent session",
-        summary: cleanText(session.summary) || cleanText(agent.short_summary) || "Activity detected",
+        title: cleanText(latestPrompt?.prompt) || cleanText(session.title) || "Agent session",
+        summary: friendlySummary(session.summary) || cleanText(agent.short_summary) || "Agent is working",
         latestAction: latestAction(latestEvent, agent),
         lastActivityAt,
         durationSeconds: Math.max(0, Number(session.duration_seconds ?? 0)),
@@ -120,12 +121,29 @@ function projectName(value?: string) {
 
 function latestAction(event: ActivityIslandEvent | undefined, agent: ActivityIslandSourceAgent) {
   const tool = cleanText(event?.tool_name ?? agent.tool_name);
-  if (tool) return humanize(tool);
+  if (tool) return friendlyToolAction(tool);
   const eventName = cleanText(event?.event_name ?? agent.event_name);
   if (eventName === "UserPromptSubmit") return "Reading your request";
   if (eventName === "SubagentStart") return "Started a subagent";
   if (eventName === "SubagentStop") return "Subagent finished";
   return eventName ? humanize(eventName) : "Working";
+}
+
+function friendlyToolAction(tool: string) {
+  const normalized = tool.toLowerCase().replace(/[_-]+/g, " ");
+  if (/^(read|cat|view|open)$/.test(normalized)) return "Reviewing project files";
+  if (/^(write|edit|multiedit|apply patch)$/.test(normalized)) return "Updating a file";
+  if (/^(bash|shell|terminal|command)$/.test(normalized)) return "Running a command";
+  if (/^(grep|glob|search|find)$/.test(normalized)) return "Searching the project";
+  if (/^(task|agent|subagent)$/.test(normalized)) return "Delegating work";
+  return "Working with a project tool";
+}
+
+function friendlySummary(value: unknown) {
+  return cleanText(value)
+    .replace(/\b(\d+) events?\b/gi, "$1 actions")
+    .replace(/\b(\d+) approvals?\b/gi, "$1 approval requests")
+    .replace(/\b(\d+) denied\b/gi, "$1 blocked");
 }
 
 function humanize(value: string) {

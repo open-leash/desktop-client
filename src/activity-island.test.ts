@@ -29,7 +29,30 @@ test("builds active island sessions consistently across supported coding agents"
   assert.equal(sessions.length, supportedAgents.length);
   assert.deepEqual(new Set(sessions.map((session) => session.agentKind)), new Set(supportedAgents));
   assert.equal(sessions[0]?.latestAction, "Reading your request");
-  assert.equal(sessions[1]?.latestAction, "Edit");
+  assert.equal(sessions[1]?.latestAction, "Updating a file");
+});
+
+test("shows the latest user request and explains tools in plain language", () => {
+  const now = Date.parse("2026-07-20T10:00:00.000Z");
+  const [session] = activeAgentSessions([{
+    kind: "claude-code",
+    display_name: "Claude Code",
+    activity_at: new Date(now - 1_000).toISOString(),
+    sessions: [{
+      id: "claude",
+      title: "quota",
+      summary: "11 events · 2 approvals · 1 denied",
+      last_activity_at: new Date(now - 1_000).toISOString(),
+      events: [
+        { event_name: "PreToolUse", tool_name: "Read", created_at: new Date(now - 1_000).toISOString() },
+        { event_name: "UserPromptSubmit", prompt: "ok write a nice 2 page story about moses and god", created_at: new Date(now - 2_000).toISOString() },
+      ],
+    }],
+  }], now);
+
+  assert.equal(session?.title, "ok write a nice 2 page story about moses and god");
+  assert.equal(session?.latestAction, "Reviewing project files");
+  assert.equal(session?.summary, "11 actions · 2 approval requests · 1 blocked");
 });
 
 test("excludes completed and stale sessions and keeps the key stable across updates", () => {
