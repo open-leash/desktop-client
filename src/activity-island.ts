@@ -60,7 +60,7 @@ export function activeAgentSessions(
       const lastActivityAt = session.last_activity_at ?? agent.activity_at;
       if (!lastActivityAt || !isRecent(lastActivityAt, now, activeWithinMs)) return [];
       const latestEvent = session.events?.[0];
-      const latestPrompt = session.events?.find((event) => cleanText(event.prompt));
+      const latestPrompt = session.events?.find((event) => userFacingText(event.prompt));
       const eventName = latestEvent?.event_name ?? (index === 0 ? agent.event_name : undefined);
       if (eventName && TERMINAL_EVENTS.has(eventName.toLowerCase())) return [];
       const projectPath = session.project_path ?? agent.project_path;
@@ -71,13 +71,13 @@ export function activeAgentSessions(
         agentKind: agent.kind,
         agentName: agent.display_name,
         project: projectName(projectPath),
-        title: cleanText(latestPrompt?.prompt) || cleanText(session.title) || "Agent session",
-        summary: friendlySummary(session.summary) || cleanText(agent.short_summary) || "Agent is working",
+        title: userFacingText(latestPrompt?.prompt) || userFacingText(session.title) || userFacingText(agent.short_summary) || "Agent working",
+        summary: friendlySummary(session.summary) || userFacingText(agent.short_summary) || "Agent is working",
         latestAction: latestAction(latestEvent, agent),
         lastActivityAt,
         durationSeconds: Math.max(0, Number(session.duration_seconds ?? 0)),
         eventCount: Math.max(1, Number(session.event_count ?? session.events?.length ?? 1)),
-        events: session.events?.slice(0, 5) ?? [],
+        events: session.events?.map(sanitizeEvent).slice(0, 5) ?? [],
       }];
     });
   }).sort((left, right) => Date.parse(right.lastActivityAt) - Date.parse(left.lastActivityAt));
@@ -192,10 +192,27 @@ function friendlyToolAction(tool: string) {
 }
 
 function friendlySummary(value: unknown) {
-  return cleanText(value)
+  return userFacingText(value)
     .replace(/\b(\d+) events?\b/gi, "$1 actions")
     .replace(/\b(\d+) approvals?\b/gi, "$1 approval requests")
     .replace(/\b(\d+) denied\b/gi, "$1 blocked");
+}
+
+function sanitizeEvent(event: ActivityIslandEvent): ActivityIslandEvent {
+  const prompt = userFacingText(event.prompt);
+  return { ...event, prompt: prompt || undefined };
+}
+
+function userFacingText(value: unknown) {
+  if (typeof value !== "string") return "";
+  const session = value.match(/<session(?:\s[^>]*)?>([\s\S]*?)<\/session>/i)?.[1];
+  const candidate = (session ?? value).trim();
+  if (isInternalControlText(candidate)) return "";
+  return cleanText(candidate);
+}
+
+function isInternalControlText(value: string) {
+  return /^(?:\[(?:suggestion|system|developer|assistant|tool)\s*(?:mode|message)?\s*:|<(?:system|system-reminder|developer|assistant|tool|command-name|command-message|local-command-(?:caveat|stdout|stderr)|ide_[a-z0-9_-]+)\b)/i.test(value);
 }
 
 function humanize(value: string) {

@@ -55,6 +55,47 @@ test("shows the latest user request and explains tools in plain language", () =>
   assert.equal(session?.summary, "11 actions · 2 approval requests · 1 blocked");
 });
 
+test("hides Claude control prompts and keeps the latest real user request", () => {
+  const now = Date.parse("2026-07-20T10:00:00.000Z");
+  const [session] = activeAgentSessions([{
+    kind: "claude-code",
+    display_name: "Claude Code",
+    activity_at: new Date(now - 1_000).toISOString(),
+    sessions: [{
+      id: "claude-control-prompt",
+      title: "[SYSTEM: internal fallback title]",
+      last_activity_at: new Date(now - 1_000).toISOString(),
+      events: [
+        { event_name: "UserPromptSubmit", prompt: "[SUGGESTION MODE: Suggest what the user might naturally type next]", created_at: new Date(now - 1_000).toISOString() },
+        { event_name: "UserPromptSubmit", prompt: "write the release notes", created_at: new Date(now - 2_000).toISOString() },
+      ],
+    }],
+  }], now);
+
+  assert.equal(session?.title, "write the release notes");
+  assert.equal(session?.events[0]?.prompt, undefined);
+  assert.equal(session?.events[1]?.prompt, "write the release notes");
+});
+
+test("uses a neutral title when a Claude session contains only control metadata", () => {
+  const now = Date.parse("2026-07-20T10:00:00.000Z");
+  const [session] = activeAgentSessions([{
+    kind: "claude-code",
+    display_name: "Claude Code",
+    activity_at: new Date(now - 1_000).toISOString(),
+    short_summary: "<system-reminder>Private provider instructions</system-reminder>",
+    sessions: [{
+      id: "claude-control-only",
+      title: "<command-name>/internal</command-name>",
+      last_activity_at: new Date(now - 1_000).toISOString(),
+      events: [{ event_name: "UserPromptSubmit", prompt: "<system-reminder>Do not show this</system-reminder>" }],
+    }],
+  }], now);
+
+  assert.equal(session?.title, "Agent working");
+  assert.equal(session?.summary, "Agent is working");
+});
+
 test("removes transport session tags and merges duplicate hook and proxy views", () => {
   const now = Date.parse("2026-07-20T10:00:00.000Z");
   const sessions = activeAgentSessions([{

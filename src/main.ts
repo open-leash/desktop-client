@@ -5048,16 +5048,14 @@ function formatNotice(notice: DecisionNotice) {
       .sort((left, right) => Date.parse(right.updatedAt) - Date.parse(left.updatedAt))[0];
     const tokenSaverPlugin = latestPlugins.find((plugin) => plugin.id === "openleash.prompt-compression");
     const tokenSaver = tokenSaverContribution ?? (
-      tokenSaverPlugin?.settings?.enabled
+      tokenSaverPlugin?.settings?.enabled && tokenSaverPlugin.settings.runtimeAvailable === false
         ? {
             pluginId: "openleash.prompt-compression",
             pluginName: "token-saver",
             pluginIcon: "✂️",
-            value: tokenSaverPlugin.settings.runtimeAvailable === false ? "Unavailable" : "Ready",
-            detail: tokenSaverPlugin.settings.runtimeAvailable === false
-              ? tokenSaverPlugin.settings.runtimeError ?? "Token Saver is unavailable."
-              : "Watching model requests sent through the OpenLeash proxy. Savings appear after compression.",
-            tone: tokenSaverPlugin.settings.runtimeAvailable === false ? "danger" : "success",
+            value: "Unavailable",
+            detail: tokenSaverPlugin.settings.runtimeError ?? "Token Saver is unavailable.",
+            tone: "danger",
           }
         : undefined
     );
