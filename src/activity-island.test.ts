@@ -66,6 +66,7 @@ test("hides Claude control prompts and keeps the latest real user request", () =
       title: "[SYSTEM: internal fallback title]",
       last_activity_at: new Date(now - 1_000).toISOString(),
       events: [
+        { event_name: "UserPromptSubmit", prompt: "The user stepped away and is coming back. Recap in under 40 words before continuing.", created_at: new Date(now - 500).toISOString() },
         { event_name: "UserPromptSubmit", prompt: "[SUGGESTION MODE: Suggest what the user might naturally type next]", created_at: new Date(now - 1_000).toISOString() },
         { event_name: "UserPromptSubmit", prompt: "write the release notes", created_at: new Date(now - 2_000).toISOString() },
       ],
@@ -74,7 +75,8 @@ test("hides Claude control prompts and keeps the latest real user request", () =
 
   assert.equal(session?.title, "write the release notes");
   assert.equal(session?.events[0]?.prompt, undefined);
-  assert.equal(session?.events[1]?.prompt, "write the release notes");
+  assert.equal(session?.events[1]?.prompt, undefined);
+  assert.equal(session?.events[2]?.prompt, "write the release notes");
 });
 
 test("uses a neutral title when a Claude session contains only control metadata", () => {

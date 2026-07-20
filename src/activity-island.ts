@@ -212,7 +212,12 @@ function userFacingText(value: unknown) {
 }
 
 function isInternalControlText(value: string) {
-  return /^(?:\[(?:suggestion|system|developer|assistant|tool)\s*(?:mode|message)?\s*:|<(?:system|system-reminder|developer|assistant|tool|command-name|command-message|local-command-(?:caveat|stdout|stderr)|ide_[a-z0-9_-]+)\b)/i.test(value);
+  return /^(?:\[(?:suggestion|system|developer|assistant|tool)\s*(?:mode|message)?\s*:|<(?:system|system-reminder|developer|assistant|tool|command-name|command-message|local-command-(?:caveat|stdout|stderr)|ide_[a-z0-9_-]+)\b)/i.test(value) ||
+    /^the user (?:has )?stepped away\b[\s\S]*\b(?:recap|summari[sz]e)\b/i.test(value) ||
+    /^the user (?:is|will be) (?:coming back|returning)\b[\s\S]*\b(?:recap|summari[sz]e)\b/i.test(value) ||
+    /^this session is being continued from a previous conversation\b/i.test(value) ||
+    /^suggest what the user might naturally type next\b/i.test(value) ||
+    /^you have \d+ weighted tokens left\b/i.test(value);
 }
 
 function humanize(value: string) {
