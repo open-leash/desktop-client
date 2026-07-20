@@ -71,7 +71,7 @@ test("removes transport session tags and merges duplicate hook and proxy views",
       {
         id: "proxy-session",
         session_id: "proxy-session",
-        project_path: "/code/MyProj",
+        project_path: undefined,
         last_activity_at: new Date(now - 20_000).toISOString(),
         events: [{ event_name: "UserPromptSubmit", prompt: "<session>write a short story to story.txt</session> Workspace metadata" }],
       },

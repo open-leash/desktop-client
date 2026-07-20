@@ -19,7 +19,11 @@ const executable = path.resolve(valueAfter("--executable") ?? "dist/openleash-is
 const html = path.resolve(valueAfter("--html") ?? "dist/notice.html");
 await Promise.all([access(executable), access(html)]);
 
-const child = spawn(executable, [html], { stdio: ["pipe", "pipe", "pipe"] });
+const displayMode = process.argv.includes("--notch") ? "notch" : process.argv.includes("--plain") ? "plain" : undefined;
+const child = spawn(executable, [html], {
+  stdio: ["pipe", "pipe", "pipe"],
+  env: { ...process.env, ...(displayMode ? { OPENLEASH_ISLAND_TEST_DISPLAY: displayMode } : {}) },
+});
 const lines = readline.createInterface({ input: child.stdout });
 const messages = [];
 const waiters = [];
@@ -71,7 +75,7 @@ try {
   assert.equal(compact.frame.topInset, 0);
   if (compact.display.hasNotch) assert.ok(compact.frame.width >= 620 && compact.frame.width <= 625, `unexpected notched compact width ${compact.frame.width}`);
   else assert.ok(compact.frame.width >= 455 && compact.frame.width <= 465, `unexpected compact width ${compact.frame.width}`);
-  assert.ok(compact.frame.height < 175, `unexpected compact height ${compact.frame.height}`);
+  assert.ok(compact.frame.height < (compact.display.hasNotch ? 210 : 175), `unexpected compact height ${compact.frame.height}`);
   assert.equal(compact.layout.contentClearsNotch, true);
   if (compact.display.hasNotch) {
     assert.ok(compact.display.safeTop > 0, "notched display did not report a safe top inset");
@@ -108,8 +112,18 @@ try {
   assert.equal(activity.layout.historyButtonVisible, true, "activity island did not offer optional history");
   assert.ok(activity.layout.contributionCount >= 2, "activity island did not render plugin contributions");
   assert.equal(activity.layout.notchAgentCount, 3, "notch rail did not render active agent icons");
+  assert.equal(activity.layout.capAgentCount, 3, "plain-display compact pill did not render active agent icons");
   assert.match(activity.layout.notchTokenSaving, /42% saved/, "notch rail did not render token savings");
   assert.match(activity.layout.capTokenSaving, /42% saved/, "compact header did not retain token savings for displays without a notch");
+  if (activity.display.hasNotch) {
+    assert.equal(activity.layout.islandHeight, activity.display.safeTop, "notched compact activity grew below the hardware notch");
+  } else {
+    assert.ok(activity.layout.islandHeight >= 42 && activity.layout.islandHeight <= 55, `plain compact activity height is not one line: ${activity.layout.islandHeight}`);
+  }
+  send({ type: "expandActivity" });
+  const expandedActivity = await inspectAfter(450);
+  assert.equal(expandedActivity.layout.expanded, true, "compact activity rail did not expand");
+  assert.ok(expandedActivity.layout.islandHeight > activity.layout.islandHeight, "expanded activity did not reveal its details");
 
   send({ type: "show", payload: {
     kind: "ask",

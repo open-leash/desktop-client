@@ -150,6 +150,10 @@ private final class IslandController: NSObject, WKNavigationDelegate, WKScriptMe
         }
     }
 
+    func expandActivityForVerification() {
+        webView.evaluateJavaScript("document.body.classList.contains('has-display-notch') ? document.getElementById('notchRail').click() : document.getElementById('cap').click()")
+    }
+
     private func resize(width requestedWidth: Double, height requestedHeight: Double) {
         let width = CGFloat(max(220, min(780, requestedWidth.rounded(.up))))
         let height = CGFloat(max(42, min(760, requestedHeight.rounded(.up))))
@@ -189,6 +193,19 @@ private final class IslandController: NSObject, WKNavigationDelegate, WKScriptMe
             } else {
                 hasNotch = safeTop > 0
             }
+        }
+
+        switch ProcessInfo.processInfo.environment["OPENLEASH_ISLAND_TEST_DISPLAY"] {
+        case "notch":
+            safeTop = 32
+            notchWidth = 210
+            hasNotch = true
+        case "plain":
+            safeTop = 0
+            notchWidth = 0
+            hasNotch = false
+        default:
+            break
         }
 
         return [
@@ -233,6 +250,8 @@ private struct OpenLeashIslandApplication {
                         controller.dismiss()
                     case "inspect":
                         controller.inspect()
+                    case "expandActivity":
+                        controller.expandActivityForVerification()
                     case "quit":
                         controller.dismiss()
                         app.terminate(nil)

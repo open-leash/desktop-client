@@ -1,6 +1,6 @@
 {
   "name": "@openleash/desktop-client",
-  "version": "0.36.28",
+  "version": "0.36.29",
   "description": "OpenLeash desktop agent policy and attention client.",
   "author": "OpenLeash",
   "type": "commonjs",
@@ -16,7 +16,7 @@
     "build": "tsc -p tsconfig.json && node src/copy-assets.mjs && node src/build-native-island.mjs",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "tsx --test src/proxy-manager.test.ts src/plugin-container-manager.test.ts src/local-plugin-runtime.test.ts src/agent-registry.test.ts src/activity-island.test.ts src/intent-dedupe.test.ts src/notice-presentation.test.ts",
-    "test:island:mac": "node scripts/verify-native-island.mjs",
+    "test:island:mac": "node scripts/verify-native-island.mjs --plain && node scripts/verify-native-island.mjs --notch",
     "verify:release-dependencies": "node scripts/verify-release-dependencies.mjs"
   },
   "dependencies": {

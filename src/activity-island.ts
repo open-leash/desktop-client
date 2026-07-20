@@ -117,7 +117,7 @@ function dedupeSessions(sessions: ActiveAgentSession[]) {
   for (const session of sessions) {
     const duplicate = deduped.find((candidate) =>
       candidate.agentKind === session.agentKind &&
-      candidate.project === session.project &&
+      (candidate.project === session.project || candidate.project === "Workspace" || session.project === "Workspace") &&
       comparableTitle(candidate.title) === comparableTitle(session.title) &&
       Math.abs(Date.parse(candidate.lastActivityAt) - Date.parse(session.lastActivityAt)) <= 2 * 60_000
     );
@@ -126,6 +126,7 @@ function dedupeSessions(sessions: ActiveAgentSession[]) {
       continue;
     }
     duplicate.sourceSessionIds = [...new Set([...duplicate.sourceSessionIds, ...session.sourceSessionIds])];
+    if (duplicate.project === "Workspace" && session.project !== "Workspace") duplicate.project = session.project;
     duplicate.events = uniqueEvents([...duplicate.events, ...session.events]).slice(0, 5);
     duplicate.eventCount = Math.max(duplicate.eventCount, session.eventCount, duplicate.events.length);
     duplicate.durationSeconds = Math.max(duplicate.durationSeconds, session.durationSeconds);

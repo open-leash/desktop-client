@@ -130,11 +130,46 @@
         font-weight: 750;
       }
       .notch-agent img { width: 12px; height: 12px; object-fit: contain; }
+      .notch-agent.running img, .cap-agent.running img { animation: agent-running 3.2s linear infinite; }
+      .notch-agent.running:not(:has(img)), .cap-agent.running:not(:has(img)) { animation: agent-pulse 1.8s ease-in-out infinite; }
+      @keyframes agent-running { to { transform: rotate(360deg); } }
+      @keyframes agent-pulse { 50% { opacity: .55; transform: scale(.88); } }
       .notch-metric-value { overflow: hidden; color: var(--green); font-size: 9px; font-weight: 700; text-overflow: ellipsis; white-space: nowrap; }
       .notch-metric-value.danger { color: var(--red); background: transparent; border: 0; }
       .cap-metric { color: var(--green); font-size: 9px; font-weight: 700; white-space: nowrap; }
       body.native-macos.has-display-notch .cap-metric { display: none; }
       .island.expandable .cap { cursor: pointer; }
+      .cap-agents { display: none; align-items: center; gap: 5px; }
+      .cap-agent {
+        width: 24px;
+        height: 24px;
+        display: grid;
+        place-items: center;
+        overflow: hidden;
+        border: 1px solid rgba(255,255,255,.12);
+        border-radius: 8px;
+        background: #1a1d21;
+        color: var(--soft-ink);
+        font-size: 8px;
+        font-weight: 750;
+      }
+      .cap-agent img { width: 15px; height: 15px; object-fit: contain; }
+      .island.activity-mode:not(.expanded) { width: 180px; }
+      .island.activity-mode:not(.expanded) .agent-mark,
+      .island.activity-mode:not(.expanded) .signal-wrap,
+      .island.activity-mode:not(.expanded) .cap-copy { display: none; }
+      .island.activity-mode:not(.expanded) .cap-agents { display: flex; }
+      body.native-macos.has-display-notch .island.activity-mode:not(.expanded) {
+        width: 430px;
+        height: var(--hardware-safe-top);
+        min-height: var(--hardware-safe-top);
+        border-radius: 0;
+      }
+      body.native-macos.has-display-notch .island.activity-mode:not(.expanded) .cap { display: none; }
+      body.native-macos.has-display-notch .island.activity-mode:not(.expanded) .notch-rail {
+        pointer-events: auto;
+        cursor: pointer;
+      }
       .agent-mark {
         width: 31px;
         height: 31px;
@@ -497,6 +532,7 @@
       <header class="cap" id="cap">
         <div class="agent-mark" id="glyph">OL</div>
         <span class="signal-wrap"><span class="signal" id="status"></span></span>
+        <div class="cap-agents" id="capAgents" aria-label="Active agents"></div>
         <div class="cap-copy">
           <div class="eyebrow" id="eyebrow">OpenLeash</div>
           <div class="cap-title" id="title">Agent activity</div>
@@ -546,7 +582,7 @@
       let expandTimer;
       let installAnimation;
       const $ = (id) => document.getElementById(id);
-      const island = $("island"), cap = $("cap"), glyph = $("glyph"), status = $("status"), eyebrow = $("eyebrow"), title = $("title"), count = $("count"), capMetric = $("capMetric"), notchAgents = $("notchAgents"), notchMetric = $("notchMetric");
+      const island = $("island"), cap = $("cap"), glyph = $("glyph"), status = $("status"), eyebrow = $("eyebrow"), title = $("title"), count = $("count"), capAgents = $("capAgents"), capMetric = $("capMetric"), notchRail = $("notchRail"), notchAgents = $("notchAgents"), notchMetric = $("notchMetric");
       const installSuccess = $("installSuccess"), installFireworks = $("installFireworks"), activityPanel = $("activityPanel"), sessionList = $("sessionList"), activityDetail = $("activityDetail"), ambientContributions = $("ambientContributions"), summary = $("summary"), purpose = $("purpose"), evidenceBlock = $("evidenceBlock"), evidence = $("evidence"), chips = $("chips"), questions = $("questions"), plan = $("plan");
       const guidance = $("guidance"), rememberRow = $("rememberRow"), remember = $("remember"), actions = $("actions"), hint = $("hint");
 
@@ -579,10 +615,10 @@
         clearTimeout(expandTimer);
         installAnimation?.destroy(); installAnimation = undefined; installFireworks.innerHTML = ""; installSuccess.hidden = true;
         activityPanel.hidden = true; sessionList.innerHTML = ""; activityDetail.hidden = true; activityDetail.innerHTML = ""; ambientContributions.innerHTML = "";
-        notchAgents.innerHTML = ""; notchMetric.innerHTML = ""; capMetric.hidden = true; capMetric.textContent = "";
+        notchAgents.innerHTML = ""; notchMetric.innerHTML = ""; capAgents.innerHTML = ""; capMetric.hidden = true; capMetric.textContent = "";
         selectedAnswers = new Map(); questions.innerHTML = ""; actions.innerHTML = ""; chips.innerHTML = ""; guidance.value = "";
         actions.className = "actions"; summary.hidden = false; purpose.hidden = true; evidenceBlock.hidden = true; plan.hidden = true;
-        guidance.hidden = true; rememberRow.hidden = true; hint.textContent = ""; island.classList.remove("expanded", "expandable", "leaving");
+        guidance.hidden = true; rememberRow.hidden = true; hint.textContent = ""; island.classList.remove("expanded", "expandable", "leaving", "activity-mode");
         $("reveal").inert = true; $("reveal").setAttribute("aria-hidden", "true");
       }
       function resize() {
@@ -647,9 +683,12 @@
           activityDetailVisible: !activityDetail.hidden,
           contributionCount: document.querySelectorAll(".island-contribution, .contribution-pill").length,
           notchAgentCount: notchAgents.children.length,
+          capAgentCount: capAgents.children.length,
           notchTokenSaving: notchMetric.textContent.trim(),
           capTokenSaving: capMetric.textContent.trim(),
           historyButtonVisible: Boolean(actions.querySelector('[data-action="show-history"]')),
+          islandHeight: island.getBoundingClientRect().height,
+          expanded: island.classList.contains("expanded"),
         };
       };
       window.dismissOpenLeashNotice = () => { island.classList.add("leaving"); island.classList.remove("expanded"); resize(); };
@@ -736,6 +775,7 @@
       }
 
       function renderSessionActivity(payload) {
+        island.classList.add("activity-mode");
         summary.hidden = true;
         activityPanel.hidden = false;
         const sessions = Array.isArray(payload.sessions) ? payload.sessions : [];
@@ -763,10 +803,11 @@
 
       function renderNotchRail(sessions, ambient, tokenSaverStatus) {
         sessions.slice(0, 4).forEach((session) => {
-          const agent = document.createElement("span"); agent.className = "notch-agent"; agent.title = `${session.agentName} working`;
+          const agent = document.createElement("span"); agent.className = "notch-agent running"; agent.title = `${session.agentName} working`;
           if (session.agentIcon) { const image = document.createElement("img"); image.src = session.agentIcon; image.alt = ""; agent.appendChild(image); }
           else agent.textContent = initials(session.agentName);
           notchAgents.appendChild(agent);
+          const compactAgent = agent.cloneNode(true); compactAgent.className = "cap-agent running"; capAgents.appendChild(compactAgent);
         });
         const contributions = [...sessions.flatMap((session) => session.contributions || []), ...ambient];
         const tokenSaver = contributions.find((item) => item.pluginId === "openleash.prompt-compression" && item.value) || tokenSaverStatus;
@@ -883,6 +924,7 @@
         bridge.resolve(current.id, resolution, resolution === "deny" ? guidance.value : "", remember.checked ? 300000 : 0);
       });
       cap.addEventListener("click", (event) => { if (!event.target.closest("button")) setExpanded(!island.classList.contains("expanded")); });
+      notchRail.addEventListener("click", () => { if (island.classList.contains("activity-mode")) setExpanded(true); });
       $("toggle").addEventListener("click", () => setExpanded(!island.classList.contains("expanded")));
       $("close").addEventListener("click", requestDismiss);
       document.addEventListener("keydown", (event) => {
