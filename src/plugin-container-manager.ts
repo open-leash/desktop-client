@@ -198,10 +198,12 @@ export function containerRunArgs(
   return args;
 }
 
-function isDesiredEdgeContainer(plugin: PluginCatalogItem) {
+export function isDesiredEdgeContainer(plugin: PluginCatalogItem) {
   return Boolean(
     plugin.settings?.runtimeAvailable !== false &&
-      (plugin.settings?.enabled || plugin.settings?.profiles?.some((profile) => profile.enabled === true)) &&
+      (plugin.settings?.enabled ||
+        plugin.settings?.profiles?.some((profile) => profile.enabled === true) ||
+        plugin.settings?.inheritedProfiles?.some((profile) => profile.enabled === true)) &&
       plugin.runtime === "container" &&
       plugin.execution?.type === "container" &&
       ["edge", "either"].includes(plugin.execution.placement),
@@ -212,17 +214,21 @@ function pluginForAgent(plugin: PluginCatalogItem, agentKind: string, agentId?: 
   let enabled = plugin.settings.enabled;
   let config = { ...plugin.settings.config };
   const effectiveProfileIds: string[] = [];
-  const apply = (scope: "organization" | "user", profiles = plugin.settings.profiles ?? []) => {
+  const apply = (
+    scope: "organization" | "user",
+    profiles = plugin.settings.profiles ?? [],
+    allowEnabledOverride = true,
+  ) => {
     for (const profile of [...profiles].sort((a, b) => (a.priority ?? 0) - (b.priority ?? 0) || a.id.localeCompare(b.id))) {
       if (profile.agentKinds.length > 0 && !profile.agentKinds.includes(agentKind)) continue;
       if ((profile.agentIds?.length ?? 0) > 0 && (!agentId || !profile.agentIds!.includes(agentId))) continue;
-      if (typeof profile.enabled === "boolean") enabled = profile.enabled;
+      if (allowEnabledOverride && typeof profile.enabled === "boolean") enabled = profile.enabled;
       config = { ...config, ...profile.config };
       effectiveProfileIds.push(`${scope}:${profile.id}`);
     }
   };
   apply("organization", plugin.settings.inheritedProfiles ?? []);
-  apply("user", plugin.settings.profiles ?? []);
+  apply("user", plugin.settings.profiles ?? [], !plugin.organizationPolicy?.mandatory);
   return {
     ...plugin,
     settings: { ...plugin.settings, enabled, config, effectiveProfileIds },

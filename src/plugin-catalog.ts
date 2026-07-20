@@ -59,6 +59,12 @@ export type PluginSettingState = {
 
 export type PluginCatalogItem = BundledPluginManifest & {
   settings: PluginSettingState;
+  organizationPolicy?: {
+    mandatory?: boolean;
+    defaultEnabled?: boolean;
+    userInstallAllowed?: boolean;
+    configLocked?: boolean;
+  };
 };
 
 export const bundledFirstPartyPlugins: BundledPluginManifest[] = [

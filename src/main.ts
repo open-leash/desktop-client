@@ -1257,6 +1257,7 @@ ipcMain.handle(
         id: string;
         name: string;
         agentKinds: string[];
+        agentIds?: string[];
         enabled?: boolean;
         config: Record<string, unknown>;
         priority?: number;

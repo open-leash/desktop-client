@@ -3741,10 +3741,18 @@
       }
 
       function pluginInstalled(plugin) {
-        return Boolean(plugin?.organizationPolicy?.mandatory || plugin?.installed === true || plugin?.settings?.enabled === true);
+        return Boolean(
+          plugin?.organizationPolicy?.mandatory ||
+          plugin?.installed === true ||
+          plugin?.settings?.enabled === true ||
+          plugin?.settings?.installedVersion ||
+          [...(plugin?.settings?.inheritedProfiles || []), ...(plugin?.settings?.profiles || [])]
+            .some((profile) => profile.enabled === true)
+        );
       }
 
       function pluginStatusLabel(plugin) {
+        if (plugin?.settings?.runtimeAvailable === false) return "unavailable";
         if (plugin?.organizationPolicy?.mandatory) return "required";
         return pluginInstalled(plugin) ? "installed" : "available";
       }
@@ -5319,10 +5327,10 @@
                   </span>
                   <span class="pluginChoice">
                     <label>
-                      <input data-plugin-install="${escapeHtml(plugin.id)}" aria-label="Install ${escapeHtml(pluginName(plugin))}" type="checkbox" ${checked ? "checked" : ""} ${mandatory ? "disabled" : ""}>
+                      <input data-plugin-install="${escapeHtml(plugin.id)}" aria-label="Install ${escapeHtml(pluginName(plugin))}" title="${escapeHtml(plugin.settings?.runtimeError || "")}" type="checkbox" ${checked ? "checked" : ""} ${mandatory || plugin.settings?.runtimeAvailable === false ? "disabled" : ""}>
                       <span class="pluginAction" aria-hidden="true">
                         <span class="pluginActionIcon">${checked ? "-" : "+"}</span>
-                        <span class="pluginActionText">${mandatory ? "Required" : checked ? "Remove" : "Add"}</span>
+                        <span class="pluginActionText">${plugin.settings?.runtimeAvailable === false ? "Unavailable" : mandatory ? "Required" : checked ? "Remove" : "Add"}</span>
                       </span>
                     </label>
                   </span>
@@ -5808,10 +5816,11 @@
                         <span class="pluginMetaPill">${metaIcon("author")} ${escapeHtml(developer)}</span>
                         <span class="pluginCategoryTag ${categoryClass}">${categoryIcon(categoryLabel)} ${escapeHtml(categoryLabel)}</span>
                       </span>
+                      ${plugin.settings?.runtimeError ? `<small>${escapeHtml(plugin.settings.runtimeError)}</small>` : ""}
                     </span>
-                    <button type="button" class="pluginAction" data-install-marketplace-plugin="${escapeHtml(plugin.id)}">
+                    <button type="button" class="pluginAction" data-install-marketplace-plugin="${escapeHtml(plugin.id)}" title="${escapeHtml(plugin.settings?.runtimeError || "")}" ${plugin.settings?.runtimeAvailable === false ? "disabled" : ""}>
                       <span class="pluginActionIcon">+</span>
-                      <span class="pluginActionText">Install</span>
+                      <span class="pluginActionText">${plugin.settings?.runtimeAvailable === false ? "Unavailable" : "Install"}</span>
                     </button>
                   </article>
                 `;
@@ -5844,7 +5853,7 @@
         const categoryClass = pluginCategoryClass(categoryLabel);
         const installed = pluginInstalled(plugin);
         const mandatory = Boolean(plugin.organizationPolicy?.mandatory);
-        const locked = mandatory || Boolean(plugin.organizationPolicy?.configLocked);
+        const locked = Boolean(plugin.organizationPolicy?.configLocked);
         const blocked = outcomes.filter((outcome) => String(outcome.decision || outcome.status || "").toLowerCase().includes("block")).length;
         const needsReview = outcomes.filter((outcome) => String(outcome.status || "").toLowerCase().includes("review")).length;
         root.innerHTML = `
@@ -5859,10 +5868,10 @@
             </div>
             <div class="actions">
               <span class="pluginCategoryTag ${categoryClass}">${categoryIcon(categoryLabel)} ${escapeHtml(categoryLabel)}</span>
-              <button id="togglePluginInstall" class="${installed ? "secondary" : "primary"}" ${mandatory ? "disabled" : ""}>${escapeHtml(mandatory ? "Required by org" : installed ? "Remove" : "Add")}</button>
+              <button id="togglePluginInstall" class="${installed ? "secondary" : "primary"}" title="${escapeHtml(plugin.settings?.runtimeError || "")}" ${mandatory || plugin.settings?.runtimeAvailable === false ? "disabled" : ""}>${escapeHtml(plugin.settings?.runtimeAvailable === false ? "Unavailable here" : mandatory ? "Required by org" : installed ? "Remove" : "Add")}</button>
             </div>
           </div>
-          <div id="pluginDetailPageStatus" class="detailSettingStatus"></div>
+          <div id="pluginDetailPageStatus" class="detailSettingStatus">${escapeHtml(plugin.settings?.runtimeError || "")}</div>
           <div class="eventMeta" style="margin-top:12px">
             <span class="pluginMetaPill">${metaIcon("author")} ${escapeHtml(plugin.publisher === "openleash" ? "OpenLeash" : plugin.publisher || "Unknown")}</span>
             <span>v${escapeHtml(plugin.version || "0.0.0")}</span>
@@ -6148,7 +6157,9 @@
       const profileAgentKinds = [
         "codex", "claude-code", "cursor", "github-copilot", "gemini", "opencode",
         "cline", "continue", "windsurf", "kiro", "aider", "zed", "openclaw",
-        "nanoclaw", "n8n", "zapier-agents", "openai-codex-cloud", "unknown"
+        "nanoclaw", "salesforce-agentforce", "azure-ai-foundry", "microsoft-copilot-studio",
+        "aws-bedrock-agentcore", "google-vertex-ai", "n8n", "zapier-agents",
+        "openai-codex-cloud", "unknown"
       ];
 
       function pluginProfileSettings(plugin, disabled) {
@@ -6178,7 +6189,8 @@
             <div class="fieldRow" style="margin-top:12px">
               <label><strong>Agent types</strong><select class="detailSettingInput" data-profile-agent-kinds multiple size="5" ${disabled ? "disabled" : ""}>${profileAgentKinds.map((kind) => `<option value="${kind}" ${(profile.agentKinds || []).includes(kind) ? "selected" : ""}>${escapeHtml(settingLabel(kind))}</option>`).join("")}</select></label>
               <label><strong>Exact enrolled agents (optional)</strong><select class="detailSettingInput" data-profile-agent-ids multiple size="5" ${disabled ? "disabled" : ""}>${knownAgents.map((agent) => { const id = String(agent.instanceId || agent.id); return `<option value="${escapeHtml(id)}" ${(profile.agentIds || []).includes(id) ? "selected" : ""}>${escapeHtml(agent.displayName || agent.name || id)}</option>`; }).join("")}</select></label>
-              <label><strong>Enabled override</strong><select class="detailSettingInput" data-profile-enabled ${disabled ? "disabled" : ""}><option value="inherit" ${typeof profile.enabled !== "boolean" ? "selected" : ""}>Use base setting</option><option value="true" ${profile.enabled === true ? "selected" : ""}>Enabled</option><option value="false" ${profile.enabled === false ? "selected" : ""}>Disabled</option></select></label>
+              <label><strong>Enabled override</strong><select class="detailSettingInput" data-profile-enabled ${disabled || plugin.organizationPolicy?.mandatory ? "disabled" : ""}><option value="inherit" ${plugin.organizationPolicy?.mandatory || typeof profile.enabled !== "boolean" ? "selected" : ""}>${plugin.organizationPolicy?.mandatory ? "Required by organization" : "Use base setting"}</option><option value="true" ${!plugin.organizationPolicy?.mandatory && profile.enabled === true ? "selected" : ""}>Enabled</option><option value="false" ${!plugin.organizationPolicy?.mandatory && profile.enabled === false ? "selected" : ""}>Disabled</option></select></label>
+              <label><strong>Priority</strong><input class="detailSettingInput" data-profile-priority type="number" value="${escapeHtml(String(profile.priority ?? 0))}" ${disabled ? "disabled" : ""}></label>
             </div>
             <label style="display:block;margin-top:12px"><strong>Setting overrides (JSON)</strong><textarea class="detailSettingInput" data-profile-config ${disabled ? "disabled" : ""}>${escapeHtml(JSON.stringify(profile.config || {}, null, 2))}</textarea></label>
           </article>
@@ -6197,7 +6209,8 @@
             agentKinds: [...(card.querySelector("[data-profile-agent-kinds]")?.selectedOptions || [])].map((option) => option.value),
             agentIds: [...(card.querySelector("[data-profile-agent-ids]")?.selectedOptions || [])].map((option) => option.value),
             ...(enabledValue === "true" ? { enabled: true } : enabledValue === "false" ? { enabled: false } : {}),
-            config
+            config,
+            priority: Number(card.querySelector("[data-profile-priority]")?.value || 0)
           };
         });
       }
@@ -6205,7 +6218,7 @@
       function pluginDetailSettingField(plugin, config, field) {
         const value = config[field.key] ?? field.defaultValue;
         const schema = field.schema || {};
-        const disabled = (plugin.organizationPolicy?.mandatory || plugin.organizationPolicy?.configLocked) ? "disabled" : "";
+        const disabled = plugin.organizationPolicy?.configLocked ? "disabled" : "";
         const label = settingLabel(field.key);
         const hint = pluginSettingHint(field.key);
         const head = `
@@ -6457,7 +6470,7 @@
       function bindPluginDetailSettings(plugin) {
         const button = document.getElementById("savePluginDetailSettings");
         const status = document.getElementById("pluginDetailSaveStatus");
-        if (!button || plugin.organizationPolicy?.mandatory || plugin.organizationPolicy?.configLocked) return;
+        if (!button || plugin.organizationPolicy?.configLocked) return;
         const importRules = document.getElementById("importPluginRules");
         const addRule = document.getElementById("addPluginRule");
         const scanRules = document.getElementById("scanPluginRules");
