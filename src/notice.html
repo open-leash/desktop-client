@@ -154,6 +154,8 @@
       }
       .cap-agent img { width: 15px; height: 15px; object-fit: contain; }
       .island.activity-mode:not(.expanded) { width: var(--activity-compact-width, 180px); }
+      .island.menu-open { min-height: 438px; }
+      .island.activity-mode.menu-open:not(.expanded) { width: 286px; }
       .island.activity-mode:not(.expanded) .agent-mark,
       .island.activity-mode:not(.expanded) .signal-wrap,
       .island.activity-mode:not(.expanded) .cap-copy { display: none; }
@@ -262,6 +264,51 @@
       .island.expanded .toggle svg { transform: rotate(180deg); }
       .close { display: none; }
       .island.expanded .close { display: grid; }
+      .island.activity-mode .close { display: none; }
+      .menu-toggle { color: var(--muted); }
+      .island-menu {
+        position: absolute;
+        z-index: 20;
+        top: 43px;
+        right: 9px;
+        width: 264px;
+        padding: 7px;
+        overflow: hidden;
+        border: 1px solid rgba(255,255,255,.12);
+        border-radius: 16px;
+        background: rgba(19, 21, 24, .985);
+        box-shadow: 0 22px 60px rgba(0,0,0,.48), inset 0 1px rgba(255,255,255,.045);
+        backdrop-filter: blur(24px) saturate(1.2);
+        transform-origin: top right;
+        animation: menu-in 150ms var(--ease);
+      }
+      body.native-macos.has-display-notch .island-menu { top: calc(var(--hardware-safe-top) + 42px); }
+      @keyframes menu-in { from { opacity: 0; transform: translateY(-5px) scale(.97); } }
+      .menu-brand { padding: 7px 9px 8px; color: var(--muted); font-size: 10px; font-weight: 650; letter-spacing: .02em; text-transform: uppercase; }
+      .menu-separator { height: 1px; margin: 5px 4px; background: var(--line); }
+      .menu-item {
+        width: 100%;
+        min-height: 38px;
+        display: grid;
+        grid-template-columns: 25px minmax(0, 1fr) auto;
+        align-items: center;
+        gap: 7px;
+        padding: 6px 8px;
+        border: 0;
+        border-radius: 10px;
+        color: var(--soft-ink);
+        background: transparent;
+        font: inherit;
+        text-align: left;
+        cursor: pointer;
+      }
+      .menu-item:hover { color: var(--ink); background: rgba(255,255,255,.07); }
+      .menu-item.dangerous:hover { color: #ffaaa5; background: rgba(255,107,100,.09); }
+      .menu-icon { width: 25px; height: 25px; display: grid; place-items: center; border-radius: 8px; color: #b7bbc1; background: rgba(255,255,255,.055); font-size: 12px; font-weight: 700; }
+      .menu-copy { min-width: 0; display: grid; gap: 2px; }
+      .menu-label { font-size: 11.5px; font-weight: 620; line-height: 1.1; }
+      .menu-detail { overflow: hidden; color: var(--muted); font-size: 9.5px; line-height: 1.1; text-overflow: ellipsis; white-space: nowrap; }
+      .menu-chevron { color: var(--faint); font-size: 15px; }
 
       .reveal {
         display: grid;
@@ -539,6 +586,9 @@
         </div>
         <span class="cap-metric" id="capMetric" hidden></span>
         <span class="queue-count" id="count" hidden></span>
+        <button class="icon-button menu-toggle" id="menuToggle" aria-label="Open OpenLeash menu" aria-expanded="false">
+          <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor"><circle cx="3" cy="8" r="1.25"/><circle cx="8" cy="8" r="1.25"/><circle cx="13" cy="8" r="1.25"/></svg>
+        </button>
         <button class="icon-button close" id="close" aria-label="Dismiss">
           <svg width="13" height="13" viewBox="0 0 16 16" fill="none"><path d="m4 4 8 8m0-8-8 8" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
         </button>
@@ -546,6 +596,19 @@
           <svg width="13" height="13" viewBox="0 0 16 16" fill="none"><path d="m4 6 4 4 4-4" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>
         </button>
       </header>
+      <div class="island-menu" id="islandMenu" hidden>
+        <div class="menu-brand">OpenLeash controls</div>
+        <button class="menu-item" data-command="settings"><span class="menu-icon">S</span><span class="menu-copy"><span class="menu-label">Settings</span><span class="menu-detail">Configure OpenLeash</span></span><span class="menu-chevron">›</span></button>
+        <div class="menu-separator"></div>
+        <button class="menu-item" data-command="protection"><span class="menu-icon">✓</span><span class="menu-copy"><span class="menu-label">Agent protection</span><span class="menu-detail" id="menuProtection">Checking protection…</span></span><span class="menu-chevron">›</span></button>
+        <button class="menu-item" data-command="proxy"><span class="menu-icon">P</span><span class="menu-copy"><span class="menu-label">Proxy</span><span class="menu-detail" id="menuProxy">Checking proxy…</span></span><span class="menu-chevron">›</span></button>
+        <button class="menu-item" data-command="sessions"><span class="menu-icon">A</span><span class="menu-copy"><span class="menu-label">Live sessions</span><span class="menu-detail" id="menuSessions">No active sessions</span></span><span class="menu-chevron">›</span></button>
+        <button class="menu-item" data-command="approvals"><span class="menu-icon">!</span><span class="menu-copy"><span class="menu-label">Approvals</span><span class="menu-detail" id="menuApprovals">No pending approvals</span></span><span class="menu-chevron">›</span></button>
+        <div class="menu-separator"></div>
+        <button class="menu-item" data-command="check-updates"><span class="menu-icon">↻</span><span class="menu-copy"><span class="menu-label">Check for updates</span></span></button>
+        <button class="menu-item" data-command="hide-island"><span class="menu-icon">—</span><span class="menu-copy"><span class="menu-label">Hide Island</span><span class="menu-detail">Tray click brings it back</span></span></button>
+        <button class="menu-item dangerous" data-command="quit"><span class="menu-icon">×</span><span class="menu-copy"><span class="menu-label">Quit OpenLeash</span></span></button>
+      </div>
       <section class="reveal" id="reveal" inert aria-hidden="true"><div class="reveal-clip"><div class="content">
         <div class="install-success" id="installSuccess" hidden>
           <div class="install-fireworks" id="installFireworks" aria-hidden="true"></div>
@@ -584,7 +647,7 @@
       const $ = (id) => document.getElementById(id);
       const island = $("island"), cap = $("cap"), glyph = $("glyph"), status = $("status"), eyebrow = $("eyebrow"), title = $("title"), count = $("count"), capAgents = $("capAgents"), capMetric = $("capMetric"), notchRail = $("notchRail"), notchAgents = $("notchAgents"), notchMetric = $("notchMetric");
       const installSuccess = $("installSuccess"), installFireworks = $("installFireworks"), activityPanel = $("activityPanel"), sessionList = $("sessionList"), activityDetail = $("activityDetail"), ambientContributions = $("ambientContributions"), summary = $("summary"), purpose = $("purpose"), evidenceBlock = $("evidenceBlock"), evidence = $("evidence"), chips = $("chips"), questions = $("questions"), plan = $("plan");
-      const guidance = $("guidance"), rememberRow = $("rememberRow"), remember = $("remember"), actions = $("actions"), hint = $("hint");
+      const guidance = $("guidance"), rememberRow = $("rememberRow"), remember = $("remember"), actions = $("actions"), hint = $("hint"), islandMenu = $("islandMenu"), menuToggle = $("menuToggle");
 
       if (window.__OPENLEASH_NATIVE_ISLAND__) document.body.classList.add("native-macos");
       else if (/Macintosh|Mac OS X/.test(navigator.userAgent)) document.body.classList.add("electron-macos");
@@ -597,9 +660,10 @@
         dismissNotice: () => nativeHandler.postMessage({ type: "action", action: "dismiss" }),
         jumpToAgent: (payload) => nativeHandler.postMessage({ type: "action", action: "jump", payload }),
         pluginIslandAction: (payload) => nativeHandler.postMessage({ type: "action", action: "plugin-action", payload }),
+        islandCommand: (command) => nativeHandler.postMessage({ type: "action", action: "island-command", command }),
         onNotice: () => {},
       } : {
-        resizeNotice: () => {}, resolve: () => {}, dismissNotice: () => {}, jumpToAgent: () => {}, pluginIslandAction: () => {}, onNotice: () => {},
+        resizeNotice: () => {}, resolve: () => {}, dismissNotice: () => {}, jumpToAgent: () => {}, pluginIslandAction: () => {}, islandCommand: () => {}, onNotice: () => {},
       });
 
       function initials(name) { return (name || "AI").split(/\s+/).map((part) => part[0]).join("").slice(0, 2).toUpperCase(); }
@@ -618,7 +682,8 @@
         notchAgents.innerHTML = ""; notchMetric.innerHTML = ""; capAgents.innerHTML = ""; capMetric.hidden = true; capMetric.textContent = "";
         selectedAnswers = new Map(); questions.innerHTML = ""; actions.innerHTML = ""; chips.innerHTML = ""; guidance.value = "";
         actions.className = "actions"; summary.hidden = false; purpose.hidden = true; evidenceBlock.hidden = true; plan.hidden = true;
-        guidance.hidden = true; rememberRow.hidden = true; hint.textContent = ""; island.classList.remove("expanded", "expandable", "leaving", "activity-mode");
+        guidance.hidden = true; rememberRow.hidden = true; hint.textContent = ""; island.classList.remove("expanded", "expandable", "leaving", "activity-mode", "menu-open");
+        closeIslandMenu();
         $("reveal").inert = true; $("reveal").setAttribute("aria-hidden", "true");
       }
       function resize() {
@@ -664,9 +729,10 @@
         title.textContent = payload.title || (currentKind === "question" ? `${payload.agentName} asks` : currentKind === "plan_review" ? `${payload.agentName} has a plan` : payload.id ? "Permission request" : "Agent activity");
         count.hidden = !(payload.pendingCount > 1); count.textContent = payload.pendingCount || "";
         summary.textContent = payload.summary || "The agent is waiting for you.";
+        renderIslandMenu(payload.islandMenu || {});
         if (payload.purpose && currentKind === "approval") { purpose.hidden = false; purpose.innerHTML = ""; const label = document.createElement("b"); label.textContent = "Why now · "; purpose.append(label, document.createTextNode(payload.purpose)); }
         if (payload.evidence && currentKind === "approval") { evidenceBlock.hidden = false; evidence.textContent = payload.evidence; }
-        for (const [label, value] of (currentKind === "activity" ? [] : [["Folder", payload.project], ["Plugin", payload.pluginName]]).filter((item) => item[1])) { const chip = document.createElement("span"); chip.className = "chip"; chip.textContent = `${label} · ${value === "blast-radius" ? "Blast Radius" : value}`; chips.appendChild(chip); }
+        for (const [label, value] of (currentKind === "activity" ? [] : [["Folder", payload.project], ["Plugin", payload.pluginName]]).filter((item) => item[1])) { const chip = document.createElement("span"); chip.className = "chip"; chip.textContent = `${label} · ${value}`; chips.appendChild(chip); }
 
         if (currentKind === "question") renderQuestions(payload);
         else if (currentKind === "plan_review") renderPlan(payload);
@@ -718,9 +784,32 @@
           activityCompactWidth: parseFloat(getComputedStyle(island).getPropertyValue("--activity-compact-width")) || 0,
           islandBorderRadius: getComputedStyle(island).borderRadius,
           expanded: island.classList.contains("expanded"),
+          menuOpen: !islandMenu.hidden,
+          menuItemCount: islandMenu.querySelectorAll("[data-command]").length,
+          menuFitsIsland: islandMenu.hidden || islandMenu.getBoundingClientRect().bottom <= island.getBoundingClientRect().bottom,
         };
       };
       window.dismissOpenLeashNotice = () => { island.classList.add("leaving"); island.classList.remove("expanded"); resize(); };
+      window.expandOpenLeashIsland = () => setExpanded(true);
+
+      function renderIslandMenu(menu) {
+        $("menuProtection").textContent = menu.protection || "Protection status unavailable";
+        $("menuProxy").textContent = menu.proxy || "Proxy status unavailable";
+        $("menuSessions").textContent = menu.sessions || "No active sessions";
+        $("menuApprovals").textContent = menu.approvals || "No pending approvals";
+      }
+      function closeIslandMenu() {
+        islandMenu.hidden = true;
+        island.classList.remove("menu-open");
+        menuToggle.setAttribute("aria-expanded", "false");
+      }
+      function toggleIslandMenu() {
+        islandMenu.hidden = !islandMenu.hidden;
+        island.classList.toggle("menu-open", !islandMenu.hidden);
+        menuToggle.setAttribute("aria-expanded", String(!islandMenu.hidden));
+        resize();
+      }
+      window.toggleOpenLeashIslandMenuForVerification = toggleIslandMenu;
 
       function setExpanded(expanded) {
         if (!island.classList.contains("expandable")) return;
@@ -841,7 +930,7 @@
         const contributions = [...sessions.flatMap((session) => session.contributions || []), ...ambient];
         const tokenSaver = contributions.find((item) => item.pluginId === "openleash.prompt-compression" && item.value) || tokenSaverStatus;
         if (tokenSaver) {
-          const value = document.createElement("span"); value.className = `notch-metric-value ${tokenSaver.tone || ""}`; value.textContent = `✂ ${tokenSaver.value}`; value.title = tokenSaver.detail || "Token Saver";
+          const value = document.createElement("span"); value.className = `notch-metric-value ${tokenSaver.tone || ""}`; value.textContent = `✂ ${tokenSaver.value}`; value.title = tokenSaver.detail || "token-saver";
           notchMetric.appendChild(value);
           capMetric.hidden = false; capMetric.textContent = `✂ ${tokenSaver.value}`; capMetric.title = value.title;
         }
@@ -956,9 +1045,17 @@
       cap.addEventListener("click", (event) => { if (!event.target.closest("button")) setExpanded(!island.classList.contains("expanded")); });
       notchRail.addEventListener("click", () => { if (island.classList.contains("activity-mode")) setExpanded(true); });
       $("toggle").addEventListener("click", () => setExpanded(!island.classList.contains("expanded")));
-      $("close").addEventListener("click", requestDismiss);
+      $("close").addEventListener("click", () => currentKind === "activity" ? setExpanded(false) : requestDismiss());
+      menuToggle.addEventListener("click", (event) => { event.stopPropagation(); toggleIslandMenu(); });
+      islandMenu.addEventListener("click", (event) => {
+        const item = event.target.closest("[data-command]"); if (!item) return;
+        const command = item.dataset.command; closeIslandMenu();
+        if (command === "sessions") { setExpanded(true); return; }
+        bridge.islandCommand(command);
+      });
+      document.addEventListener("click", (event) => { if (!islandMenu.hidden && !event.target.closest("#islandMenu") && !event.target.closest("#menuToggle")) { closeIslandMenu(); resize(); } });
       document.addEventListener("keydown", (event) => {
-        if (event.key === "Escape") { event.preventDefault(); if (current?.id && current.interaction?.type === "approval") actions.querySelector('[data-action="deny"]')?.click(); else requestDismiss(); }
+        if (event.key === "Escape") { event.preventDefault(); if (currentKind === "activity") { closeIslandMenu(); setExpanded(false); } else if (current?.id && current.interaction?.type === "approval") actions.querySelector('[data-action="deny"]')?.click(); else requestDismiss(); }
         if (event.key === "Enter" && !event.shiftKey && document.activeElement?.tagName !== "TEXTAREA" && document.activeElement?.tagName !== "INPUT" && current?.id && current.interaction?.type === "approval") { event.preventDefault(); actions.querySelector('[data-action="allow"]')?.click(); }
       });
 

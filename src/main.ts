@@ -260,6 +260,7 @@ type PublicPluginListing = Record<string, unknown> & {
   version?: string;
   runtime?: string;
   entrypoint?: string;
+  execution?: Record<string, unknown>;
   events?: unknown[];
   permissions?: unknown[];
   effects?: unknown[];
@@ -406,7 +407,6 @@ function isPersonalEmailDomain(email?: string) {
 let activeNoticeKey: string | undefined;
 let noticeDismissTimer: NodeJS.Timeout | undefined;
 let suppressedNoticeKeys = new Set<string>();
-const dismissedActivityKeys = new Set<string>();
 const automaticallyPresentedDecisionNotices = new AutomaticNoticeRegistry();
 const rememberedApprovalChoices = new Map<
   string,
@@ -798,6 +798,7 @@ app
       error instanceof Error ? error.stack || error.message : String(error);
     startupLog(`ready failed: ${message}`);
     if (!app.isPackaged) console.error(`[openleash] ready failed: ${message}`);
+    app.exit(1);
   });
 
 app.on("activate", () => {
@@ -1998,6 +1999,9 @@ ipcMain.handle("openleash:jump-to-agent", async (_event, payload: { agentKind?: 
 ipcMain.handle("openleash:plugin-island-action", async (_event, payload: unknown) => {
   return handlePluginIslandAction(payload);
 });
+ipcMain.handle("openleash:island-command", async (_event, command: unknown) => {
+  return handleIslandCommand(String(command ?? ""));
+});
 
 async function resolveDecision(
   id: string,
@@ -2331,13 +2335,33 @@ async function fetchRemotePluginCatalog(
     });
     if (!response.ok) return fallback;
     const body = (await response.json()) as { plugins?: PluginCatalogItem[] };
-    const plugins = Array.isArray(body.plugins) ? body.plugins : fallback;
+    const plugins = (Array.isArray(body.plugins) ? body.plugins : fallback).map(
+      withDevelopmentPluginImage,
+    );
     if (isLocalApiUrl(remoteApiUrl))
       return await mergePublicCloudPluginCatalog(plugins);
     return plugins;
   } catch {
     return fallback;
   }
+}
+
+function withDevelopmentPluginImage(plugin: PluginCatalogItem): PluginCatalogItem {
+  if (
+    process.env.OPENLEASH_DEV_PLUGIN_IMAGES !== "1" ||
+    plugin.publisher !== "openleash" ||
+    plugin.id === "openleash.prompt-compression" ||
+    plugin.execution?.type !== "container"
+  ) return plugin;
+  const slug = plugin.slug || plugin.id.replace(/^openleash\./, "");
+  return {
+    ...plugin,
+    execution: {
+      ...plugin.execution,
+      image: `openleash/plugin-${slug}:dev`,
+      digest: undefined,
+    },
+  };
 }
 
 async function mergePublicCloudPluginCatalog(plugins: PluginCatalogItem[]) {
@@ -2404,9 +2428,10 @@ function publicListingToPluginCatalogItem(
     "OpenLeash plugin.";
   const version = optionalText(listing.version) || "0.0.0";
   const publisher = optionalText(listing.publisher) || "openleash";
-  const runtime = optionalText(listing.runtime) || "openleash-core";
+  const runtime = optionalText(listing.runtime);
   const entrypoint = optionalText(listing.entrypoint) || "";
-  if (!id || !name || !entrypoint) return undefined;
+  const execution = containerExecutionFromListing(listing.execution);
+  if (!id || !name || runtime !== "container" || entrypoint !== "container" || !execution) return undefined;
   return {
     id,
     slug: optionalText(listing.slug),
@@ -2416,6 +2441,7 @@ function publicListingToPluginCatalogItem(
     version,
     publisher,
     runtime,
+    execution,
     entrypoint,
     events: Array.isArray(listing.events)
       ? (listing.events as PluginCatalogItem["events"])
@@ -2486,6 +2512,11 @@ async function readLocalPluginFolderListing(
       "Plugin manifest must include id, name, description, version, runtime, and entrypoint.",
     );
   }
+  if (runtime !== "container" || entrypoint !== "container" || !containerExecutionFromListing(manifest.execution)) {
+    throw new Error(
+      "OpenLeash plugins must use the container runtime and provide execution.image, execution.protocol, and execution.eventPath.",
+    );
+  }
   const slug = slugifyLocalPlugin(optionalText(manifest.slug) || name || id);
   const publisher = optionalText(manifest.publisher) || "local";
   const shortDescription =
@@ -2537,6 +2568,20 @@ async function readLocalPluginFolderListing(
       optionalText(manifest.seoDescription) ||
       `Install ${slug} for OpenLeash. ${shortDescription}`,
   };
+}
+
+function containerExecutionFromListing(value: unknown): PluginCatalogItem["execution"] | undefined {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return undefined;
+  const execution = value as Record<string, unknown>;
+  if (
+    execution.type !== "container" ||
+    execution.protocol !== "openleash-container-plugin.v1" ||
+    !optionalText(execution.image) ||
+    !optionalText(execution.eventPath)
+  ) return undefined;
+  const placement = optionalText(execution.placement);
+  if (!placement || !["edge", "server", "either"].includes(placement)) return undefined;
+  return execution as PluginCatalogItem["execution"];
 }
 
 function readLocalPluginManifestJson(
@@ -3435,14 +3480,10 @@ function ensureTray(status: "ok" | "pending" | "down" = currentTrayStatus) {
   if (!tray || tray.isDestroyed()) {
     tray = new Tray(createTrayIcon(status));
     tray.on("click", () => {
-      if (process.platform !== "darwin") {
-        refreshMenu(true);
-        return;
-      }
       if (traySingleClickTimer) clearTimeout(traySingleClickTimer);
       traySingleClickTimer = setTimeout(() => {
         traySingleClickTimer = undefined;
-        refreshMenu(true);
+        revealIslandFromTray();
       }, 260);
     });
     tray.on("double-click", () => {
@@ -4672,15 +4713,33 @@ function closeNoticeWithoutOpeningMainWindow() {
   if (process.platform === "darwin" && !setupNeedsDockIcon()) app.hide();
 }
 
-function dismissNoticeByUser() {
-  if (activeNoticeKey?.startsWith("activity:")) {
-    dismissedActivityKeys.add(activeNoticeKey);
-    while (dismissedActivityKeys.size > 100) {
-      const oldest = dismissedActivityKeys.values().next().value as string | undefined;
-      if (!oldest) break;
-      dismissedActivityKeys.delete(oldest);
-    }
+function expandVisibleIsland() {
+  if (process.platform === "darwin" && nativeIslandProcess && activeNoticeKey) {
+    return sendNativeIsland({ type: "expand" });
   }
+  if (noticeWindow && !noticeWindow.isDestroyed() && noticeWindow.isVisible()) {
+    void noticeWindow.webContents.executeJavaScript(
+      "window.expandOpenLeashIsland && window.expandOpenLeashIsland()",
+    );
+    return true;
+  }
+  return false;
+}
+
+function revealIslandFromTray() {
+  if (!app.isReady() || !localServer) return;
+  localServer.updateIslandHidden(false);
+  if (expandVisibleIsland()) return;
+  const pending = latestPending[0];
+  if (pending) {
+    showDecisionNotice({ kind: "ask", pending });
+    return;
+  }
+  syncActivityIsland(true);
+}
+
+function dismissNoticeByUser() {
+  if (activeNoticeKey?.startsWith("activity:")) return;
   closeNoticeWithoutOpeningMainWindow();
 }
 
@@ -4697,7 +4756,53 @@ function handlePluginIslandAction(payload: unknown) {
   return { ok: false };
 }
 
-function syncActivityIsland() {
+function islandMenuState() {
+  const installedAgents = localProtections.filter((agent) => agent.installed);
+  const protectedAgents = installedAgents.filter((agent) => agent.protected);
+  const sessions = currentActiveAgentSessions();
+  return {
+    protection: installedAgents.length === 0
+      ? "No installed agents detected"
+      : `${protectedAgents.length}/${installedAgents.length} agents protected`,
+    proxy: proxyStatus.healthy
+      ? `Proxy active · ${proxyStatus.configuredAgents.length} agent${proxyStatus.configuredAgents.length === 1 ? "" : "s"}`
+      : proxyStatus.running
+        ? "Proxy starting"
+        : "Proxy off",
+    sessions: `${sessions.length} active session${sessions.length === 1 ? "" : "s"}`,
+    approvals: latestPending.length === 0
+      ? "No pending approvals"
+      : `${latestPending.length} pending approval${latestPending.length === 1 ? "" : "s"}`,
+  };
+}
+
+function handleIslandCommand(command: string) {
+  if (command === "hide-island") {
+    localServer.updateIslandHidden(true);
+    closeNoticeWithoutOpeningMainWindow();
+    return { ok: true };
+  }
+  if (command === "settings" || command === "protection" || command === "proxy") {
+    showMainWindow("settings");
+    return { ok: true };
+  }
+  if (command === "check-updates") {
+    void checkForUpdates({ source: "manual", force: true });
+    return { ok: true };
+  }
+  if (command === "approvals") {
+    const pending = latestPending[0];
+    if (pending) showDecisionNotice({ kind: "ask", pending });
+    return { ok: Boolean(pending) };
+  }
+  if (command === "quit") {
+    quitOpenLeash();
+    return { ok: true };
+  }
+  return { ok: false };
+}
+
+function syncActivityIsland(force = false) {
   const sessions = currentActiveAgentSessions();
   const contributions = latestIslandContributions.filter((contribution) =>
     Date.parse(contribution.expiresAt) > Date.now()
@@ -4709,8 +4814,8 @@ function syncActivityIsland() {
     if (activeNoticeKey?.startsWith("activity:")) closeNoticeWithoutOpeningMainWindow();
     return;
   }
+  if (!force && localServer.islandHidden) return;
   const key = `${activityIslandKey(sessions)}:${contributions.map((item) => `${item.pluginId}:${item.key}`).sort().join("|")}`;
-  if (dismissedActivityKeys.has(key)) return;
   const fingerprint = JSON.stringify({
     sessions: sessions.map((session) => [session.id, session.lastActivityAt, session.latestAction, session.eventCount]),
     contributions: contributions.map((item) => [item.id, item.updatedAt, item.expiresAt]),
@@ -4915,6 +5020,10 @@ function handleNativeIslandMessage(line: string) {
     void handlePluginIslandAction(message.payload);
     return;
   }
+  if (message.action === "island-command") {
+    void handleIslandCommand(String(message.command ?? ""));
+    return;
+  }
   if (message.action === "resolve") {
     const resolution = message.resolution === "allow" ? "allow" : "deny";
     const response = message.response && typeof message.response === "object"
@@ -4946,7 +5055,10 @@ function showDecisionNotice(notice: DecisionNotice) {
         : notice.kind === "activity"
           ? `${activityIslandKey(notice.sessions)}:${notice.contributions.map((item) => `${item.pluginId}:${item.key}`).sort().join("|")}`
         : notice.kind;
-  const payload = formatNotice(notice) as Record<string, unknown>;
+  const payload = {
+    ...(formatNotice(notice) as Record<string, unknown>),
+    islandMenu: islandMenuState(),
+  };
   if (process.platform === "darwin" && showNativeIsland(payload, noticeKey)) {
     if (notice.kind === "attention") scheduleAttentionDismiss(noticeKey);
     return;
@@ -5082,7 +5194,7 @@ function formatNotice(notice: DecisionNotice) {
             pluginName: "token-saver",
             pluginIcon: "✂️",
             value: "Unavailable",
-            detail: tokenSaverPlugin.settings.runtimeError ?? "Token Saver is unavailable.",
+            detail: tokenSaverPlugin.settings.runtimeError ?? "token-saver is unavailable.",
             tone: "danger",
           }
         : undefined
@@ -5193,7 +5305,7 @@ function approvalSummary(item: PendingDecision) {
 
 function decorateIslandContribution(contribution: PluginIslandContribution) {
   const plugin = latestPlugins.find((item) => item.id === contribution.pluginId);
-  const pluginName = plugin?.name || plugin?.slug || contribution.pluginId.replace(/^openleash\./, "");
+  const pluginName = plugin?.slug || contribution.pluginId.replace(/^openleash\./, "");
   const iconText = (plugin as { marketplace?: { iconText?: unknown } } | undefined)?.marketplace?.iconText;
   return {
     ...contribution,
@@ -5580,6 +5692,21 @@ async function checkSelfHostedRuntime() {
 
 async function startSelfHostedRuntime() {
   const before = await checkSelfHostedRuntime();
+  // run.py's Individual Open Source mode already owns the real local client-api
+  // and Postgres processes. Starting the installed Compose runtime here would
+  // put an older container on the same IPv4 port and silently split desktop,
+  // proxy, and hook traffic across two backends.
+  if (
+    process.env.OPENLEASH_CLIENT_MODE === "custom" &&
+    process.env.OPENLEASH_CLOUD_API_URL &&
+    before.apiReachable
+  ) {
+    return {
+      ...before,
+      status: "Using the local OpenLeash development backend.",
+      log: `Backend: ${process.env.OPENLEASH_CLOUD_API_URL}`,
+    };
+  }
   if (!before.dockerInstalled) {
     await openTrustedExternalUrl(
       "https://www.docker.com/products/docker-desktop/",
@@ -5680,6 +5807,7 @@ function ensureIndividualOpenSourceRuntime(runtimeDir: string) {
         `OPENLEASH_MODEL_KEY_ENCRYPTION_KEY=${randomHexSecret()}`,
         `OPENLEASH_PROVIDER_USAGE_ENCRYPTION_KEY=${randomHexSecret()}`,
         `OPENLEASH_SECRET_KEY=${randomHexSecret()}`,
+        `OPENLEASH_PLUGIN_RUNTIME_SECRET=${randomHexSecret()}`,
         "",
       ].join("\n"),
     );
@@ -5689,11 +5817,19 @@ function ensureIndividualOpenSourceRuntime(runtimeDir: string) {
     OPENLEASH_ALLOW_PROD_DEV_TOKEN_SEED: "1",
     OPENLEASH_DEV_ORG_SLUG: "individual-open-source",
     OPENLEASH_DEV_ORG_NAME: "Individual Open Source",
+    OPENLEASH_PLUGIN_RUNTIME_SECRET:
+      readEnvValue(envPath, "OPENLEASH_PLUGIN_RUNTIME_SECRET") || randomHexSecret(),
   });
   fs.writeFileSync(
     path.join(runtimeDir, "docker-compose.yml"),
     individualOpenSourceCompose(),
   );
+}
+
+function readEnvValue(envPath: string, key: string) {
+  if (!fs.existsSync(envPath)) return undefined;
+  const escaped = key.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  return fs.readFileSync(envPath, "utf8").match(new RegExp(`^${escaped}=(.*)$`, "m"))?.[1];
 }
 
 function upsertEnvValues(envPath: string, values: Record<string, string>) {
@@ -5780,11 +5916,15 @@ services:
       OPENLEASH_MODEL_KEY_ENCRYPTION_KEY: \${OPENLEASH_MODEL_KEY_ENCRYPTION_KEY:-openleash-local-model-key-change-me}
       OPENLEASH_PROVIDER_USAGE_ENCRYPTION_KEY: \${OPENLEASH_PROVIDER_USAGE_ENCRYPTION_KEY:-openleash-local-provider-key-change-me}
       OPENLEASH_SECRET_KEY: \${OPENLEASH_SECRET_KEY:-openleash-local-secret-change-me}
+      OPENLEASH_PLUGIN_RUNTIME_SECRET: \${OPENLEASH_PLUGIN_RUNTIME_SECRET}
+      OPENLEASH_PLUGIN_ENDPOINTS: '{"openleash.prompt-compression":"http://host.docker.internal:9349","openleash.blast-radius":"http://host.docker.internal:9349","openleash.sensitive-access":"http://host.docker.internal:9349","openleash.dlp":"http://host.docker.internal:9349","openleash.rules-enforcer":"http://host.docker.internal:9349","openleash.mcp-scanner":"http://host.docker.internal:9349","openleash.code-scanner":"http://host.docker.internal:9349","openleash.skill-scanner":"http://host.docker.internal:9349","openleash.siem-exporter":"http://host.docker.internal:9349"}'
     ports:
       - "127.0.0.1:\${OPENLEASH_CLIENT_API_PORT:-9318}:9318"
     depends_on:
       postgres:
         condition: service_healthy
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
 
 volumes:
   openleash-individual-postgres:

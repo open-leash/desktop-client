@@ -6,7 +6,7 @@ export type BundledPluginManifest = {
   repositoryUrl?: string;
   version: string;
   publisher: string;
-  runtime: "openleash-core" | "node" | "container";
+  runtime: "container";
   execution?: {
     type: "container";
     placement: "edge" | "server" | "either";
@@ -14,6 +14,7 @@ export type BundledPluginManifest = {
     image: string;
     digest?: string;
     healthPath?: string;
+    eventPath?: string;
     transformPath?: string;
     toolExecutePath?: string;
     edgePort?: number;
@@ -67,6 +68,33 @@ export type PluginCatalogItem = BundledPluginManifest & {
   };
 };
 
+function bundledEventContainer(slug: string, version: string): NonNullable<BundledPluginManifest["execution"]> {
+  const edgePorts: Record<string, number> = {
+    "blast-radius": 9351,
+    "sensitive-access": 9352,
+    "data-leakage-prevention": 9353,
+    "rules-enforcer": 9354,
+    "mcp-scanner": 9355,
+    "skill-scanner": 9357,
+  };
+  return {
+    type: "container",
+    placement: "either",
+    protocol: "openleash-container-plugin.v1",
+    image: process.env.OPENLEASH_DEV_PLUGIN_IMAGES === "1"
+      ? `openleash/plugin-${slug}:dev`
+      : `ghcr.io/open-leash/plugin-${slug}:${version}`,
+    healthPath: "/healthz",
+    eventPath: "/v1/events",
+    edgePort: edgePorts[slug],
+    timeoutMs: 30_000,
+    failureMode: "closed",
+    isolation: "shared-trusted",
+    resources: { memoryMb: 256, cpuShares: 256 },
+    storage: { persistent: false },
+  };
+}
+
 export const bundledFirstPartyPlugins: BundledPluginManifest[] = [
   {
     id: "openleash.prompt-compression",
@@ -84,6 +112,7 @@ export const bundledFirstPartyPlugins: BundledPluginManifest[] = [
       image: "ghcr.io/open-leash/plugin-token-saver:1.1.3",
       digest: "sha256:a4b393aaea6867516c800e0c8381e03a451750a497d76870725dc8d3eaf1ffd3",
       healthPath: "/healthz",
+      eventPath: "/v1/events",
       transformPath: "/v1/transform",
       toolExecutePath: "/v1/tools/execute",
       edgePort: 9331,
@@ -121,10 +150,11 @@ export const bundledFirstPartyPlugins: BundledPluginManifest[] = [
     name: "skill-scanner",
     description: "Catch suspicious instructions before they spread.",
     repositoryUrl: "https://github.com/open-leash/plugin-skill-scanner",
-    version: "1.0.0",
+    version: "1.0.2",
     publisher: "openleash",
-    runtime: "openleash-core",
-    entrypoint: "plugins/skill-scanner",
+    runtime: "container",
+    execution: bundledEventContainer("skill-scanner", "1.0.2"),
+    entrypoint: "container",
     events: ["openleash.startup", "agent.detected", "skill.detected", "skill.changed"],
     permissions: ["event:read", "filesystem:read", "decision:write", "model:invoke", "audit:write", "notification:send"],
     effects: ["observe", "ask", "inventory"],
@@ -148,8 +178,9 @@ export const bundledFirstPartyPlugins: BundledPluginManifest[] = [
     repositoryUrl: "https://github.com/open-leash/plugin-data-leakage-prevention",
     version: "1.0.0",
     publisher: "openleash",
-    runtime: "openleash-core",
-    entrypoint: "plugins/dlp",
+    runtime: "container",
+    execution: bundledEventContainer("data-leakage-prevention", "1.0.0"),
+    entrypoint: "container",
     events: ["prompt.beforeSubmit"],
     permissions: ["event:read", "prompt:read", "prompt:write", "decision:write", "model:invoke", "audit:write"],
     effects: ["transform", "deny", "observe"],
@@ -178,8 +209,9 @@ export const bundledFirstPartyPlugins: BundledPluginManifest[] = [
     repositoryUrl: "https://github.com/open-leash/plugin-sensitive-access",
     version: "1.0.0",
     publisher: "openleash",
-    runtime: "openleash-core",
-    entrypoint: "plugins/sensitive-access",
+    runtime: "container",
+    execution: bundledEventContainer("sensitive-access", "1.0.0"),
+    entrypoint: "container",
     events: ["prompt.beforeSubmit", "agent.response", "tool.beforeUse", "tool.afterUse"],
     permissions: ["event:read", "prompt:read", "tool:read", "model:invoke", "decision:write", "audit:write", "log:write", "signal:write"],
     effects: ["observe", "ask", "deny"],
@@ -203,10 +235,11 @@ export const bundledFirstPartyPlugins: BundledPluginManifest[] = [
     name: "blast-radius",
     description: "Block destructive tool use before agents damage files, databases, or infrastructure.",
     repositoryUrl: "https://github.com/open-leash/plugin-blast-radius",
-    version: "1.0.0",
+    version: "1.0.2",
     publisher: "openleash",
-    runtime: "openleash-core",
-    entrypoint: "plugins/blast-radius",
+    runtime: "container",
+    execution: bundledEventContainer("blast-radius", "1.0.2"),
+    entrypoint: "container",
     events: ["tool.beforeUse"],
     permissions: ["event:read", "tool:read", "decision:write", "audit:write", "log:write", "signal:write", "island:publish"],
     effects: ["observe", "ask", "deny"],
@@ -232,8 +265,9 @@ export const bundledFirstPartyPlugins: BundledPluginManifest[] = [
     repositoryUrl: "https://github.com/open-leash/plugin-rules-enforcer",
     version: "1.0.0",
     publisher: "openleash",
-    runtime: "openleash-core",
-    entrypoint: "plugins/rules-enforcer",
+    runtime: "container",
+    execution: bundledEventContainer("rules-enforcer", "1.0.0"),
+    entrypoint: "container",
     events: ["prompt.beforeSubmit", "agent.response", "tool.beforeUse", "tool.afterUse"],
     permissions: ["event:read", "prompt:read", "tool:read", "decision:write", "model:invoke", "audit:write", "notification:send"],
     effects: ["observe", "ask", "deny"],
@@ -267,8 +301,9 @@ export const bundledFirstPartyPlugins: BundledPluginManifest[] = [
     repositoryUrl: "https://github.com/open-leash/plugin-mcp-scanner",
     version: "1.0.0",
     publisher: "openleash",
-    runtime: "openleash-core",
-    entrypoint: "plugins/mcp-scanner",
+    runtime: "container",
+    execution: bundledEventContainer("mcp-scanner", "1.0.0"),
+    entrypoint: "container",
     events: ["tool.beforeUse", "tool.afterUse"],
     permissions: ["event:read", "tool:read", "audit:write"],
     effects: ["observe", "inventory"],

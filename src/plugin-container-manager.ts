@@ -1,13 +1,43 @@
 import crypto from "node:crypto";
 import { spawn, spawnSync } from "node:child_process";
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
 import type { PluginCatalogItem } from "./plugin-catalog";
 
 const PROTOCOL = "openleash-container-plugin.v1";
 const MANAGED_LABEL = "com.openleash.plugin-managed=true";
+const ISOLATED_PLUGIN_NETWORK = "openleash-plugin-runtime";
+const PLUGIN_GATEWAY_NAME = "openleash-plugin-gateway";
+const DEFAULT_PLUGIN_GATEWAY_PORT = 9349;
+const PLUGIN_GATEWAY_IMAGE = "ghcr.io/open-leash/plugin-gateway:1.0.0";
 const ALLOWED_ROOTS = new Set(["messages", "input", "system", "tools", "prompt_cache_key"]);
 
-export const pluginRuntimeSecret = crypto.randomBytes(32).toString("hex");
-const pluginRuntimeSecretHash = crypto.createHash("sha256").update(pluginRuntimeSecret).digest("hex");
+const fallbackPluginRuntimeSecret = crypto.randomBytes(32).toString("hex");
+
+function pluginGatewayPort() {
+  const configured = Number(process.env.OPENLEASH_PLUGIN_GATEWAY_PORT ?? DEFAULT_PLUGIN_GATEWAY_PORT);
+  return Number.isInteger(configured) && configured > 0 && configured <= 65_535
+    ? configured
+    : DEFAULT_PLUGIN_GATEWAY_PORT;
+}
+
+export function resolvePluginRuntimeSecret() {
+  const configured = process.env.OPENLEASH_PLUGIN_RUNTIME_SECRET?.trim();
+  if (configured) return configured;
+  const envPath = path.join(os.homedir(), ".openleash", "individual-open-source", ".env");
+  try {
+    const match = fs.readFileSync(envPath, "utf8").match(/^OPENLEASH_PLUGIN_RUNTIME_SECRET=(.+)$/m);
+    if (match?.[1]?.trim()) return match[1].trim();
+  } catch {
+    // The cloud desktop does not have an Individual Open Source runtime directory.
+  }
+  return fallbackPluginRuntimeSecret;
+}
+
+function runtimeSecretHash() {
+  return crypto.createHash("sha256").update(resolvePluginRuntimeSecret()).digest("hex");
+}
 
 export type PluginContainerStatus = {
   pluginId: string;
@@ -19,7 +49,21 @@ export type PluginContainerStatus = {
   error?: string;
 };
 
-export async function reconcilePluginContainers(
+let reconciliationQueue: Promise<PluginContainerStatus[]> = Promise.resolve([]);
+
+export function reconcilePluginContainers(
+  plugins: PluginCatalogItem[],
+): Promise<PluginContainerStatus[]> {
+  const snapshot = structuredClone(plugins);
+  const next = reconciliationQueue.then(
+    () => reconcilePluginContainersNow(snapshot),
+    () => reconcilePluginContainersNow(snapshot),
+  );
+  reconciliationQueue = next.catch(() => []);
+  return next;
+}
+
+async function reconcilePluginContainersNow(
   plugins: PluginCatalogItem[],
 ): Promise<PluginContainerStatus[]> {
   const desired = plugins.filter(isDesiredEdgeContainer);
@@ -34,6 +78,8 @@ export async function reconcilePluginContainers(
       error: "Docker is unavailable; install or start Docker to run this plugin",
     }));
   }
+  ensureIsolatedPluginNetwork();
+  ensurePluginGateway(desired);
   const desiredNames = new Set(desired.map((plugin) => containerName(plugin.id)));
   for (const name of managedContainerNames()) {
     if (!desiredNames.has(name)) docker(["rm", "-f", name]);
@@ -58,7 +104,11 @@ export async function transformViaLocalPluginContainers(input: {
   const runs: Array<Record<string, unknown>> = [];
   const scopedPlugins = input.plugins
     .map((plugin) => pluginForAgent(plugin, input.agentKind, input.agentId))
-    .filter((plugin) => plugin.settings.enabled && isDesiredEdgeContainer(plugin));
+    .filter((plugin) =>
+      plugin.settings.enabled &&
+      plugin.events.includes("provider.request.beforeSend") &&
+      isDesiredEdgeContainer(plugin),
+    );
   for (const plugin of scopedPlugins) {
     const requestId = crypto.randomUUID();
     const envelope = {
@@ -80,7 +130,7 @@ export async function transformViaLocalPluginContainers(input: {
     const body = JSON.stringify(envelope);
     const timestamp = String(Date.now());
     const signature = crypto
-      .createHmac("sha256", pluginRuntimeSecret)
+      .createHmac("sha256", resolvePluginRuntimeSecret())
       .update(`${timestamp}.${body}`)
       .digest("hex");
     try {
@@ -147,7 +197,7 @@ export async function executeViaLocalPluginContainer(input: {
   };
   const body = JSON.stringify(envelope);
   const timestamp = String(Date.now());
-  const signature = crypto.createHmac("sha256", pluginRuntimeSecret).update(`${timestamp}.${body}`).digest("hex");
+  const signature = crypto.createHmac("sha256", resolvePluginRuntimeSecret()).update(`${timestamp}.${body}`).digest("hex");
   const result = await invokePluginHttp(input.plugin, execution.toolExecutePath, body, {
       "content-type": "application/json",
       "x-openleash-plugin-protocol": PROTOCOL,
@@ -174,28 +224,70 @@ export function containerRunArgs(
     "--label", MANAGED_LABEL,
     "--label", `com.openleash.plugin-id=${plugin.id}`,
     "--label", `com.openleash.plugin-version=${plugin.settings.installedVersion ?? plugin.version}`,
-    "--label", `com.openleash.runtime-secret-hash=${pluginRuntimeSecretHash}`,
+    "--label", `com.openleash.runtime-secret-hash=${runtimeSecretHash()}`,
     "--read-only", "--cap-drop", "ALL", "--security-opt", "no-new-privileges:true",
     "--pids-limit", "256", "--tmpfs", "/tmp:rw,noexec,nosuid,size=128m,mode=1777",
     "--memory", `${execution.resources?.memoryMb ?? 512}m`,
     "--cpu-shares", String(execution.resources?.cpuShares ?? 512),
-    "-e", `OPENLEASH_PLUGIN_RUNTIME_SECRET=${pluginRuntimeSecret}`,
+    "-e", `OPENLEASH_PLUGIN_ID=${plugin.id}`,
+    "-e", `OPENLEASH_PLUGIN_RUNTIME_SECRET=${resolvePluginRuntimeSecret()}`,
     "-e", "HF_HOME=/data/huggingface",
     "-e", "XDG_CACHE_HOME=/data/cache",
     "-e", "HEADROOM_HOME=/data/headroom",
   ];
-  if (!plugin.permissions.includes("network:access")) args.push("--network", "none");
+  if (!plugin.permissions.includes("network:access")) args.push("--network", ISOLATED_PLUGIN_NETWORK);
   if (!options.ephemeral) args.splice(4, 0, "--restart", "unless-stopped");
   if (execution.storage?.persistent && !options.ephemeral) {
     args.push("-v", `${execution.storage.volumeName ?? `${name}-data`}:/data`);
   } else if (options.ephemeral) {
     args.push("--tmpfs", "/data:rw,noexec,nosuid,size=512m,mode=1777");
   }
-  if (execution.edgePort && plugin.permissions.includes("network:access")) {
-    args.push("-p", options.randomPort ? "127.0.0.1::8080" : `127.0.0.1:${execution.edgePort}:8080`);
-  }
   args.push(image);
   return args;
+}
+
+function ensureIsolatedPluginNetwork() {
+  if (dockerOk(["network", "inspect", ISOLATED_PLUGIN_NETWORK])) return;
+  const created = docker(["network", "create", "--internal", ISOLATED_PLUGIN_NETWORK]);
+  if (created.status !== 0 && !dockerOk(["network", "inspect", ISOLATED_PLUGIN_NETWORK])) {
+    throw new Error(created.stderr.trim() || "could not create the isolated plugin network");
+  }
+}
+
+function ensurePluginGateway(plugins: PluginCatalogItem[]) {
+  if (plugins.length === 0) {
+    docker(["rm", "-f", PLUGIN_GATEWAY_NAME]);
+    return;
+  }
+  const targets = Object.fromEntries(plugins.map((plugin) => [plugin.id, containerName(plugin.id)]));
+  const serialized = JSON.stringify(targets);
+  const configHash = crypto.createHash("sha256").update(serialized).digest("hex");
+  const inspect = docker(["inspect", "-f", "{{.State.Running}} {{index .Config.Labels \"com.openleash.gateway-config-hash\"}}", PLUGIN_GATEWAY_NAME]);
+  if (inspect.status === 0 && inspect.stdout.trim() === `true ${configHash}`) return;
+  const image = process.env.OPENLEASH_PLUGIN_GATEWAY_IMAGE || PLUGIN_GATEWAY_IMAGE;
+  if (!dockerOk(["image", "inspect", image])) {
+    const pull = docker(["pull", image], 300_000);
+    if (pull.status !== 0) throw new Error(pull.stderr.trim() || "could not pull the plugin gateway");
+  }
+  docker(["rm", "-f", PLUGIN_GATEWAY_NAME]);
+  const started = docker([
+    "run", "-d", "--name", PLUGIN_GATEWAY_NAME,
+    "--label", "com.openleash.plugin-gateway=true",
+    "--label", `com.openleash.gateway-config-hash=${configHash}`,
+    "--restart", "unless-stopped",
+    "--read-only", "--cap-drop", "ALL", "--security-opt", "no-new-privileges:true",
+    "--pids-limit", "64", "--memory", "128m", "--cpu-shares", "128",
+    "--tmpfs", "/tmp:rw,noexec,nosuid,size=16m,mode=1777",
+    "-p", `127.0.0.1:${pluginGatewayPort()}:8080`,
+    "-e", `OPENLEASH_PLUGIN_TARGETS=${serialized}`,
+    image,
+  ]);
+  if (started.status !== 0) throw new Error(started.stderr.trim() || "could not start the plugin gateway");
+  const connected = docker(["network", "connect", ISOLATED_PLUGIN_NETWORK, PLUGIN_GATEWAY_NAME]);
+  if (connected.status !== 0) {
+    docker(["rm", "-f", PLUGIN_GATEWAY_NAME]);
+    throw new Error(connected.stderr.trim() || "could not connect the plugin gateway");
+  }
 }
 
 export function isDesiredEdgeContainer(plugin: PluginCatalogItem) {
@@ -248,7 +340,7 @@ async function reconcileOne(plugin: PluginCatalogItem): Promise<PluginContainerS
   const image = plugin.execution!.image;
   const expectedVersion = plugin.settings.installedVersion ?? plugin.version;
   const inspect = docker(["inspect", "-f", "{{.State.Running}} {{index .Config.Labels \"com.openleash.plugin-version\"}} {{index .Config.Labels \"com.openleash.runtime-secret-hash\"}}", name]);
-  const reusable = inspect.status === 0 && inspect.stdout.trim() === `true ${expectedVersion} ${pluginRuntimeSecretHash}`;
+  const reusable = inspect.status === 0 && inspect.stdout.trim() === `true ${expectedVersion} ${runtimeSecretHash()}`;
   if (!reusable) {
     const imageRef = plugin.execution!.digest
       ? `${image.split("@")[0]}@${plugin.execution!.digest}`
@@ -279,6 +371,13 @@ async function reconcileOne(plugin: PluginCatalogItem): Promise<PluginContainerS
       restoreRollback(name, backupName, hadPrevious);
       return { pluginId: plugin.id, containerName: name, image, running: hadPrevious, healthy: hadPrevious, endpoint, error: started.stderr.trim() || "container start failed; previous version restored" };
     }
+    if (plugin.permissions.includes("network:access")) {
+      const connected = docker(["network", "connect", ISOLATED_PLUGIN_NETWORK, name]);
+      if (connected.status !== 0) {
+        restoreRollback(name, backupName, hadPrevious);
+        return { pluginId: plugin.id, containerName: name, image, running: hadPrevious, healthy: hadPrevious, endpoint, error: connected.stderr.trim() || "could not connect plugin to the runtime network" };
+      }
+    }
     const healthy = await managedContainerHealth(plugin, name, endpoint);
     if (!healthy) {
       restoreRollback(name, backupName, hadPrevious);
@@ -287,14 +386,18 @@ async function reconcileOne(plugin: PluginCatalogItem): Promise<PluginContainerS
     if (hadPrevious) docker(["rm", "-f", backupName]);
     return { pluginId: plugin.id, containerName: name, image, running: true, healthy: true, endpoint };
   }
+  if (plugin.permissions.includes("network:access")) {
+    const networks = docker(["inspect", "-f", "{{json .NetworkSettings.Networks}}", name]);
+    if (networks.status === 0 && !networks.stdout.includes(`\"${ISOLATED_PLUGIN_NETWORK}\"`)) {
+      docker(["network", "connect", ISOLATED_PLUGIN_NETWORK, name]);
+    }
+  }
   const healthy = await managedContainerHealth(plugin, name, endpoint);
   return { pluginId: plugin.id, containerName: name, image, running: true, healthy, endpoint, ...(healthy ? {} : { error: "plugin did not become healthy" }) };
 }
 
-function managedContainerHealth(plugin: PluginCatalogItem, name: string, endpoint: string) {
-  return plugin.permissions.includes("network:access")
-    ? waitForHealth(endpoint, plugin.id)
-    : waitForContainerHealth(name, plugin.execution?.healthPath ?? "/healthz", plugin.id);
+function managedContainerHealth(plugin: PluginCatalogItem, _name: string, _endpoint: string) {
+  return waitForHealth(pluginEndpoint(plugin, plugin.execution?.healthPath ?? "/healthz"), plugin.id);
 }
 
 async function preflightContainer(plugin: PluginCatalogItem): Promise<{ ok: true } | { ok: false; error: string }> {
@@ -302,14 +405,7 @@ async function preflightContainer(plugin: PluginCatalogItem): Promise<{ ok: true
   const started = docker(containerRunArgs(plugin, { name, randomPort: true, ephemeral: true }), 180_000);
   if (started.status !== 0) return { ok: false, error: started.stderr.trim() || "candidate container did not start" };
   try {
-    const path = plugin.execution?.healthPath ?? "/healthz";
-    const healthy = plugin.permissions.includes("network:access")
-      ? await (async () => {
-          const portResult = docker(["port", name, "8080/tcp"]);
-          const match = portResult.stdout.match(/127\.0\.0\.1:(\d+)/);
-          return Boolean(match) && waitForHealth(`http://127.0.0.1:${match![1]}/${path.replace(/^\/+/, "")}`, plugin.id);
-        })()
-      : await waitForContainerHealth(name, path, plugin.id);
+    const healthy = await waitForDockerHealth(name);
     return healthy ? { ok: true } : { ok: false, error: "candidate plugin image failed its health check; current version was kept" };
   } finally {
     docker(["rm", "-f", name]);
@@ -350,9 +446,8 @@ function applyProviderPatches(payload: unknown, patches: Array<{ op: "add" | "re
 }
 
 function pluginEndpoint(plugin: PluginCatalogItem, path: string) {
-  const port = plugin.execution?.edgePort;
-  if (!port) throw new Error(`plugin ${plugin.id} has no desktop edge port`);
-  return `http://127.0.0.1:${port}/${path.replace(/^\/+/, "")}`;
+  if (!plugin.execution?.edgePort) throw new Error(`plugin ${plugin.id} has no desktop edge port`);
+  return `http://127.0.0.1:${pluginGatewayPort()}/${path.replace(/^\/+/, "")}`;
 }
 
 function statusEndpoint(plugin: PluginCatalogItem) {
@@ -373,7 +468,10 @@ function managedContainerNames() {
 async function waitForHealth(endpoint: string, pluginId: string) {
   for (let attempt = 0; attempt < 60; attempt += 1) {
     try {
-      const response = await fetch(endpoint, { signal: AbortSignal.timeout(1000) });
+      const response = await fetch(endpoint, {
+        headers: { "x-openleash-plugin-id": pluginId },
+        signal: AbortSignal.timeout(1000),
+      });
       const body = (await response.json()) as { ok?: boolean; pluginId?: string; protocol?: string };
       if (response.ok && body.ok && body.pluginId === pluginId && body.protocol === PROTOCOL) return true;
     } catch { /* retry while the model/runtime initializes */ }
@@ -382,15 +480,11 @@ async function waitForHealth(endpoint: string, pluginId: string) {
   return false;
 }
 
-async function waitForContainerHealth(name: string, path: string, pluginId: string) {
+async function waitForDockerHealth(name: string) {
   for (let attempt = 0; attempt < 60; attempt += 1) {
-    const result = docker(["exec", name, "python", "-c", `import json,urllib.request; print(urllib.request.urlopen('http://127.0.0.1:8080/${path.replace(/^\/+/, "")}',timeout=1).read().decode())`], 2_000);
-    if (result.status === 0) {
-      try {
-        const body = JSON.parse(result.stdout.trim());
-        if (body.ok && body.pluginId === pluginId && body.protocol === PROTOCOL) return true;
-      } catch { /* retry */ }
-    }
+    const result = docker(["inspect", "-f", "{{if .State.Health}}{{.State.Health.Status}}{{else}}missing{{end}}", name]);
+    if (result.status === 0 && result.stdout.trim() === "healthy") return true;
+    if (result.status === 0 && result.stdout.trim() === "unhealthy") return false;
     await new Promise((resolve) => setTimeout(resolve, 500));
   }
   return false;

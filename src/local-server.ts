@@ -48,6 +48,16 @@ function initialClientMode(): ClientMode {
   return "cloud";
 }
 
+function configuredDesktopTokenFromEnvironment() {
+  return String(process.env.OPENLEASH_DEV_TOKEN ?? "").trim() || undefined;
+}
+
+function configuredDesktopToken(existing?: string) {
+  return configuredDesktopTokenFromEnvironment()
+    ?? existing
+    ?? `ol_personal_${crypto.randomBytes(18).toString("base64url")}`;
+}
+
 function normalizeClientMode(value?: ClientMode | string): ClientMode {
   return value === "custom" ? "custom" : "cloud";
 }
@@ -220,6 +230,7 @@ type Store = {
   installIdentity?: string;
   introSeen?: boolean;
   agentDoneSound?: boolean;
+  islandHidden?: boolean;
   clientMode?: ClientMode;
   remoteApiUrl?: string;
   remoteToken?: string;
@@ -403,11 +414,12 @@ export class LocalOpenLeashServer {
   resetSetup() {
     const introSeen = this.store?.introSeen ?? false;
     this.store = {
-      token: `ol_personal_${crypto.randomBytes(18).toString("base64url")}`,
+      token: configuredDesktopToken(this.store?.token),
       setupComplete: false,
       installIdentity: this.store?.installIdentity,
       introSeen,
       agentDoneSound: this.store?.agentDoneSound ?? false,
+      islandHidden: this.store?.islandHidden ?? false,
       clientMode: initialClientMode(),
       promptTransforms: this.store?.promptTransforms ?? defaultPromptTransformConfig,
       plugins: bundledPluginCatalog(),
@@ -419,10 +431,11 @@ export class LocalOpenLeashServer {
 
   resetAllLocalState() {
     this.store = {
-      token: `ol_personal_${crypto.randomBytes(18).toString("base64url")}`,
+      token: configuredDesktopToken(),
       setupComplete: false,
       introSeen: false,
       agentDoneSound: false,
+      islandHidden: false,
       clientMode: initialClientMode(),
       promptTransforms: defaultPromptTransformConfig,
       plugins: bundledPluginCatalog(),
@@ -516,6 +529,15 @@ export class LocalOpenLeashServer {
 
   get agentDoneSound() {
     return Boolean(this.store.agentDoneSound);
+  }
+
+  get islandHidden() {
+    return Boolean(this.store.islandHidden);
+  }
+
+  updateIslandHidden(hidden: boolean) {
+    this.store.islandHidden = hidden;
+    this.writeStore();
   }
 
   get plugins() {
@@ -1109,8 +1131,8 @@ export class LocalOpenLeashServer {
   }
 
   private readStore(): Store {
-    const devToken = String(process.env.OPENLEASH_DEV_TOKEN ?? "").trim() || undefined;
-    const token = devToken ?? this.getSetting("token") ?? `ol_personal_${crypto.randomBytes(18).toString("base64url")}`;
+    const devToken = configuredDesktopTokenFromEnvironment();
+    const token = configuredDesktopToken(this.getSetting("token") ?? undefined);
     const configuredRemoteApiUrl = this.settingValue("remoteApiUrl");
     const remoteToken = devToken && /^https?:\/\/(127\.0\.0\.1|localhost)(?::\d+)?\/?$/i.test(configuredRemoteApiUrl ?? "")
       ? devToken
@@ -1122,6 +1144,7 @@ export class LocalOpenLeashServer {
       installIdentity: this.settingValue("installIdentity"),
       introSeen: this.getSetting("introSeen") === "true",
       agentDoneSound: this.getSetting("agentDoneSound") === "true",
+      islandHidden: this.getSetting("islandHidden") === "true",
       clientMode: normalizeClientMode(this.settingValue<ClientMode>("clientMode") ?? initialClientMode()),
       remoteApiUrl: configuredRemoteApiUrl,
       remoteToken,
@@ -1246,6 +1269,7 @@ export class LocalOpenLeashServer {
       if (store.installIdentity) insertSetting.run("installIdentity", store.installIdentity);
       insertSetting.run("introSeen", String(Boolean(store.introSeen)));
       insertSetting.run("agentDoneSound", String(Boolean(store.agentDoneSound)));
+      insertSetting.run("islandHidden", String(Boolean(store.islandHidden)));
       if (store.clientMode) insertSetting.run("clientMode", store.clientMode);
       if (store.remoteApiUrl) insertSetting.run("remoteApiUrl", store.remoteApiUrl);
       if (store.remoteToken) insertSetting.run("remoteToken", store.remoteToken);
@@ -1627,6 +1651,7 @@ export class LocalOpenLeashServer {
         installIdentity: parsed.installIdentity,
         clientMode: parsedClientMode,
         agentDoneSound: Boolean(parsed.agentDoneSound),
+        islandHidden: Boolean(parsed.islandHidden),
         remoteApiUrl: parsed.remoteApiUrl,
         remoteToken: parsed.remoteToken,
         remoteOrganization: parsed.remoteOrganization,

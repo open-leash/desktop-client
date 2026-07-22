@@ -154,6 +154,15 @@ private final class IslandController: NSObject, WKNavigationDelegate, WKScriptMe
         webView.evaluateJavaScript("document.getElementById('toggle').click()")
     }
 
+    func openMenuForVerification() {
+        webView.evaluateJavaScript("window.toggleOpenLeashIslandMenuForVerification && window.toggleOpenLeashIslandMenuForVerification()")
+    }
+
+    func expand() {
+        webView.evaluateJavaScript("window.expandOpenLeashIsland && window.expandOpenLeashIsland()")
+        panel.orderFrontRegardless()
+    }
+
     private func resize(width requestedWidth: Double, height requestedHeight: Double) {
         let width = CGFloat(max(220, min(780, requestedWidth.rounded(.up))))
         let height = CGFloat(max(42, min(760, requestedHeight.rounded(.up))))
@@ -252,6 +261,10 @@ private struct OpenLeashIslandApplication {
                         controller.inspect()
                     case "expandActivity":
                         controller.expandActivityForVerification()
+                    case "openMenu":
+                        controller.openMenuForVerification()
+                    case "expand":
+                        controller.expand()
                     case "quit":
                         controller.dismiss()
                         app.terminate(nil)

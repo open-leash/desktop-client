@@ -99,7 +99,7 @@ try {
     project: "3 active sessions",
     sessions: [
       { id: "claude", agentKind: "claude-code", agentName: "Claude Code", project: "client-api", title: "Test Claude", latestAction: "Running tests", eventCount: 3 },
-      { id: "codex", sessionId: "codex-session", agentKind: "codex", agentName: "OpenAI Codex", project: "desktop", title: "Test Codex", latestAction: "Editing files", eventCount: 5, contributions: [{ pluginId: "openleash.blast-radius", pluginName: "blast-radius", pluginIcon: "💥", kind: "annotation", label: "Destructive operation", tone: "danger" }, { pluginId: "openleash.prompt-compression", pluginName: "token-saver", pluginIcon: "✂️", kind: "annotation", label: "Token saver", value: "42% saved", tone: "success" }] },
+      { id: "codex", sessionId: "codex-session", agentKind: "codex", agentName: "OpenAI Codex", project: "desktop", title: "Test Codex", latestAction: "Editing files", eventCount: 5, contributions: [{ pluginId: "openleash.blast-radius", pluginName: "blast-radius", pluginIcon: "💥", kind: "annotation", label: "Destructive operation", tone: "danger" }, { pluginId: "openleash.prompt-compression", pluginName: "token-saver", pluginIcon: "✂️", kind: "annotation", label: "token-saver", value: "42% saved", tone: "success" }] },
       { id: "gemini", agentKind: "gemini", agentName: "Gemini CLI", project: "docs", title: "Test Gemini", latestAction: "Reading docs", eventCount: 2 },
     ],
     tokenSaver: { pluginId: "openleash.prompt-compression", pluginName: "token-saver", value: "42% saved", tone: "success" },
@@ -131,6 +131,12 @@ try {
   assert.equal(expandedActivity.layout.expanded, true, "compact activity rail did not expand");
   assert.ok(expandedActivity.layout.islandHeight > activity.layout.islandHeight, "expanded activity did not reveal its details");
   assert.ok(expandedActivity.layout.islandWidth > activity.layout.islandWidth, "expanded activity did not grow wider than its compact content");
+  send({ type: "openMenu" });
+  const activityMenu = await inspectAfter(350);
+  assert.equal(activityMenu.layout.menuOpen, true, "island controls menu did not open");
+  assert.equal(activityMenu.layout.menuItemCount, 8, "island controls menu is missing tray actions");
+  assert.equal(activityMenu.layout.menuFitsIsland, true, "island controls menu was clipped by the panel");
+  send({ type: "openMenu" });
   send({ type: "expandActivity" });
   const collapsedActivity = await inspectAfter(450);
   assert.equal(collapsedActivity.layout.expanded, false, "expanded activity did not collapse again");

@@ -31,6 +31,8 @@ test("desktop client-api edge transforms provider requests through a container A
   const runtimeAddress = runtime.address();
   assert.ok(runtimeAddress && typeof runtimeAddress === "object");
   const pluginPort = runtimeAddress.port;
+  const previousGatewayPort = process.env.OPENLEASH_PLUGIN_GATEWAY_PORT;
+  process.env.OPENLEASH_PLUGIN_GATEWAY_PORT = String(pluginPort);
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "openleash-edge-test-"));
   let edge: LocalOpenLeashServer | undefined;
   try {
@@ -82,6 +84,8 @@ test("desktop client-api edge transforms provider requests through a container A
     assert.equal(toolResponse.status, 200, toolResponseText);
     assert.equal((JSON.parse(toolResponseText) as any).content, "original");
   } finally {
+    if (previousGatewayPort === undefined) delete process.env.OPENLEASH_PLUGIN_GATEWAY_PORT;
+    else process.env.OPENLEASH_PLUGIN_GATEWAY_PORT = previousGatewayPort;
     if (edge) await edge.stop();
     runtime.closeIdleConnections();
     runtime.closeAllConnections();
