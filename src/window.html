@@ -2660,6 +2660,7 @@
       let setupStep = 0;
       let setupAudience = "individual";
       let setupClientMode = "cloud";
+      let setupConnectionTouched = false;
       let setupRemoteApiUrl = "https://api.openleash.com";
       let setupOrganizationSlug = "";
       let setupRemoteBootstrap;
@@ -2704,6 +2705,16 @@
       const sideNav = document.getElementById("sideNav");
       const modeFoot = document.getElementById("modeFoot");
 
+      /* setup-connection-draft:start */
+      function mergeSetupConnectionDraft(current, incoming, setupLocked, connectionTouched) {
+        if (setupLocked && connectionTouched) return current;
+        return {
+          clientMode: incoming.clientMode || current.clientMode,
+          remoteApiUrl: incoming.remoteApiUrl || incoming.cloudApiUrl || current.remoteApiUrl
+        };
+      }
+      /* setup-connection-draft:end */
+
       function render(payload = {}) {
         const mainScroller = document.querySelector("main");
         const preservedLogScrollTop = view === "debug" ? (mainScroller?.scrollTop || 0) : 0;
@@ -2716,8 +2727,14 @@
             renderView();
           }, 5000);
         }
-        if (state.clientMode) setupClientMode = state.clientMode;
-        setupRemoteApiUrl = state.remoteApiUrl || state.cloudApiUrl || setupRemoteApiUrl;
+        const setupConnection = mergeSetupConnectionDraft(
+          { clientMode: setupClientMode, remoteApiUrl: setupRemoteApiUrl },
+          state,
+          isSetupLocked(),
+          setupConnectionTouched
+        );
+        setupClientMode = setupConnection.clientMode;
+        setupRemoteApiUrl = setupConnection.remoteApiUrl;
         if (!selectedAgents && (state.localProtections || []).length > 0) {
           selectedAgents = new Set((state.localProtections || []).filter((agent) => agent.installed && agent.supportsInstall).map((agent) => agent.kind));
         }
@@ -3449,6 +3466,7 @@
       function bindConnectionSelection() {
         root.querySelectorAll("[name=clientMode]").forEach((input) => {
           input.onchange = () => {
+            setupConnectionTouched = true;
             setupClientMode = input.value;
             if (setupClientMode === "cloud") {
               setupRemoteApiUrl = state.cloudApiUrl || "https://api.openleash.com";
@@ -3469,6 +3487,7 @@
         });
         const remoteApi = document.getElementById("remoteApiUrl");
         if (remoteApi) remoteApi.oninput = () => {
+          setupConnectionTouched = true;
           setupRemoteApiUrl = remoteApi.value.trim();
           setupRemoteAuth = undefined;
           setupRemoteNotice = "";
