@@ -5081,6 +5081,16 @@
                   <span>Sound on finish</span>
                 </label>
               </div>
+              <div class="fieldRow">
+                <div>
+                  <strong>Island visibility</strong>
+                  <p>Keep the Island at the top of the screen even when every agent is idle.</p>
+                </div>
+                <label class="toggleRow">
+                  <input id="islandActivityOnly" type="checkbox" ${state.islandActivityOnly ? "checked" : ""}>
+                  <span>Show only during agent activity</span>
+                </label>
+              </div>
               <div id="settingsMessage" class="notice"></div>
             </div>
             <div class="card dangerZone">
@@ -5127,6 +5137,7 @@
           };
         });
         const agentDoneSoundInput = document.getElementById("agentDoneSound");
+        const islandActivityOnlyInput = document.getElementById("islandActivityOnly");
         agentDoneSoundInput.onchange = async () => {
           const nextAgentDoneSound = agentDoneSoundInput.checked;
           state.agentDoneSound = nextAgentDoneSound;
@@ -5139,16 +5150,34 @@
           state.apiProvider = "openai";
           state.apiKeySet = false;
           state.agentDoneSound = result.agentDoneSound;
+          state.islandActivityOnly = result.islandActivityOnly;
           agentDoneSoundInput.checked = state.agentDoneSound;
           document.getElementById("settingsMessage").textContent = "Settings saved.";
         };
+        islandActivityOnlyInput.onchange = async () => {
+          const nextIslandActivityOnly = islandActivityOnlyInput.checked;
+          state.islandActivityOnly = nextIslandActivityOnly;
+          const result = await window.openleash.saveSettings({ islandActivityOnly: nextIslandActivityOnly });
+          if (!result?.ok) {
+            state.islandActivityOnly = !nextIslandActivityOnly;
+            islandActivityOnlyInput.checked = state.islandActivityOnly;
+            return;
+          }
+          state.islandActivityOnly = result.islandActivityOnly;
+          islandActivityOnlyInput.checked = state.islandActivityOnly;
+          document.getElementById("settingsMessage").textContent = nextIslandActivityOnly
+            ? "The Island will hide while all agents are idle."
+            : "The Island will stay visible.";
+        };
         document.getElementById("saveSettings").onclick = async () => {
           const agentDoneSound = document.getElementById("agentDoneSound").checked;
-          const result = await window.openleash.saveSettings({ agentDoneSound });
+          const islandActivityOnly = document.getElementById("islandActivityOnly").checked;
+          const result = await window.openleash.saveSettings({ agentDoneSound, islandActivityOnly });
           if (result?.ok) {
             state.apiProvider = "openai";
             state.apiKeySet = false;
             state.agentDoneSound = result.agentDoneSound;
+            state.islandActivityOnly = result.islandActivityOnly;
             document.getElementById("settingsMessage").textContent = "Settings saved.";
           }
         };

@@ -116,6 +116,7 @@
         padding: 0 9px 0 12px;
       }
       .notch-agent {
+        position: relative;
         width: 18px;
         height: 18px;
         display: grid;
@@ -128,11 +129,6 @@
         font-size: 7px;
         font-weight: 750;
       }
-      .notch-agent img { width: 12px; height: 12px; object-fit: contain; }
-      .notch-agent.running img, .cap-agent.running img { animation: agent-running 3.2s linear infinite; }
-      .notch-agent.running:not(:has(img)), .cap-agent.running:not(:has(img)) { animation: agent-pulse 1.8s ease-in-out infinite; }
-      @keyframes agent-running { to { transform: rotate(360deg); } }
-      @keyframes agent-pulse { 50% { opacity: .55; transform: scale(.88); } }
       .notch-metric-value { overflow: hidden; color: var(--green); font-size: 9px; font-weight: 700; text-overflow: ellipsis; white-space: nowrap; }
       .notch-metric-value.danger { color: var(--red); background: transparent; border: 0; }
       .cap-metric { color: var(--green); font-size: 9px; font-weight: 700; white-space: nowrap; }
@@ -140,6 +136,7 @@
       .island.expandable .cap { cursor: pointer; }
       .cap-agents { display: none; align-items: center; gap: 5px; }
       .cap-agent {
+        position: relative;
         width: 24px;
         height: 24px;
         display: grid;
@@ -152,7 +149,114 @@
         font-size: 8px;
         font-weight: 750;
       }
-      .cap-agent img { width: 15px; height: 15px; object-fit: contain; }
+      .agent-avatar { --agent-accent: var(--cyan); isolation: isolate; }
+      .agent-avatar.agent-claude { --agent-accent: #d97757; }
+      .agent-avatar.agent-codex, .agent-avatar.agent-opencode { --agent-accent: #54d6b4; }
+      .agent-avatar.agent-gemini { --agent-accent: #78a9ff; }
+      .agent-avatar.agent-copilot { --agent-accent: #b69cff; }
+      .agent-avatar.agent-idle { --agent-accent: #55e7a7; }
+      .agent-avatar-orbit {
+        position: absolute;
+        z-index: -1;
+        inset: 2px;
+        border: 1px dashed color-mix(in srgb, var(--agent-accent) 72%, transparent);
+        border-radius: 50%;
+        box-shadow: 0 0 9px color-mix(in srgb, var(--agent-accent) 42%, transparent);
+        animation: agent-orbit 2.4s linear infinite;
+      }
+      .agent-avatar-core {
+        width: 58%;
+        height: 58%;
+        display: grid;
+        place-items: center;
+        color: var(--agent-accent);
+        font-size: 8px;
+        font-weight: 800;
+        line-height: 1;
+        animation: agent-walk 720ms steps(2, jump-none) infinite;
+      }
+      .agent-avatar-core img { width: 100%; height: 100%; object-fit: contain; filter: drop-shadow(0 0 4px color-mix(in srgb, var(--agent-accent) 48%, transparent)); }
+      .agent-avatar.has-mascot { overflow: visible; border-color: transparent; background: transparent; }
+      .agent-avatar.has-mascot .agent-avatar-orbit { display: none; }
+      .agent-avatar.has-mascot .agent-avatar-core { width: 100%; height: 100%; animation: none; }
+      .agent-mascot { width: 100%; height: 100%; display: grid; place-items: center; overflow: visible; color: var(--agent-accent); image-rendering: pixelated; filter: drop-shadow(0 2px 4px color-mix(in srgb, var(--agent-accent) 28%, transparent)); }
+      .claude-mascot { animation: mascot-bob 430ms steps(2, jump-none) infinite; }
+      .claude-mascot svg { width: 100%; height: 76%; overflow: visible; }
+      .claude-mascot .claude-frame-b { animation: claude-feet 430ms steps(1, end) infinite; }
+      .codex-mascot { position: relative; width: 94%; height: 100%; overflow: hidden; }
+      .agent-avatar .codex-mascot img {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 800%;
+        height: 900%;
+        max-width: none;
+        object-fit: fill;
+        filter: none;
+        animation: codex-pet-walk 960ms steps(1, end) infinite;
+      }
+      .agent-avatar.processing .agent-mascot { animation-duration: 920ms; opacity: .9; }
+      .agent-avatar.processing .codex-mascot img { animation-duration: 1.44s; }
+      .agent-avatar.waiting .agent-avatar-orbit { border-style: solid; animation-duration: 1.05s; }
+      .agent-avatar.waiting .agent-mascot { animation: mascot-alert 720ms ease-in-out infinite; }
+      .agent-avatar.waiting .codex-mascot img { animation: none; transform: translate(-50%, -11.111%); }
+      .agent-avatar.waiting::after {
+        content: "";
+        position: absolute;
+        right: -1px;
+        bottom: -1px;
+        width: 5px;
+        height: 5px;
+        border: 1px solid #111316;
+        border-radius: 50%;
+        background: var(--amber);
+        box-shadow: 0 0 7px var(--amber);
+        animation: agent-attention 1s ease-in-out infinite;
+      }
+      .agent-avatar.completed .agent-avatar-orbit { border-color: rgba(85,231,167,.72); border-style: solid; box-shadow: 0 0 9px rgba(85,231,167,.38); animation: none; opacity: .9; }
+      .agent-avatar.completed .agent-avatar-core { animation: mascot-complete 760ms ease-out 1; }
+      .agent-avatar.completed .agent-mascot { animation: none; }
+      .agent-avatar.completed .claude-frame-b { animation: none; opacity: 0; }
+      .agent-avatar.completed .codex-mascot img { animation-play-state: paused; }
+      .agent-avatar.completed::after {
+        content: "✓";
+        position: absolute;
+        right: -2px;
+        bottom: -2px;
+        width: 9px;
+        height: 9px;
+        display: grid;
+        place-items: center;
+        border: 1px solid #111316;
+        border-radius: 50%;
+        color: #07150f;
+        background: var(--green);
+        box-shadow: 0 0 7px rgba(85,231,167,.7);
+        font-size: 6px;
+        font-weight: 900;
+        line-height: 1;
+      }
+      .agent-avatar.idle .agent-avatar-orbit { opacity: .48; animation-duration: 7s; }
+      .agent-avatar.idle .agent-avatar-core { opacity: .78; animation: agent-breathe 2.8s ease-in-out infinite; }
+      @keyframes agent-orbit { to { transform: rotate(360deg); } }
+      @keyframes agent-walk { 50% { transform: translateY(-1.5px) rotate(-4deg); } }
+      @keyframes agent-breathe { 50% { opacity: .5; transform: scale(.86); } }
+      @keyframes agent-attention { 50% { opacity: .45; transform: scale(.76); } }
+      @keyframes mascot-bob { 50% { transform: translateY(-1.5px); } }
+      @keyframes mascot-alert { 50% { transform: translateY(-2px) scale(1.06); filter: drop-shadow(0 0 7px var(--amber)); } }
+      @keyframes mascot-complete { 45% { transform: translateY(-3px) scale(1.1); filter: drop-shadow(0 0 8px var(--green)); } }
+      @keyframes claude-feet { 0%, 49.99% { opacity: 0; } 50%, 100% { opacity: 1; } }
+      @keyframes codex-pet-walk {
+        0%, 12.49% { transform: translate(0, -11.111%); }
+        12.5%, 24.99% { transform: translate(-12.5%, -11.111%); }
+        25%, 37.49% { transform: translate(-25%, -11.111%); }
+        37.5%, 49.99% { transform: translate(-37.5%, -11.111%); }
+        50%, 62.49% { transform: translate(-50%, -11.111%); }
+        62.5%, 74.99% { transform: translate(-62.5%, -11.111%); }
+        75%, 87.49% { transform: translate(-75%, -11.111%); }
+        87.5%, 100% { transform: translate(-87.5%, -11.111%); }
+      }
+      body.animations-paused .agent-avatar *, body.animations-paused .signal::after { animation-play-state: paused !important; }
       .island.activity-mode:not(.expanded) { width: var(--activity-compact-width, 180px); }
       .island.menu-open { min-height: 438px; }
       .island.activity-mode.menu-open:not(.expanded) { width: 286px; }
@@ -380,6 +484,31 @@
         white-space: nowrap;
       }
       .activity-panel { padding-top: 11px; }
+      .attention-card {
+        margin-bottom: 10px;
+        overflow: hidden;
+        border: 1px solid rgba(255,182,74,.3);
+        border-radius: 16px;
+        background: linear-gradient(135deg, rgba(255,182,74,.11), rgba(255,255,255,.035) 58%);
+        box-shadow: inset 0 1px rgba(255,255,255,.055), 0 12px 30px rgba(0,0,0,.16);
+      }
+      .attention-head { display: grid; grid-template-columns: 32px minmax(0,1fr) auto; align-items: center; gap: 9px; padding: 10px 11px 8px; }
+      .attention-copy { min-width: 0; }
+      .attention-title { overflow: hidden; color: var(--ink); font-size: 12px; font-weight: 700; text-overflow: ellipsis; white-space: nowrap; }
+      .attention-meta { margin-top: 3px; color: var(--muted); font-size: 9.5px; }
+      .attention-badge { padding: 4px 7px; border-radius: 999px; color: #2a1800; background: var(--amber); font-size: 8.5px; font-weight: 800; letter-spacing: .03em; text-transform: uppercase; }
+      .attention-body { padding: 0 11px 11px; }
+      .attention-summary { margin: 2px 0 0; color: var(--soft-ink); font-size: 11px; line-height: 1.42; }
+      .attention-evidence { margin: 9px 0 0; max-height: 110px; overflow: auto; padding: 9px; border: 1px solid var(--line); border-radius: 10px; color: #c6c9ce; background: rgba(0,0,0,.26); font: 9.5px/1.4 ui-monospace, "SFMono-Regular", Consolas, monospace; white-space: pre-wrap; user-select: text; }
+      .attention-guidance { width: 100%; min-height: 56px; margin-top: 9px; resize: vertical; }
+      .attention-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 7px; margin-top: 9px; }
+      .attention-actions.single { grid-template-columns: 1fr; }
+      .attention-options { display: grid; gap: 6px; margin-top: 9px; }
+      .attention-question { display: grid; gap: 6px; }
+      .attention-option { min-height: 34px; padding: 7px 9px; border: 1px solid var(--line); border-radius: 10px; color: var(--soft-ink); background: rgba(255,255,255,.045); font: inherit; font-size: 10.5px; text-align: left; cursor: pointer; }
+      .attention-option.selected { border-color: rgba(88,216,255,.48); color: var(--ink); background: rgba(88,216,255,.12); }
+      .session-section-label { margin: 3px 2px 7px; color: var(--faint); font-size: 9px; font-weight: 750; letter-spacing: .06em; text-transform: uppercase; }
+      .idle-island-state { padding: 15px 11px 13px; border: 1px solid var(--line); border-radius: 14px; color: var(--muted); background: var(--panel); font-size: 11px; line-height: 1.4; text-align: center; }
       .session-list { display: grid; gap: 7px; }
       .session-card {
         width: 100%;
@@ -399,6 +528,7 @@
       }
       .session-card:hover, .session-card.selected { border-color: rgba(85,231,167,.34); background: var(--panel-hover); transform: translateY(-1px); }
       .session-agent-icon {
+        position: relative;
         width: 32px;
         height: 32px;
         display: grid;
@@ -410,7 +540,10 @@
         background: rgba(255,255,255,.05);
         font-size: 9px;
         font-weight: 700;
+        cursor: pointer;
+        transition: transform 140ms ease, filter 140ms ease;
       }
+      .session-agent-icon:hover { transform: scale(1.08); filter: brightness(1.12); }
       .session-agent-icon img { width: 18px; height: 18px; object-fit: contain; }
       .session-copy { min-width: 0; }
       .session-title, .session-meta, .session-action { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -419,6 +552,8 @@
       .session-action { margin-top: 5px; color: var(--soft-ink); font-size: 10.5px; }
       .session-live { display: flex; align-items: center; gap: 5px; padding-left: 4px; color: var(--green); font-size: 9px; font-weight: 650; white-space: nowrap; }
       .session-live::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: currentColor; box-shadow: 0 0 8px currentColor; }
+      .session-live.processing { color: var(--cyan); }
+      .session-live.waiting { color: var(--amber); }
       .contribution-pills { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 7px; }
       .contribution-pill { max-width: 100%; overflow: hidden; padding: 4px 6px; border: 1px solid var(--line); border-radius: 7px; color: var(--soft-ink); background: rgba(255,255,255,.04); font-size: 8.5px; text-overflow: ellipsis; white-space: nowrap; }
       .contribution-pill.info { color: var(--cyan); border-color: rgba(88,216,255,.22); }
@@ -606,7 +741,6 @@
         <button class="menu-item" data-command="approvals"><span class="menu-icon">!</span><span class="menu-copy"><span class="menu-label">Approvals</span><span class="menu-detail" id="menuApprovals">No pending approvals</span></span><span class="menu-chevron">›</span></button>
         <div class="menu-separator"></div>
         <button class="menu-item" data-command="check-updates"><span class="menu-icon">↻</span><span class="menu-copy"><span class="menu-label">Check for updates</span></span></button>
-        <button class="menu-item" data-command="hide-island"><span class="menu-icon">—</span><span class="menu-copy"><span class="menu-label">Hide Island</span><span class="menu-detail">Tray click brings it back</span></span></button>
         <button class="menu-item dangerous" data-command="quit"><span class="menu-icon">×</span><span class="menu-copy"><span class="menu-label">Quit OpenLeash</span></span></button>
       </div>
       <section class="reveal" id="reveal" inert aria-hidden="true"><div class="reveal-clip"><div class="content">
@@ -616,6 +750,8 @@
           <p>Your agents are connected. OpenLeash will appear here when something needs your attention.</p>
         </div>
         <div class="activity-panel" id="activityPanel" hidden>
+          <div class="attention-card" id="attentionPanel" hidden></div>
+          <div class="session-section-label" id="sessionSectionLabel">Live agents</div>
           <div class="session-list" id="sessionList"></div>
           <div class="activity-detail" id="activityDetail" hidden></div>
           <div class="island-contributions" id="ambientContributions"></div>
@@ -646,12 +782,25 @@
       let installAnimation;
       const $ = (id) => document.getElementById(id);
       const island = $("island"), cap = $("cap"), glyph = $("glyph"), status = $("status"), eyebrow = $("eyebrow"), title = $("title"), count = $("count"), capAgents = $("capAgents"), capMetric = $("capMetric"), notchRail = $("notchRail"), notchAgents = $("notchAgents"), notchMetric = $("notchMetric");
-      const installSuccess = $("installSuccess"), installFireworks = $("installFireworks"), activityPanel = $("activityPanel"), sessionList = $("sessionList"), activityDetail = $("activityDetail"), ambientContributions = $("ambientContributions"), summary = $("summary"), purpose = $("purpose"), evidenceBlock = $("evidenceBlock"), evidence = $("evidence"), chips = $("chips"), questions = $("questions"), plan = $("plan");
+      const installSuccess = $("installSuccess"), installFireworks = $("installFireworks"), activityPanel = $("activityPanel"), attentionPanel = $("attentionPanel"), sessionSectionLabel = $("sessionSectionLabel"), sessionList = $("sessionList"), activityDetail = $("activityDetail"), ambientContributions = $("ambientContributions"), summary = $("summary"), purpose = $("purpose"), evidenceBlock = $("evidenceBlock"), evidence = $("evidence"), chips = $("chips"), questions = $("questions"), plan = $("plan");
       const guidance = $("guidance"), rememberRow = $("rememberRow"), remember = $("remember"), actions = $("actions"), hint = $("hint"), islandMenu = $("islandMenu"), menuToggle = $("menuToggle");
+      const previewParams = new URLSearchParams(location.search);
+      const previewPlatform = previewParams.get("preview") ? previewParams.get("platform") : null;
 
       if (window.__OPENLEASH_NATIVE_ISLAND__) document.body.classList.add("native-macos");
+      else if (previewPlatform === "windows") document.body.classList.add("windows");
       else if (/Macintosh|Mac OS X/.test(navigator.userAgent)) document.body.classList.add("electron-macos");
       else document.body.classList.add("windows");
+
+      const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
+      const updateAnimationAvailability = () => {
+        document.body.classList.toggle("animations-paused", document.hidden || reducedMotion.matches);
+      };
+      document.addEventListener("visibilitychange", updateAnimationAvailability);
+      reducedMotion.addEventListener?.("change", updateAnimationAvailability);
+      window.addEventListener("pagehide", () => document.body.classList.add("animations-paused"));
+      window.addEventListener("pageshow", updateAnimationAvailability);
+      updateAnimationAvailability();
 
       const nativeHandler = window.webkit?.messageHandlers?.openleash;
       const bridge = window.openleash || (nativeHandler ? {
@@ -667,6 +816,68 @@
       });
 
       function initials(name) { return (name || "AI").split(/\s+/).map((part) => part[0]).join("").slice(0, 2).toUpperCase(); }
+      function agentVisualClass(agent = {}) {
+        const value = `${agent.agentKind || ""} ${agent.agentName || ""}`.toLowerCase();
+        if (value.includes("claude")) return "agent-claude";
+        if (value.includes("codex") || value.includes("openai")) return "agent-codex";
+        if (value.includes("opencode")) return "agent-opencode";
+        if (value.includes("gemini")) return "agent-gemini";
+        if (value.includes("copilot") || value.includes("github")) return "agent-copilot";
+        if (value.includes("openleash") || value.includes("idle")) return "agent-idle";
+        return "agent-generic";
+      }
+      const CLAUDE_MASCOT_FRAMES = [
+        [" ▐▛███▜▌ ", "▝▜█████▛▘", "  ▘▘ ▝▝  "],
+        [" ▐▛███▜▌ ", "▝▜█████▛▘", "  ▝▝ ▘▘  "],
+      ];
+      const CLAUDE_QUADRANTS = {
+        "█": [1, 1, 1, 1], "▐": [0, 1, 0, 1], "▌": [1, 0, 1, 0],
+        "▛": [1, 1, 1, 0], "▜": [1, 1, 0, 1], "▙": [1, 0, 1, 1],
+        "▟": [0, 1, 1, 1], "▘": [1, 0, 0, 0], "▝": [0, 1, 0, 0],
+        "▖": [0, 0, 1, 0], "▗": [0, 0, 0, 1], " ": [0, 0, 0, 0],
+      };
+      function claudeMascot() {
+        const stage = document.createElement("span"); stage.className = "agent-mascot claude-mascot";
+        const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+        svg.setAttribute("viewBox", "0 0 20 12"); svg.setAttribute("aria-hidden", "true");
+        CLAUDE_MASCOT_FRAMES.forEach((lines, frameIndex) => {
+          const group = document.createElementNS(svg.namespaceURI, "g");
+          if (frameIndex === 1) group.setAttribute("class", "claude-frame-b");
+          lines.forEach((line, row) => [...line].forEach((character, column) => {
+            const quadrants = CLAUDE_QUADRANTS[character] || CLAUDE_QUADRANTS[" "];
+            quadrants.forEach((enabled, quadrant) => {
+              if (!enabled) return;
+              const rect = document.createElementNS(svg.namespaceURI, "rect");
+              rect.setAttribute("x", String(column * 2 + quadrant % 2));
+              rect.setAttribute("y", String((row * 2 + Math.floor(quadrant / 2)) * 2));
+              rect.setAttribute("width", ".86"); rect.setAttribute("height", "1.72"); rect.setAttribute("rx", ".08");
+              rect.setAttribute("fill", "currentColor"); group.appendChild(rect);
+            });
+          }));
+          svg.appendChild(group);
+        });
+        stage.appendChild(svg); return stage;
+      }
+      function codexMascot() {
+        const stage = document.createElement("span"); stage.className = "agent-mascot codex-mascot";
+        const image = document.createElement("img"); image.src = "agent-mascots/codex-pet.webp"; image.alt = "";
+        stage.appendChild(image); return stage;
+      }
+      function animatedAgentIcon(agent = {}, className = "", state = "running") {
+        const avatar = document.createElement("span");
+        avatar.className = `agent-avatar ${agentVisualClass(agent)} ${state} ${className}`.trim();
+        avatar.dataset.visualState = state;
+        avatar.title = state === "waiting" ? `${agent.agentName || "Agent"} needs attention` : state === "completed" ? `${agent.agentName || "Agent"} finished` : state === "idle" ? "OpenLeash is watching" : `${agent.agentName || "Agent"} working`;
+        const orbit = document.createElement("span"); orbit.className = "agent-avatar-orbit"; orbit.setAttribute("aria-hidden", "true");
+        const core = document.createElement("span"); core.className = "agent-avatar-core";
+        const visual = agentVisualClass(agent);
+        if (visual === "agent-claude") { avatar.classList.add("has-mascot"); core.appendChild(claudeMascot()); }
+        else if (visual === "agent-codex") { avatar.classList.add("has-mascot"); core.appendChild(codexMascot()); }
+        else if (agent.agentIcon) { const image = document.createElement("img"); image.src = agent.agentIcon; image.alt = ""; core.appendChild(image); }
+        else core.textContent = initials(agent.agentName);
+        avatar.append(orbit, core);
+        return avatar;
+      }
       function setGlyph(payload) {
         glyph.innerHTML = "";
         if (payload.agentIcon) { const image = document.createElement("img"); image.src = payload.agentIcon; image.alt = ""; glyph.appendChild(image); }
@@ -678,7 +889,7 @@
       function reset() {
         clearTimeout(expandTimer);
         installAnimation?.destroy(); installAnimation = undefined; installFireworks.innerHTML = ""; installSuccess.hidden = true;
-        activityPanel.hidden = true; sessionList.innerHTML = ""; activityDetail.hidden = true; activityDetail.innerHTML = ""; ambientContributions.innerHTML = "";
+        activityPanel.hidden = true; attentionPanel.hidden = true; attentionPanel.innerHTML = ""; sessionSectionLabel.hidden = false; sessionList.innerHTML = ""; activityDetail.hidden = true; activityDetail.innerHTML = ""; ambientContributions.innerHTML = "";
         notchAgents.innerHTML = ""; notchMetric.innerHTML = ""; capAgents.innerHTML = ""; capMetric.hidden = true; capMetric.textContent = "";
         selectedAnswers = new Map(); questions.innerHTML = ""; actions.innerHTML = ""; chips.innerHTML = ""; guidance.value = "";
         actions.className = "actions"; summary.hidden = false; purpose.hidden = true; evidenceBlock.hidden = true; plan.hidden = true;
@@ -737,6 +948,7 @@
         if (currentKind === "question") renderQuestions(payload);
         else if (currentKind === "plan_review") renderPlan(payload);
         else if (currentKind === "install_success") renderInstallSuccess();
+        else if (currentKind === "completed") renderCompleted(payload);
         else if (currentKind === "activity") renderSessionActivity(payload);
         else if (payload.id) renderApproval(payload);
         else renderActivity(payload);
@@ -746,7 +958,7 @@
         requestAnimationFrame(() => {
           island.classList.add("presented");
           resize();
-          if (payload.id || ["install_success", "sample", "blocked", "question", "plan_review"].includes(currentKind)) {
+          if (payload.id || (payload.attention?.id && payload.autoExpand !== false) || ["install_success", "sample", "blocked", "question", "plan_review"].includes(currentKind)) {
             expandTimer = setTimeout(() => setExpanded(true), 170);
           }
         });
@@ -764,15 +976,23 @@
       window.inspectOpenLeashIsland = () => {
         const copyRect = document.querySelector(".cap-copy")?.getBoundingClientRect();
         const safeTop = parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--hardware-safe-top")) || 0;
+        const compactNotch = document.body.classList.contains("has-display-notch") && island.classList.contains("activity-mode") && !island.classList.contains("expanded");
         return {
           hasNotch: document.body.classList.contains("has-display-notch"),
           safeTop,
           backgroundColor: getComputedStyle(island).backgroundColor,
-          contentTop: copyRect?.top ?? 0,
-          contentClearsNotch: !document.body.classList.contains("has-display-notch") || (copyRect?.top ?? 0) >= safeTop,
+          contentTop: compactNotch ? safeTop : copyRect?.top ?? 0,
+          contentClearsNotch: compactNotch || !document.body.classList.contains("has-display-notch") || (copyRect?.top ?? 0) >= safeTop,
           fireworksRendered: Boolean(installFireworks.querySelector("svg")),
           sessionCount: sessionList.querySelectorAll(".session-card").length,
           activityDetailVisible: !activityDetail.hidden,
+          attentionVisible: !attentionPanel.hidden,
+          attentionActionCount: attentionPanel.querySelectorAll("button[data-attention-action]").length,
+          animatedAgentCount: document.querySelectorAll(".agent-avatar-orbit").length,
+          mascotCount: document.querySelectorAll(".agent-mascot").length,
+          mascotStates: [...document.querySelectorAll(".agent-avatar[data-visual-state]")].map((item) => item.dataset.visualState),
+          sessionMascotJumpCount: document.querySelectorAll('.session-agent-icon[title^="Return to"]').length,
+          animationsPaused: document.body.classList.contains("animations-paused"),
           contributionCount: document.querySelectorAll(".island-contribution, .contribution-pill").length,
           notchAgentCount: notchAgents.children.length,
           capAgentCount: capAgents.children.length,
@@ -791,6 +1011,7 @@
       };
       window.dismissOpenLeashNotice = () => { island.classList.add("leaving"); island.classList.remove("expanded"); resize(); };
       window.expandOpenLeashIsland = () => setExpanded(true);
+      window.clickFirstSessionMascotForVerification = () => sessionList.querySelector(".session-agent-icon")?.click();
 
       function renderIslandMenu(menu) {
         $("menuProtection").textContent = menu.protection || "Protection status unavailable";
@@ -870,6 +1091,13 @@
         if (payload.canJump) actions.append(button("Open agent", "secondary", "jump"));
         actions.append(button("Dismiss", "primary", "dismiss"));
       }
+      function renderCompleted(payload) {
+        island.classList.add("activity-mode");
+        capAgents.appendChild(animatedAgentIcon(payload, "cap-agent", "completed"));
+        notchAgents.appendChild(animatedAgentIcon(payload, "notch-agent", "completed"));
+        renderActivity(payload);
+        requestAnimationFrame(updateActivityCompactWidth);
+      }
       function renderInstallSuccess() {
         summary.hidden = true;
         installSuccess.hidden = false;
@@ -897,35 +1125,122 @@
         summary.hidden = true;
         activityPanel.hidden = false;
         const sessions = Array.isArray(payload.sessions) ? payload.sessions : [];
-        renderNotchRail(sessions, payload.contributions || [], payload.tokenSaver);
+        const attention = payload.attention;
+        renderNotchRail(sessions, payload.contributions || [], payload.tokenSaver, attention);
+        if (attention?.id) renderInlineAttention(attention);
+        sessionSectionLabel.textContent = sessions.length ? "Live agents" : attention?.id ? "Agent activity" : "Status";
+        sessionSectionLabel.hidden = false;
+        if (sessions.length === 0) {
+          const idle = document.createElement("div"); idle.className = "idle-island-state";
+          idle.textContent = attention?.id ? "No other agents are working right now." : "No agents are working right now. OpenLeash is watching.";
+          sessionList.appendChild(idle);
+        }
         sessions.forEach((session, index) => {
           const card = document.createElement("button"); card.type = "button"; card.className = "session-card";
-          const icon = document.createElement("span"); icon.className = "session-agent-icon";
-          if (session.agentIcon) { const image = document.createElement("img"); image.src = session.agentIcon; image.alt = ""; icon.appendChild(image); }
-          else icon.textContent = initials(session.agentName);
+          const visualState = session.visualState || "processing";
+          const icon = animatedAgentIcon(session, "session-agent-icon", visualState);
+          icon.title = `Return to ${session.agentName || "agent"} session`;
+          icon.addEventListener("click", (event) => {
+            event.stopPropagation(); setExpanded(false); bridge.jumpToAgent({ agentKind: session.agentKind, session });
+          });
           const copy = document.createElement("span"); copy.className = "session-copy";
           const heading = document.createElement("span"); heading.className = "session-title"; heading.textContent = session.project && session.project !== "Workspace" ? `${session.project} · ${session.title}` : session.title;
           const meta = document.createElement("span"); meta.className = "session-meta"; meta.textContent = `${session.agentName} · ${session.time || "now"}`;
           const action = document.createElement("span"); action.className = "session-action"; action.textContent = session.latestAction || "Working";
           copy.append(heading, meta, action);
           renderContributionPills(copy, session.contributions || []);
-          const live = document.createElement("span"); live.className = "session-live"; live.textContent = "Active";
+          const live = document.createElement("span"); live.className = `session-live ${visualState}`;
+          live.textContent = visualState === "waiting" ? "Waiting" : visualState === "running" ? "Active" : "Thinking";
           card.append(icon, copy, live);
           card.addEventListener("click", () => selectActivitySession(session, card));
           sessionList.appendChild(card);
-          if (index === 0) selectActivitySession(session, card);
+          if (index === 0 && !attention?.id) selectActivitySession(session, card);
         });
         (payload.contributions || []).forEach((contribution) => ambientContributions.appendChild(contributionCard(contribution)));
         hint.textContent = "";
       }
 
-      function renderNotchRail(sessions, ambient, tokenSaverStatus) {
-        sessions.slice(0, 4).forEach((session) => {
-          const agent = document.createElement("span"); agent.className = "notch-agent running"; agent.title = `${session.agentName} working`;
-          if (session.agentIcon) { const image = document.createElement("img"); image.src = session.agentIcon; image.alt = ""; agent.appendChild(image); }
-          else agent.textContent = initials(session.agentName);
-          notchAgents.appendChild(agent);
-          const compactAgent = agent.cloneNode(true); compactAgent.className = "cap-agent running"; capAgents.appendChild(compactAgent);
+      function renderInlineAttention(attention) {
+        attentionPanel.hidden = false;
+        attentionPanel.innerHTML = "";
+        const interaction = attention.interaction?.type || "approval";
+        const head = document.createElement("div"); head.className = "attention-head";
+        const icon = animatedAgentIcon(attention, "session-agent-icon", attention.visualState || "waiting");
+        const copy = document.createElement("div"); copy.className = "attention-copy";
+        const heading = document.createElement("div"); heading.className = "attention-title"; heading.textContent = attention.title || "Agent needs your attention";
+        const meta = document.createElement("div"); meta.className = "attention-meta"; meta.textContent = [attention.agentName, attention.project, attention.pluginName].filter(Boolean).join(" · ");
+        copy.append(heading, meta);
+        const badge = document.createElement("span"); badge.className = "attention-badge"; badge.textContent = interaction === "questions" ? "Question" : interaction === "plan" ? "Plan" : "Approval";
+        head.append(icon, copy, badge);
+        const body = document.createElement("div"); body.className = "attention-body";
+        if (attention.summary) { const text = document.createElement("p"); text.className = "attention-summary"; text.textContent = attention.summary; body.appendChild(text); }
+        if (attention.evidence) { const request = document.createElement("pre"); request.className = "attention-evidence"; request.textContent = attention.evidence; body.appendChild(request); }
+
+        const guidanceInput = document.createElement("textarea"); guidanceInput.className = "attention-guidance"; guidanceInput.maxLength = 500;
+        const rememberChoice = document.createElement("input"); rememberChoice.type = "checkbox";
+        const actionRow = document.createElement("div"); actionRow.className = "attention-actions";
+        const addAction = (label, className, action, handler) => {
+          const item = button(label, className, action); item.dataset.attentionAction = action;
+          item.addEventListener("click", () => { attentionPanel.querySelectorAll("button").forEach((candidate) => candidate.disabled = true); handler(); });
+          actionRow.appendChild(item); return item;
+        };
+
+        if (interaction === "questions") {
+          const answerValues = new Map();
+          const optionArea = document.createElement("div"); optionArea.className = "attention-options";
+          const syncSubmit = () => { submit.disabled = (attention.interaction?.questions || []).some((item) => { const answer = answerValues.get(item.question); return Array.isArray(answer) ? answer.length === 0 : !answer; }); };
+          for (const question of attention.interaction?.questions || []) {
+            const group = document.createElement("div"); group.className = "attention-question";
+            const label = document.createElement("div"); label.className = "attention-summary"; label.textContent = question.question; group.appendChild(label);
+            for (const option of question.options || []) {
+              const optionButton = document.createElement("button"); optionButton.type = "button"; optionButton.className = "attention-option"; optionButton.textContent = option.label;
+              optionButton.addEventListener("click", () => {
+                if (question.multiSelect) {
+                  const values = new Set(Array.isArray(answerValues.get(question.question)) ? answerValues.get(question.question) : []);
+                  values.has(option.label) ? values.delete(option.label) : values.add(option.label);
+                  answerValues.set(question.question, [...values]); optionButton.classList.toggle("selected");
+                } else {
+                  answerValues.set(question.question, option.label);
+                  group.querySelectorAll(".attention-option").forEach((candidate) => candidate.classList.toggle("selected", candidate === optionButton));
+                }
+                const other = group.querySelector('input[type="text"]'); if (other) other.value = "";
+                syncSubmit();
+              });
+              group.appendChild(optionButton);
+            }
+            const other = document.createElement("input"); other.type = "text"; other.placeholder = "Type another answer…";
+            other.addEventListener("input", () => { if (other.value.trim()) { answerValues.set(question.question, other.value.trim()); group.querySelectorAll(".attention-option").forEach((candidate) => candidate.classList.remove("selected")); } syncSubmit(); });
+            group.appendChild(other); optionArea.appendChild(group);
+          }
+          body.appendChild(optionArea);
+          const submit = addAction("Send answer", "answer", "answer", () => bridge.resolve(attention.id, "allow", "", 0, { ...(attention.interaction?.originalInput || {}), answers: Object.fromEntries(answerValues) }));
+          actionRow.classList.add("single"); submit.disabled = true;
+        } else if (interaction === "plan") {
+          if (attention.interaction?.markdown) { const planText = document.createElement("pre"); planText.className = "attention-evidence"; planText.textContent = attention.interaction.markdown; body.appendChild(planText); }
+          guidanceInput.placeholder = "Feedback if you want the agent to revise the plan"; body.appendChild(guidanceInput);
+          addAction("Request changes", "danger", "deny", () => bridge.resolve(attention.id, "deny", guidanceInput.value, 0));
+          addAction("Approve plan", "primary", "approve-plan", () => bridge.resolve(attention.id, "allow", "", 0, attention.interaction?.originalInput || {}));
+        } else {
+          if (attention.supportsGuidance) { guidanceInput.placeholder = "Optional guidance for the agent"; body.appendChild(guidanceInput); }
+          const rememberLabel = document.createElement("label"); rememberLabel.className = "remember"; rememberLabel.append(rememberChoice, document.createTextNode(" Remember this choice for 5 minutes")); body.appendChild(rememberLabel);
+          addAction("Deny", "danger", "deny", () => bridge.resolve(attention.id, "deny", guidanceInput.value, rememberChoice.checked ? 300000 : 0));
+          addAction("Approve", "primary", "allow", () => bridge.resolve(attention.id, "allow", "", rememberChoice.checked ? 300000 : 0));
+        }
+        body.appendChild(actionRow);
+        attentionPanel.append(head, body);
+      }
+
+      function renderNotchRail(sessions, ambient, tokenSaverStatus, attention) {
+        const visibleAgents = [];
+        if (attention?.id) visibleAgents.push({ ...attention, visualState: "waiting" });
+        for (const session of sessions) {
+          const duplicate = visibleAgents.some((agent) => agent.agentKind && session.agentKind && agent.agentKind === session.agentKind && agent.project === session.project);
+          if (!duplicate) visibleAgents.push({ ...session, visualState: session.visualState || "processing" });
+        }
+        if (visibleAgents.length === 0) visibleAgents.push({ agentKind: "openleash-idle", agentName: "OpenLeash", agentIcon: "openleash-icon.png", visualState: "idle" });
+        visibleAgents.slice(0, 4).forEach((session) => {
+          notchAgents.appendChild(animatedAgentIcon(session, "notch-agent", session.visualState));
+          capAgents.appendChild(animatedAgentIcon(session, "cap-agent", session.visualState));
         });
         const contributions = [...sessions.flatMap((session) => session.contributions || []), ...ambient];
         const tokenSaver = contributions.find((item) => item.pluginId === "openleash.prompt-compression" && item.value) || tokenSaverStatus;
@@ -1035,8 +1350,8 @@
         }
         actions.querySelectorAll("button").forEach((item) => item.disabled = true);
         if (action === "dismiss") return requestDismiss();
-        if (action === "jump-session") return bridge.jumpToAgent({ agentKind: current.selectedSession?.agentKind, session: current.selectedSession });
-        if (action === "jump") return bridge.jumpToAgent({ agentKind: current.agentKind, session: current.session });
+        if (action === "jump-session") { setExpanded(false); return bridge.jumpToAgent({ agentKind: current.selectedSession?.agentKind, session: current.selectedSession }); }
+        if (action === "jump") { setExpanded(false); return bridge.jumpToAgent({ agentKind: current.agentKind, session: current.session }); }
         if (action === "answer") { const original = current.interaction?.originalInput || {}; return bridge.resolve(current.id, "allow", "", 0, { ...original, answers: Object.fromEntries(selectedAnswers) }); }
         if (action === "approve-plan") return bridge.resolve(current.id, "allow", "", 0, current.interaction?.originalInput || {});
         const resolution = action === "allow" ? "allow" : "deny";
@@ -1060,7 +1375,7 @@
       });
 
       bridge.onNotice?.(renderNotice);
-      const preview = new URLSearchParams(location.search).get("preview");
+      const preview = previewParams.get("preview");
       if (!window.openleash && !nativeHandler && preview) {
         const fixtures = {
           approval: { kind: "ask", id: "preview", agentName: "Claude Code", title: "Permission request", summary: "Claude wants to edit the authentication middleware.", purpose: "Update token verification without touching unrelated files.", evidence: "Edit src/auth/middleware.ts\n- jwt.verify(token)\n+ verifyAccessToken(token)", project: "openleash", pluginName: "blast-radius", time: "now", supportsGuidance: true, interaction: { type: "approval" } },
@@ -1068,10 +1383,14 @@
           plan: { kind: "plan_review", id: "preview", agentName: "OpenAI Codex", title: "Codex has a plan", summary: "Review the proposed changes before work begins.", project: "desktop-client", time: "now", interaction: { type: "plan", markdown: "1. Add the native top-edge panel\n2. Share the renderer with Windows\n3. Verify expansion, focus, and dismissal\n4. Package and run upgrade tests" } },
           completed: { kind: "completed", agentName: "Claude Code", agentKind: "claude", title: "Claude finished", summary: "Authentication middleware updated and all tests pass.", project: "openleash", time: "now", canJump: true },
           installed: { kind: "install_success", agentName: "OpenLeash", agentIcon: "openleash-icon.png", title: "Installation complete", summary: "OpenLeash installed" },
+          unified: { kind: "activity", agentName: "OpenLeash", agentIcon: "openleash-icon.png", title: "1 approval waiting", project: "Claude Code needs your attention", pendingCount: 1, autoExpand: true, attention: { kind: "ask", id: "preview", agentKind: "claude-code", agentName: "Claude Code", agentIcon: "agent-icons/claude.svg", visualState: "waiting", title: "Outside sandbox", summary: "Claude needs network access to compile the release binary.", evidence: "$ cargo build --release --target aarch64-apple-darwin", project: "api-server", pluginName: "blast-radius", supportsGuidance: true, interaction: { type: "approval" } }, sessions: [
+            { id: "claude", agentKind: "claude-code", agentName: "Claude Code", agentIcon: "agent-icons/claude.svg", visualState: "waiting", project: "api-server", title: "Compile release binary", summary: "Preparing the production artifact.", latestAction: "Waiting for approval", time: "now", eventCount: 8, canJump: true },
+            { id: "codex", agentKind: "codex", agentName: "OpenAI Codex", agentIcon: "agent-icons/openai.svg", visualState: "running", project: "design-system", title: "Refresh design tokens", summary: "Updating shared components.", latestAction: "Editing files", time: "12s", eventCount: 12, canJump: true },
+          ], contributions: [] },
           activity: { kind: "activity", agentName: "OpenLeash", agentIcon: "openleash-icon.png", title: "3 agents working", project: "3 active sessions", sessions: [
-            { id: "claude", agentKind: "claude-code", agentName: "Claude Code", agentIcon: "agent-icons/claude.svg", project: "client-api", title: "Correct approval attribution", summary: "Tracing policy ownership and notification labels.", latestAction: "Running tests", time: "now", eventCount: 8, canJump: true, events: [{ tool_name: "Bash", created_at: new Date().toISOString() }] },
-            { id: "codex", sessionId: "codex-session", agentKind: "codex", agentName: "OpenAI Codex", agentIcon: "agent-icons/openai.svg", project: "desktop-client", title: "Build multi-agent activity island", summary: "Implementing the compact and expanded session experience.", latestAction: "Editing notice.html", time: "now", eventCount: 12, canJump: true, events: [{ tool_name: "Edit", created_at: new Date().toISOString() }], contributions: [{ pluginId: "openleash.blast-radius", pluginName: "blast-radius", pluginIcon: "💥", kind: "annotation", label: "Destructive filesystem operation", detail: "Recursive deletion affects this workspace.", value: "critical", tone: "danger", action: { id: "open", label: "Open session", type: "open-session" } }] },
-            { id: "gemini", agentKind: "gemini", agentName: "Google Gemini CLI", agentIcon: "agent-icons/gemini.svg", project: "docs-web", title: "Review agent setup docs", summary: "Checking supported-agent instructions.", latestAction: "Reading documentation", time: "1m", eventCount: 4, canJump: false, events: [{ event_name: "PostToolUse", created_at: new Date(Date.now() - 60_000).toISOString() }] },
+            { id: "claude", agentKind: "claude-code", agentName: "Claude Code", agentIcon: "agent-icons/claude.svg", visualState: "running", project: "client-api", title: "Correct approval attribution", summary: "Tracing policy ownership and notification labels.", latestAction: "Running tests", time: "now", eventCount: 8, canJump: true, events: [{ tool_name: "Bash", created_at: new Date().toISOString() }] },
+            { id: "codex", sessionId: "codex-session", agentKind: "codex", agentName: "OpenAI Codex", agentIcon: "agent-icons/openai.svg", visualState: "processing", project: "desktop-client", title: "Build multi-agent activity island", summary: "Implementing the compact and expanded session experience.", latestAction: "Editing notice.html", time: "now", eventCount: 12, canJump: true, events: [{ tool_name: "Edit", created_at: new Date().toISOString() }], contributions: [{ pluginId: "openleash.blast-radius", pluginName: "blast-radius", pluginIcon: "💥", kind: "annotation", label: "Destructive filesystem operation", detail: "Recursive deletion affects this workspace.", value: "critical", tone: "danger", action: { id: "open", label: "Open session", type: "open-session" } }] },
+            { id: "gemini", agentKind: "gemini", agentName: "Google Gemini CLI", agentIcon: "agent-icons/gemini.svg", visualState: "processing", project: "docs-web", title: "Review agent setup docs", summary: "Checking supported-agent instructions.", latestAction: "Reading documentation", time: "1m", eventCount: 4, canJump: false, events: [{ event_name: "PostToolUse", created_at: new Date(Date.now() - 60_000).toISOString() }] },
           ], contributions: [{ pluginId: "community.test-progress", pluginName: "test-progress", pluginIcon: "TP", kind: "status", title: "Test suite running", detail: "18 of 24 tests passed.", tone: "info", progress: { current: 18, total: 24, label: "18 / 24" } }] },
         };
         renderNotice(fixtures[preview] || fixtures.approval);

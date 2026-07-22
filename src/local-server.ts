@@ -230,7 +230,7 @@ type Store = {
   installIdentity?: string;
   introSeen?: boolean;
   agentDoneSound?: boolean;
-  islandHidden?: boolean;
+  islandActivityOnly?: boolean;
   clientMode?: ClientMode;
   remoteApiUrl?: string;
   remoteToken?: string;
@@ -419,7 +419,7 @@ export class LocalOpenLeashServer {
       installIdentity: this.store?.installIdentity,
       introSeen,
       agentDoneSound: this.store?.agentDoneSound ?? false,
-      islandHidden: this.store?.islandHidden ?? false,
+      islandActivityOnly: this.store?.islandActivityOnly ?? false,
       clientMode: initialClientMode(),
       promptTransforms: this.store?.promptTransforms ?? defaultPromptTransformConfig,
       plugins: bundledPluginCatalog(),
@@ -435,7 +435,7 @@ export class LocalOpenLeashServer {
       setupComplete: false,
       introSeen: false,
       agentDoneSound: false,
-      islandHidden: false,
+      islandActivityOnly: false,
       clientMode: initialClientMode(),
       promptTransforms: defaultPromptTransformConfig,
       plugins: bundledPluginCatalog(),
@@ -531,12 +531,12 @@ export class LocalOpenLeashServer {
     return Boolean(this.store.agentDoneSound);
   }
 
-  get islandHidden() {
-    return Boolean(this.store.islandHidden);
+  get islandActivityOnly() {
+    return Boolean(this.store.islandActivityOnly);
   }
 
-  updateIslandHidden(hidden: boolean) {
-    this.store.islandHidden = hidden;
+  updateIslandActivityOnly(activityOnly: boolean) {
+    this.store.islandActivityOnly = activityOnly;
     this.writeStore();
   }
 
@@ -553,10 +553,16 @@ export class LocalOpenLeashServer {
     this.pluginRuntimeStatuses = statuses;
   }
 
-  updateSettings(apiProvider: "openai" | "anthropic", apiKey?: string, agentDoneSound?: boolean) {
+  updateSettings(
+    apiProvider: "openai" | "anthropic",
+    apiKey?: string,
+    agentDoneSound?: boolean,
+    islandActivityOnly?: boolean,
+  ) {
     this.store.apiProvider = undefined;
     this.store.apiKey = undefined;
     if (typeof agentDoneSound === "boolean") this.store.agentDoneSound = agentDoneSound;
+    if (typeof islandActivityOnly === "boolean") this.store.islandActivityOnly = islandActivityOnly;
     this.writeStore();
   }
 
@@ -1144,7 +1150,7 @@ export class LocalOpenLeashServer {
       installIdentity: this.settingValue("installIdentity"),
       introSeen: this.getSetting("introSeen") === "true",
       agentDoneSound: this.getSetting("agentDoneSound") === "true",
-      islandHidden: this.getSetting("islandHidden") === "true",
+      islandActivityOnly: this.getSetting("islandActivityOnly") === "true",
       clientMode: normalizeClientMode(this.settingValue<ClientMode>("clientMode") ?? initialClientMode()),
       remoteApiUrl: configuredRemoteApiUrl,
       remoteToken,
@@ -1269,7 +1275,7 @@ export class LocalOpenLeashServer {
       if (store.installIdentity) insertSetting.run("installIdentity", store.installIdentity);
       insertSetting.run("introSeen", String(Boolean(store.introSeen)));
       insertSetting.run("agentDoneSound", String(Boolean(store.agentDoneSound)));
-      insertSetting.run("islandHidden", String(Boolean(store.islandHidden)));
+      insertSetting.run("islandActivityOnly", String(Boolean(store.islandActivityOnly)));
       if (store.clientMode) insertSetting.run("clientMode", store.clientMode);
       if (store.remoteApiUrl) insertSetting.run("remoteApiUrl", store.remoteApiUrl);
       if (store.remoteToken) insertSetting.run("remoteToken", store.remoteToken);
@@ -1651,7 +1657,7 @@ export class LocalOpenLeashServer {
         installIdentity: parsed.installIdentity,
         clientMode: parsedClientMode,
         agentDoneSound: Boolean(parsed.agentDoneSound),
-        islandHidden: Boolean(parsed.islandHidden),
+        islandActivityOnly: Boolean(parsed.islandActivityOnly),
         remoteApiUrl: parsed.remoteApiUrl,
         remoteToken: parsed.remoteToken,
         remoteOrganization: parsed.remoteOrganization,

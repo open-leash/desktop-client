@@ -57,10 +57,6 @@ import {
   type LocalProxyStatus,
 } from "./proxy-manager";
 import { reconcilePluginContainers } from "./plugin-container-manager";
-import {
-  AutomaticNoticeRegistry,
-  noticeIsCurrentlyPresented,
-} from "./notice-presentation";
 import { pendingIntentKey as stablePendingIntentKey } from "./intent-dedupe";
 import {
   activeAgentSessions,
@@ -68,8 +64,16 @@ import {
   ambientIslandContributions,
   contributionsForSession,
   excludeCompletedAgentSessions,
+  prioritizeAgentSessions,
   type ActiveAgentSession,
 } from "./activity-island";
+import {
+  focusAgentSession,
+  isAgentSessionFrontmost,
+  shouldAutoExpandAttention,
+  type AgentSessionFocusTarget,
+} from "./agent-session-focus";
+import { clampNoticeWindowSize } from "./notice-window";
 
 const APP_DISPLAY_NAME = app.isPackaged ? "OpenLeash" : "OpenLeash (Dev)";
 let proxyStatus: LocalProxyStatus = {
@@ -406,8 +410,9 @@ function isPersonalEmailDomain(email?: string) {
 }
 let activeNoticeKey: string | undefined;
 let noticeDismissTimer: NodeJS.Timeout | undefined;
+let completionNoticeTimer: NodeJS.Timeout | undefined;
+let completionNoticeUntil = 0;
 let suppressedNoticeKeys = new Set<string>();
-const automaticallyPresentedDecisionNotices = new AutomaticNoticeRegistry();
 const rememberedApprovalChoices = new Map<
   string,
   { resolution: "allow" | "deny"; expiresAt: number }
@@ -839,6 +844,7 @@ ipcMain.handle("openleash:list", () => ({
   apiProvider: localServer?.apiProvider ?? "openai",
   apiKeySet: localServer?.apiKeySet ?? false,
   agentDoneSound: localServer?.agentDoneSound ?? false,
+  islandActivityOnly: localServer?.islandActivityOnly ?? false,
   promptTransforms: localServer?.promptTransforms,
   plugins:
     latestPlugins.length > 0 ? latestPlugins : (localServer?.plugins ?? []),
@@ -1630,6 +1636,7 @@ ipcMain.handle(
       apiProvider: payload.apiProvider === "anthropic" ? "anthropic" : "openai",
       apiKeySet: localServer.apiKeySet,
       agentDoneSound: localServer.agentDoneSound,
+      islandActivityOnly: localServer.islandActivityOnly,
       promptTransforms: localServer.promptTransforms,
       plugins: latestPlugins,
       outcomes: latestOutcomes,
@@ -1731,6 +1738,7 @@ ipcMain.handle(
       apiProvider?: "openai" | "anthropic";
       apiKey?: string;
       agentDoneSound?: boolean;
+      islandActivityOnly?: boolean;
     },
   ) => {
     localServer.updateSettings(
@@ -1739,12 +1747,17 @@ ipcMain.handle(
       typeof payload.agentDoneSound === "boolean"
         ? payload.agentDoneSound
         : undefined,
+      typeof payload.islandActivityOnly === "boolean"
+        ? payload.islandActivityOnly
+        : undefined,
     );
+    syncActivityIsland(true);
     return {
       ok: true,
       apiProvider: "openai",
       apiKeySet: false,
       agentDoneSound: localServer.agentDoneSound,
+      islandActivityOnly: localServer.islandActivityOnly,
     };
   },
 );
@@ -1980,10 +1993,7 @@ ipcMain.handle("openleash:dismiss-notice", () => {
 });
 ipcMain.handle("openleash:resize-notice", (_event, requestedSize: number | { width?: number; height?: number }) => {
   if (!noticeWindow || noticeWindow.isDestroyed()) return { ok: false };
-  const requestedWidth = typeof requestedSize === "object" ? requestedSize?.width : undefined;
-  const requestedHeight = typeof requestedSize === "object" ? requestedSize?.height : requestedSize;
-  const width = Math.max(230, Math.min(620, Math.round(Number(requestedWidth) || noticeWindow.getBounds().width)));
-  const height = Math.max(44, Math.min(680, Math.round(Number(requestedHeight) || 52)));
+  const { width, height } = clampNoticeWindowSize(requestedSize, noticeWindow.getBounds().width);
   const display = screen.getDisplayNearestPoint(screen.getCursorScreenPoint()).bounds;
   noticeWindow.setBounds({
     x: Math.round(display.x + (display.width - width) / 2),
@@ -1993,8 +2003,8 @@ ipcMain.handle("openleash:resize-notice", (_event, requestedSize: number | { wid
   });
   return { ok: true };
 });
-ipcMain.handle("openleash:jump-to-agent", async (_event, payload: { agentKind?: string }) => {
-  return openAgentApplication(payload?.agentKind);
+ipcMain.handle("openleash:jump-to-agent", async (_event, payload: AgentSessionFocusTarget & { session?: AgentSessionFocusTarget }) => {
+  return openAgentApplication(payload?.session ?? payload);
 });
 ipcMain.handle("openleash:plugin-island-action", async (_event, payload: unknown) => {
   return handlePluginIslandAction(payload);
@@ -2032,6 +2042,7 @@ async function resolveDecision(
   }
   closeNoticeWithoutOpeningMainWindow();
   latestPending = latestPending.filter((item) => !idsToResolve.includes(item.id));
+  setTimeout(() => syncActivityIsland(true), 180);
   refreshMenu();
   window?.webContents.send("openleash:update", {
     apiUrl,
@@ -2110,6 +2121,7 @@ async function poll() {
       apiProvider: localServer.apiProvider ?? "openai",
       apiKeySet: localServer.apiKeySet,
       agentDoneSound: localServer.agentDoneSound,
+      islandActivityOnly: localServer.islandActivityOnly,
       plugins: latestPlugins,
       outcomes: latestOutcomes,
       viewModel: latestViewModel,
@@ -2127,29 +2139,7 @@ async function poll() {
     const nextPending = latestPending[0];
     if (nextPending) {
       const key = decisionNoticeKey(nextPending);
-      const alreadyPresented = noticeIsCurrentlyPresented({
-        requestedKey: key,
-        activeKey: activeNoticeKey,
-        nativeVisible: Boolean(
-          nativeIslandProcess &&
-          !nativeIslandProcess.killed &&
-          pendingNativeIslandPayload,
-        ),
-        browserVisible: Boolean(
-          noticeWindow &&
-          !noticeWindow.isDestroyed() &&
-          noticeWindow.isVisible(),
-        ),
-      });
-      if (
-        !suppressedNoticeKeys.has(key) &&
-        !alreadyPresented &&
-        automaticallyPresentedDecisionNotices.shouldPresent(
-          automaticDecisionNoticeKey(nextPending),
-        )
-      ) {
-        showDecisionNotice({ kind: "ask", pending: nextPending });
-      }
+      if (!suppressedNoticeKeys.has(key)) syncActivityIsland(false, nextPending);
     } else if (activeNoticeKey?.startsWith("ask:")) {
       noticeWindow?.close();
       noticeWindow = undefined;
@@ -2735,13 +2725,6 @@ function pendingNoticeKey(item: PendingDecision) {
 
 function decisionNoticeKey(item: PendingDecision) {
   return `ask:${item.id}`;
-}
-
-function automaticDecisionNoticeKey(item: PendingDecision) {
-  const intentKey = canonicalIntentKey(rawIntentKey(item.payload));
-  return intentKey
-    ? `intent:${item.agent_kind}:${item.project_path ?? ""}:${intentKey}`
-    : decisionNoticeKey(item);
 }
 
 function rememberedDecisionKey(item: PendingDecision) {
@@ -4555,6 +4538,7 @@ function showMainWindow(
       apiProvider: localServer?.apiProvider ?? "openai",
       apiKeySet: localServer?.apiKeySet ?? false,
       agentDoneSound: localServer?.agentDoneSound ?? false,
+      islandActivityOnly: localServer?.islandActivityOnly ?? false,
       pending: latestPending,
       agents: latestAgents,
       sessionMetrics: latestSessionMetrics,
@@ -4728,11 +4712,10 @@ function expandVisibleIsland() {
 
 function revealIslandFromTray() {
   if (!app.isReady() || !localServer) return;
-  localServer.updateIslandHidden(false);
   if (expandVisibleIsland()) return;
   const pending = latestPending[0];
   if (pending) {
-    showDecisionNotice({ kind: "ask", pending });
+    syncActivityIsland(true, pending);
     return;
   }
   syncActivityIsland(true);
@@ -4741,15 +4724,17 @@ function revealIslandFromTray() {
 function dismissNoticeByUser() {
   if (activeNoticeKey?.startsWith("activity:")) return;
   closeNoticeWithoutOpeningMainWindow();
+  setTimeout(() => syncActivityIsland(true), 180);
 }
 
 function handlePluginIslandAction(payload: unknown) {
   if (!payload || typeof payload !== "object") return { ok: false };
-  const input = payload as { action?: { type?: string }; session?: { agentKind?: string } };
+  const input = payload as { action?: { type?: string }; session?: AgentSessionFocusTarget };
   const type = input.action?.type;
-  if (type === "open-session") return openAgentApplication(input.session?.agentKind);
+  if (type === "open-session") return openAgentApplication(input.session);
   if (type === "open-plugin-settings" || type === "open-plugin-outcome") {
     closeNoticeWithoutOpeningMainWindow();
+    setTimeout(() => syncActivityIsland(true), 180);
     showMainWindow("settings");
     return { ok: true };
   }
@@ -4777,11 +4762,6 @@ function islandMenuState() {
 }
 
 function handleIslandCommand(command: string) {
-  if (command === "hide-island") {
-    localServer.updateIslandHidden(true);
-    closeNoticeWithoutOpeningMainWindow();
-    return { ok: true };
-  }
   if (command === "settings" || command === "protection" || command === "proxy") {
     showMainWindow("settings");
     return { ok: true };
@@ -4792,7 +4772,7 @@ function handleIslandCommand(command: string) {
   }
   if (command === "approvals") {
     const pending = latestPending[0];
-    if (pending) showDecisionNotice({ kind: "ask", pending });
+    if (pending) syncActivityIsland(true, pending);
     return { ok: Boolean(pending) };
   }
   if (command === "quit") {
@@ -4802,7 +4782,20 @@ function handleIslandCommand(command: string) {
   return { ok: false };
 }
 
-function syncActivityIsland(force = false) {
+function activityNoticeKey(
+  sessions: ActiveAgentSession[],
+  contributions: PluginIslandContribution[],
+  pending?: PendingDecision,
+) {
+  const activity = activityIslandKey(sessions);
+  const pluginActivity = contributions
+    .map((item) => `${item.pluginId}:${item.key}`)
+    .sort()
+    .join("|");
+  return `${activity}:${pluginActivity}:attention:${pending?.id ?? "idle"}`;
+}
+
+function syncActivityIsland(force = false, pending = latestPending[0]) {
   const sessions = currentActiveAgentSessions();
   const contributions = latestIslandContributions.filter((contribution) =>
     Date.parse(contribution.expiresAt) > Date.now()
@@ -4810,19 +4803,26 @@ function syncActivityIsland(force = false) {
   const hasNonTokenSaverContribution = contributions.some(
     (contribution) => contribution.pluginId !== "openleash.prompt-compression",
   );
-  if (sessions.length === 0 && !hasNonTokenSaverContribution) {
+  const hasVisibleActivity = sessions.length > 0 || hasNonTokenSaverContribution;
+  if (!pending && !hasVisibleActivity && Date.now() < completionNoticeUntil) return;
+  if (!pending && !hasVisibleActivity && localServer.islandActivityOnly) {
     if (activeNoticeKey?.startsWith("activity:")) closeNoticeWithoutOpeningMainWindow();
     return;
   }
-  if (!force && localServer.islandHidden) return;
-  const key = `${activityIslandKey(sessions)}:${contributions.map((item) => `${item.pluginId}:${item.key}`).sort().join("|")}`;
+  const key = activityNoticeKey(sessions, contributions, pending);
   const fingerprint = JSON.stringify({
     sessions: sessions.map((session) => [session.id, session.lastActivityAt, session.latestAction, session.eventCount]),
     contributions: contributions.map((item) => [item.id, item.updatedAt, item.expiresAt]),
+    pending: pending
+      ? [pending.id, pending.created_at, pending.summary, pending.question]
+      : undefined,
   });
-  if (activeNoticeKey === key && activeActivityFingerprint === fingerprint) return;
+  if (!force && activeNoticeKey === key && activeActivityFingerprint === fingerprint) return;
   activeActivityFingerprint = fingerprint;
-  showDecisionNotice({ kind: "activity", sessions, contributions });
+  const autoExpand = pending
+    ? (force || shouldAutoExpandAttention(isAgentSessionFrontmost(focusTargetForPending(pending, sessions))))
+    : false;
+  showDecisionNotice({ kind: "activity", sessions, contributions, pending, autoExpand });
 }
 
 function currentActiveAgentSessions() {
@@ -4894,7 +4894,13 @@ function fitMainWindowOnLargestDisplay(target: BrowserWindow) {
 type DecisionNotice =
   | { kind: "ask"; pending: PendingDecision }
   | { kind: "attention"; event: AttentionEvent }
-  | { kind: "activity"; sessions: ActiveAgentSession[]; contributions: PluginIslandContribution[] }
+  | {
+      kind: "activity";
+      sessions: ActiveAgentSession[];
+      contributions: PluginIslandContribution[];
+      pending?: PendingDecision;
+      autoExpand?: boolean;
+    }
   | {
       kind: "install_success";
       agentName: string;
@@ -5011,9 +5017,9 @@ function handleNativeIslandMessage(line: string) {
   }
   if (message.action === "jump") {
     const payload = message.payload && typeof message.payload === "object"
-      ? message.payload as { agentKind?: string }
+      ? message.payload as AgentSessionFocusTarget & { session?: AgentSessionFocusTarget }
       : undefined;
-    void openAgentApplication(payload?.agentKind);
+    void openAgentApplication(payload?.session ?? payload);
     return;
   }
   if (message.action === "plugin-action") {
@@ -5053,7 +5059,7 @@ function showDecisionNotice(notice: DecisionNotice) {
       : notice.kind === "attention"
         ? notice.event.id
         : notice.kind === "activity"
-          ? `${activityIslandKey(notice.sessions)}:${notice.contributions.map((item) => `${item.pluginId}:${item.key}`).sort().join("|")}`
+          ? activityNoticeKey(notice.sessions, notice.contributions, notice.pending)
         : notice.kind;
   const payload = {
     ...(formatNotice(notice) as Record<string, unknown>),
@@ -5134,34 +5140,38 @@ function showDecisionNotice(notice: DecisionNotice) {
 function scheduleAttentionDismiss(noticeKey: string) {
   if (noticeDismissTimer) clearTimeout(noticeDismissTimer);
   noticeDismissTimer = setTimeout(() => {
-    if (activeNoticeKey === noticeKey) closeNoticeWithoutOpeningMainWindow();
+    if (activeNoticeKey === noticeKey) syncActivityIsland(true);
   }, 5200);
+}
+
+function formatPendingNotice(item: PendingDecision) {
+  return {
+    kind: "ask",
+    id: item.id,
+    agentName: item.agent_name,
+    agentKind: item.agent_kind,
+    agentIcon: noticeAgentIconFor(item.agent_name),
+    action: friendlyAction(item.event_name, item.tool_name),
+    title: approvalTitle(item),
+    summary: approvalSummary(item),
+    purpose: undefined,
+    evidence: item.quote || requestText(item.payload),
+    contextSummary: precedingContextSummary(item),
+    detail: noticeDetail(item),
+    policy: item.triggered_policies?.[0]?.policy_name,
+    pluginName: noticePluginName(item),
+    project: projectTag(item.project_path),
+    time: timeAgo(item.created_at),
+    supportsGuidance: supportsAgentGuidance(item.agent_kind),
+    pendingCount: latestPending.length,
+    visualState: "waiting",
+    interaction: interactionForPending(item),
+  };
 }
 
 function formatNotice(notice: DecisionNotice) {
   if (notice.kind === "ask") {
-    const item = notice.pending;
-    const action = friendlyAction(item.event_name, item.tool_name);
-    return {
-      kind: "ask",
-      id: item.id,
-      agentName: item.agent_name,
-      agentIcon: noticeAgentIconFor(item.agent_name),
-      action,
-      title: approvalTitle(item),
-      summary: approvalSummary(item),
-      purpose: undefined,
-      evidence: item.quote || requestText(item.payload),
-      contextSummary: precedingContextSummary(item),
-      detail: noticeDetail(item),
-      policy: item.triggered_policies?.[0]?.policy_name,
-      pluginName: noticePluginName(item),
-      project: projectTag(item.project_path),
-      time: timeAgo(item.created_at),
-      supportsGuidance: supportsAgentGuidance(item.agent_kind),
-      pendingCount: latestPending.length,
-      interaction: interactionForPending(item),
-    };
+    return formatPendingNotice(notice.pending);
   }
   if (notice.kind === "attention") {
     return {
@@ -5177,11 +5187,17 @@ function formatNotice(notice: DecisionNotice) {
       time: timeAgo(notice.event.createdAt),
       session: notice.event.session,
       canJump: canOpenAgent(notice.event.agent?.kind),
+      visualState: notice.event.kind === "completed" ? "completed" : undefined,
     };
   }
   if (notice.kind === "activity") {
+    const rankedSessions = prioritizeAgentSessions(notice.sessions, notice.pending ? {
+      agentKind: notice.pending.agent_kind,
+      projectPath: notice.pending.project_path,
+      sessionId: pendingSessionId(notice.pending),
+    } : undefined);
     const decorated = notice.contributions.map(decorateIslandContribution);
-    const sourceSessionIds = notice.sessions.flatMap((session) => session.sourceSessionIds);
+    const sourceSessionIds = rankedSessions.flatMap((session) => session.sourceSessionIds);
     const ambient = ambientIslandContributions(decorated, sourceSessionIds);
     const tokenSaverContribution = decorated
       .filter((item) => item.pluginId === "openleash.prompt-compression" && item.value)
@@ -5203,13 +5219,22 @@ function formatNotice(notice: DecisionNotice) {
       kind: "activity",
       agentName: "OpenLeash",
       agentIcon: noticeAgentIconFor("OpenLeash"),
-      title: notice.sessions.length === 0
-        ? `${notice.contributions.length} plugin update${notice.contributions.length === 1 ? "" : "s"}`
+      title: notice.pending
+        ? `${latestPending.length} approval${latestPending.length === 1 ? "" : "s"} waiting`
+        : notice.sessions.length === 0 && notice.contributions.length === 0
+          ? "OpenLeash"
+        : notice.sessions.length === 0
+          ? `${notice.contributions.length} plugin update${notice.contributions.length === 1 ? "" : "s"}`
         : notice.sessions.length === 1 ? "Agent working" : `${notice.sessions.length} agents working`,
-      project: notice.sessions.length === 0
+      project: notice.pending
+        ? `${notice.pending.agent_name} needs your attention`
+        : notice.sessions.length === 0 && notice.contributions.length === 0
+          ? "Watching your agents"
+        : notice.sessions.length === 0
         ? "Plugin activity"
         : `${notice.sessions.length} active session${notice.sessions.length === 1 ? "" : "s"}`,
-      sessions: notice.sessions.map((session) => ({
+      autoExpand: notice.autoExpand ?? Boolean(notice.pending),
+      sessions: rankedSessions.map((session) => ({
         ...session,
         agentIcon: noticeAgentIconFor(session.agentName),
         canJump: canOpenAgent(session.agentKind),
@@ -5218,6 +5243,8 @@ function formatNotice(notice: DecisionNotice) {
       })),
       contributions: ambient,
       tokenSaver,
+      attention: notice.pending ? formatPendingNotice(notice.pending) : undefined,
+      pendingCount: latestPending.length,
     };
   }
   if (notice.kind === "sample") {
@@ -5457,7 +5484,16 @@ function handleLocalAgentStop(event: { agent: string; body: unknown }) {
     },
   };
   seenAttentionEventIds.add(attention.id);
-  if (!latestPending.length) showDecisionNotice({ kind: "attention", event: attention });
+  if (!latestPending.length) {
+    completionNoticeUntil = Date.now() + 3_200;
+    if (completionNoticeTimer) clearTimeout(completionNoticeTimer);
+    showDecisionNotice({ kind: "attention", event: attention });
+    completionNoticeTimer = setTimeout(() => {
+      completionNoticeUntil = 0;
+      completionNoticeTimer = undefined;
+      syncActivityIsland(true);
+    }, 3_200);
+  }
   if (localServer.agentDoneSound) playAgentDoneSound();
 }
 
@@ -5490,45 +5526,38 @@ function playAgentDoneSound() {
   process.stdout.write("\x07");
 }
 
-function openAgentApplication(agentKind?: string) {
-  const kind = String(agentKind ?? "").toLowerCase();
-  try {
-    if (process.platform === "darwin") {
-      const appName = kind === "cursor"
-        ? "Cursor"
-        : kind === "github-copilot"
-          ? "Visual Studio Code"
-          : "Terminal";
-      const child = spawn("open", ["-a", appName], {
-        stdio: "ignore",
-        detached: true,
-      });
-      child.unref();
-      closeNoticeWithoutOpeningMainWindow();
-      return { ok: true, exact: false };
-    }
-    if (process.platform === "win32") {
-      const candidates = kind === "cursor"
-        ? ["Cursor"]
-        : kind === "github-copilot"
-          ? ["Code", "Visual Studio Code"]
-          : ["WindowsTerminal", "Windows Terminal", "Code", "Cursor"];
-      const script = `$shell = New-Object -ComObject WScript.Shell; $names = @(${candidates.map((name) => `'${name.replace(/'/g, "''")}'`).join(",")}); foreach ($name in $names) { if ($shell.AppActivate($name)) { exit 0 } }; exit 1`;
-      const child = spawn("powershell.exe", ["-NoProfile", "-NonInteractive", "-Command", script], {
-        stdio: "ignore",
-        detached: true,
-      });
-      child.unref();
-      closeNoticeWithoutOpeningMainWindow();
-      return { ok: true, exact: false };
-    }
-    return { ok: false, error: "Agent activation is supported on macOS and Windows." };
-  } catch (error) {
-    return {
-      ok: false,
-      error: error instanceof Error ? error.message : "Could not open the agent.",
-    };
-  }
+function openAgentApplication(target?: string | AgentSessionFocusTarget) {
+  const session = typeof target === "string" ? { agentKind: target } : target ?? {};
+  return focusAgentSession(session);
+}
+
+function focusTargetForPending(
+  pending: PendingDecision,
+  sessions = currentActiveAgentSessions(),
+): AgentSessionFocusTarget {
+  const project = projectTag(pending.project_path);
+  const sessionId = pendingSessionId(pending);
+  const match = sessions.find((session) =>
+    session.agentKind === pending.agent_kind &&
+    (sessionId ? session.sourceSessionIds.includes(sessionId) : true) &&
+    (pending.project_path ? session.projectPath === pending.project_path : true)
+  ) ?? sessions.find((session) => session.agentKind === pending.agent_kind && session.project === project);
+  return {
+    agentKind: pending.agent_kind,
+    agentName: pending.agent_name,
+    sessionId: sessionId ?? match?.sessionId,
+    sourceSessionIds: match?.sourceSessionIds,
+    projectPath: pending.project_path ?? match?.projectPath,
+    project: match?.project ?? project,
+    title: match?.title ?? pending.summary,
+  };
+}
+
+function pendingSessionId(item: PendingDecision) {
+  const payload = objectValue(item.payload);
+  const raw = objectValue(payload?.raw);
+  const value = payload?.session_id ?? payload?.sessionId ?? raw?.session_id ?? raw?.sessionId;
+  return typeof value === "string" && value.trim() ? value.trim() : undefined;
 }
 
 async function configureLocalAgent() {

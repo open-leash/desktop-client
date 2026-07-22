@@ -37,6 +37,7 @@ export type ActiveAgentSession = {
   sourceSessionIds: string[];
   agentKind: string;
   agentName: string;
+  projectPath?: string;
   project: string;
   title: string;
   summary: string;
@@ -45,6 +46,13 @@ export type ActiveAgentSession = {
   durationSeconds: number;
   eventCount: number;
   events: ActivityIslandEvent[];
+  visualState: "processing" | "running" | "waiting";
+};
+
+export type AgentAttentionTarget = {
+  agentKind?: string;
+  projectPath?: string;
+  sessionId?: string;
 };
 
 const TERMINAL_EVENTS = new Set(["sessionend", "stop", "completed", "agentstop"]);
@@ -77,6 +85,7 @@ export function activeAgentSessions(
         sourceSessionIds: [session.session_id ?? session.id],
         agentKind: agent.kind,
         agentName: agent.display_name,
+        projectPath,
         project: projectName(projectPath),
         title: userFacingText(latestPrompt?.prompt) || userFacingText(session.title) || userFacingText(agent.short_summary) || "Agent working",
         summary: friendlySummary(session.summary) || userFacingText(agent.short_summary) || "Agent is working",
@@ -85,10 +94,26 @@ export function activeAgentSessions(
         durationSeconds: Math.max(0, Number(session.duration_seconds ?? 0)),
         eventCount: Math.max(1, Number(session.event_count ?? session.events?.length ?? 1)),
         events: visibleEvents.map(sanitizeEvent).slice(0, 5),
+        visualState: activeVisualState(latestEvent, agent),
       }];
     });
   }).sort((left, right) => Date.parse(right.lastActivityAt) - Date.parse(left.lastActivityAt));
   return dedupeSessions(sessions);
+}
+
+export function prioritizeAgentSessions(
+  sessions: ActiveAgentSession[],
+  attention?: AgentAttentionTarget,
+) {
+  return sessions
+    .map((session) => attentionMatchesSession(attention, session)
+      ? { ...session, visualState: "waiting" as const }
+      : session)
+    .sort((left, right) => {
+      const stateDifference = visualStatePriority(right.visualState) - visualStatePriority(left.visualState);
+      if (stateDifference) return stateDifference;
+      return Date.parse(right.lastActivityAt) - Date.parse(left.lastActivityAt);
+    });
 }
 
 export function activityIslandKey(sessions: ActiveAgentSession[]) {
@@ -184,6 +209,31 @@ function syntheticSession(agent: ActivityIslandSourceAgent): ActivityIslandSourc
     last_activity_at: agent.activity_at,
     event_count: 1,
   };
+}
+
+function activeVisualState(event: ActivityIslandEvent | undefined, agent: ActivityIslandSourceAgent): ActiveAgentSession["visualState"] {
+  const eventName = cleanText(event?.event_name ?? agent.event_name).toLowerCase();
+  return cleanText(event?.tool_name ?? agent.tool_name) || /(?:pre|post)?tooluse|tool_call|command/.test(eventName)
+    ? "running"
+    : "processing";
+}
+
+function attentionMatchesSession(attention: AgentAttentionTarget | undefined, session: ActiveAgentSession) {
+  if (!attention?.agentKind || attention.agentKind !== session.agentKind) return false;
+  if (attention.sessionId && session.sourceSessionIds.includes(attention.sessionId)) return true;
+  const attentionPath = normalizedPath(attention.projectPath);
+  const sessionPath = normalizedPath(session.projectPath);
+  return !attentionPath || !sessionPath || attentionPath === sessionPath;
+}
+
+function visualStatePriority(state: ActiveAgentSession["visualState"]) {
+  if (state === "waiting") return 3;
+  if (state === "running") return 2;
+  return 1;
+}
+
+function normalizedPath(value?: string) {
+  return String(value ?? "").replace(/[\\/]+$/, "").toLowerCase();
 }
 
 function isRecent(value: string, now: number, activeWithinMs: number) {

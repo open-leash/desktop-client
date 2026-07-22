@@ -158,6 +158,10 @@ private final class IslandController: NSObject, WKNavigationDelegate, WKScriptMe
         webView.evaluateJavaScript("window.toggleOpenLeashIslandMenuForVerification && window.toggleOpenLeashIslandMenuForVerification()")
     }
 
+    func clickFirstSessionMascotForVerification() {
+        webView.evaluateJavaScript("window.clickFirstSessionMascotForVerification && window.clickFirstSessionMascotForVerification()")
+    }
+
     func expand() {
         webView.evaluateJavaScript("window.expandOpenLeashIsland && window.expandOpenLeashIsland()")
         panel.orderFrontRegardless()
@@ -263,6 +267,8 @@ private struct OpenLeashIslandApplication {
                         controller.expandActivityForVerification()
                     case "openMenu":
                         controller.openMenuForVerification()
+                    case "clickSessionMascot":
+                        controller.clickFirstSessionMascotForVerification()
                     case "expand":
                         controller.expand()
                     case "quit":

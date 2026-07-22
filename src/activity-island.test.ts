@@ -6,6 +6,7 @@ import {
   ambientIslandContributions,
   contributionsForSession,
   excludeCompletedAgentSessions,
+  prioritizeAgentSessions,
 } from "./activity-island";
 import type { PluginIslandContribution } from "@openleash/shared";
 
@@ -31,6 +32,36 @@ test("builds active island sessions consistently across supported coding agents"
   assert.deepEqual(new Set(sessions.map((session) => session.agentKind)), new Set(supportedAgents));
   assert.equal(sessions[0]?.latestAction, "Reading your request");
   assert.equal(sessions[1]?.latestAction, "Updating a file");
+  assert.equal(sessions[0]?.visualState, "processing");
+  assert.equal(sessions[1]?.visualState, "running");
+});
+
+test("prioritizes attention, then tool activity, then processing", () => {
+  const base = {
+    sessionId: "session",
+    sourceSessionIds: ["session"],
+    agentName: "Agent",
+    project: "project",
+    projectPath: "/code/project",
+    title: "Task",
+    summary: "Working",
+    latestAction: "Working",
+    lastActivityAt: "2026-07-20T10:00:00.000Z",
+    durationSeconds: 2,
+    eventCount: 1,
+    events: [],
+  };
+  const ranked = prioritizeAgentSessions([
+    { ...base, id: "processing", agentKind: "gemini", visualState: "processing" },
+    { ...base, id: "running", agentKind: "codex", visualState: "running" },
+    { ...base, id: "attention", agentKind: "claude-code", visualState: "processing" },
+  ], { agentKind: "claude-code", projectPath: "/code/project" });
+
+  assert.deepEqual(ranked.map((session) => [session.id, session.visualState]), [
+    ["attention", "waiting"],
+    ["running", "running"],
+    ["processing", "processing"],
+  ]);
 });
 
 test("shows the latest user request and explains tools in plain language", () => {
@@ -198,6 +229,7 @@ test("keeps a finished turn hidden until that session has newer activity", () =>
     sourceSessionIds: ["claude-session"],
     agentKind: "claude-code",
     agentName: "Claude Code",
+    projectPath: "/code/MyProj",
     project: "MyProj",
     title: "copy the environment file",
     summary: "Agent is working",
@@ -206,6 +238,7 @@ test("keeps a finished turn hidden until that session has newer activity", () =>
     durationSeconds: 1,
     eventCount: 2,
     events: [],
+    visualState: "processing" as const,
   };
   const completions = new Map([["claude-session", completedAt]]);
 
