@@ -323,7 +323,9 @@ async fn forward(
     let mut transformed = false;
     let mut applied_plugin_ids = Vec::new();
     let mut container_plugin_runs = Vec::new();
-    if intercept {
+    let background_control_request =
+        intercept && is_background_control_request(&agent_kind, &value);
+    if intercept && !background_control_request {
         let transformation = tokio::time::timeout(
             Duration::from_secs(app.config.evaluation_timeout_seconds),
             transform_request(&app, &parts.uri.to_string(), &value, &agent_kind),
@@ -423,7 +425,11 @@ async fn forward(
         .and_then(|value| value.to_str().ok())
         .unwrap_or("")
         .to_owned();
-    if intercept && status.is_success() && request_can_produce_tools(&value) {
+    if intercept
+        && !background_control_request
+        && status.is_success()
+        && request_can_produce_tools(&value)
+    {
         let _gate_permit = app.gate_slots.acquire().await.map_err(|_| {
             (
                 StatusCode::SERVICE_UNAVAILABLE,
@@ -498,6 +504,7 @@ async fn forward(
     let report_app = app.clone();
     let report_path = parts.uri.to_string();
     let report_agent = agent_kind.clone();
+    let report_agent_response = intercept && !background_control_request;
     tokio::spawn(async move {
         let mut captured = Vec::new();
         while let Some(chunk) = stream.next().await {
@@ -511,7 +518,7 @@ async fn forward(
                 return;
             }
         }
-        if !captured.is_empty() {
+        if report_agent_response && !captured.is_empty() {
             let _ = report_response(
                 &report_app,
                 &report_path,
@@ -1249,6 +1256,20 @@ fn latest_prompt(body: &Value) -> Option<String> {
         .map(str::to_owned)
 }
 
+fn is_background_control_request(agent_kind: &str, body: &Value) -> bool {
+    if agent_kind != "claude-code" || request_can_produce_tools(body) {
+        return false;
+    }
+    let Some(prompt) = latest_prompt(body) else {
+        return false;
+    };
+    let normalized = prompt.to_ascii_lowercase();
+    normalized.contains("<session>")
+        && normalized.contains("</session>")
+        && normalized.contains("write the title in the predominant language of the session")
+        && normalized.contains("ignore the language of the examples above")
+}
+
 fn replace_latest_prompt(body: &mut Value, replacement: &str) {
     if body.get("input").and_then(Value::as_str).is_some() {
         body["input"] = Value::String(replacement.into());
@@ -1542,5 +1563,26 @@ mod tests {
 
         let response = json!({"choices":[{"message":{"tool_calls":[{"function":{"name":"shell","arguments":"{\"cmd\":\"pwd\"}"}}]}}]});
         assert_eq!(response_tool(&response).unwrap()["name"], "shell");
+    }
+    #[test]
+    fn recognizes_claude_session_title_generation_as_background_control_traffic() {
+        let request = json!({
+            "messages": [{
+                "role": "user",
+                "content": "<session>\ndelete all the tables in test.db sqlite file\n</session>\n\nWrite the title in the predominant language of the session — a stray word or code token in another language doesn't change it. Ignore the language of the examples above."
+            }]
+        });
+        assert!(is_background_control_request("claude-code", &request));
+        assert!(!is_background_control_request("codex", &request));
+    }
+    #[test]
+    fn does_not_hide_an_ordinary_session_wrapped_user_prompt() {
+        let request = json!({
+            "messages": [{
+                "role": "user",
+                "content": "<session>delete all the tables in test.db sqlite file</session>"
+            }]
+        });
+        assert!(!is_background_control_request("claude-code", &request));
     }
 }
