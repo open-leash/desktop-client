@@ -30,6 +30,7 @@ import {
 import {
   LocalOpenLeashServer,
   normalizePolicies,
+  type LocalAgentActivity,
   type Policy,
 } from "./local-server";
 import { apiVersionHeaders } from "./api-contract";
@@ -62,9 +63,11 @@ import {
   activeAgentSessions,
   activityIslandKey,
   ambientIslandContributions,
+  applyCompletedAgentSessions,
   contributionsForSession,
-  excludeCompletedAgentSessions,
+  mergeImmediateAgentActivity,
   prioritizeAgentSessions,
+  type ActivityIslandSourceAgent,
   type ActiveAgentSession,
 } from "./activity-island";
 import {
@@ -73,7 +76,13 @@ import {
   shouldAutoExpandAttention,
   type AgentSessionFocusTarget,
 } from "./agent-session-focus";
-import { clampNoticeWindowSize } from "./notice-window";
+import { clampNoticeWindowSize, isPointInNoticeBounds, type NoticeWindowSize } from "./notice-window";
+import {
+  activityPresentationKey,
+  approvalPresentationKey,
+  matchingPendingSourceIds,
+  preferPreviouslyPresentedPending,
+} from "./notice-presentation";
 
 const APP_DISPLAY_NAME = app.isPackaged ? "OpenLeash" : "OpenLeash (Dev)";
 let proxyStatus: LocalProxyStatus = {
@@ -341,8 +350,9 @@ let nativeIslandOutput = "";
 let pendingNativeIslandPayload: Record<string, unknown> | undefined;
 let activeActivityFingerprint: string | undefined;
 let latestPending: PendingDecision[] = [];
+let latestPendingSources: PendingDecision[] = [];
 let latestAgents: AgentStatus[] = [];
-const completedAgentSessions = new Map<string, number>();
+const completedAgentSessions = new Map<string, { completedAt: number; response?: string }>();
 let latestSessionMetrics: SessionMetrics = {};
 let latestPlugins: PluginCatalogItem[] = [];
 let latestOutcomes: PluginOutcome[] = [];
@@ -351,6 +361,13 @@ let latestAttentionEvents: AttentionEvent[] = [];
 let latestIslandContributions: PluginIslandContribution[] = [];
 const seenAttentionEventIds = new Set<string>();
 const desktopStartedAt = Date.now();
+let pollInFlight = false;
+let pollQueued = false;
+const pendingRefreshTimers = new Set<NodeJS.Timeout>();
+const immediateActivityHints = new Map<string, {
+  source: ActivityIslandSourceAgent;
+  expiresAt: number;
+}>();
 let localProtections: LocalAgentProtection[] = [];
 let localProtectionCheckedAt = 0;
 
@@ -431,6 +448,8 @@ const pendingSkillScans = new Map<string, NodeJS.Timeout>();
 const observedSkillHashes = new Map<string, string>();
 let skillWatcherSyncTimer: NodeJS.Timeout | undefined;
 let quitting = false;
+let desktopStartupComplete = false;
+let revealExistingInstanceOnReady = false;
 let pendingDesktopAuth:
   | {
       apiUrl: string;
@@ -661,6 +680,7 @@ if (!singleInstanceLock) {
 } else {
   startupLog("single instance lock acquired");
   app.on("second-instance", (_event, argv) => {
+    startupLog(`second launch forwarded argv=${argv.join(" ")}`);
     const authUrl = argv.find((value) => value.startsWith("openleash://"));
     if (authUrl) {
       void handleDesktopAuthCallback(authUrl);
@@ -674,11 +694,11 @@ if (!singleInstanceLock) {
       });
       return;
     }
-    restoreMainWindow();
+    revealRunningInstance();
   });
 }
 
-app
+if (singleInstanceLock) app
   .whenReady()
   .then(async () => {
     startupLog("ready");
@@ -710,6 +730,7 @@ app
     localServer = new LocalOpenLeashServer(app.getPath("userData"), {
       onAgentStop: handleLocalAgentStop,
       onRemoteHookForward: refreshPendingApprovalsSoon,
+      onAgentActivity: handleImmediateAgentActivity,
     });
     startupLog(`local server constructed at ${app.getPath("userData")}`);
     syncInstallIdentity();
@@ -793,7 +814,9 @@ app
     void poll();
     setInterval(poll, 3000);
     void maybeOfferUpdate();
-    if (!openedAsHidden) {
+    desktopStartupComplete = true;
+    if (!openedAsHidden || revealExistingInstanceOnReady) {
+      revealExistingInstanceOnReady = false;
       showMainWindow(localServer.setupComplete ? "settings" : "setup");
       startupLog("main window shown");
     }
@@ -1991,16 +2014,28 @@ ipcMain.handle(
 ipcMain.handle("openleash:dismiss-notice", () => {
   dismissNoticeByUser();
 });
-ipcMain.handle("openleash:resize-notice", (_event, requestedSize: number | { width?: number; height?: number }) => {
+ipcMain.handle("openleash:resize-notice", (_event, requestedSize: number | NoticeWindowSize) => {
   if (!noticeWindow || noticeWindow.isDestroyed()) return { ok: false };
   const { width, height } = clampNoticeWindowSize(requestedSize, noticeWindow.getBounds().width);
   const display = screen.getDisplayNearestPoint(screen.getCursorScreenPoint()).bounds;
-  noticeWindow.setBounds({
+  const windowBounds = {
     x: Math.round(display.x + (display.width - width) / 2),
     y: Math.round(display.y + (process.platform === "darwin" ? 0 : 10)),
     width,
     height,
-  });
+  };
+  noticeWindow.setBounds(windowBounds);
+  const interactiveBounds = typeof requestedSize === "object" ? requestedSize.interactiveBounds : undefined;
+  noticeWindow.setIgnoreMouseEvents(
+    !isPointInNoticeBounds(screen.getCursorScreenPoint(), windowBounds, interactiveBounds),
+    { forward: true },
+  );
+  return { ok: true };
+});
+ipcMain.handle("openleash:set-notice-pointer-inside", (event, inside: unknown) => {
+  if (!noticeWindow || noticeWindow.isDestroyed() || event.sender !== noticeWindow.webContents)
+    return { ok: false };
+  noticeWindow.setIgnoreMouseEvents(!Boolean(inside), { forward: true });
   return { ok: true };
 });
 ipcMain.handle("openleash:jump-to-agent", async (_event, payload: AgentSessionFocusTarget & { session?: AgentSessionFocusTarget }) => {
@@ -2020,7 +2055,8 @@ async function resolveDecision(
   rememberForMs?: number,
   responsePayload?: Record<string, unknown>,
 ) {
-  const pending = latestPending.find((item) => item.id === id);
+  const pending = latestPending.find((item) => item.id === id)
+    ?? latestPendingSources.find((item) => item.id === id);
   if (pending && Number(rememberForMs) > 0) {
     rememberedApprovalChoices.set(rememberedDecisionKey(pending), {
       resolution,
@@ -2029,19 +2065,27 @@ async function resolveDecision(
   }
   const noticeKey = pending ? decisionNoticeKey(pending) : activeNoticeKey;
   if (noticeKey) suppressedNoticeKeys.add(noticeKey);
-  const idsToResolve = pending
-    ? latestPending
-        .filter((item) => pendingNoticeKey(item) === pendingNoticeKey(pending))
-        .map((item) => item.id)
-    : [id];
+  const idsToResolve = matchingPendingSourceIds(
+    pending,
+    latestPendingSources,
+    pendingNoticeKey,
+    id,
+  );
   for (const decisionId of idsToResolve) resolvingDecisionIds.add(decisionId);
+  let resolvedLocally = false;
   for (const decisionId of idsToResolve) {
-    if (!localServer.resolve(decisionId, resolution, resolutionGuidance, responsePayload)) {
-      startupLog(`approval resolve missing local decision ${decisionId}`);
-    }
+    resolvedLocally = Boolean(localServer.resolve(
+      decisionId,
+      resolution,
+      resolutionGuidance,
+      responsePayload,
+    )) || resolvedLocally;
   }
+  if (!resolvedLocally && !localServer.remoteApiUrl)
+    startupLog(`approval resolve did not match a local decision for ${pending ? pendingNoticeKey(pending) : id}`);
   closeNoticeWithoutOpeningMainWindow();
   latestPending = latestPending.filter((item) => !idsToResolve.includes(item.id));
+  latestPendingSources = latestPendingSources.filter((item) => !idsToResolve.includes(item.id));
   setTimeout(() => syncActivityIsland(true), 180);
   refreshMenu();
   window?.webContents.send("openleash:update", {
@@ -2056,15 +2100,14 @@ async function resolveDecision(
     mcpServers: localServer.mcpServers,
     skills: localServer.skills,
   });
-  void Promise.all(
+  void Promise.allSettled(
     idsToResolve.map((decisionId) =>
       syncRemoteDecision(decisionId, resolution, resolutionGuidance, responsePayload),
     ),
   )
-    .catch((error) => {
-      startupLog(
-        `remote approval resolve failed: ${error instanceof Error ? error.stack || error.message : String(error)}`,
-      );
+    .then((results) => {
+      if (localServer.remoteApiUrl && results.every((result) => result.status === "rejected"))
+        startupLog(`remote approval resolve failed for ${pending ? pendingNoticeKey(pending) : id}`);
     })
     .finally(() => {
       for (const decisionId of idsToResolve) resolvingDecisionIds.delete(decisionId);
@@ -2076,17 +2119,23 @@ async function resolveDecision(
 }
 
 async function poll() {
+  if (pollInFlight) {
+    pollQueued = true;
+    return;
+  }
+  pollInFlight = true;
   try {
     await refreshLocalProtections();
     syncSkillWatchers();
     const body = await fetchTrayState();
     if (!body) return setDisconnected();
     applyRememberedApprovalChoices(body.pending);
-    latestPending = dedupePending(body.pending.filter(
+    latestPendingSources = body.pending.filter(
       (item) =>
         !resolvingDecisionIds.has(item.id) &&
         !suppressedNoticeKeys.has(decisionNoticeKey(item)),
-    ));
+    );
+    latestPending = dedupePending(latestPendingSources, latestPending);
     latestAgents = body.agents;
     latestSessionMetrics = body.sessionMetrics ?? {};
     latestPlugins = body.plugins;
@@ -2172,17 +2221,26 @@ async function poll() {
   } catch {
     await refreshLocalProtections();
     setDisconnected();
+  } finally {
+    pollInFlight = false;
+    if (pollQueued) {
+      pollQueued = false;
+      void poll();
+    }
   }
 }
 
 function refreshPendingApprovalsSoon() {
+  if (pendingRefreshTimers.size > 0) return;
   for (const delayMs of [
     100, 250, 500, 750, 1000, 1500, 2000, 3000, 4000, 5000, 7000, 10000, 15000,
     20000, 30000,
   ]) {
-    setTimeout(() => {
+    const timer = setTimeout(() => {
+      pendingRefreshTimers.delete(timer);
       void poll();
     }, delayMs);
+    pendingRefreshTimers.add(timer);
   }
 }
 
@@ -2675,7 +2733,7 @@ function mergeTrayState(
   if (!localState)
     return { ...remoteState, plugins, outcomes, viewModel: latestViewModel };
   return {
-    pending: dedupePending([...localState.pending, ...remoteState.pending]),
+    pending: [...localState.pending, ...remoteState.pending],
     agents: dedupeById([...localState.agents, ...remoteState.agents]),
     sessionMetrics: remoteState.sessionMetrics ?? localState.sessionMetrics,
     attentionEvents: dedupeById([
@@ -2698,14 +2756,8 @@ function dedupeById<T extends { id: string }>(items: T[]) {
   });
 }
 
-function dedupePending(items: PendingDecision[]) {
-  const seen = new Set<string>();
-  return items.filter((item) => {
-    const key = pendingNoticeKey(item);
-    if (seen.has(key)) return false;
-    seen.add(key);
-    return true;
-  });
+function dedupePending(items: PendingDecision[], previous: PendingDecision[] = []) {
+  return preferPreviouslyPresentedPending(items, previous, pendingNoticeKey);
 }
 
 function pendingNoticeKey(item: PendingDecision) {
@@ -2724,7 +2776,7 @@ function pendingNoticeKey(item: PendingDecision) {
 }
 
 function decisionNoticeKey(item: PendingDecision) {
-  return `ask:${item.id}`;
+  return approvalPresentationKey(pendingNoticeKey(item), item.id);
 }
 
 function rememberedDecisionKey(item: PendingDecision) {
@@ -2736,18 +2788,27 @@ function applyRememberedApprovalChoices(items: PendingDecision[]) {
   for (const [key, choice] of rememberedApprovalChoices) {
     if (choice.expiresAt <= now) rememberedApprovalChoices.delete(key);
   }
+  const appliedIntents = new Set<string>();
   for (const item of items) {
     if (resolvingDecisionIds.has(item.id)) continue;
     const choice = rememberedApprovalChoices.get(rememberedDecisionKey(item));
     if (!choice || choice.expiresAt <= now) continue;
-    resolvingDecisionIds.add(item.id);
-    localServer.resolve(item.id, choice.resolution);
+    const intentKey = pendingNoticeKey(item);
+    if (appliedIntents.has(intentKey)) continue;
+    appliedIntents.add(intentKey);
+    const sourceIds = matchingPendingSourceIds(item, items, pendingNoticeKey, item.id);
+    for (const sourceId of sourceIds) {
+      resolvingDecisionIds.add(sourceId);
+      localServer.resolve(sourceId, choice.resolution);
+    }
     startupLog(
-      `remembered approval ${choice.resolution} applied to ${item.id}`,
+      `remembered approval ${choice.resolution} applied to ${intentKey}`,
     );
-    void syncRemoteDecision(item.id, choice.resolution).finally(() =>
-      resolvingDecisionIds.delete(item.id),
-    );
+    void Promise.allSettled(
+      sourceIds.map((sourceId) => syncRemoteDecision(sourceId, choice.resolution)),
+    ).finally(() => {
+      for (const sourceId of sourceIds) resolvingDecisionIds.delete(sourceId);
+    });
   }
 }
 
@@ -4675,6 +4736,14 @@ function restoreMainWindow() {
   showMainWindow(localServer.setupComplete ? "settings" : "setup");
 }
 
+function revealRunningInstance() {
+  revealExistingInstanceOnReady = true;
+  suppressMainWindowActivationUntil = 0;
+  if (!app.isReady() || !desktopStartupComplete || !localServer) return;
+  revealExistingInstanceOnReady = false;
+  showMainWindow(localServer.setupComplete ? "settings" : "setup");
+}
+
 function suppressMainWindowActivation(durationMs = 30000) {
   suppressMainWindowActivationUntil = Date.now() + durationMs;
 }
@@ -4745,6 +4814,7 @@ function islandMenuState() {
   const installedAgents = localProtections.filter((agent) => agent.installed);
   const protectedAgents = installedAgents.filter((agent) => agent.protected);
   const sessions = currentActiveAgentSessions();
+  const activeSessions = sessions.filter((session) => session.visualState !== "completed");
   return {
     protection: installedAgents.length === 0
       ? "No installed agents detected"
@@ -4754,7 +4824,11 @@ function islandMenuState() {
       : proxyStatus.running
         ? "Proxy starting"
         : "Proxy off",
-    sessions: `${sessions.length} active session${sessions.length === 1 ? "" : "s"}`,
+    sessions: activeSessions.length > 0
+      ? `${activeSessions.length} active session${activeSessions.length === 1 ? "" : "s"}`
+      : sessions.length > 0
+        ? `${sessions.length} recent session${sessions.length === 1 ? "" : "s"}`
+        : "No active sessions",
     approvals: latestPending.length === 0
       ? "No pending approvals"
       : `${latestPending.length} pending approval${latestPending.length === 1 ? "" : "s"}`,
@@ -4792,7 +4866,11 @@ function activityNoticeKey(
     .map((item) => `${item.pluginId}:${item.key}`)
     .sort()
     .join("|");
-  return `${activity}:${pluginActivity}:attention:${pending?.id ?? "idle"}`;
+  return activityPresentationKey({
+    activityKey: activity,
+    pluginActivity,
+    pendingKey: pending ? pendingNoticeKey(pending) : undefined,
+  });
 }
 
 function syncActivityIsland(force = false, pending = latestPending[0]) {
@@ -4810,13 +4888,22 @@ function syncActivityIsland(force = false, pending = latestPending[0]) {
     return;
   }
   const key = activityNoticeKey(sessions, contributions, pending);
-  const fingerprint = JSON.stringify({
-    sessions: sessions.map((session) => [session.id, session.lastActivityAt, session.latestAction, session.eventCount]),
-    contributions: contributions.map((item) => [item.id, item.updatedAt, item.expiresAt]),
-    pending: pending
-      ? [pending.id, pending.created_at, pending.summary, pending.question]
-      : undefined,
-  });
+  const fingerprint = JSON.stringify(pending
+    ? {
+        pending: [
+          pendingNoticeKey(pending),
+          pending.id,
+          pending.created_at,
+          pending.summary,
+          pending.question,
+          pending.quote,
+          latestPending.length,
+        ],
+      }
+    : {
+        sessions: sessions.map((session) => [session.id, session.lastActivityAt, session.latestAction, session.eventCount]),
+        contributions: contributions.map((item) => [item.id, item.updatedAt, item.expiresAt]),
+      });
   if (!force && activeNoticeKey === key && activeActivityFingerprint === fingerprint) return;
   activeActivityFingerprint = fingerprint;
   const autoExpand = pending
@@ -4827,20 +4914,40 @@ function syncActivityIsland(force = false, pending = latestPending[0]) {
 
 function currentActiveAgentSessions() {
   const cutoff = Date.now() - 10 * 60_000;
-  for (const [sessionId, completedAt] of completedAgentSessions) {
-    if (completedAt < cutoff) completedAgentSessions.delete(sessionId);
+  for (const [sessionId, completion] of completedAgentSessions) {
+    if (completion.completedAt < cutoff) completedAgentSessions.delete(sessionId);
   }
-  return excludeCompletedAgentSessions(activeAgentSessions(latestAgents), completedAgentSessions);
+  for (const [key, hint] of immediateActivityHints) {
+    if (hint.expiresAt <= Date.now()) immediateActivityHints.delete(key);
+  }
+  return applyCompletedAgentSessions(
+    activeAgentSessions([
+      ...latestAgents,
+      ...[...immediateActivityHints.values()].map((hint) => hint.source),
+    ]),
+    completedAgentSessions,
+  );
+}
+
+function handleImmediateAgentActivity(activity: LocalAgentActivity) {
+  const key = [activity.agentKind, activity.sessionId, activity.projectPath ?? "workspace"].join(":");
+  const previous = immediateActivityHints.get(key)?.source;
+  immediateActivityHints.set(key, {
+    source: mergeImmediateAgentActivity(previous, activity),
+    expiresAt: Date.now() + 15_000,
+  });
+  syncActivityIsland();
+  refreshPendingApprovalsSoon();
 }
 
 function rememberCompletedAgentSessions(events: AttentionEvent[]) {
   for (const event of events) {
     if (event.kind !== "completed" || !event.session?.id) continue;
     const completedAt = Date.parse(event.createdAt);
-    completedAgentSessions.set(
-      event.session.id,
-      Number.isFinite(completedAt) ? completedAt : Date.now(),
-    );
+    completedAgentSessions.set(event.session.id, {
+      completedAt: Number.isFinite(completedAt) ? completedAt : Date.now(),
+      response: event.body,
+    });
   }
 }
 
@@ -4962,6 +5069,12 @@ function ensureNativeIsland() {
       const message = chunk.trim();
       if (message) startupLog(`native island: ${message}`);
     });
+    child.stdin?.on("error", (error: NodeJS.ErrnoException) => {
+      if (error.code !== "EPIPE") startupLog(`native island input failed: ${error.message}`);
+      if (nativeIslandProcess === child) nativeIslandProcess = undefined;
+      nativeIslandReady = false;
+      if (!child.killed) child.kill();
+    });
     child.once("error", (error) => {
       startupLog(`native island failed: ${error.message}`);
     });
@@ -4980,8 +5093,15 @@ function ensureNativeIsland() {
 
 function sendNativeIsland(message: Record<string, unknown>) {
   if (!nativeIslandProcess?.stdin || nativeIslandProcess.stdin.destroyed) return false;
-  nativeIslandProcess.stdin.write(`${JSON.stringify(message)}\n`);
-  return true;
+  try {
+    nativeIslandProcess.stdin.write(`${JSON.stringify(message)}\n`);
+    return true;
+  } catch (error) {
+    startupLog(`native island write failed: ${error instanceof Error ? error.message : String(error)}`);
+    nativeIslandProcess = undefined;
+    nativeIslandReady = false;
+    return false;
+  }
 }
 
 function showNativeIsland(payload: Record<string, unknown>, noticeKey: string) {
@@ -5112,6 +5232,7 @@ function showDecisionNotice(notice: DecisionNotice) {
   });
   noticeWindow = createdNoticeWindow;
   hardenWindow(noticeWindow);
+  createdNoticeWindow.setIgnoreMouseEvents(true, { forward: true });
   noticeWindow.setAlwaysOnTop(true, "screen-saver");
   noticeWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
   noticeWindow.loadFile(path.join(here, "notice.html"));
@@ -5148,6 +5269,7 @@ function formatPendingNotice(item: PendingDecision) {
   return {
     kind: "ask",
     id: item.id,
+    intentKey: pendingNoticeKey(item),
     agentName: item.agent_name,
     agentKind: item.agent_kind,
     agentIcon: noticeAgentIconFor(item.agent_name),
@@ -5198,7 +5320,8 @@ function formatNotice(notice: DecisionNotice) {
     } : undefined);
     const decorated = notice.contributions.map(decorateIslandContribution);
     const sourceSessionIds = rankedSessions.flatMap((session) => session.sourceSessionIds);
-    const ambient = ambientIslandContributions(decorated, sourceSessionIds);
+    const ambient = ambientIslandContributions(decorated, sourceSessionIds)
+      .filter((item) => item.pluginId !== "openleash.prompt-compression");
     const tokenSaverContribution = decorated
       .filter((item) => item.pluginId === "openleash.prompt-compression" && item.value)
       .sort((left, right) => Date.parse(right.updatedAt) - Date.parse(left.updatedAt))[0];
@@ -5215,6 +5338,8 @@ function formatNotice(notice: DecisionNotice) {
           }
         : undefined
     );
+    const activeSessionCount = notice.sessions.filter((session) => session.visualState !== "completed").length;
+    const completedSessionCount = notice.sessions.length - activeSessionCount;
     return {
       kind: "activity",
       agentName: "OpenLeash",
@@ -5225,6 +5350,10 @@ function formatNotice(notice: DecisionNotice) {
           ? "OpenLeash"
         : notice.sessions.length === 0
           ? `${notice.contributions.length} plugin update${notice.contributions.length === 1 ? "" : "s"}`
+        : activeSessionCount === 0
+          ? notice.sessions.length === 1 ? "Agent finished" : `${notice.sessions.length} recent sessions`
+        : completedSessionCount > 0
+          ? `${activeSessionCount} working · ${completedSessionCount} done`
         : notice.sessions.length === 1 ? "Agent working" : `${notice.sessions.length} agents working`,
       project: notice.pending
         ? `${notice.pending.agent_name} needs your attention`
@@ -5232,7 +5361,11 @@ function formatNotice(notice: DecisionNotice) {
           ? "Watching your agents"
         : notice.sessions.length === 0
         ? "Plugin activity"
-        : `${notice.sessions.length} active session${notice.sessions.length === 1 ? "" : "s"}`,
+        : activeSessionCount === 0
+          ? `${notice.sessions.length} recent session${notice.sessions.length === 1 ? "" : "s"}`
+        : completedSessionCount > 0
+          ? `${activeSessionCount} active · ${completedSessionCount} recent`
+          : `${notice.sessions.length} active session${notice.sessions.length === 1 ? "" : "s"}`,
       autoExpand: notice.autoExpand ?? Boolean(notice.pending),
       sessions: rankedSessions.map((session) => ({
         ...session,
@@ -5463,7 +5596,6 @@ function handleLocalAgentStop(event: { agent: string; body: unknown }) {
   const body = objectValue(event.body);
   const agentName = localAgentDisplayName(event.agent);
   const sessionId = String(body?.session_id ?? body?.sessionId ?? "unknown");
-  if (sessionId !== "unknown") completedAgentSessions.set(sessionId, Date.now());
   const attention: AttentionEvent = {
     schemaVersion: "2026-07-19.v1",
     id: `local-completed:${event.agent}:${sessionId === "unknown" ? Date.now() : sessionId}`,
@@ -5480,9 +5612,15 @@ function handleLocalAgentStop(event: { agent: string; body: unknown }) {
     session: {
       id: sessionId,
       projectPath:
-        typeof body?.cwd === "string" ? body.cwd : undefined,
+      typeof body?.cwd === "string" ? body.cwd : undefined,
     },
   };
+  if (sessionId !== "unknown") {
+    completedAgentSessions.set(sessionId, {
+      completedAt: Date.parse(attention.createdAt),
+      response: attention.body,
+    });
+  }
   seenAttentionEventIds.add(attention.id);
   if (!latestPending.length) {
     completionNoticeUntil = Date.now() + 3_200;

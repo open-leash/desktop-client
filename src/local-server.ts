@@ -257,8 +257,20 @@ type SetupConfig = {
 type LocalServerOptions = {
   onAgentStop?: (event: { agent: string; eventName: string; body: unknown }) => void;
   onRemoteHookForward?: (event: { agent: string; eventName: string; body: unknown }) => void;
+  onAgentActivity?: (activity: LocalAgentActivity) => void;
   apiPort?: number;
   legacyAuthPort?: number;
+};
+
+export type LocalAgentActivity = {
+  agentKind: string;
+  agentName: string;
+  eventName: string;
+  sessionId: string;
+  projectPath?: string;
+  prompt?: string;
+  toolName?: string;
+  occurredAt: string;
 };
 
 function desktopExchangeRedirectUri(pathname: string) {
@@ -663,6 +675,7 @@ export class LocalOpenLeashServer {
       }
       if (req.method === "POST" && req.url === "/v1/evaluate") {
         const request = await readJson(req) as EvaluationRequest;
+        this.notifyAgentActivity(request);
         return json(res, await this.evaluate(request));
       }
       if (req.method === "POST" && req.url === "/v1/plugin-runtime/transform") {
@@ -710,11 +723,13 @@ export class LocalOpenLeashServer {
       }
       if (req.method === "POST" && req.url === "/v1/agent-events") {
         const body = await readJson(req);
+        this.notifyAgentActivity((body as { request?: unknown })?.request);
         return json(res, await this.forwardRemoteAgentEvent(body));
       }
       const hookMatch = req.url?.match(/^\/v1\/hooks\/([^/?]+)\/([^/?]+)(?:\?.*)?$/);
       if (req.method === "POST" && hookMatch) {
         const body = await readJson(req);
+        this.notifyAgentActivity(normalizeHookRequest(hookMatch[1], hookMatch[2], body, req.url ?? ""));
         const remoteDecision = await this.forwardRemoteHook(hookMatch[1], hookMatch[2], body, req.url ?? "");
         if (remoteDecision) {
           this.notifyAgentStop(hookMatch[1], hookMatch[2], body);
@@ -751,6 +766,24 @@ export class LocalOpenLeashServer {
         const expected = Buffer.from(candidate);
         return actual.length === expected.length && crypto.timingSafeEqual(actual, expected);
       });
+  }
+
+  private notifyAgentActivity(value: unknown) {
+    if (!value || typeof value !== "object") return;
+    const request = value as Partial<EvaluationRequest>;
+    const agent = request.agent;
+    const event = request.event;
+    if (!agent || !event || !agent.kind || !event.eventName || !event.sessionId) return;
+    this.options.onAgentActivity?.({
+      agentKind: agent.kind,
+      agentName: agent.displayName || hookAgentMetadata(agent.kind).displayName,
+      eventName: event.eventName,
+      sessionId: event.sessionId,
+      projectPath: event.projectPath,
+      prompt: event.prompt,
+      toolName: event.tool?.name,
+      occurredAt: event.occurredAt || new Date().toISOString(),
+    });
   }
 
   private async routeLegacyAuth(req: http.IncomingMessage, res: http.ServerResponse) {

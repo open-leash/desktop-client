@@ -1,14 +1,43 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import type { PluginIslandContribution } from "@openleash/shared";
 import {
   activeAgentSessions,
   activityIslandKey,
   ambientIslandContributions,
+  applyCompletedAgentSessions,
   contributionsForSession,
-  excludeCompletedAgentSessions,
+  mergeImmediateAgentActivity,
   prioritizeAgentSessions,
 } from "./activity-island";
-import type { PluginIslandContribution } from "@openleash/shared";
+
+test("shows an agent immediately from the first local ingestion event", () => {
+  const occurredAt = "2026-07-22T19:00:00.000Z";
+  const prompt = mergeImmediateAgentActivity(undefined, {
+    agentKind: "claude-code",
+    agentName: "Claude Code",
+    eventName: "UserPromptSubmit",
+    sessionId: "instant-session",
+    projectPath: "/code/project",
+    prompt: "start the conversation now",
+    occurredAt,
+  });
+  const tool = mergeImmediateAgentActivity(prompt, {
+    agentKind: "claude-code",
+    agentName: "Claude Code",
+    eventName: "PreToolUse",
+    sessionId: "instant-session",
+    projectPath: "/code/project",
+    prompt: "internal assistant text",
+    toolName: "Read",
+    occurredAt: "2026-07-22T19:00:00.100Z",
+  });
+  const sessions = activeAgentSessions([tool], Date.parse("2026-07-22T19:00:00.200Z"));
+  assert.equal(sessions.length, 1);
+  assert.equal(sessions[0].agentName, "Claude Code");
+  assert.equal(sessions[0].title, "start the conversation now");
+  assert.equal(sessions[0].latestAction, "Reviewing project files");
+});
 
 const supportedAgents = [
   "claude-code", "codex", "gemini", "cursor", "opencode", "github-copilot",
@@ -202,7 +231,7 @@ test("merges one project hook view with its generic proxy activity", () => {
   assert.deepEqual(sessions[0]?.sourceSessionIds.sort(), ["hook-session", "proxy-session"]);
 });
 
-test("excludes completed and stale sessions and keeps the key stable across updates", () => {
+test("keeps recent completed sessions without treating stale sessions as live", () => {
   const now = Date.parse("2026-07-20T10:00:00.000Z");
   const agents = [{
     kind: "claude-code",
@@ -215,13 +244,21 @@ test("excludes completed and stale sessions and keeps the key stable across upda
     ],
   }];
   const first = activeAgentSessions(agents, now);
-  const updated = activeAgentSessions([{ ...agents[0], sessions: [{ ...agents[0].sessions[0], event_count: 4 }] }], now);
+  const updated = activeAgentSessions([{
+    ...agents[0],
+    sessions: agents[0].sessions.map((session) =>
+      session.id === "active" ? { ...session, event_count: 4 } : session
+    ),
+  }], now);
 
-  assert.deepEqual(first.map((session) => session.id), ["active"]);
+  assert.deepEqual(first.map((session) => [session.id, session.visualState]), [
+    ["done", "completed"],
+    ["active", "running"],
+  ]);
   assert.equal(activityIslandKey(first), activityIslandKey(updated));
 });
 
-test("keeps a finished turn hidden until that session has newer activity", () => {
+test("keeps a finished turn visible as completed with the assistant response", () => {
   const completedAt = Date.parse("2026-07-20T10:00:00.000Z");
   const session = {
     id: "claude-session",
@@ -240,13 +277,46 @@ test("keeps a finished turn hidden until that session has newer activity", () =>
     events: [],
     visualState: "processing" as const,
   };
-  const completions = new Map([["claude-session", completedAt]]);
+  const completions = new Map([["claude-session", {
+    completedAt,
+    response: "The authentication middleware is ready and all tests pass.",
+  }]]);
 
-  assert.deepEqual(excludeCompletedAgentSessions([session], completions), []);
+  assert.deepEqual(applyCompletedAgentSessions([session], completions), [{
+    ...session,
+    visualState: "completed",
+    latestAction: "The authentication middleware is ready and all tests pass.",
+    summary: "The authentication middleware is ready and all tests pass.",
+  }]);
   assert.deepEqual(
-    excludeCompletedAgentSessions([{ ...session, lastActivityAt: new Date(completedAt + 1_000).toISOString() }], completions),
+    applyCompletedAgentSessions([{ ...session, lastActivityAt: new Date(completedAt + 1_000).toISOString() }], completions),
     [{ ...session, lastActivityAt: new Date(completedAt + 1_000).toISOString() }],
   );
+});
+
+test("preserves the prompt and marks the live Claude Stop payload completed", () => {
+  const now = Date.parse("2026-07-22T17:38:01.000Z");
+  const sessions = activeAgentSessions([{
+    kind: "claude-code",
+    display_name: "Claude Code",
+    project_path: "/Users/max/Code/MyProj",
+    sessions: [{
+      id: "runtime:claude-session:/Users/max/Code/MyProj",
+      session_id: "claude-session",
+      title: "hey man",
+      last_activity_at: "2026-07-22T17:37:58.680Z",
+      events: [
+        { event_name: "Stop", created_at: "2026-07-22T17:37:58.680Z" },
+        { event_name: "UserPromptSubmit", prompt: "hey man", created_at: "2026-07-22T17:37:51.946Z" },
+      ],
+    }],
+  }], now);
+
+  assert.equal(sessions.length, 1);
+  assert.equal(sessions[0]?.agentName, "Claude Code");
+  assert.equal(sessions[0]?.title, "hey man");
+  assert.equal(sessions[0]?.visualState, "completed");
+  assert.equal(sessions[0]?.latestAction, "Finished latest turn");
 });
 
 test("attaches plugin annotations and related global status to the intended session", () => {

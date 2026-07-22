@@ -100,3 +100,78 @@ test("desktop transform invokes only plugins subscribed to provider requests", a
   assert.deepEqual(result.appliedPluginIds, []);
   assert.deepEqual(result.runs, []);
 });
+
+test("a first request skips an optional plugin while its container is still starting", async () => {
+  const plugin = {
+    id: "test.openleash-not-running-optional-plugin",
+    name: "optional startup plugin",
+    description: "test",
+    version: "1.0.0",
+    publisher: "test",
+    runtime: "container",
+    execution: {
+      type: "container",
+      placement: "edge",
+      protocol: "openleash-container-plugin.v1",
+      image: "test/not-running:1.0.0",
+      transformPath: "/v1/transform",
+      failureMode: "open",
+    },
+    entrypoint: "container",
+    events: ["provider.request.beforeSend"],
+    permissions: ["provider-request:read"],
+    effects: ["observe"],
+    settings: { enabled: true, config: {} },
+  } as PluginCatalogItem;
+  const result = await transformViaLocalPluginContainers({
+    plugins: [plugin],
+    provider: "anthropic",
+    agentKind: "claude-code",
+    sessionId: "first-request",
+    organizationId: "org",
+    userId: "user",
+    requestBody: { messages: [] },
+  });
+  assert.deepEqual(result.appliedPluginIds, []);
+  assert.deepEqual(result.runs, [{
+    pluginId: plugin.id,
+    status: "skipped",
+    summary: "optional startup plugin is still starting; this request continued without the optional plugin.",
+  }]);
+});
+
+test("a required plugin that is still starting fails closed without invoking it", async () => {
+  const plugin = {
+    id: "test.openleash-not-running-required-plugin",
+    name: "required startup plugin",
+    description: "test",
+    version: "1.0.0",
+    publisher: "test",
+    runtime: "container",
+    execution: {
+      type: "container",
+      placement: "edge",
+      protocol: "openleash-container-plugin.v1",
+      image: "test/not-running:1.0.0",
+      transformPath: "/v1/transform",
+      failureMode: "closed",
+    },
+    entrypoint: "container",
+    events: ["provider.request.beforeSend"],
+    permissions: ["provider-request:read"],
+    effects: ["observe"],
+    settings: { enabled: true, config: {} },
+  } as PluginCatalogItem;
+  await assert.rejects(
+    transformViaLocalPluginContainers({
+      plugins: [plugin],
+      provider: "anthropic",
+      agentKind: "claude-code",
+      sessionId: "first-request",
+      organizationId: "org",
+      userId: "user",
+      requestBody: { messages: [] },
+    }),
+    /Required plugin required startup plugin is not ready/,
+  );
+});

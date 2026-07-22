@@ -77,6 +77,22 @@ try {
   else assert.ok(compact.frame.width >= 300 && compact.frame.width <= 315, `unexpected compact width ${compact.frame.width}`);
   assert.ok(compact.frame.height < (compact.display.hasNotch ? 210 : 175), `unexpected compact height ${compact.frame.height}`);
   assert.equal(compact.layout.contentClearsNotch, true);
+  assert.ok(compact.hitTest?.interactiveBounds, "native island did not report its visible hit target");
+  const visibleBounds = compact.hitTest.interactiveBounds;
+  send({
+    type: "hitTest",
+    x: visibleBounds.x + visibleBounds.width / 2,
+    y: visibleBounds.y + visibleBounds.height / 2,
+  });
+  const visibleHit = await waitFor("hitTestResult");
+  assert.equal(visibleHit.ignoresMouseEvents, false, "the visible island does not accept clicks");
+  send({
+    type: "hitTest",
+    x: visibleBounds.x + visibleBounds.width / 2,
+    y: Math.min(compact.frame.height - 1, visibleBounds.y + visibleBounds.height + 20),
+  });
+  const transparentHit = await waitFor("hitTestResult");
+  assert.equal(transparentHit.ignoresMouseEvents, true, "transparent space below the island blocks clicks");
   if (compact.display.hasNotch) {
     assert.ok(compact.display.safeTop > 0, "notched display did not report a safe top inset");
     assert.ok(compact.layout.contentTop >= compact.display.safeTop, `compact content overlaps notch: ${compact.layout.contentTop} < ${compact.display.safeTop}`);
@@ -135,6 +151,23 @@ try {
   assert.equal(expandedActivity.layout.expanded, true, "compact activity rail did not expand");
   assert.ok(expandedActivity.layout.islandHeight > activity.layout.islandHeight, "expanded activity did not reveal its details");
   assert.ok(expandedActivity.layout.islandWidth > activity.layout.islandWidth, "expanded activity did not grow wider than its compact content");
+  send({ type: "pointerInside" });
+  send({ type: "show", payload: {
+    kind: "activity",
+    agentName: "OpenLeash",
+    title: "3 agents working",
+    project: "3 active sessions",
+    sessions: [
+      { id: "claude", agentKind: "claude-code", agentName: "Claude Code", visualState: "running", project: "client-api", title: "Test Claude", latestAction: "Running another test", eventCount: 4 },
+      { id: "codex", sessionId: "codex-session", agentKind: "codex", agentName: "OpenAI Codex", visualState: "processing", project: "desktop", title: "Test Codex", latestAction: "Editing files", eventCount: 5 },
+      { id: "gemini", agentKind: "gemini", agentName: "Gemini CLI", visualState: "processing", project: "docs", title: "Test Gemini", latestAction: "Reading docs", eventCount: 2 },
+    ],
+    tokenSaver: { pluginId: "openleash.prompt-compression", pluginName: "token-saver", value: "42% saved", tone: "success" },
+  } });
+  const hoveredUpdate = await inspectAfter(450);
+  assert.equal(hoveredUpdate.layout.pointerInsideIsland, true, "hover verification did not reach the island renderer");
+  assert.equal(hoveredUpdate.layout.expanded, true, "an activity refresh collapsed the island while the pointer was inside");
+  send({ type: "pointerOutside" });
   send({ type: "clickSessionMascot" });
   const jump = await waitFor("action");
   assert.equal(jump.action, "jump", "clicking a mascot did not request a session jump");
@@ -187,6 +220,33 @@ try {
   send({ type: "show", payload: {
     kind: "activity",
     agentName: "OpenLeash",
+    title: "Agent finished",
+    project: "1 recent session",
+    sessions: [{
+      id: "claude-recent",
+      agentKind: "claude-code",
+      agentName: "Claude Code",
+      visualState: "completed",
+      project: "MyProj",
+      title: "hey man",
+      latestAction: "Hey! What are you working on today?",
+      eventCount: 2,
+    }],
+  } });
+  const recentCompleted = await inspectAfter(500);
+  assert.equal(recentCompleted.visible, true, "recent completed session hid the persistent island");
+  assert.equal(recentCompleted.layout.sessionCount, 1, "recent completed session disappeared from the island");
+  assert.ok(recentCompleted.layout.mascotStates.includes("completed"), "recent session did not keep the completed Claude mascot");
+  send({ type: "expandActivity" });
+  const expandedRecentCompleted = await inspectAfter(400);
+  assert.equal(expandedRecentCompleted.layout.sessionSectionLabel, "Recent sessions", "completed session was mislabeled as live");
+  assert.equal(expandedRecentCompleted.layout.firstSessionTitle, "MyProj · hey man", "completed session lost the user prompt");
+  assert.equal(expandedRecentCompleted.layout.firstSessionAction, "Hey! What are you working on today?", "completed session lost the assistant response");
+  assert.equal(expandedRecentCompleted.layout.firstSessionStatus, "Done", "completed session still appears active");
+
+  send({ type: "show", payload: {
+    kind: "activity",
+    agentName: "OpenLeash",
     title: "OpenLeash",
     project: "Watching your agents",
     sessions: [],
@@ -210,6 +270,7 @@ try {
     attention: {
       kind: "ask",
       id: "verification",
+      intentKey: "claude-code|openleash|database-mutation|sqlite",
       agentKind: "claude-code",
       agentName: "Claude Code",
       visualState: "waiting",
@@ -240,10 +301,20 @@ try {
     assert.ok(expanded.layout.contentTop >= expanded.display.safeTop, `expanded content overlaps notch: ${expanded.layout.contentTop} < ${expanded.display.safeTop}`);
   }
 
+  send({ type: "show", payload: {
+    ...approvalPayload,
+    autoExpand: false,
+    sessions: approvalPayload.sessions.map((session) => ({ ...session, eventCount: session.eventCount + 1, latestAction: "Still waiting for approval" })),
+    attention: { ...approvalPayload.attention, id: "verification-proxy-copy" },
+  } });
+  const stableApproval = await inspectAfter(60);
+  assert.equal(stableApproval.layout.expanded, true, "refreshing the same unresolved approval collapsed the island");
+  assert.equal(stableApproval.layout.attentionVisible, true, "refreshing the same unresolved approval hid its controls");
+
   send({ type: "dismiss" });
   const dismissed = await inspectAfter(300);
   assert.equal(dismissed.visible, false);
-  console.log(`native macOS island top-anchor, persistent idle state, unified approvals, animated agents, notch-safe content, fireworks, compact, expansion, and dismissal ok (notch=${compact.display.hasNotch}, safeTop=${compact.display.safeTop})`);
+  console.log(`native macOS island click-through, top-anchor, persistent idle state, unified approvals, animated agents, notch-safe content, fireworks, compact, expansion, and dismissal ok (notch=${compact.display.hasNotch}, safeTop=${compact.display.safeTop})`);
 } finally {
   send({ type: "quit" });
   child.stdin.end();

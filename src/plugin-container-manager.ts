@@ -11,6 +11,7 @@ const ISOLATED_PLUGIN_NETWORK = "openleash-plugin-runtime";
 const PLUGIN_GATEWAY_NAME = "openleash-plugin-gateway";
 const DEFAULT_PLUGIN_GATEWAY_PORT = 9349;
 const PLUGIN_GATEWAY_IMAGE = "ghcr.io/open-leash/plugin-gateway:1.0.0";
+const PLUGIN_READINESS_TIMEOUT_MS = 750;
 const ALLOWED_ROOTS = new Set(["messages", "input", "system", "tools", "prompt_cache_key"]);
 
 const fallbackPluginRuntimeSecret = crypto.randomBytes(32).toString("hex");
@@ -110,6 +111,16 @@ export async function transformViaLocalPluginContainers(input: {
       isDesiredEdgeContainer(plugin),
     );
   for (const plugin of scopedPlugins) {
+    const readiness = pluginContainerReadiness(plugin);
+    if (!readiness.ready) {
+      const required = (plugin.execution?.failureMode ?? "open") === "closed";
+      const summary = required
+        ? `Required plugin ${plugin.name} is not ready; retry when plugin startup completes.`
+        : `${plugin.name} is still starting; this request continued without the optional plugin.`;
+      runs.push({ pluginId: plugin.id, status: "skipped", summary });
+      if (required) throw new Error(`${summary} ${readiness.error}`);
+      continue;
+    }
     const requestId = crypto.randomUUID();
     const envelope = {
       protocol: PROTOCOL,
@@ -181,6 +192,10 @@ export async function executeViaLocalPluginContainer(input: {
   const execution = input.plugin.execution;
   if (!input.plugin.settings.enabled || execution?.type !== "container" || !execution.toolExecutePath) {
     throw new Error(`plugin ${input.plugin.id} does not expose tool execution`);
+  }
+  const readiness = pluginContainerReadiness(input.plugin);
+  if (!readiness.ready) {
+    throw new Error(`Plugin ${input.plugin.name} is not ready; retry when plugin startup completes. ${readiness.error}`);
   }
   const requestId = crypto.randomUUID();
   const envelope = {
@@ -463,6 +478,32 @@ function containerName(pluginId: string) {
 function managedContainerNames() {
   const result = docker(["ps", "-a", "--filter", `label=${MANAGED_LABEL}`, "--format", "{{.Names}}"]) ;
   return result.status === 0 ? result.stdout.split(/\r?\n/).map((value) => value.trim()).filter(Boolean) : [];
+}
+
+function pluginContainerReadiness(plugin: PluginCatalogItem):
+  | { ready: true }
+  | { ready: false; error: string } {
+  const name = containerName(plugin.id);
+  const result = docker([
+    "inspect",
+    "-f",
+    "{{.State.Running}} {{if .State.Health}}{{.State.Health.Status}}{{else}}none{{end}}",
+    name,
+  ], PLUGIN_READINESS_TIMEOUT_MS);
+  if (result.status !== 0) {
+    return {
+      ready: false,
+      error: result.stderr.trim() || `container ${name} does not exist`,
+    };
+  }
+  const [running, health] = result.stdout.trim().split(/\s+/, 2);
+  if (running === "true" && (health === "healthy" || health === "none")) {
+    return { ready: true };
+  }
+  return {
+    ready: false,
+    error: `container ${name} is ${running === "true" ? health || "starting" : "stopped"}`,
+  };
 }
 
 async function waitForHealth(endpoint: string, pluginId: string) {

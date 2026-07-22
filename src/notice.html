@@ -554,6 +554,7 @@
       .session-live::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: currentColor; box-shadow: 0 0 8px currentColor; }
       .session-live.processing { color: var(--cyan); }
       .session-live.waiting { color: var(--amber); }
+      .session-live.completed { color: var(--green); }
       .contribution-pills { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 7px; }
       .contribution-pill { max-width: 100%; overflow: hidden; padding: 4px 6px; border: 1px solid var(--line); border-radius: 7px; color: var(--soft-ink); background: rgba(255,255,255,.04); font-size: 8.5px; text-overflow: ellipsis; white-space: nowrap; }
       .contribution-pill.info { color: var(--cyan); border-color: rgba(88,216,255,.22); }
@@ -737,7 +738,7 @@
         <div class="menu-separator"></div>
         <button class="menu-item" data-command="protection"><span class="menu-icon">✓</span><span class="menu-copy"><span class="menu-label">Agent protection</span><span class="menu-detail" id="menuProtection">Checking protection…</span></span><span class="menu-chevron">›</span></button>
         <button class="menu-item" data-command="proxy"><span class="menu-icon">P</span><span class="menu-copy"><span class="menu-label">Proxy</span><span class="menu-detail" id="menuProxy">Checking proxy…</span></span><span class="menu-chevron">›</span></button>
-        <button class="menu-item" data-command="sessions"><span class="menu-icon">A</span><span class="menu-copy"><span class="menu-label">Live sessions</span><span class="menu-detail" id="menuSessions">No active sessions</span></span><span class="menu-chevron">›</span></button>
+        <button class="menu-item" data-command="sessions"><span class="menu-icon">A</span><span class="menu-copy"><span class="menu-label">Agent sessions</span><span class="menu-detail" id="menuSessions">No active sessions</span></span><span class="menu-chevron">›</span></button>
         <button class="menu-item" data-command="approvals"><span class="menu-icon">!</span><span class="menu-copy"><span class="menu-label">Approvals</span><span class="menu-detail" id="menuApprovals">No pending approvals</span></span><span class="menu-chevron">›</span></button>
         <div class="menu-separator"></div>
         <button class="menu-item" data-command="check-updates"><span class="menu-icon">↻</span><span class="menu-copy"><span class="menu-label">Check for updates</span></span></button>
@@ -779,6 +780,7 @@
       let currentKind = "approval";
       let selectedAnswers = new Map();
       let expandTimer;
+      let pointerInsideIsland = false;
       let installAnimation;
       const $ = (id) => document.getElementById(id);
       const island = $("island"), cap = $("cap"), glyph = $("glyph"), status = $("status"), eyebrow = $("eyebrow"), title = $("title"), count = $("count"), capAgents = $("capAgents"), capMetric = $("capMetric"), notchRail = $("notchRail"), notchAgents = $("notchAgents"), notchMetric = $("notchMetric");
@@ -810,9 +812,10 @@
         jumpToAgent: (payload) => nativeHandler.postMessage({ type: "action", action: "jump", payload }),
         pluginIslandAction: (payload) => nativeHandler.postMessage({ type: "action", action: "plugin-action", payload }),
         islandCommand: (command) => nativeHandler.postMessage({ type: "action", action: "island-command", command }),
+        setNoticePointerInside: () => {},
         onNotice: () => {},
       } : {
-        resizeNotice: () => {}, resolve: () => {}, dismissNotice: () => {}, jumpToAgent: () => {}, pluginIslandAction: () => {}, islandCommand: () => {}, onNotice: () => {},
+        resizeNotice: () => {}, resolve: () => {}, dismissNotice: () => {}, jumpToAgent: () => {}, pluginIslandAction: () => {}, islandCommand: () => {}, setNoticePointerInside: () => {}, onNotice: () => {},
       });
 
       function initials(name) { return (name || "AI").split(/\s+/).map((part) => part[0]).join("").slice(0, 2).toUpperCase(); }
@@ -900,7 +903,16 @@
       function resize() {
         requestAnimationFrame(() => {
           const rect = island.getBoundingClientRect();
-          bridge.resizeNotice({ width: Math.ceil(rect.width + 192), height: Math.ceil(rect.height + 112) });
+          bridge.resizeNotice({
+            width: Math.ceil(rect.width + 192),
+            height: Math.ceil(rect.height + 112),
+            interactiveBounds: {
+              x: rect.left,
+              y: rect.top,
+              width: rect.width,
+              height: rect.height,
+            },
+          });
         });
       }
       function visibleRowWidth(element) {
@@ -931,6 +943,23 @@
       new ResizeObserver(resize).observe(island);
 
       function renderNotice(payload) {
+        const previousAttention = current?.attention || current;
+        const nextAttention = payload?.attention || payload;
+        const sameAttention = Boolean(
+          previousAttention?.intentKey &&
+          nextAttention?.intentKey &&
+          previousAttention.intentKey === nextAttention.intentKey
+        );
+        const hasLiveSession = (payload.sessions || []).some((session) => session.visualState !== "completed");
+        const preserveExpanded = island.classList.contains("expanded") && (
+          sameAttention || (pointerInsideIsland && (Boolean(payload.attention?.id) || hasLiveSession))
+        );
+        const draftGuidance = sameAttention
+          ? (attentionPanel.querySelector(".attention-guidance")?.value ?? guidance.value)
+          : "";
+        const draftRemember = sameAttention
+          ? (attentionPanel.querySelector('input[type="checkbox"]')?.checked ?? remember.checked)
+          : false;
         current = payload; reset(); setGlyph(payload);
         currentKind = payload.interaction?.type === "questions" ? "question" : payload.interaction?.type === "plan" ? "plan_review" : payload.interaction?.type === "approval" ? "approval" : payload.kind;
         status.className = `signal ${currentKind || "approval"}`;
@@ -953,12 +982,21 @@
         else if (payload.id) renderApproval(payload);
         else renderActivity(payload);
 
+        if (sameAttention) {
+          const nextGuidance = attentionPanel.querySelector(".attention-guidance") || guidance;
+          const nextRemember = attentionPanel.querySelector('input[type="checkbox"]') || remember;
+          nextGuidance.value = draftGuidance;
+          nextRemember.checked = draftRemember;
+        }
+
         const expandable = Boolean(payload.id || currentKind === "activity" || currentKind === "install_success" || currentKind === "sample" || currentKind === "blocked" || currentKind === "question" || currentKind === "plan_review" || payload.summary);
         island.classList.toggle("expandable", expandable);
         requestAnimationFrame(() => {
           island.classList.add("presented");
           resize();
-          if (payload.id || (payload.attention?.id && payload.autoExpand !== false) || ["install_success", "sample", "blocked", "question", "plan_review"].includes(currentKind)) {
+          if (preserveExpanded) {
+            setExpanded(true);
+          } else if (payload.id || (payload.attention?.id && payload.autoExpand !== false) || ["install_success", "sample", "blocked", "question", "plan_review"].includes(currentKind)) {
             expandTimer = setTimeout(() => setExpanded(true), 170);
           }
         });
@@ -985,6 +1023,10 @@
           contentClearsNotch: compactNotch || !document.body.classList.contains("has-display-notch") || (copyRect?.top ?? 0) >= safeTop,
           fireworksRendered: Boolean(installFireworks.querySelector("svg")),
           sessionCount: sessionList.querySelectorAll(".session-card").length,
+          sessionSectionLabel: sessionSectionLabel.textContent,
+          firstSessionTitle: sessionList.querySelector(".session-title")?.textContent ?? "",
+          firstSessionAction: sessionList.querySelector(".session-action")?.textContent ?? "",
+          firstSessionStatus: sessionList.querySelector(".session-live")?.textContent ?? "",
           activityDetailVisible: !activityDetail.hidden,
           attentionVisible: !attentionPanel.hidden,
           attentionActionCount: attentionPanel.querySelectorAll("button[data-attention-action]").length,
@@ -1005,12 +1047,14 @@
           islandBorderRadius: getComputedStyle(island).borderRadius,
           expanded: island.classList.contains("expanded"),
           menuOpen: !islandMenu.hidden,
+          pointerInsideIsland,
           menuItemCount: islandMenu.querySelectorAll("[data-command]").length,
           menuFitsIsland: islandMenu.hidden || islandMenu.getBoundingClientRect().bottom <= island.getBoundingClientRect().bottom,
         };
       };
       window.dismissOpenLeashNotice = () => { island.classList.add("leaving"); island.classList.remove("expanded"); resize(); };
       window.expandOpenLeashIsland = () => setExpanded(true);
+      window.setOpenLeashPointerInsideForVerification = (inside) => { pointerInsideIsland = Boolean(inside); };
       window.clickFirstSessionMascotForVerification = () => sessionList.querySelector(".session-agent-icon")?.click();
 
       function renderIslandMenu(menu) {
@@ -1128,7 +1172,8 @@
         const attention = payload.attention;
         renderNotchRail(sessions, payload.contributions || [], payload.tokenSaver, attention);
         if (attention?.id) renderInlineAttention(attention);
-        sessionSectionLabel.textContent = sessions.length ? "Live agents" : attention?.id ? "Agent activity" : "Status";
+        const onlyCompleted = sessions.length > 0 && sessions.every((session) => session.visualState === "completed");
+        sessionSectionLabel.textContent = sessions.length ? (onlyCompleted ? "Recent sessions" : "Live agents") : attention?.id ? "Agent activity" : "Status";
         sessionSectionLabel.hidden = false;
         if (sessions.length === 0) {
           const idle = document.createElement("div"); idle.className = "idle-island-state";
@@ -1150,7 +1195,7 @@
           copy.append(heading, meta, action);
           renderContributionPills(copy, session.contributions || []);
           const live = document.createElement("span"); live.className = `session-live ${visualState}`;
-          live.textContent = visualState === "waiting" ? "Waiting" : visualState === "running" ? "Active" : "Thinking";
+          live.textContent = visualState === "waiting" ? "Waiting" : visualState === "running" ? "Active" : visualState === "completed" ? "Done" : "Thinking";
           card.append(icon, copy, live);
           card.addEventListener("click", () => selectActivitySession(session, card));
           sessionList.appendChild(card);
@@ -1335,6 +1380,7 @@
         if (event.event_name === "UserPromptSubmit") return "Received your request";
         if (event.event_name === "SubagentStart") return "Started delegated work";
         if (event.event_name === "SubagentStop") return "Finished delegated work";
+        if (event.event_name === "Stop" || event.event_name === "SessionEnd" || event.event_name === "AgentStop") return "Finished latest turn";
         return "Continued working";
       }
 
@@ -1358,6 +1404,8 @@
         bridge.resolve(current.id, resolution, resolution === "deny" ? guidance.value : "", remember.checked ? 300000 : 0);
       });
       cap.addEventListener("click", (event) => { if (!event.target.closest("button")) setExpanded(!island.classList.contains("expanded")); });
+      island.addEventListener("pointerenter", () => { pointerInsideIsland = true; bridge.setNoticePointerInside?.(true); });
+      island.addEventListener("pointerleave", () => { pointerInsideIsland = false; bridge.setNoticePointerInside?.(false); });
       notchRail.addEventListener("click", () => { if (island.classList.contains("activity-mode")) setExpanded(true); });
       $("toggle").addEventListener("click", () => setExpanded(!island.classList.contains("expanded")));
       $("close").addEventListener("click", () => currentKind === "activity" ? setExpanded(false) : requestDismiss());

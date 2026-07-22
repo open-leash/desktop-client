@@ -25,6 +25,8 @@ private final class IslandController: NSObject, WKNavigationDelegate, WKScriptMe
     private var screen: NSScreen?
     private var pendingPayload: [String: Any]?
     private var pageReady = false
+    private var interactiveBounds: CGRect?
+    private var pointerTimer: Timer?
 
     init(htmlPath: String) {
         let configuration = WKWebViewConfiguration()
@@ -53,6 +55,7 @@ private final class IslandController: NSObject, WKNavigationDelegate, WKScriptMe
         panel.isOpaque = false
         panel.backgroundColor = .clear
         panel.hasShadow = false
+        panel.ignoresMouseEvents = true
         panel.hidesOnDeactivate = false
         panel.isMovable = false
         panel.isMovableByWindowBackground = false
@@ -64,6 +67,14 @@ private final class IslandController: NSObject, WKNavigationDelegate, WKScriptMe
             .ignoresCycle
         ]
         panel.contentView = webView
+
+        pointerTimer = Timer.scheduledTimer(
+            timeInterval: 1.0 / 30.0,
+            target: self,
+            selector: #selector(pollPointerLocation),
+            userInfo: nil,
+            repeats: true
+        )
 
         let fileURL = URL(fileURLWithPath: htmlPath)
         webView.loadFileURL(fileURL, allowingReadAccessTo: fileURL.deletingLastPathComponent())
@@ -87,7 +98,8 @@ private final class IslandController: NSObject, WKNavigationDelegate, WKScriptMe
         if type == "resize" {
             let width = (body["width"] as? NSNumber)?.doubleValue ?? 300
             let height = (body["height"] as? NSNumber)?.doubleValue ?? 48
-            resize(width: width, height: height)
+            let bounds = (body["interactiveBounds"] as? [String: Any]).flatMap(rectFromMessage)
+            resize(width: width, height: height, interactiveBounds: bounds)
             return
         }
 
@@ -143,6 +155,12 @@ private final class IslandController: NSObject, WKNavigationDelegate, WKScriptMe
                 ],
                 "display": metrics
             ]
+            if let bounds = self.interactiveBounds {
+                state["hitTest"] = [
+                    "ignoresMouseEvents": self.panel.ignoresMouseEvents,
+                    "interactiveBounds": self.rectMessage(bounds)
+                ]
+            }
             if let layout = result as? [String: Any] {
                 state["layout"] = layout
             }
@@ -162,15 +180,33 @@ private final class IslandController: NSObject, WKNavigationDelegate, WKScriptMe
         webView.evaluateJavaScript("window.clickFirstSessionMascotForVerification && window.clickFirstSessionMascotForVerification()")
     }
 
+    func setPointerInsideForVerification(_ inside: Bool) {
+        webView.evaluateJavaScript("window.setOpenLeashPointerInsideForVerification && window.setOpenLeashPointerInsideForVerification(\(inside ? "true" : "false"))")
+    }
+
+    func hitTestForVerification(x: Double, y: Double) {
+        let point = CGPoint(
+            x: panel.frame.minX + CGFloat(x),
+            y: panel.frame.maxY - CGFloat(y)
+        )
+        refreshPointerPassthrough(at: point)
+        writeMessage([
+            "type": "hitTestResult",
+            "ignoresMouseEvents": panel.ignoresMouseEvents
+        ])
+    }
+
     func expand() {
         webView.evaluateJavaScript("window.expandOpenLeashIsland && window.expandOpenLeashIsland()")
         panel.orderFrontRegardless()
     }
 
-    private func resize(width requestedWidth: Double, height requestedHeight: Double) {
+    private func resize(width requestedWidth: Double, height requestedHeight: Double, interactiveBounds: CGRect?) {
         let width = CGFloat(max(220, min(780, requestedWidth.rounded(.up))))
         let height = CGFloat(max(42, min(760, requestedHeight.rounded(.up))))
+        self.interactiveBounds = interactiveBounds
         place(width: width, height: height)
+        refreshPointerPassthrough()
     }
 
     private func place(width: CGFloat, height: CGFloat) {
@@ -187,6 +223,46 @@ private final class IslandController: NSObject, WKNavigationDelegate, WKScriptMe
         if panel.isVisible {
             panel.orderFrontRegardless()
         }
+    }
+
+    private func rectFromMessage(_ message: [String: Any]) -> CGRect? {
+        guard let x = (message["x"] as? NSNumber)?.doubleValue,
+              let y = (message["y"] as? NSNumber)?.doubleValue,
+              let width = (message["width"] as? NSNumber)?.doubleValue,
+              let height = (message["height"] as? NSNumber)?.doubleValue,
+              width > 0,
+              height > 0 else { return nil }
+        return CGRect(x: x, y: y, width: width, height: height)
+    }
+
+    private func rectMessage(_ rect: CGRect) -> [String: Double] {
+        [
+            "x": rect.minX,
+            "y": rect.minY,
+            "width": rect.width,
+            "height": rect.height
+        ]
+    }
+
+    private func interactiveScreenFrame() -> CGRect? {
+        guard panel.isVisible, let bounds = interactiveBounds else { return nil }
+        return CGRect(
+            x: panel.frame.minX + bounds.minX,
+            y: panel.frame.maxY - bounds.maxY,
+            width: bounds.width,
+            height: bounds.height
+        )
+    }
+
+    private func refreshPointerPassthrough(at pointer: CGPoint = NSEvent.mouseLocation) {
+        let isInsideVisibleIsland = interactiveScreenFrame()?
+            .insetBy(dx: -1, dy: -1)
+            .contains(pointer) ?? false
+        panel.ignoresMouseEvents = !isInsideVisibleIsland
+    }
+
+    @objc private func pollPointerLocation() {
+        refreshPointerPassthrough()
     }
 
     private func displayMetrics(for display: NSScreen) -> [String: Any] {
@@ -269,6 +345,14 @@ private struct OpenLeashIslandApplication {
                         controller.openMenuForVerification()
                     case "clickSessionMascot":
                         controller.clickFirstSessionMascotForVerification()
+                    case "pointerInside":
+                        controller.setPointerInsideForVerification(true)
+                    case "pointerOutside":
+                        controller.setPointerInsideForVerification(false)
+                    case "hitTest":
+                        let x = (message["x"] as? NSNumber)?.doubleValue ?? 0
+                        let y = (message["y"] as? NSNumber)?.doubleValue ?? 0
+                        controller.hitTestForVerification(x: x, y: y)
                     case "expand":
                         controller.expand()
                     case "quit":

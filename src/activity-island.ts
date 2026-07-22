@@ -46,7 +46,12 @@ export type ActiveAgentSession = {
   durationSeconds: number;
   eventCount: number;
   events: ActivityIslandEvent[];
-  visualState: "processing" | "running" | "waiting";
+  visualState: "processing" | "running" | "waiting" | "completed";
+};
+
+export type CompletedAgentSession = {
+  completedAt: number;
+  response?: string;
 };
 
 export type AgentAttentionTarget = {
@@ -55,18 +60,69 @@ export type AgentAttentionTarget = {
   sessionId?: string;
 };
 
+export type ImmediateAgentActivity = {
+  agentKind: string;
+  agentName: string;
+  eventName: string;
+  sessionId: string;
+  projectPath?: string;
+  prompt?: string;
+  toolName?: string;
+  occurredAt: string;
+};
+
 const TERMINAL_EVENTS = new Set(["sessionend", "stop", "completed", "agentstop"]);
+
+export function mergeImmediateAgentActivity(
+  previous: ActivityIslandSourceAgent | undefined,
+  activity: ImmediateAgentActivity,
+): ActivityIslandSourceAgent {
+  const previousSession = previous?.sessions?.[0];
+  const prompt = activity.eventName.toLowerCase() === "userpromptsubmit"
+    ? userFacingText(activity.prompt)
+    : undefined;
+  const event: ActivityIslandEvent = {
+    event_name: activity.eventName,
+    tool_name: activity.toolName,
+    prompt,
+    created_at: activity.occurredAt,
+  };
+  const events = uniqueEvents([event, ...(previousSession?.events ?? [])]).slice(0, 5);
+  const id = `immediate:${activity.agentKind}:${activity.sessionId}:${activity.projectPath ?? "workspace"}`;
+  return {
+    kind: activity.agentKind,
+    display_name: activity.agentName,
+    hostname: "local",
+    event_name: activity.eventName,
+    tool_name: activity.toolName,
+    project_path: activity.projectPath,
+    activity_at: activity.occurredAt,
+    short_summary: prompt || previousSession?.title || "Agent working",
+    sessions: [{
+      id,
+      session_id: activity.sessionId,
+      title: prompt || previousSession?.title || "Agent working",
+      summary: "Agent is working",
+      project_path: activity.projectPath ?? previousSession?.project_path,
+      started_at: previousSession?.started_at ?? activity.occurredAt,
+      last_activity_at: activity.occurredAt,
+      event_count: Math.max(1, Number(previousSession?.event_count ?? 0) + 1),
+      events,
+    }],
+  };
+}
 
 export function activeAgentSessions(
   agents: ActivityIslandSourceAgent[],
   now = Date.now(),
   activeWithinMs = 2 * 60_000,
+  completedWithinMs = 10 * 60_000,
 ): ActiveAgentSession[] {
   const sessions = agents.flatMap((agent) => {
     const sessions = agent.sessions?.length ? agent.sessions : [syntheticSession(agent)];
     return sessions.flatMap((session, index) => {
       const lastActivityAt = session.last_activity_at ?? agent.activity_at;
-      if (!lastActivityAt || !isRecent(lastActivityAt, now, activeWithinMs)) return [];
+      if (!lastActivityAt) return [];
       const sourceEvents = session.events ?? [];
       const visibleEvents = sourceEvents.filter((event) => !isClaudeStatusPrompt(agent, {
         ...event,
@@ -77,7 +133,8 @@ export function activeAgentSessions(
       const latestPrompt = visibleEvents.find((event) => userFacingText(event.prompt));
       const eventName = latestEvent?.event_name ?? (index === 0 ? agent.event_name : undefined);
       if (!latestEvent && isClaudeStatusPrompt(agent, { event_name: eventName, prompt: session.title ?? agent.short_summary })) return [];
-      if (eventName && TERMINAL_EVENTS.has(eventName.toLowerCase())) return [];
+      const completed = Boolean(eventName && TERMINAL_EVENTS.has(eventName.toLowerCase()));
+      if (!isRecent(lastActivityAt, now, completed ? completedWithinMs : activeWithinMs)) return [];
       const projectPath = session.project_path ?? agent.project_path;
       return [{
         id: session.id,
@@ -89,12 +146,12 @@ export function activeAgentSessions(
         project: projectName(projectPath),
         title: userFacingText(latestPrompt?.prompt) || userFacingText(session.title) || userFacingText(agent.short_summary) || "Agent working",
         summary: friendlySummary(session.summary) || userFacingText(agent.short_summary) || "Agent is working",
-        latestAction: latestAction(latestEvent, agent),
+        latestAction: completed ? "Finished latest turn" : latestAction(latestEvent, agent),
         lastActivityAt,
         durationSeconds: Math.max(0, Number(session.duration_seconds ?? 0)),
         eventCount: Math.max(1, Number(session.event_count ?? session.events?.length ?? 1)),
         events: visibleEvents.map(sanitizeEvent).slice(0, 5),
-        visualState: activeVisualState(latestEvent, agent),
+        visualState: completed ? "completed" as const : activeVisualState(latestEvent, agent),
       }];
     });
   }).sort((left, right) => Date.parse(right.lastActivityAt) - Date.parse(left.lastActivityAt));
@@ -120,16 +177,23 @@ export function activityIslandKey(sessions: ActiveAgentSession[]) {
   return `activity:${sessions.map((session) => session.id).sort().join("|")}`;
 }
 
-export function excludeCompletedAgentSessions(
+export function applyCompletedAgentSessions(
   sessions: ActiveAgentSession[],
-  completedAtBySessionId: ReadonlyMap<string, number>,
+  completedBySessionId: ReadonlyMap<string, CompletedAgentSession>,
 ) {
-  return sessions.filter((session) => {
-    const completedAt = Math.max(
-      0,
-      ...session.sourceSessionIds.map((sessionId) => completedAtBySessionId.get(sessionId) ?? 0),
-    );
-    return completedAt === 0 || Date.parse(session.lastActivityAt) > completedAt;
+  return sessions.map((session) => {
+    const completion = session.sourceSessionIds
+      .map((sessionId) => completedBySessionId.get(sessionId))
+      .filter((item): item is CompletedAgentSession => Boolean(item))
+      .sort((left, right) => right.completedAt - left.completedAt)[0];
+    if (!completion || Date.parse(session.lastActivityAt) > completion.completedAt) return session;
+    const response = userFacingText(completion.response);
+    return {
+      ...session,
+      visualState: "completed" as const,
+      latestAction: response || "Finished latest turn",
+      summary: response || session.summary,
+    };
   });
 }
 
@@ -229,7 +293,8 @@ function attentionMatchesSession(attention: AgentAttentionTarget | undefined, se
 function visualStatePriority(state: ActiveAgentSession["visualState"]) {
   if (state === "waiting") return 3;
   if (state === "running") return 2;
-  return 1;
+  if (state === "processing") return 1;
+  return 0;
 }
 
 function normalizedPath(value?: string) {
