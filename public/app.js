@@ -4,6 +4,7 @@ const state = {
   selected: null,
   paused: false,
   search: "",
+  openPayloads: new Set(),
 };
 const $ = (selector) => document.querySelector(selector);
 const esc = (value) =>
@@ -144,16 +145,27 @@ function card(item) {
   return `<article class="conversation ${state.selected === item.key ? "active" : ""}" data-conversation="${esc(item.key)}"><div class="conversation-top"><span class="agent-name">${esc(displayAgent(item.agent))}</span><span class="time">${formatTime(item.last)}</span></div><div class="chips">${[...item.sources].map(sourceChip).join("")}</div><div class="prompt">${esc(item.prompt || "No text payload")}</div><div class="chips"><span class="chip">${item.events.length} stages</span><span class="chip ${item.decision}">${esc(item.decision)}</span><span class="chip">${esc(short(item.session, 12))}</span></div></article>`;
 }
 function renderDetails(item) {
+  const details = $("#details");
   if (!item) {
     state.selected = null;
-    $("#details").innerHTML =
+    details.innerHTML =
       `<div class="empty"><h2>Conversation unavailable</h2></div>`;
     return;
   }
-  $("#details").innerHTML =
-    `<div class="detail-head"><small>${esc(displayAgent(item.agent))} · ${esc(item.session)}</small><h2>${esc(item.prompt || "Agent activity")}</h2><div class="chips">${[...item.sources].map(sourceChip).join("")}</div><p>${item.events.length} recorded stages · final outcome ${esc(item.decision)}</p></div><div class="timeline">${item.events.map(stage).join("")}</div>`;
+  const scrollTop = details.scrollTop;
+  details.innerHTML =
+    `<div class="detail-head"><small>${esc(displayAgent(item.agent))} · ${esc(item.session)}</small><h2>${esc(item.prompt || "Agent activity")}</h2><div class="chips">${[...item.sources].map(sourceChip).join("")}</div><p>${item.events.length} recorded stages · final outcome ${esc(item.decision)}</p></div><div class="timeline">${item.events.map((event, index) => stage(item, event, index)).join("")}</div>`;
+  details.querySelectorAll("details.payload").forEach((payload) => {
+    payload.ontoggle = () => {
+      const key = payload.dataset.payloadKey;
+      if (!key) return;
+      if (payload.open) state.openPayloads.add(key);
+      else state.openPayloads.delete(key);
+    };
+  });
+  details.scrollTop = scrollTop;
 }
-function stage(event) {
+function stage(item, event, index) {
   const kind = event.stage?.includes("final")
     ? event.decision === "deny"
       ? "deny"
@@ -167,7 +179,15 @@ function stage(event) {
         `<div class="plugin-row"><strong>${esc(run.pluginId)}</strong><small>${esc(run.status)}</small><div>${esc(run.summary || "")}</div></div>`,
     )
     .join("");
-  return `<div class="stage ${kind}"><i class="dot"></i><div class="stage-title"><span class="stage-label"><span>${esc(stageName(event.stage))}</span>${event.source ? originBadge(event.source) : ""}</span><time>${formatTime(event.timestamp)}</time></div><div class="summary">${esc(stageSummary(event))}</div>${plugins}<details class="payload"><summary>Inspect complete payload</summary><pre>${esc(JSON.stringify(event, null, 2))}</pre></details></div>`;
+  const payloadKey = [
+    item.key,
+    event.traceId || event.id || "event",
+    event.stage || "stage",
+    event.timestamp || index,
+    index,
+  ].join("|");
+  const open = state.openPayloads.has(payloadKey) ? " open" : "";
+  return `<div class="stage ${kind}"><i class="dot"></i><div class="stage-title"><span class="stage-label"><span>${esc(stageName(event.stage))}</span>${event.source ? originBadge(event.source) : ""}</span><time>${formatTime(event.timestamp)}</time></div><div class="summary">${esc(stageSummary(event))}</div>${plugins}<details class="payload" data-payload-key="${esc(payloadKey)}"${open}><summary>Inspect complete payload</summary><pre>${esc(JSON.stringify(event, null, 2))}</pre></details></div>`;
 }
 function sourceInfo(source) {
   return (
@@ -239,6 +259,29 @@ $("#search").oninput = (event) => {
 $("#pause").onclick = () => {
   state.paused = !state.paused;
   $("#pause").textContent = state.paused ? "Resume" : "Pause";
+};
+$("#clear").onclick = async () => {
+  if (!window.confirm("Clear all conversations from the local Flow Viewer history?"))
+    return;
+  const button = $("#clear");
+  button.disabled = true;
+  try {
+    const response = await fetch("/api/events/clear", {
+      method: "POST",
+      headers: { "x-openleash-flow-viewer": "clear" },
+    });
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    state.events = [];
+    state.selected = null;
+    state.openPayloads.clear();
+    render();
+    $("#details").innerHTML =
+      `<div class="empty"><div class="empty-icon">↗</div><h2>Select a conversation</h2><p>Inspect messages, normalization, plugins, decisions, and complete payloads.</p></div>`;
+  } catch {
+    window.alert("Could not clear the Flow Viewer history.");
+  } finally {
+    button.disabled = false;
+  }
 };
 document
   .querySelectorAll(".check input")

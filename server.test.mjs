@@ -44,6 +44,23 @@ test("serves the flow UI, health, and bounded NDJSON events", async (context) =>
     events: [{ id: "two", source: "local_proxy" }],
   });
 
+  const rejectedClear = await fetch(`${baseUrl}/api/events/clear`, { method: "POST" });
+  assert.equal(rejectedClear.status, 403);
+
+  const cleared = await fetch(`${baseUrl}/api/events/clear`, {
+    method: "POST",
+    headers: { "x-openleash-flow-viewer": "clear" },
+  });
+  assert.equal(cleared.status, 200);
+  assert.deepEqual(await cleared.json(), { ok: true });
+  assert.equal(await fs.readFile(traceFile, "utf8"), "");
+
+  const emptyEvents = await fetch(`${baseUrl}/api/events`);
+  assert.deepEqual(await emptyEvents.json(), {
+    traceFile,
+    events: [],
+  });
+
   const page = await fetch(baseUrl);
   assert.equal(page.status, 200);
   assert.match(await page.text(), /Agent traffic/);

@@ -48,6 +48,14 @@ test("serves the viewer and the newest valid trace events", async (context) => {
     { stage: "completed", decision: "allow" },
   ]);
 
+  const cleared = await fetch(`${origin}/api/events/clear`, {
+    method: "POST",
+    headers: { "x-openleash-flow-viewer": "clear" },
+  });
+  assert.equal(cleared.status, 200);
+  assert.deepEqual(await cleared.json(), { ok: true });
+  assert.equal((await fetch(`${origin}/api/events`).then((response) => response.json())).events.length, 0);
+
   const page = await fetch(origin);
   assert.equal(page.status, 200);
   assert.match(await page.text(), /Agent traffic/);

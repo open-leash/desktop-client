@@ -170,6 +170,15 @@ aside {
   border-radius: 8px;
   cursor: pointer;
 }
+.tools button.danger {
+  color: #ffaaaa;
+  border-color: #573035;
+}
+.tools button.danger:hover {
+  color: #fff;
+  background: #5a252b;
+  border-color: #844049;
+}
 .stats {
   display: grid;
   grid-template-columns: repeat(4, 1fr);

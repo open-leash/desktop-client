@@ -36,6 +36,15 @@ export function createFlowViewerServer(options = {}) {
       if (url.pathname === "/healthz") {
         return json(response, { ok: true, traceFile: config.traceFile });
       }
+      if (request.method === "POST" && url.pathname === "/api/events/clear") {
+        if (request.headers["x-openleash-flow-viewer"] !== "clear") {
+          return json(response, { error: "forbidden" }, 403);
+        }
+        await fs.truncate(config.traceFile, 0).catch((error) => {
+          if (error?.code !== "ENOENT") throw error;
+        });
+        return json(response, { ok: true });
+      }
       if (url.pathname === "/api/events") {
         const text = await fs.readFile(config.traceFile, "utf8").catch(() => "");
         const events = text
@@ -98,8 +107,8 @@ export async function startFlowViewer(options = {}) {
   return server;
 }
 
-function json(response, value) {
-  response.writeHead(200, {
+function json(response, value, status = 200) {
+  response.writeHead(status, {
     "content-type": "application/json",
     "cache-control": "no-store",
     "x-content-type-options": "nosniff",
