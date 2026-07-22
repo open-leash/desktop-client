@@ -59,9 +59,16 @@ export function activeAgentSessions(
     return sessions.flatMap((session, index) => {
       const lastActivityAt = session.last_activity_at ?? agent.activity_at;
       if (!lastActivityAt || !isRecent(lastActivityAt, now, activeWithinMs)) return [];
-      const latestEvent = session.events?.[0];
-      const latestPrompt = session.events?.find((event) => userFacingText(event.prompt));
+      const sourceEvents = session.events ?? [];
+      const visibleEvents = sourceEvents.filter((event) => !isClaudeStatusPrompt(agent, {
+        ...event,
+        prompt: event.prompt ?? session.title,
+      }));
+      if (sourceEvents.length > 0 && visibleEvents.length === 0) return [];
+      const latestEvent = visibleEvents[0];
+      const latestPrompt = visibleEvents.find((event) => userFacingText(event.prompt));
       const eventName = latestEvent?.event_name ?? (index === 0 ? agent.event_name : undefined);
+      if (!latestEvent && isClaudeStatusPrompt(agent, { event_name: eventName, prompt: session.title ?? agent.short_summary })) return [];
       if (eventName && TERMINAL_EVENTS.has(eventName.toLowerCase())) return [];
       const projectPath = session.project_path ?? agent.project_path;
       return [{
@@ -77,7 +84,7 @@ export function activeAgentSessions(
         lastActivityAt,
         durationSeconds: Math.max(0, Number(session.duration_seconds ?? 0)),
         eventCount: Math.max(1, Number(session.event_count ?? session.events?.length ?? 1)),
-        events: session.events?.map(sanitizeEvent).slice(0, 5) ?? [],
+        events: visibleEvents.map(sanitizeEvent).slice(0, 5),
       }];
     });
   }).sort((left, right) => Date.parse(right.lastActivityAt) - Date.parse(left.lastActivityAt));
@@ -86,6 +93,19 @@ export function activeAgentSessions(
 
 export function activityIslandKey(sessions: ActiveAgentSession[]) {
   return `activity:${sessions.map((session) => session.id).sort().join("|")}`;
+}
+
+export function excludeCompletedAgentSessions(
+  sessions: ActiveAgentSession[],
+  completedAtBySessionId: ReadonlyMap<string, number>,
+) {
+  return sessions.filter((session) => {
+    const completedAt = Math.max(
+      0,
+      ...session.sourceSessionIds.map((sessionId) => completedAtBySessionId.get(sessionId) ?? 0),
+    );
+    return completedAt === 0 || Date.parse(session.lastActivityAt) > completedAt;
+  });
 }
 
 export function contributionsForSession(
@@ -223,6 +243,11 @@ function isInternalControlText(value: string) {
     /^this session is being continued from a previous conversation\b/i.test(value) ||
     /^suggest what the user might naturally type next\b/i.test(value) ||
     /^you have \d+ weighted tokens left\b/i.test(value);
+}
+
+function isClaudeStatusPrompt(agent: ActivityIslandSourceAgent, event: ActivityIslandEvent) {
+  if (agent.kind !== "claude-code" || cleanText(event.event_name) !== "UserPromptSubmit") return false;
+  return /^\/?quota$/i.test(cleanText(event.prompt));
 }
 
 function humanize(value: string) {

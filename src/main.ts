@@ -67,6 +67,7 @@ import {
   activityIslandKey,
   ambientIslandContributions,
   contributionsForSession,
+  excludeCompletedAgentSessions,
   type ActiveAgentSession,
 } from "./activity-island";
 
@@ -336,6 +337,7 @@ let pendingNativeIslandPayload: Record<string, unknown> | undefined;
 let activeActivityFingerprint: string | undefined;
 let latestPending: PendingDecision[] = [];
 let latestAgents: AgentStatus[] = [];
+const completedAgentSessions = new Map<string, number>();
 let latestSessionMetrics: SessionMetrics = {};
 let latestPlugins: PluginCatalogItem[] = [];
 let latestOutcomes: PluginOutcome[] = [];
@@ -2087,6 +2089,7 @@ async function poll() {
     latestOutcomes = body.outcomes ?? [];
     latestViewModel = body.viewModel ?? latestViewModel;
     latestAttentionEvents = body.attentionEvents ?? [];
+    rememberCompletedAgentSessions(latestAttentionEvents);
     latestIslandContributions = body.islandContributions ?? [];
     setTrayStatus(latestPending.length > 0 ? "pending" : "ok");
     refreshMenu();
@@ -4695,7 +4698,7 @@ function handlePluginIslandAction(payload: unknown) {
 }
 
 function syncActivityIsland() {
-  const sessions = activeAgentSessions(latestAgents);
+  const sessions = currentActiveAgentSessions();
   const contributions = latestIslandContributions.filter((contribution) =>
     Date.parse(contribution.expiresAt) > Date.now()
   );
@@ -4715,6 +4718,25 @@ function syncActivityIsland() {
   if (activeNoticeKey === key && activeActivityFingerprint === fingerprint) return;
   activeActivityFingerprint = fingerprint;
   showDecisionNotice({ kind: "activity", sessions, contributions });
+}
+
+function currentActiveAgentSessions() {
+  const cutoff = Date.now() - 10 * 60_000;
+  for (const [sessionId, completedAt] of completedAgentSessions) {
+    if (completedAt < cutoff) completedAgentSessions.delete(sessionId);
+  }
+  return excludeCompletedAgentSessions(activeAgentSessions(latestAgents), completedAgentSessions);
+}
+
+function rememberCompletedAgentSessions(events: AttentionEvent[]) {
+  for (const event of events) {
+    if (event.kind !== "completed" || !event.session?.id) continue;
+    const completedAt = Date.parse(event.createdAt);
+    completedAgentSessions.set(
+      event.session.id,
+      Number.isFinite(completedAt) ? completedAt : Date.now(),
+    );
+  }
 }
 
 function showAgentDetail(_agent: AgentStatus) {
@@ -5301,9 +5323,11 @@ let lastAgentDoneSoundAt = 0;
 function handleLocalAgentStop(event: { agent: string; body: unknown }) {
   const body = objectValue(event.body);
   const agentName = localAgentDisplayName(event.agent);
+  const sessionId = String(body?.session_id ?? body?.sessionId ?? "unknown");
+  if (sessionId !== "unknown") completedAgentSessions.set(sessionId, Date.now());
   const attention: AttentionEvent = {
     schemaVersion: "2026-07-19.v1",
-    id: `local-completed:${event.agent}:${String(body?.session_id ?? body?.sessionId ?? Date.now())}`,
+    id: `local-completed:${event.agent}:${sessionId === "unknown" ? Date.now() : sessionId}`,
     kind: "completed",
     state: "resolved",
     title: `${agentName} finished`,
@@ -5315,7 +5339,7 @@ function handleLocalAgentStop(event: { agent: string; body: unknown }) {
     createdAt: new Date().toISOString(),
     agent: { kind: event.agent, name: agentName, hostname: os.hostname() },
     session: {
-      id: String(body?.session_id ?? body?.sessionId ?? "unknown"),
+      id: sessionId,
       projectPath:
         typeof body?.cwd === "string" ? body.cwd : undefined,
     },

@@ -5,6 +5,7 @@ import {
   activityIslandKey,
   ambientIslandContributions,
   contributionsForSession,
+  excludeCompletedAgentSessions,
 } from "./activity-island";
 import type { PluginIslandContribution } from "@openleash/shared";
 
@@ -53,6 +54,26 @@ test("shows the latest user request and explains tools in plain language", () =>
   assert.equal(session?.title, "ok write a nice 2 page story about moses and god");
   assert.equal(session?.latestAction, "Reviewing project files");
   assert.equal(session?.summary, "11 actions · 2 approval requests · 1 blocked");
+});
+
+test("does not show Claude quota checks as active agent work", () => {
+  const now = Date.parse("2026-07-20T10:00:00.000Z");
+  const sessions = activeAgentSessions([{
+    kind: "claude-code",
+    display_name: "Claude Code",
+    activity_at: new Date(now - 1_000).toISOString(),
+    sessions: [{
+      id: "claude-idle-quota",
+      title: "quota",
+      last_activity_at: new Date(now - 1_000).toISOString(),
+      events: [{
+        event_name: "UserPromptSubmit",
+        created_at: new Date(now - 1_000).toISOString(),
+      }],
+    }],
+  }], now);
+
+  assert.deepEqual(sessions, []);
 });
 
 test("hides Claude control prompts and keeps the latest real user request", () => {
@@ -167,6 +188,32 @@ test("excludes completed and stale sessions and keeps the key stable across upda
 
   assert.deepEqual(first.map((session) => session.id), ["active"]);
   assert.equal(activityIslandKey(first), activityIslandKey(updated));
+});
+
+test("keeps a finished turn hidden until that session has newer activity", () => {
+  const completedAt = Date.parse("2026-07-20T10:00:00.000Z");
+  const session = {
+    id: "claude-session",
+    sessionId: "claude-session",
+    sourceSessionIds: ["claude-session"],
+    agentKind: "claude-code",
+    agentName: "Claude Code",
+    project: "MyProj",
+    title: "copy the environment file",
+    summary: "Agent is working",
+    latestAction: "Working",
+    lastActivityAt: new Date(completedAt - 1_000).toISOString(),
+    durationSeconds: 1,
+    eventCount: 2,
+    events: [],
+  };
+  const completions = new Map([["claude-session", completedAt]]);
+
+  assert.deepEqual(excludeCompletedAgentSessions([session], completions), []);
+  assert.deepEqual(
+    excludeCompletedAgentSessions([{ ...session, lastActivityAt: new Date(completedAt + 1_000).toISOString() }], completions),
+    [{ ...session, lastActivityAt: new Date(completedAt + 1_000).toISOString() }],
+  );
 });
 
 test("attaches plugin annotations and related global status to the intended session", () => {
