@@ -44,6 +44,7 @@ import {
   OPENLEASH_PUBLIC_CLOUD_DASHBOARD_URL,
 } from "./public-config";
 import type { PluginCatalogItem } from "./plugin-catalog";
+import { canonicalPluginSlug } from "./plugin-slug";
 import type {
   OpenLeashClientViewModel,
   OpenLeashAttentionEvent,
@@ -5440,9 +5441,7 @@ function noticePluginName(item: PendingDecision) {
     ),
   );
   const pluginId = item.plugin_id || run?.pluginId || run?.plugin_id;
-  if (!pluginId || pluginId === "openleash.core") return "openleash-core";
-  const slug = pluginId.replace(/^openleash\./, "");
-  return slug === "prompt-compression" ? "token-saver" : slug;
+  return canonicalPluginSlug(pluginId);
 }
 
 function approvalTitle(item: PendingDecision) {
@@ -5465,7 +5464,7 @@ function approvalSummary(item: PendingDecision) {
 
 function decorateIslandContribution(contribution: PluginIslandContribution) {
   const plugin = latestPlugins.find((item) => item.id === contribution.pluginId);
-  const pluginName = plugin?.slug || contribution.pluginId.replace(/^openleash\./, "");
+  const pluginName = canonicalPluginSlug(plugin?.slug || contribution.pluginId);
   const iconText = (plugin as { marketplace?: { iconText?: unknown } } | undefined)?.marketplace?.iconText;
   return {
     ...contribution,

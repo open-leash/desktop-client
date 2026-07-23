@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import { Command } from "commander";
+import { canonicalPluginSlug } from "../plugin-slug.js";
 import os from "node:os";
 import { apiVersionHeaders } from "./api-contract.js";
 import { defaultCloudApiUrl, defaultDesktopApiUrl, hookApiUrl, readConfig, writeConfig } from "./config.js";
@@ -414,7 +415,7 @@ async function mutatePlugins(action: "install" | "uninstall", pluginInputs: stri
         const plugin = resolvePluginInput(input, listings);
         const pluginId = plugin?.id ?? input;
         const result = await mutatePlugin(config, pluginId, action);
-        const label = plugin?.slug ?? plugin?.id ?? input;
+        const label = canonicalPluginSlug(plugin?.slug ?? plugin?.id ?? input);
         results.push({ input, plugin: label, ok: true, result });
         if (!options.json) console.log(`${label}: ${action === "install" ? "installed" : "removed"}`);
       } catch (error) {
@@ -468,7 +469,7 @@ function printPluginListings(listings: PluginListing[]) {
   }
   console.table(
     listings.map((plugin) => ({
-      package: plugin.slug ?? plugin.id,
+      package: canonicalPluginSlug(plugin.slug ?? plugin.id),
       by: plugin.developerName ?? "",
       rating: plugin.rating ? plugin.rating.toFixed(1) : "",
       installs: typeof plugin.installCount === "number" ? plugin.installCount : "",

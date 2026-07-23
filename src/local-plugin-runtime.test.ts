@@ -9,6 +9,15 @@ import type { PluginCatalogItem } from "./plugin-catalog";
 
 test("desktop client-api edge transforms provider requests through a container API", async () => {
   const runtime = http.createServer((request, response) => {
+    if (request.method === "GET" && request.url === "/healthz") {
+      response.writeHead(200, { "content-type": "application/json" });
+      response.end(JSON.stringify({
+        ok: true,
+        pluginId: request.headers["x-openleash-plugin-id"],
+        protocol: "openleash-container-plugin.v1",
+      }));
+      return;
+    }
     let raw = "";
     request.on("data", (chunk) => { raw += chunk; });
     request.on("end", () => {

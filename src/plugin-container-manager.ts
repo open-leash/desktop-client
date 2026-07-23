@@ -4,6 +4,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import type { PluginCatalogItem } from "./plugin-catalog";
+import { canonicalPluginSlug } from "./plugin-slug";
 
 const PROTOCOL = "openleash-container-plugin.v1";
 const MANAGED_LABEL = "com.openleash.plugin-managed=true";
@@ -111,12 +112,13 @@ export async function transformViaLocalPluginContainers(input: {
       isDesiredEdgeContainer(plugin),
     );
   for (const plugin of scopedPlugins) {
-    const readiness = pluginContainerReadiness(plugin);
+    const readiness = await pluginContainerReadiness(plugin);
     if (!readiness.ready) {
       const required = (plugin.execution?.failureMode ?? "open") === "closed";
+      const pluginSlug = canonicalPluginSlug(plugin.slug || plugin.id || plugin.name);
       const summary = required
-        ? `Required plugin ${plugin.name} is not ready; retry when plugin startup completes.`
-        : `${plugin.name} is still starting; this request continued without the optional plugin.`;
+        ? `Required plugin ${pluginSlug} is not ready; retry when plugin startup completes.`
+        : `${pluginSlug} is still starting; this request continued without the optional plugin.`;
       runs.push({ pluginId: plugin.id, status: "skipped", summary });
       if (required) throw new Error(`${summary} ${readiness.error}`);
       continue;
@@ -193,9 +195,10 @@ export async function executeViaLocalPluginContainer(input: {
   if (!input.plugin.settings.enabled || execution?.type !== "container" || !execution.toolExecutePath) {
     throw new Error(`plugin ${input.plugin.id} does not expose tool execution`);
   }
-  const readiness = pluginContainerReadiness(input.plugin);
+  const readiness = await pluginContainerReadiness(input.plugin);
   if (!readiness.ready) {
-    throw new Error(`Plugin ${input.plugin.name} is not ready; retry when plugin startup completes. ${readiness.error}`);
+    const pluginSlug = canonicalPluginSlug(input.plugin.slug || input.plugin.id || input.plugin.name);
+    throw new Error(`Plugin ${pluginSlug} is not ready; retry when plugin startup completes. ${readiness.error}`);
   }
   const requestId = crypto.randomUUID();
   const envelope = {
@@ -480,9 +483,25 @@ function managedContainerNames() {
   return result.status === 0 ? result.stdout.split(/\r?\n/).map((value) => value.trim()).filter(Boolean) : [];
 }
 
-function pluginContainerReadiness(plugin: PluginCatalogItem):
+async function pluginContainerReadiness(plugin: PluginCatalogItem): Promise<
   | { ready: true }
-  | { ready: false; error: string } {
+  | { ready: false; error: string }
+> {
+  if (plugin.permissions.includes("network:access")) {
+    try {
+      const response = await fetch(pluginEndpoint(plugin, plugin.execution?.healthPath ?? "/healthz"), {
+        headers: { "x-openleash-plugin-id": plugin.id },
+        signal: AbortSignal.timeout(PLUGIN_READINESS_TIMEOUT_MS),
+      });
+      if (response.ok) return { ready: true };
+      return { ready: false, error: `plugin health check returned HTTP ${response.status}` };
+    } catch (error) {
+      return {
+        ready: false,
+        error: error instanceof Error ? error.message : "plugin health check failed",
+      };
+    }
+  }
   const name = containerName(plugin.id);
   const result = docker([
     "inspect",

@@ -942,6 +942,24 @@
       }
       new ResizeObserver(resize).observe(island);
 
+      function canonicalPluginSlug(value) {
+        const raw = String(value || "").trim();
+        if (!raw) return "";
+        if (raw.toLowerCase() === "openleash.core") return "openleash-core";
+        const unscoped = raw.replace(/^openleash\./i, "");
+        const lower = unscoped.toLowerCase();
+        const aliases = {
+          "blast radius": "blast-radius",
+          "prompt-compression": "token-saver",
+          "prompt compression": "token-saver",
+          "token-compression": "token-saver",
+          "token compression": "token-saver",
+          "token saver": "token-saver",
+          "dlp": "data-leakage-prevention"
+        };
+        return aliases[lower] || lower.replace(/[\s_]+/g, "-");
+      }
+
       function renderNotice(payload) {
         const previousAttention = current?.attention || current;
         const nextAttention = payload?.attention || payload;
@@ -972,7 +990,7 @@
         renderIslandMenu(payload.islandMenu || {});
         if (payload.purpose && currentKind === "approval") { purpose.hidden = false; purpose.innerHTML = ""; const label = document.createElement("b"); label.textContent = "Why now · "; purpose.append(label, document.createTextNode(payload.purpose)); }
         if (payload.evidence && currentKind === "approval") { evidenceBlock.hidden = false; evidence.textContent = payload.evidence; }
-        for (const [label, value] of (currentKind === "activity" ? [] : [["Folder", payload.project], ["Plugin", payload.pluginName]]).filter((item) => item[1])) { const chip = document.createElement("span"); chip.className = "chip"; chip.textContent = `${label} · ${value}`; chips.appendChild(chip); }
+        for (const [label, value] of (currentKind === "activity" ? [] : [["Folder", payload.project], ["Plugin", canonicalPluginSlug(payload.pluginName)]]).filter((item) => item[1])) { const chip = document.createElement("span"); chip.className = "chip"; chip.textContent = `${label} · ${value}`; chips.appendChild(chip); }
 
         if (currentKind === "question") renderQuestions(payload);
         else if (currentKind === "plan_review") renderPlan(payload);
@@ -1213,7 +1231,7 @@
         const icon = animatedAgentIcon(attention, "session-agent-icon", attention.visualState || "waiting");
         const copy = document.createElement("div"); copy.className = "attention-copy";
         const heading = document.createElement("div"); heading.className = "attention-title"; heading.textContent = attention.title || "Agent needs your attention";
-        const meta = document.createElement("div"); meta.className = "attention-meta"; meta.textContent = [attention.agentName, attention.project, attention.pluginName].filter(Boolean).join(" · ");
+        const meta = document.createElement("div"); meta.className = "attention-meta"; meta.textContent = [attention.agentName, attention.project, canonicalPluginSlug(attention.pluginName)].filter(Boolean).join(" · ");
         copy.append(heading, meta);
         const badge = document.createElement("span"); badge.className = "attention-badge"; badge.textContent = interaction === "questions" ? "Question" : interaction === "plan" ? "Plan" : "Approval";
         head.append(icon, copy, badge);
@@ -1343,7 +1361,7 @@
         const card = document.createElement("div"); card.className = `island-contribution ${contribution.tone || "neutral"}`;
         const head = document.createElement("div"); head.className = "contribution-head";
         const title = document.createElement("div"); title.className = "contribution-title"; title.textContent = contribution.label || contribution.title || "Plugin update";
-        const plugin = document.createElement("div"); plugin.className = "contribution-plugin"; plugin.textContent = `${contribution.pluginIcon || "OL"} ${contribution.pluginName || contribution.pluginId}`;
+        const plugin = document.createElement("div"); plugin.className = "contribution-plugin"; plugin.textContent = `${contribution.pluginIcon || "OL"} ${canonicalPluginSlug(contribution.pluginName || contribution.pluginId)}`;
         head.append(title, plugin); card.appendChild(head);
         if (contribution.detail) { const detail = document.createElement("div"); detail.className = "contribution-detail"; detail.textContent = contribution.detail; card.appendChild(detail); }
         if (contribution.progress) {

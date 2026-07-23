@@ -4078,12 +4078,13 @@
       }
 
       function logPluginSlug(value) {
-        const slug = String(value || "openleash-core").replace(/^openleash\./, "");
-        return slug === "prompt-compression" ? "token-saver" : slug;
+        return canonicalPluginSlug(value);
       }
 
       function normalizeTokenSaverText(value) {
-        return String(value || "").replace(/token saver/gi, "token-saver").replace(/prompt-compression/gi, "token-saver");
+        return String(value || "")
+          .replace(/(?:prompt|token)[ -]compression(?: plugin)?/gi, "token-saver")
+          .replace(/token saver/gi, "token-saver");
       }
 
       function renderEventDetail() {
@@ -5243,12 +5244,30 @@
         return plugin.events || plugin.stages || [];
       }
 
+      function canonicalPluginSlug(value) {
+        const raw = String(value || "").trim();
+        if (!raw) return "openleash-core";
+        if (raw.toLowerCase() === "openleash.core") return "openleash-core";
+        const unscoped = raw.replace(/^openleash\./i, "");
+        const lower = unscoped.toLowerCase();
+        const aliases = {
+          "blast radius": "blast-radius",
+          "prompt-compression": "token-saver",
+          "prompt compression": "token-saver",
+          "token-compression": "token-saver",
+          "token compression": "token-saver",
+          "token saver": "token-saver",
+          "dlp": "data-leakage-prevention"
+        };
+        return aliases[lower] || lower.replace(/[\s_]+/g, "-");
+      }
+
       function pluginName(plugin) {
-        return plugin.slug || plugin.marketplace?.slug || plugin.name || String(plugin.id || "").split(".").pop() || plugin.id;
+        return canonicalPluginSlug(plugin.slug || plugin.marketplace?.slug || plugin.name || plugin.id);
       }
 
       function pluginPackageName(plugin) {
-        return plugin.slug || plugin.marketplace?.slug || String(plugin.id || "").split(".").pop() || pluginName(plugin);
+        return pluginName(plugin);
       }
 
       function compactNumber(value) {

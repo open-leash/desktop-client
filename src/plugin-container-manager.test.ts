@@ -136,7 +136,7 @@ test("a first request skips an optional plugin while its container is still star
   assert.deepEqual(result.runs, [{
     pluginId: plugin.id,
     status: "skipped",
-    summary: "optional startup plugin is still starting; this request continued without the optional plugin.",
+    summary: "test.openleash-not-running-optional-plugin is still starting; this request continued without the optional plugin.",
   }]);
 });
 
@@ -172,6 +172,6 @@ test("a required plugin that is still starting fails closed without invoking it"
       userId: "user",
       requestBody: { messages: [] },
     }),
-    /Required plugin required startup plugin is not ready/,
+    /Required plugin test.openleash-not-running-required-plugin is not ready/,
   );
 });

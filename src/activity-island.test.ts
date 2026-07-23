@@ -10,6 +10,15 @@ import {
   mergeImmediateAgentActivity,
   prioritizeAgentSessions,
 } from "./activity-island";
+import { canonicalPluginSlug } from "./plugin-slug";
+
+test("plugin presentation always uses canonical slugs", () => {
+  assert.equal(canonicalPluginSlug("Blast Radius"), "blast-radius");
+  assert.equal(canonicalPluginSlug("openleash.blast-radius"), "blast-radius");
+  assert.equal(canonicalPluginSlug("openleash.prompt-compression"), "token-saver");
+  assert.equal(canonicalPluginSlug("token-compression"), "token-saver");
+  assert.equal(canonicalPluginSlug("openleash.core"), "openleash-core");
+});
 
 test("shows an agent immediately from the first local ingestion event", () => {
   const occurredAt = "2026-07-22T19:00:00.000Z";
