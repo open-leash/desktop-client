@@ -1,3 +1,5 @@
+import { canonicalPluginSlug, canonicalPluginText } from "./plugin-slug.js";
+
 const state = {
   events: [],
   agent: "all",
@@ -176,7 +178,7 @@ function stage(item, event, index) {
   const plugins = (event.runs || [])
     .map(
       (run) =>
-        `<div class="plugin-row"><strong>${esc(run.pluginId)}</strong><small>${esc(run.status)}</small><div>${esc(run.summary || "")}</div></div>`,
+        `<div class="plugin-row"><strong>${esc(canonicalPluginSlug(run.pluginId || run.pluginName))}</strong><small>${esc(run.status)}</small><div>${esc(canonicalPluginText(run.summary || ""))}</div></div>`,
     )
     .join("");
   const payloadKey = [
@@ -221,7 +223,7 @@ function stageSummary(event) {
     return `${event.decision}: ${event.transportOutcome.replaceAll("_", " ")}`;
   if (event.runs?.length)
     return event.runs
-      .map((run) => `${run.pluginId}: ${run.status}`)
+      .map((run) => `${canonicalPluginSlug(run.pluginId || run.pluginName)}: ${run.status}`)
       .join(" · ");
   if (event.event) return `${event.event} from ${displayAgent(event.agent)}`;
   return "Recorded pipeline stage";

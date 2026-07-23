@@ -5,8 +5,18 @@ import path from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
 import { createFlowViewerServer } from "../server.mjs";
+import { canonicalPluginSlug, canonicalPluginText } from "../public/plugin-slug.js";
 
 const appDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+
+test("renders canonical plugin slugs", () => {
+  assert.equal(canonicalPluginSlug("Blast Radius"), "blast-radius");
+  assert.equal(canonicalPluginSlug("openleash.blast-radius"), "blast-radius");
+  assert.equal(canonicalPluginSlug("openleash.prompt-compression"), "token-saver");
+  assert.equal(canonicalPluginSlug("token-compression"), "token-saver");
+  assert.equal(canonicalPluginSlug("openleash.core"), "openleash-core");
+  assert.equal(canonicalPluginText("Blast Radius checked prompt compression"), "blast-radius checked token-saver");
+});
 
 test("serves the viewer and the newest valid trace events", async (context) => {
   const temporary = await mkdtemp(path.join(tmpdir(), "openleash-flow-viewer-"));
