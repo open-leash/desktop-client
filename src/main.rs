@@ -325,7 +325,11 @@ async fn forward(
     let mut container_plugin_runs = Vec::new();
     let background_control_request =
         intercept && is_background_control_request(&agent_kind, &value);
-    if intercept && !background_control_request {
+    // Background control requests (for example Claude's session-title
+    // generation) can still contain the user's complete prompt. Keep them out
+    // of agent-activity and response telemetry, but never bypass request
+    // transformation or policy enforcement.
+    if intercept {
         let transformation = tokio::time::timeout(
             Duration::from_secs(app.config.evaluation_timeout_seconds),
             transform_request(&app, &parts.uri.to_string(), &value, &agent_kind),
