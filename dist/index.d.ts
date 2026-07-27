@@ -14,6 +14,7 @@ export type PluginContainerExecution = {
     /** Production releases pin the immutable image digest separately from the human-readable tag. */
     digest?: string;
     healthPath?: string;
+    /** Generic normalized pipeline-event endpoint. */
     eventPath?: string;
     transformPath?: string;
     toolExecutePath?: string;

@@ -263,38 +263,6 @@ export type PluginSettingState = {
   updatedAt?: string;
 };
 
-export function firstPartyEventContainer(
-  slug: string,
-  version: string,
-  options: Partial<PluginContainerExecution> = {},
-): PluginContainerExecution {
-  const edgePorts: Record<string, number> = {
-    "blast-radius": 9351,
-    "sensitive-access": 9352,
-    "data-leakage-prevention": 9353,
-    "rules-enforcer": 9354,
-    "mcp-scanner": 9355,
-    "code-scanner": 9356,
-    "skill-scanner": 9357,
-    "siem-exporter": 9358,
-  };
-  return {
-    type: "container",
-    placement: "either",
-    protocol: "openleash-container-plugin.v1",
-    image: `ghcr.io/open-leash/plugin-${slug}:${version}`,
-    healthPath: "/healthz",
-    eventPath: "/v1/events",
-    edgePort: edgePorts[slug],
-    timeoutMs: 30_000,
-    failureMode: "closed",
-    isolation: "shared-trusted",
-    resources: { memoryMb: 256, cpuShares: 256 },
-    storage: { persistent: false },
-    ...options,
-  };
-}
-
 export const FIRST_PARTY_PLUGIN_MANIFESTS = [
   {
     id: "openleash.prompt-compression",

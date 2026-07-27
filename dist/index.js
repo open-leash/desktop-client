@@ -273,7 +273,9 @@ export const FIRST_PARTY_PLUGIN_MANIFESTS = [
         version: "1.0.0",
         publisher: "openleash",
         runtime: "container",
-        execution: firstPartyEventContainer("siem-exporter", "1.0.0", { failureMode: "open" }),
+        execution: firstPartyEventContainer("siem-exporter", "1.0.0", {
+            failureMode: "open",
+        }),
         entrypoint: "container",
         events: ["prompt.beforeSubmit", "agent.response", "tool.beforeUse", "tool.afterUse", "session.started", "session.ended", "skill.detected", "skill.changed", "skill.removed", "log.emitted"],
         permissions: ["event:read", "prompt:read", "tool:read", "network:access", "audit:write", "log:write"],
@@ -351,7 +353,9 @@ export function buildOpenLeashClientViewModel({ plugins, outcomes, summary, shel
         return {
             id: plugin.id,
             packageId: pluginPackageId(plugin),
-            displayName: plugin.name || pluginPackageId(plugin),
+            // A plugin's package slug is its product-facing identity. Do not turn
+            // it into a title-cased product name in clients.
+            displayName: pluginPackageId(plugin),
             description: plugin.marketplace?.shortDescription || plugin.description,
             category: pluginCategoryId(plugin),
             installed: true,
