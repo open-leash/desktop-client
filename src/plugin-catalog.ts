@@ -20,7 +20,11 @@ export type BundledPluginManifest = {
     edgePort?: number;
     timeoutMs?: number;
     failureMode?: "open" | "closed";
-    isolation?: "shared-trusted" | "tenant-dedicated" | "customer-hosted";
+    isolation?:
+      | "shared-trusted"
+      | "user-dedicated"
+      | "tenant-dedicated"
+      | "customer-hosted";
     resources?: { memoryMb?: number; cpuShares?: number };
     storage?: { persistent: boolean; volumeName?: string };
   };
@@ -91,7 +95,7 @@ function bundledEventContainer(slug: string, version: string): NonNullable<Bundl
     failureMode: "closed",
     isolation: "shared-trusted",
     resources: { memoryMb: 256, cpuShares: 256 },
-    storage: { persistent: false },
+    storage: { persistent: true },
   };
 }
 
@@ -124,7 +128,7 @@ export const bundledFirstPartyPlugins: BundledPluginManifest[] = [
     },
     entrypoint: "container",
     events: ["provider.request.beforeSend", "plugin.tool.execute", "prompt.beforeSubmit"],
-    permissions: ["event:read", "prompt:read", "prompt:write", "provider-request:read", "provider-request:write", "local-model:run", "storage:read", "storage:write", "audit:write", "log:write", "usage:write", "island:publish"],
+    permissions: ["event:read", "prompt:read", "prompt:write", "provider-request:read", "provider-request:write", "local-model:run", "audit:write", "log:write", "usage:write", "island:publish"],
     effects: ["transform", "observe"],
     ordering: { priority: 100, before: ["openleash.dlp"] },
     configSchema: {

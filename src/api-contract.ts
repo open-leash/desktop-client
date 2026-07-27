@@ -24,6 +24,7 @@ export const OPENLEASH_API_CONTRACTS = {
   mobileState: "2026-05-22.mobile-state.v1",
   mobileDecisionResolve: "2026-05-22.mobile-decision-resolve.v1",
   clientNotifications: "2026-06-28.client-notifications.v1",
+  clientEvents: "2026-07-27.client-events.v1",
   clientDecisionResolve: "2026-06-28.client-decision-resolve.v1",
   localEvaluate: "2026-05-16.local-evaluate.v1",
   localHookEvaluate: "2026-05-22.local-hook-evaluate.v1"

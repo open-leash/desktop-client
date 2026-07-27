@@ -31,7 +31,41 @@ test("container plan is loopback-only, constrained, and digest-pinned when suppl
   assert.ok(args.includes("no-new-privileges:true"));
   assert.ok(args.includes("ALL"));
   assert.ok(args.includes("openleash-plugin-runtime"));
+  assert.ok(
+    args.includes("openleash-plugin-acme.compress-data:/data"),
+    "community plugins must receive only their derived isolated volume",
+  );
+  assert.ok(!args.includes("acme-data:/data"));
   assert.equal(args.at(-1), "acme/compress:2.0.0@sha256:abc");
+});
+
+test("plugin data is persistent by default and can be explicitly ephemeral", () => {
+  const plugin = {
+    id: "acme.memory",
+    name: "memory",
+    description: "test",
+    version: "1.0.0",
+    publisher: "acme",
+    runtime: "container",
+    execution: {
+      type: "container",
+      placement: "edge",
+      protocol: "openleash-container-plugin.v1",
+      image: "acme/memory:1.0.0",
+    },
+    entrypoint: "container",
+    events: ["provider.request.beforeSend"],
+    permissions: ["provider-request:read"],
+    effects: ["observe"],
+    settings: { enabled: true, config: {} },
+  } as PluginCatalogItem;
+  assert.ok(
+    containerRunArgs(plugin).includes(
+      "openleash-plugin-acme.memory-data:/data",
+    ),
+  );
+  plugin.execution!.storage = { persistent: false };
+  assert.ok(!containerRunArgs(plugin).some((arg) => arg.endsWith(":/data")));
 });
 
 test("an organization agent profile starts one shared plugin container even when base enablement is off", () => {

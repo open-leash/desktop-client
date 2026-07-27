@@ -257,6 +257,10 @@
         87.5%, 100% { transform: translate(-87.5%, -11.111%); }
       }
       body.animations-paused .agent-avatar *, body.animations-paused .signal::after { animation-play-state: paused !important; }
+      body.animations-paused .island,
+      body.animations-paused .reveal,
+      body.animations-paused .toggle svg { transition: none !important; }
+      body.native-macos .island { transition: none; }
       .island.activity-mode:not(.expanded) { width: var(--activity-compact-width, 180px); }
       .island.menu-open { min-height: 438px; }
       .island.activity-mode.menu-open:not(.expanded) { width: 286px; }
@@ -607,6 +611,74 @@
         font-size: 11.5px;
         line-height: 1.45;
       }
+      .social-follow {
+        padding: 20px 6px 5px;
+        text-align: center;
+      }
+      .social-follow h2 {
+        margin: 0;
+        color: var(--ink);
+        font-size: 20px;
+        font-weight: 680;
+        line-height: 1.2;
+        letter-spacing: -.025em;
+      }
+      .social-follow p {
+        max-width: 360px;
+        margin: 8px auto 15px;
+        color: var(--muted);
+        font-size: 11.5px;
+        line-height: 1.45;
+      }
+      .social-options {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 9px;
+      }
+      .social-card {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        min-width: 0;
+        padding: 12px;
+        border: 1px solid var(--line);
+        border-radius: 14px;
+        color: var(--ink);
+        background: rgba(255,255,255,.045);
+        font: inherit;
+        text-align: left;
+        cursor: pointer;
+        transition: transform 140ms ease, border-color 140ms ease, background 140ms ease;
+      }
+      .social-card:hover {
+        transform: translateY(-1px);
+        border-color: rgba(88,216,255,.38);
+        background: rgba(255,255,255,.075);
+      }
+      .social-card:focus-visible { outline: 2px solid var(--cyan); outline-offset: 2px; }
+      .social-logo {
+        display: grid;
+        flex: 0 0 34px;
+        width: 34px;
+        height: 34px;
+        place-items: center;
+        border-radius: 10px;
+        color: #fff;
+        background: #050505;
+      }
+      .social-card.linkedin .social-logo { background: #0a66c2; }
+      .social-logo svg { width: 18px; height: 18px; fill: currentColor; }
+      .social-copy { min-width: 0; }
+      .social-name { display: block; font-size: 12px; font-weight: 680; }
+      .social-handle {
+        display: block;
+        overflow: hidden;
+        margin-top: 3px;
+        color: var(--muted);
+        font-size: 9.5px;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
       @media (prefers-reduced-motion: reduce) {
         .install-fireworks { opacity: .9; }
       }
@@ -750,6 +822,24 @@
           <h2>OpenLeash installed</h2>
           <p>Your agents are connected. OpenLeash will appear here when something needs your attention.</p>
         </div>
+        <div class="social-follow" id="socialFollow" hidden>
+          <h2>Help us improve</h2>
+          <p>Follow us on X and LinkedIn for product updates, tips, and new releases.</p>
+          <div class="social-options">
+            <button type="button" class="social-card x" data-social="x" aria-label="Follow OpenLeash on X">
+              <span class="social-logo" aria-hidden="true">
+                <svg viewBox="0 0 24 24"><path d="M14.234 10.162 22.977 0h-2.072l-7.591 8.824L7.251 0H.258l9.168 13.343L.258 24H2.33l8.016-9.318L16.749 24h6.993zm-2.837 3.299-.929-1.329L3.076 1.56h3.182l5.965 8.532.929 1.329 7.754 11.09h-3.182z"/></svg>
+              </span>
+              <span class="social-copy"><span class="social-name">X</span><span class="social-handle">@OpenLeashCom</span></span>
+            </button>
+            <button type="button" class="social-card linkedin" data-social="linkedin" aria-label="Follow OpenLeash on LinkedIn">
+              <span class="social-logo" aria-hidden="true">
+                <svg viewBox="0 0 24 24"><path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.94v5.666H9.351V9h3.414v1.561h.047c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433A2.062 2.062 0 1 1 5.337 3.31a2.062 2.062 0 0 1 0 4.124zM7.119 20.452H3.555V9h3.564zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0z"/></svg>
+              </span>
+              <span class="social-copy"><span class="social-name">LinkedIn</span><span class="social-handle">OpenLeash</span></span>
+            </button>
+          </div>
+        </div>
         <div class="activity-panel" id="activityPanel" hidden>
           <div class="attention-card" id="attentionPanel" hidden></div>
           <div class="session-section-label" id="sessionSectionLabel">Live agents</div>
@@ -784,7 +874,7 @@
       let installAnimation;
       const $ = (id) => document.getElementById(id);
       const island = $("island"), cap = $("cap"), glyph = $("glyph"), status = $("status"), eyebrow = $("eyebrow"), title = $("title"), count = $("count"), capAgents = $("capAgents"), capMetric = $("capMetric"), notchRail = $("notchRail"), notchAgents = $("notchAgents"), notchMetric = $("notchMetric");
-      const installSuccess = $("installSuccess"), installFireworks = $("installFireworks"), activityPanel = $("activityPanel"), attentionPanel = $("attentionPanel"), sessionSectionLabel = $("sessionSectionLabel"), sessionList = $("sessionList"), activityDetail = $("activityDetail"), ambientContributions = $("ambientContributions"), summary = $("summary"), purpose = $("purpose"), evidenceBlock = $("evidenceBlock"), evidence = $("evidence"), chips = $("chips"), questions = $("questions"), plan = $("plan");
+      const installSuccess = $("installSuccess"), installFireworks = $("installFireworks"), socialFollow = $("socialFollow"), activityPanel = $("activityPanel"), attentionPanel = $("attentionPanel"), sessionSectionLabel = $("sessionSectionLabel"), sessionList = $("sessionList"), activityDetail = $("activityDetail"), ambientContributions = $("ambientContributions"), summary = $("summary"), purpose = $("purpose"), evidenceBlock = $("evidenceBlock"), evidence = $("evidence"), chips = $("chips"), questions = $("questions"), plan = $("plan");
       const guidance = $("guidance"), rememberRow = $("rememberRow"), remember = $("remember"), actions = $("actions"), hint = $("hint"), islandMenu = $("islandMenu"), menuToggle = $("menuToggle");
       const previewParams = new URLSearchParams(location.search);
       const previewPlatform = previewParams.get("preview") ? previewParams.get("platform") : null;
@@ -817,6 +907,7 @@
       } : {
         resizeNotice: () => {}, resolve: () => {}, dismissNotice: () => {}, jumpToAgent: () => {}, pluginIslandAction: () => {}, islandCommand: () => {}, setNoticePointerInside: () => {}, onNotice: () => {},
       });
+      const scheduleVisualUpdate = (callback) => nativeHandler ? callback() : requestAnimationFrame(callback);
 
       function initials(name) { return (name || "AI").split(/\s+/).map((part) => part[0]).join("").slice(0, 2).toUpperCase(); }
       function agentVisualClass(agent = {}) {
@@ -891,7 +982,7 @@
       }
       function reset() {
         clearTimeout(expandTimer);
-        installAnimation?.destroy(); installAnimation = undefined; installFireworks.innerHTML = ""; installSuccess.hidden = true;
+        installAnimation?.destroy(); installAnimation = undefined; installFireworks.innerHTML = ""; installSuccess.hidden = true; socialFollow.hidden = true;
         activityPanel.hidden = true; attentionPanel.hidden = true; attentionPanel.innerHTML = ""; sessionSectionLabel.hidden = false; sessionList.innerHTML = ""; activityDetail.hidden = true; activityDetail.innerHTML = ""; ambientContributions.innerHTML = "";
         notchAgents.innerHTML = ""; notchMetric.innerHTML = ""; capAgents.innerHTML = ""; capMetric.hidden = true; capMetric.textContent = "";
         selectedAnswers = new Map(); questions.innerHTML = ""; actions.innerHTML = ""; chips.innerHTML = ""; guidance.value = "";
@@ -901,10 +992,12 @@
         $("reveal").inert = true; $("reveal").setAttribute("aria-hidden", "true");
       }
       function resize() {
-        requestAnimationFrame(() => {
+        const reportSize = () => {
           const rect = island.getBoundingClientRect();
+          const hasDisplayNotch = document.body.classList.contains("has-display-notch");
+          const needsWideGutter = hasDisplayNotch || island.classList.contains("expanded");
           bridge.resizeNotice({
-            width: Math.ceil(rect.width + 192),
+            width: Math.ceil(needsWideGutter ? rect.width + 192 : Math.max(300, rect.width + 36)),
             height: Math.ceil(rect.height + 112),
             interactiveBounds: {
               x: rect.left,
@@ -913,7 +1006,12 @@
               height: rect.height,
             },
           });
-        });
+        };
+        // A background accessory WKWebView can suspend animation frames even
+        // while its panel is visible. Report native hit targets synchronously so
+        // transparent panel space never blocks the applications underneath.
+        if (nativeHandler) reportSize();
+        else requestAnimationFrame(reportSize);
       }
       function visibleRowWidth(element) {
         const style = getComputedStyle(element);
@@ -1009,7 +1107,7 @@
 
         const expandable = Boolean(payload.id || currentKind === "activity" || currentKind === "install_success" || currentKind === "sample" || currentKind === "blocked" || currentKind === "question" || currentKind === "plan_review" || payload.summary);
         island.classList.toggle("expandable", expandable);
-        requestAnimationFrame(() => {
+        scheduleVisualUpdate(() => {
           island.classList.add("presented");
           resize();
           if (preserveExpanded) {
@@ -1026,7 +1124,7 @@
         document.documentElement.style.setProperty("--hardware-safe-top", `${safeTop}px`);
         document.documentElement.style.setProperty("--hardware-notch-width", `${notchWidth}px`);
         document.body.classList.toggle("has-display-notch", Boolean(metrics.hasNotch) && safeTop > 0);
-        requestAnimationFrame(updateActivityCompactWidth);
+        scheduleVisualUpdate(updateActivityCompactWidth);
         resize();
       };
       window.inspectOpenLeashIsland = () => {
@@ -1040,6 +1138,10 @@
           contentTop: compactNotch ? safeTop : copyRect?.top ?? 0,
           contentClearsNotch: compactNotch || !document.body.classList.contains("has-display-notch") || (copyRect?.top ?? 0) >= safeTop,
           fireworksRendered: Boolean(installFireworks.querySelector("svg")),
+          socialFollowVisible: !socialFollow.hidden,
+          socialCardCount: socialFollow.querySelectorAll("[data-social]").length,
+          socialLogoCount: socialFollow.querySelectorAll(".social-logo svg").length,
+          installNextVisible: Boolean(actions.querySelector('[data-action="install-next"]')),
           sessionCount: sessionList.querySelectorAll(".session-card").length,
           sessionSectionLabel: sessionSectionLabel.textContent,
           firstSessionTitle: sessionList.querySelector(".session-title")?.textContent ?? "",
@@ -1073,6 +1175,9 @@
       window.dismissOpenLeashNotice = () => { island.classList.add("leaving"); island.classList.remove("expanded"); resize(); };
       window.expandOpenLeashIsland = () => setExpanded(true);
       window.setOpenLeashPointerInsideForVerification = (inside) => { pointerInsideIsland = Boolean(inside); };
+      window.advanceInstallSuccessForVerification = () => actions.querySelector('[data-action="install-next"]')?.click();
+      window.clickSocialXForVerification = () => socialFollow.querySelector('[data-social="x"]')?.click();
+      window.clickSocialLinkedInForVerification = () => socialFollow.querySelector('[data-social="linkedin"]')?.click();
       window.clickFirstSessionMascotForVerification = () => sessionList.querySelector(".session-agent-icon")?.click();
 
       function renderIslandMenu(menu) {
@@ -1158,13 +1263,13 @@
         capAgents.appendChild(animatedAgentIcon(payload, "cap-agent", "completed"));
         notchAgents.appendChild(animatedAgentIcon(payload, "notch-agent", "completed"));
         renderActivity(payload);
-        requestAnimationFrame(updateActivityCompactWidth);
+        scheduleVisualUpdate(updateActivityCompactWidth);
       }
       function renderInstallSuccess() {
         summary.hidden = true;
         installSuccess.hidden = false;
         actions.className = "actions install-complete";
-        actions.append(button("OK", "primary", "dismiss"));
+        actions.append(button("Next", "primary", "install-next"));
         if (!window.lottie) return;
         let animationData;
         try { animationData = JSON.parse($("installFireworksData").textContent); }
@@ -1180,6 +1285,18 @@
         if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
           installAnimation.addEventListener("DOMLoaded", () => installAnimation?.goToAndStop(18, true));
         }
+      }
+
+      function renderSocialFollow() {
+        installAnimation?.destroy(); installAnimation = undefined; installFireworks.innerHTML = "";
+        installSuccess.hidden = true;
+        socialFollow.hidden = false;
+        title.textContent = "Help us improve";
+        actions.innerHTML = "";
+        actions.className = "actions single";
+        actions.append(button("Done", "primary", "dismiss"));
+        setExpanded(true);
+        resize();
       }
 
       function renderSessionActivity(payload) {
@@ -1312,7 +1429,7 @@
           notchMetric.appendChild(value);
           capMetric.hidden = false; capMetric.textContent = `✂ ${tokenSaver.value}`; capMetric.title = value.title;
         }
-        requestAnimationFrame(updateActivityCompactWidth);
+        scheduleVisualUpdate(updateActivityCompactWidth);
       }
 
       function selectActivitySession(session, card) {
@@ -1403,6 +1520,11 @@
       }
 
       function requestDismiss() { island.classList.add("leaving"); setTimeout(() => bridge.dismissNotice(), 120); }
+      socialFollow.addEventListener("click", (event) => {
+        const target = event.target.closest("[data-social]");
+        if (!target) return;
+        bridge.islandCommand(target.dataset.social === "linkedin" ? "social-linkedin" : "social-x");
+      });
       actions.addEventListener("click", (event) => {
         const target = event.target.closest("button"); if (!target || !current || target.disabled) return;
         const action = target.dataset.action;
@@ -1410,6 +1532,10 @@
           if (!current.selectedSession) return;
           if (activityDetail.hidden) renderActivityHistory(current.selectedSession);
           else { activityDetail.hidden = true; activityDetail.innerHTML = ""; target.textContent = "View history"; resize(); }
+          return;
+        }
+        if (action === "install-next") {
+          renderSocialFollow();
           return;
         }
         actions.querySelectorAll("button").forEach((item) => item.disabled = true);

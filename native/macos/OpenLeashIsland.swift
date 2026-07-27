@@ -18,24 +18,40 @@ private final class FirstMouseWebView: WKWebView {
     override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
 }
 
+private final class ScriptMessageRelay: NSObject, WKScriptMessageHandler {
+    weak var delegate: WKScriptMessageHandler?
+
+    func userContentController(
+        _ userContentController: WKUserContentController,
+        didReceive message: WKScriptMessage
+    ) {
+        delegate?.userContentController(userContentController, didReceive: message)
+    }
+}
+
 @MainActor
 private final class IslandController: NSObject, WKNavigationDelegate, WKScriptMessageHandler {
     private let panel: IslandPanel
     private let webView: FirstMouseWebView
+    private let scriptMessageRelay: ScriptMessageRelay
     private var screen: NSScreen?
     private var pendingPayload: [String: Any]?
     private var pageReady = false
     private var interactiveBounds: CGRect?
     private var pointerTimer: Timer?
+    private var displayChangeWorkItem: DispatchWorkItem?
 
     init(htmlPath: String) {
         let configuration = WKWebViewConfiguration()
+        let scriptMessageRelay = ScriptMessageRelay()
         configuration.userContentController.addUserScript(WKUserScript(
             source: "window.__OPENLEASH_NATIVE_ISLAND__ = true;",
             injectionTime: .atDocumentStart,
             forMainFrameOnly: true
         ))
+        configuration.userContentController.add(scriptMessageRelay, name: "openleash")
 
+        self.scriptMessageRelay = scriptMessageRelay
         webView = FirstMouseWebView(frame: .zero, configuration: configuration)
         panel = IslandPanel(
             contentRect: NSRect(x: 0, y: 0, width: 300, height: 48),
@@ -45,7 +61,7 @@ private final class IslandController: NSObject, WKNavigationDelegate, WKScriptMe
         )
         super.init()
 
-        configuration.userContentController.add(self, name: "openleash")
+        scriptMessageRelay.delegate = self
         webView.navigationDelegate = self
         webView.autoresizingMask = [.width, .height]
         webView.setValue(false, forKey: "drawsBackground")
@@ -67,6 +83,13 @@ private final class IslandController: NSObject, WKNavigationDelegate, WKScriptMe
             .ignoresCycle
         ]
         panel.contentView = webView
+
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(displayParametersDidChange),
+            name: NSApplication.didChangeScreenParametersNotification,
+            object: nil
+        )
 
         pointerTimer = Timer.scheduledTimer(
             timeInterval: 1.0 / 30.0,
@@ -180,6 +203,18 @@ private final class IslandController: NSObject, WKNavigationDelegate, WKScriptMe
         webView.evaluateJavaScript("window.clickFirstSessionMascotForVerification && window.clickFirstSessionMascotForVerification()")
     }
 
+    func advanceInstallSuccessForVerification() {
+        webView.evaluateJavaScript("window.advanceInstallSuccessForVerification && window.advanceInstallSuccessForVerification()")
+    }
+
+    func clickSocialXForVerification() {
+        webView.evaluateJavaScript("window.clickSocialXForVerification && window.clickSocialXForVerification()")
+    }
+
+    func clickSocialLinkedInForVerification() {
+        webView.evaluateJavaScript("window.clickSocialLinkedInForVerification && window.clickSocialLinkedInForVerification()")
+    }
+
     func setPointerInsideForVerification(_ inside: Bool) {
         webView.evaluateJavaScript("window.setOpenLeashPointerInsideForVerification && window.setOpenLeashPointerInsideForVerification(\(inside ? "true" : "false"))")
     }
@@ -265,6 +300,34 @@ private final class IslandController: NSObject, WKNavigationDelegate, WKScriptMe
         refreshPointerPassthrough()
     }
 
+    @objc private func displayParametersDidChange() {
+        // macOS can replace NSScreen instances while changing mirroring,
+        // resolution, or display arrangement. Never position from the cached
+        // instance after that notification.
+        screen = nil
+        displayChangeWorkItem?.cancel()
+
+        let workItem = DispatchWorkItem { [weak self] in
+            self?.refreshDisplayPlacement()
+        }
+        displayChangeWorkItem = workItem
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.12, execute: workItem)
+    }
+
+    private func refreshDisplayPlacement() {
+        guard pendingPayload != nil else { return }
+        screen = activeScreen()
+        place(width: panel.frame.width, height: panel.frame.height)
+
+        guard pageReady, let screen else { return }
+        let metrics = displayMetrics(for: screen)
+        guard let data = try? JSONSerialization.data(withJSONObject: metrics),
+              let metricsJSON = String(data: data, encoding: .utf8) else { return }
+        webView.evaluateJavaScript(
+            "window.setOpenLeashDisplayMetrics && window.setOpenLeashDisplayMetrics(\(metricsJSON))"
+        )
+    }
+
     private func displayMetrics(for display: NSScreen) -> [String: Any] {
         var safeTop: CGFloat = 0
         var notchWidth: CGFloat = 0
@@ -345,6 +408,12 @@ private struct OpenLeashIslandApplication {
                         controller.openMenuForVerification()
                     case "clickSessionMascot":
                         controller.clickFirstSessionMascotForVerification()
+                    case "advanceInstallSuccess":
+                        controller.advanceInstallSuccessForVerification()
+                    case "clickSocialX":
+                        controller.clickSocialXForVerification()
+                    case "clickSocialLinkedIn":
+                        controller.clickSocialLinkedInForVerification()
                     case "pointerInside":
                         controller.setPointerInsideForVerification(true)
                     case "pointerOutside":

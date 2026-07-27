@@ -437,6 +437,9 @@ const rememberedApprovalChoices = new Map<
 >();
 let latestRemoteHistory: PendingDecision[] = [];
 let resolvingDecisionIds = new Set<string>();
+let remoteClientEventStreamKey = "";
+let remoteClientEventStreamAbort: AbortController | undefined;
+let remoteClientEventRetry: NodeJS.Timeout | undefined;
 let suppressMainWindowActivationUntil = 0;
 let currentTrayStatus: "ok" | "pending" | "down" = "ok";
 const enforcedAgentKinds = new Set<string>();
@@ -1401,12 +1404,17 @@ ipcMain.handle("openleash:import-local-plugin-folder", async () => {
       token,
       latestPlugins,
     );
+    const runtimeStatuses = await reconcilePluginContainers(latestPlugins);
+    const runtimeStatus = runtimeStatuses.find(
+      (status) => status.pluginId === marketplace.id,
+    );
     window?.webContents.send("openleash:update", { plugins: latestPlugins });
     return {
       ok: true,
       pluginId: marketplace.id,
       plugin: marketplace,
       settings: body.settings,
+      runtimeStatus,
     };
   } catch (error) {
     return {
@@ -2126,6 +2134,7 @@ async function poll() {
   }
   pollInFlight = true;
   try {
+    ensureRemoteClientEventStream();
     await refreshLocalProtections();
     syncSkillWatchers();
     const body = await fetchTrayState();
@@ -2227,6 +2236,78 @@ async function poll() {
     if (pollQueued) {
       pollQueued = false;
       void poll();
+    }
+  }
+}
+
+function ensureRemoteClientEventStream() {
+  const remoteApiUrl = localServer.remoteApiUrl;
+  const remoteToken = localServer.effectiveToken;
+  const key =
+    remoteApiUrl && remoteToken
+      ? `${remoteApiUrl}\n${remoteToken}`
+      : "";
+  if (key === remoteClientEventStreamKey) return;
+  remoteClientEventStreamKey = key;
+  remoteClientEventStreamAbort?.abort();
+  remoteClientEventStreamAbort = undefined;
+  if (remoteClientEventRetry) clearTimeout(remoteClientEventRetry);
+  remoteClientEventRetry = undefined;
+  if (!key || !remoteApiUrl || !remoteToken) return;
+  void connectRemoteClientEventStream(key, remoteApiUrl, remoteToken);
+}
+
+async function connectRemoteClientEventStream(
+  key: string,
+  remoteApiUrl: string,
+  remoteToken: string,
+) {
+  const controller = new AbortController();
+  remoteClientEventStreamAbort = controller;
+  try {
+    const response = await fetch(new URL("/v1/client/events", remoteApiUrl), {
+      headers: {
+        authorization: `Bearer ${remoteToken}`,
+        accept: "text/event-stream",
+        ...apiVersionHeaders("clientEvents"),
+      },
+      signal: controller.signal,
+    });
+    if (!response.ok || !response.body) {
+      throw new Error(`live event stream returned HTTP ${response.status}`);
+    }
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let buffered = "";
+    while (!controller.signal.aborted) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      buffered += decoder.decode(value, { stream: true });
+      const frames = buffered.split(/\r?\n\r?\n/);
+      buffered = frames.pop() ?? "";
+      if (frames.some((frame) => frame.split(/\r?\n/).some((line) => line.startsWith("data:")))) {
+        void poll();
+      }
+    }
+  } catch (error) {
+    if (!controller.signal.aborted) {
+      startupLog(
+        `live client event stream disconnected: ${error instanceof Error ? error.message : String(error)}`,
+      );
+    }
+  } finally {
+    if (remoteClientEventStreamAbort === controller)
+      remoteClientEventStreamAbort = undefined;
+    if (
+      !controller.signal.aborted &&
+      remoteClientEventStreamKey === key &&
+      !remoteClientEventRetry
+    ) {
+      remoteClientEventRetry = setTimeout(() => {
+        remoteClientEventRetry = undefined;
+        if (remoteClientEventStreamKey === key)
+          void connectRemoteClientEventStream(key, remoteApiUrl, remoteToken);
+      }, 2000);
     }
   }
 }
@@ -2588,7 +2669,7 @@ async function readLocalPluginFolderListing(
     shortDescription,
     longDescription: optionalText(manifest.longDescription) || description,
     heroTagline: optionalText(manifest.heroTagline) || shortDescription,
-    packageUrl: optionalText(manifest.packageUrl) || `file:${folderPath}`,
+    packageUrl: `file:${folderPath}`,
     repositoryUrl: optionalText(manifest.repositoryUrl),
     documentationUrl: optionalText(manifest.documentationUrl),
     iconText:
@@ -4843,6 +4924,14 @@ function handleIslandCommand(command: string) {
   }
   if (command === "check-updates") {
     void checkForUpdates({ source: "manual", force: true });
+    return { ok: true };
+  }
+  if (command === "social-x") {
+    void openTrustedExternalUrl("https://x.com/OpenLeashCom");
+    return { ok: true };
+  }
+  if (command === "social-linkedin") {
+    void openTrustedExternalUrl("https://www.linkedin.com/company/open-leash/");
     return { ok: true };
   }
   if (command === "approvals") {

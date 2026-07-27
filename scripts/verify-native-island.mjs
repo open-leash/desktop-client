@@ -107,6 +107,22 @@ try {
   const installed = await inspectAfter(900);
   assert.equal(installed.visible, true);
   assert.equal(installed.layout.fireworksRendered, true, "installation popup did not render the fireworks SVG");
+  assert.equal(installed.layout.installNextVisible, true, "installation popup did not offer the next onboarding step");
+  assert.equal(installed.layout.socialFollowVisible, false, "social follow step appeared before installation confirmation");
+  send({ type: "advanceInstallSuccess" });
+  const socialFollow = await inspectAfter(350);
+  assert.equal(socialFollow.layout.expanded, true, "social follow step did not remain in the expanded island");
+  assert.equal(socialFollow.layout.socialFollowVisible, true, "social follow step did not appear after installation confirmation");
+  assert.equal(socialFollow.layout.socialCardCount, 2, "social follow step did not show both social destinations");
+  assert.equal(socialFollow.layout.socialLogoCount, 2, "social follow cards did not render their official logos");
+  send({ type: "clickSocialX" });
+  const socialAction = await waitFor("action");
+  assert.equal(socialAction.action, "island-command", "social follow card did not use the island command bridge");
+  assert.equal(socialAction.command, "social-x", "X card did not request the fixed OpenLeash X destination");
+  send({ type: "clickSocialLinkedIn" });
+  const linkedInAction = await waitFor("action");
+  assert.equal(linkedInAction.action, "island-command", "LinkedIn card did not use the island command bridge");
+  assert.equal(linkedInAction.command, "social-linkedin", "LinkedIn card did not request the fixed OpenLeash LinkedIn destination");
 
   send({ type: "show", payload: {
     kind: "activity",
@@ -186,7 +202,7 @@ try {
   send({ type: "expandActivity" });
   const collapsedActivity = await inspectAfter(450);
   assert.equal(collapsedActivity.layout.expanded, false, "expanded activity did not collapse again");
-  assert.equal(collapsedActivity.layout.islandWidth, activity.layout.islandWidth, "collapsed activity did not return to its measured content width");
+  assert.equal(collapsedActivity.layout.islandWidth, collapsedActivity.layout.activityCompactWidth, "collapsed activity did not return to its measured content width");
 
   send({ type: "show", payload: {
     kind: "activity",

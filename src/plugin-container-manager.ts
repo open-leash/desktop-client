@@ -255,13 +255,29 @@ export function containerRunArgs(
   ];
   if (!plugin.permissions.includes("network:access")) args.push("--network", ISOLATED_PLUGIN_NETWORK);
   if (!options.ephemeral) args.splice(4, 0, "--restart", "unless-stopped");
-  if (execution.storage?.persistent && !options.ephemeral) {
-    args.push("-v", `${execution.storage.volumeName ?? `${name}-data`}:/data`);
+  if (execution.storage?.persistent !== false && !options.ephemeral) {
+    args.push("-v", `${pluginVolumeName(plugin, name)}:/data`);
   } else if (options.ephemeral) {
     args.push("--tmpfs", "/data:rw,noexec,nosuid,size=512m,mode=1777");
   }
   args.push(image);
   return args;
+}
+
+function pluginVolumeName(plugin: PluginCatalogItem, container: string) {
+  const isolatedName = `${container}-data`;
+  const requested = plugin.execution?.storage?.volumeName?.trim();
+  // Community manifests cannot select an existing Docker volume by name. That
+  // would let one plugin mount another plugin's private state. First-party
+  // releases retain reviewed legacy names so upgrades do not strand data.
+  if (
+    plugin.publisher === "openleash" &&
+    requested &&
+    /^[a-zA-Z0-9][a-zA-Z0-9_.-]{0,127}$/.test(requested)
+  ) {
+    return requested;
+  }
+  return isolatedName;
 }
 
 function ensureIsolatedPluginNetwork() {
@@ -357,12 +373,29 @@ async function reconcileOne(plugin: PluginCatalogItem): Promise<PluginContainerS
   const endpoint = statusEndpoint(plugin);
   const image = plugin.execution!.image;
   const expectedVersion = plugin.settings.installedVersion ?? plugin.version;
-  const inspect = docker(["inspect", "-f", "{{.State.Running}} {{index .Config.Labels \"com.openleash.plugin-version\"}} {{index .Config.Labels \"com.openleash.runtime-secret-hash\"}}", name]);
-  const reusable = inspect.status === 0 && inspect.stdout.trim() === `true ${expectedVersion} ${runtimeSecretHash()}`;
+  const inspect = docker(["inspect", "-f", "{{.State.Running}} {{index .Config.Labels \"com.openleash.plugin-version\"}} {{index .Config.Labels \"com.openleash.runtime-secret-hash\"}} {{.Image}}", name]);
+  const inspectParts = inspect.stdout.trim().split(/\s+/);
+  const localFolderPlugin = String(
+    (plugin as PluginCatalogItem & {
+      marketplace?: { packageUrl?: string };
+    }).marketplace?.packageUrl ?? "",
+  ).startsWith("file:");
+  const desiredImage = plugin.execution!.digest
+    ? `${image.split("@")[0]}@${plugin.execution!.digest}`
+    : image;
+  const desiredImageInspect = localFolderPlugin
+    ? docker(["image", "inspect", "-f", "{{.Id}}", desiredImage])
+    : undefined;
+  const reusable =
+    inspect.status === 0 &&
+    inspectParts[0] === "true" &&
+    inspectParts[1] === expectedVersion &&
+    inspectParts[2] === runtimeSecretHash() &&
+    (!localFolderPlugin ||
+      (desiredImageInspect?.status === 0 &&
+        inspectParts[3] === desiredImageInspect.stdout.trim()));
   if (!reusable) {
-    const imageRef = plugin.execution!.digest
-      ? `${image.split("@")[0]}@${plugin.execution!.digest}`
-      : image;
+    const imageRef = desiredImage;
     if (!dockerOk(["image", "inspect", imageRef])) {
       const pull = docker(["pull", imageRef], 300_000);
       if (pull.status !== 0) {

@@ -5361,7 +5361,7 @@
           </div>
           <div class="pluginMarketplaceTools">
             <input id="pluginMarketplaceSearch" value="${escapeHtml(setupPluginSearch)}" placeholder="Search plugins, categories, developers, tags...">
-            ${canAddLocalPluginFolder() ? `<button type="button" class="secondary" data-add-local-plugin-folder>Add local folder</button>` : ""}
+            ${canAddLocalPluginFolder() ? `<button type="button" class="secondary" data-add-local-plugin-folder>Add/reload local folder</button>` : ""}
             <span>${plugins.length} of ${categoryFiltered.length} shown</span>
           </div>
           <div class="cardList">
@@ -5688,11 +5688,16 @@
             button.textContent = "Adding...";
             const result = await window.openleash.importLocalPluginFolder?.().catch((error) => ({ ok: false, error: error?.message || "Could not add local plugin." }));
             button.disabled = false;
-            button.textContent = original || "Add local folder";
+            button.textContent = original || "Add/reload local folder";
             if (result?.canceled) return;
             if (!result?.ok) {
               alert(result?.error || "Could not add local plugin.");
               return;
+            }
+            if (result.runtimeStatus && !result.runtimeStatus.healthy) {
+              alert(`Plugin saved, but its container is not ready: ${result.runtimeStatus.error || "health check failed"}`);
+            } else {
+              alert(`${result.plugin?.slug || result.pluginId} loaded. Rebuild the image and choose this folder again to reload it.`);
             }
             if (result.plugin && !state.plugins?.some((plugin) => plugin.id === result.plugin.id)) {
               state.plugins = [...(state.plugins || []), {
@@ -5865,7 +5870,7 @@
             </div>
             <div class="pluginMarketplaceTools">
               <input id="pluginMarketplaceSearch" value="${escapeHtml(setupPluginSearch)}" placeholder="Search plugins, categories, developers, tags...">
-              ${canAddLocalPluginFolder() ? `<button type="button" class="secondary" data-add-local-plugin-folder>Add local folder</button>` : ""}
+              ${canAddLocalPluginFolder() ? `<button type="button" class="secondary" data-add-local-plugin-folder>Add/reload local folder</button>` : ""}
               <span>${plugins.length} of ${categoryFiltered.length} shown</span>
             </div>
             <div class="cardList">
