@@ -16,7 +16,7 @@
 
 ## ✨ What this app is
 
-`mobile-client` is the iOS/Android companion app for OpenLeash approvals.
+`mobile-client` is the iOS/Android companion app for OpenLeash agent attention.
 
 It connects to OpenLeash Cloud or a customer-hosted API, signs existing users in through the configured identity provider, registers the phone, and lets users approve or deny held agent actions.
 
@@ -29,9 +29,36 @@ Mobile is sign-in only. Account creation happens from desktop or web.
 - Discovers the selected API and organization
 - Starts OAuth/SSO sign-in
 - Registers mobile devices
-- Shows pending decisions
-- Sends allow/deny responses
+- Shows approvals, agent questions, and plan reviews that need a response
+- Shows blocked, completed, and subagent-completed updates
+- Sends approvals, denials, question answers, and plan feedback
 - Supports approval flows when users are away from the desktop
+
+## 🔔 Notification types
+
+| Type | What mobile shows | Available response |
+| --- | --- | --- |
+| `approval` | A sensitive action waiting for permission | Allow or deny, with optional guidance |
+| `question` | The agent's native questions and choices | Answer each question |
+| `plan_review` | The proposed plan | Approve it or request changes |
+| `blocked` | A policy stopped an action | Informational |
+| `completed` | An agent turn or session finished | Informational |
+| `subagent_completed` | A delegated agent finished | Informational |
+
+The signed-in app keeps an authenticated live event stream open and refreshes
+these records immediately, with periodic polling only as recovery. Foreground
+events also create native local notifications.
+
+Production background delivery uses the same device-registration API and is
+enabled once the store build can register a real Expo/APNs/FCM push token.
+Until those provider credentials and tokens exist, a suspended or terminated
+app cannot receive a background push; the live stream and local notifications
+work while the app is running.
+
+Responses are stored by `client-api`, then consumed by the request that
+originally paused. A desktop hook or proxy therefore resumes only its own local
+agent. A cloud or SaaS agent is resumed by its own server-side request—mobile
+never sends an executable command to an unrelated desktop.
 
 ---
 

@@ -27,6 +27,7 @@ const _contracts = <String, String>{
   'mobileAuthExchange': '2026-05-22.mobile-auth-exchange.v1',
   'mobileDeviceRegister': '2026-05-22.mobile-device-register.v1',
   'mobileState': '2026-05-22.mobile-state.v1',
+  'clientEvents': '2026-07-27.client-events.v1',
   'agentMonitoring': '2026-05-22.mobile-state.v1',
   'mobileDecisionResolve': '2026-05-22.mobile-decision-resolve.v1',
   'tenantPluginsRead': '2026-06-20.tenant-plugins-read.v1',
@@ -138,6 +139,8 @@ class _OpenLeashHomeState extends State<OpenLeashHome> {
   final _deviceId = DateTime.now().microsecondsSinceEpoch.toString();
   StreamSubscription<Uri>? _linkSub;
   Timer? _poller;
+  http.Client? _eventClient;
+  int _eventStreamGeneration = 0;
 
   bool _loading = true;
   bool _customApi = false;
@@ -151,6 +154,8 @@ class _OpenLeashHomeState extends State<OpenLeashHome> {
   Map<String, dynamic>? _bootstrap;
   Map<String, dynamic>? _state;
   final Set<String> _notifiedApprovalIds = {};
+  final Set<String> _notifiedAttentionIds = {};
+  bool _loadedAttentionOnce = false;
 
   String get _apiUrl =>
       _apiController.text.trim().replaceAll(RegExp(r'/$'), '');
@@ -173,6 +178,8 @@ class _OpenLeashHomeState extends State<OpenLeashHome> {
       (_bootstrap?['providers'] as List?) ?? const [];
   List<dynamic> get _pendingApprovals =>
       (_state?['pendingApprovals'] as List?) ?? const [];
+  List<dynamic> get _attentionEvents =>
+      (_state?['attentionEvents'] as List?) ?? const [];
   List<dynamic> get _agents => (_state?['agents'] as List?) ?? const [];
   List<dynamic> get _plugins => (_state?['plugins'] as List?) ?? const [];
   List<dynamic> get _outcomes => (_state?['outcomes'] as List?) ?? const [];
@@ -190,6 +197,7 @@ class _OpenLeashHomeState extends State<OpenLeashHome> {
   @override
   void dispose() {
     _poller?.cancel();
+    _stopLiveEvents();
     _linkSub?.cancel();
     _apiController.dispose();
     super.dispose();
@@ -215,6 +223,7 @@ class _OpenLeashHomeState extends State<OpenLeashHome> {
       await _registerDevice();
       await _refreshState(showNotifications: true);
       _startPolling();
+      _startLiveEvents();
     }
     if (mounted) setState(() => _loading = false);
   }
@@ -402,6 +411,7 @@ class _OpenLeashHomeState extends State<OpenLeashHome> {
       await _registerDevice();
       await _refreshState(showNotifications: true);
       _startPolling();
+      _startLiveEvents();
     } catch (error) {
       _error =
           'Sign-in completed, but OpenLeash could not create the mobile session. ${_cleanError(error)}';
@@ -438,6 +448,56 @@ class _OpenLeashHomeState extends State<OpenLeashHome> {
     );
   }
 
+  void _startLiveEvents() {
+    _stopLiveEvents();
+    if (!_signedIn) return;
+    final generation = ++_eventStreamGeneration;
+    final client = http.Client();
+    _eventClient = client;
+    unawaited(_consumeLiveEvents(client, generation));
+  }
+
+  void _stopLiveEvents() {
+    _eventStreamGeneration++;
+    _eventClient?.close();
+    _eventClient = null;
+  }
+
+  Future<void> _consumeLiveEvents(http.Client client, int generation) async {
+    while (mounted &&
+        _signedIn &&
+        generation == _eventStreamGeneration &&
+        identical(client, _eventClient)) {
+      try {
+        final request = http.Request(
+          'GET',
+          Uri.parse('$_apiUrl/v1/client/events'),
+        );
+        request.headers.addAll({
+          ..._headers('clientEvents'),
+          'accept': 'text/event-stream',
+          'cache-control': 'no-cache',
+        });
+        final response = await client.send(request);
+        if (response.statusCode >= 400) {
+          throw Exception('Live updates returned HTTP ${response.statusCode}');
+        }
+        await for (final line
+            in response.stream
+                .transform(utf8.decoder)
+                .transform(const LineSplitter())) {
+          if (generation != _eventStreamGeneration || !_signedIn) return;
+          if (line.startsWith('data:')) {
+            unawaited(_refreshState(showNotifications: true));
+          }
+        }
+      } catch (_) {
+        if (generation != _eventStreamGeneration || !_signedIn) return;
+      }
+      await Future<void>.delayed(const Duration(seconds: 2));
+    }
+  }
+
   Future<void> _refreshState({bool showNotifications = false}) async {
     if (!_signedIn) return;
     try {
@@ -451,16 +511,45 @@ class _OpenLeashHomeState extends State<OpenLeashHome> {
       await _hydratePlugins(data);
       setStateSafe(() => _state = data);
       if (showNotifications) {
-        for (final approval in _pendingApprovals.cast<Map>()) {
-          final id = approval['id']?.toString();
-          if (id == null || _notifiedApprovalIds.contains(id)) continue;
-          _notifiedApprovalIds.add(id);
-          await widget.notifications.showApproval(_approvalFromMap(approval));
-        }
+        await _showNewAttentionNotifications(data);
       }
     } catch (_) {
       setStateSafe(() => _error = 'Could not refresh approvals from the API.');
     }
+  }
+
+  Future<void> _showNewAttentionNotifications(Map<String, dynamic> data) async {
+    final pendingById = <String, Map>{
+      for (final item
+          in ((data['pendingApprovals'] as List?) ?? const []).whereType<Map>())
+        if (item['id'] != null) item['id'].toString(): item,
+    };
+    final events = ((data['attentionEvents'] as List?) ?? const [])
+        .whereType<Map>()
+        .toList();
+    if (events.isEmpty) {
+      for (final approval in pendingById.values) {
+        final id = approval['id']?.toString();
+        if (id == null || _notifiedApprovalIds.contains(id)) continue;
+        _notifiedApprovalIds.add(id);
+        await widget.notifications.showApproval(_approvalFromMap(approval));
+      }
+      return;
+    }
+    for (final event in events) {
+      final id = event['id']?.toString();
+      if (id == null || _notifiedAttentionIds.contains(id)) continue;
+      _notifiedAttentionIds.add(id);
+      final waiting = event['state'] == 'waiting';
+      if (!_loadedAttentionOnce && !waiting) continue;
+      final decisionId = event['decisionId']?.toString();
+      final approval = decisionId == null ? null : pendingById[decisionId];
+      await widget.notifications.showAttention(
+        event,
+        approval == null ? null : _approvalFromMap(approval),
+      );
+    }
+    _loadedAttentionOnce = true;
   }
 
   Future<void> _hydratePlugins(Map<String, dynamic> data) async {
@@ -583,14 +672,18 @@ class _OpenLeashHomeState extends State<OpenLeashHome> {
     String id,
     String resolution, {
     String? resolutionGuidance,
+    Map<String, dynamic>? responsePayload,
   }) async {
     setStateSafe(() => _busy = true);
     try {
       final guidance = resolution == 'deny'
           ? _cleanResolutionGuidance(resolutionGuidance)
           : null;
-      final body = <String, String>{'resolution': resolution};
+      final body = <String, dynamic>{'resolution': resolution};
       if (guidance != null) body['resolutionGuidance'] = guidance;
+      if (resolution == 'allow' && responsePayload != null) {
+        body['response'] = responsePayload;
+      }
       final response = await _request(
         'POST',
         '/v1/mobile/decisions/$id/resolve',
@@ -610,6 +703,7 @@ class _OpenLeashHomeState extends State<OpenLeashHome> {
 
   Future<void> _signOut() async {
     _poller?.cancel();
+    _stopLiveEvents();
     _token = null;
     _state = null;
     await _save();
@@ -682,6 +776,13 @@ class _OpenLeashHomeState extends State<OpenLeashHome> {
         );
     return Approval(
       id: approval['id']?.toString() ?? '',
+      kind:
+          approval['attention_kind']?.toString() ??
+          approval['attentionKind']?.toString() ??
+          'approval',
+      interaction: approval['interaction'] is Map
+          ? Map<String, dynamic>.from(approval['interaction'] as Map)
+          : null,
       title: approval['summary']?.toString() ?? 'OpenLeash approval needed',
       agent:
           approval['agent_name']?.toString() ??
@@ -902,6 +1003,20 @@ class _OpenLeashHomeState extends State<OpenLeashHome> {
         .whereType<Map>()
         .where(_isInterestingActivity)
         .toList();
+    final recentAttention =
+        _attentionEvents
+            .whereType<Map>()
+            .where((event) => event['state'] == 'resolved')
+            .toList()
+          ..sort((a, b) {
+            final left =
+                DateTime.tryParse(a['createdAt']?.toString() ?? '') ??
+                DateTime.fromMillisecondsSinceEpoch(0);
+            final right =
+                DateTime.tryParse(b['createdAt']?.toString() ?? '') ??
+                DateTime.fromMillisecondsSinceEpoch(0);
+            return right.compareTo(left);
+          });
     final installedPlugins =
         _plugins.whereType<Map>().where(_pluginInstalled).toList()
           ..sort(_comparePlugins);
@@ -989,7 +1104,7 @@ class _OpenLeashHomeState extends State<OpenLeashHome> {
       ),
       const SizedBox(height: 16),
       if (_pendingApprovals.isNotEmpty) ...[
-        const _SectionTitle('Pending approvals'),
+        const _SectionTitle('Needs your attention'),
         const SizedBox(height: 8),
         ..._pendingApprovals.map((item) {
           final approval = _approvalFromMap(item as Map);
@@ -997,7 +1112,11 @@ class _OpenLeashHomeState extends State<OpenLeashHome> {
             padding: const EdgeInsets.only(bottom: 14),
             child: _ApprovalCard(
               approval: approval,
-              onAllow: () => _resolveApproval(approval.id, 'allow'),
+              onAllow: (responsePayload) => _resolveApproval(
+                approval.id,
+                'allow',
+                responsePayload: responsePayload,
+              ),
               onDeny: (guidance) => _resolveApproval(
                 approval.id,
                 'deny',
@@ -1006,6 +1125,26 @@ class _OpenLeashHomeState extends State<OpenLeashHome> {
             ),
           );
         }),
+      ],
+      if (recentAttention.isNotEmpty) ...[
+        const _SectionTitle('Recent notifications'),
+        const SizedBox(height: 8),
+        _Panel(
+          child: Column(
+            children: [
+              for (
+                var index = 0;
+                index < recentAttention.take(8).length;
+                index++
+              ) ...[
+                _AttentionEventRow(event: recentAttention[index]),
+                if (index != recentAttention.take(8).length - 1)
+                  const Divider(height: 18),
+              ],
+            ],
+          ),
+        ),
+        const SizedBox(height: 16),
       ],
       _ActiveSessionHeader(count: sessionCount),
       const SizedBox(height: 8),
@@ -2049,11 +2188,66 @@ class ApprovalNotifications {
       payload: approval.id,
     );
   }
+
+  Future<void> showAttention(Map event, Approval? approval) async {
+    final kind = event['kind']?.toString() ?? 'approval';
+    if (kind == 'approval' && approval != null) {
+      await showApproval(approval);
+      return;
+    }
+    final title = switch (kind) {
+      'question' => 'An agent has a question',
+      'plan_review' => 'An agent plan is ready',
+      'blocked' => 'OpenLeash blocked an action',
+      'subagent_completed' => 'A subagent finished',
+      'completed' => 'An agent finished',
+      _ => event['title']?.toString() ?? 'OpenLeash update',
+    };
+    final body =
+        event['body']?.toString() ??
+        event['title']?.toString() ??
+        (kind == 'question' || kind == 'plan_review'
+            ? 'Open OpenLeash to respond.'
+            : 'Open OpenLeash to view the details.');
+    final actionable = kind == 'question' || kind == 'plan_review';
+    final android = AndroidNotificationDetails(
+      actionable ? 'openleash_attention' : 'openleash_updates',
+      actionable ? 'OpenLeash attention' : 'OpenLeash updates',
+      channelDescription: actionable
+          ? 'Questions and plans that need your response.'
+          : 'Agent completion and policy updates.',
+      importance: actionable ? Importance.high : Importance.defaultImportance,
+      priority: actionable ? Priority.high : Priority.defaultPriority,
+      visibility: NotificationVisibility.public,
+      category: actionable
+          ? AndroidNotificationCategory.status
+          : AndroidNotificationCategory.progress,
+    );
+    final darwin = DarwinNotificationDetails(
+      presentAlert: true,
+      presentBadge: actionable,
+      presentSound: actionable,
+      presentBanner: true,
+      presentList: true,
+      interruptionLevel: actionable
+          ? InterruptionLevel.timeSensitive
+          : InterruptionLevel.active,
+    );
+    await _plugin.show(
+      id: (event['id']?.toString() ?? title).hashCode & 0x7fffffff,
+      title: title,
+      body: body,
+      notificationDetails: NotificationDetails(android: android, iOS: darwin),
+      payload: event['decisionId']?.toString(),
+    );
+  }
 }
 
 class Approval {
   Approval({
     required this.id,
+    this.kind = 'approval',
+    this.interaction,
     required this.title,
     required this.agent,
     this.agentKind,
@@ -2067,6 +2261,8 @@ class Approval {
   });
 
   final String id;
+  final String kind;
+  final Map<String, dynamic>? interaction;
   final String title;
   final String agent;
   final String? agentKind;
@@ -2077,6 +2273,14 @@ class Approval {
   final String? quote;
   final List<ApprovalContextLine> context;
   final DateTime createdAt;
+
+  bool get isQuestion =>
+      kind == 'question' || interaction?['type'] == 'questions';
+  bool get isPlan => kind == 'plan_review' || interaction?['type'] == 'plan';
+  Map<String, dynamic> get originalInput {
+    final value = interaction?['originalInput'];
+    return value is Map ? Map<String, dynamic>.from(value) : {};
+  }
 
   String get notificationBody {
     final lines = [
@@ -3208,6 +3412,63 @@ class _SessionDetailPage extends StatelessWidget {
   }
 }
 
+class _AttentionEventRow extends StatelessWidget {
+  const _AttentionEventRow({required this.event});
+
+  final Map event;
+
+  @override
+  Widget build(BuildContext context) {
+    final kind = event['kind']?.toString() ?? 'completed';
+    final icon = switch (kind) {
+      'blocked' => Icons.block_rounded,
+      'subagent_completed' => Icons.account_tree_rounded,
+      'completed' => Icons.task_alt_rounded,
+      _ => Icons.notifications_active_outlined,
+    };
+    final color = kind == 'blocked' ? _OlTheme.danger : _OlTheme.ok;
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 3),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(icon, color: color, size: 22),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  event['title']?.toString() ?? 'Agent update',
+                  style: const TextStyle(fontWeight: FontWeight.w800),
+                ),
+                if (event['body']?.toString().trim().isNotEmpty ?? false) ...[
+                  const SizedBox(height: 3),
+                  Text(
+                    event['body'].toString(),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(color: _OlTheme.dim),
+                  ),
+                ],
+                const SizedBox(height: 3),
+                Text(
+                  _relativeTime(event['createdAt']),
+                  style: const TextStyle(
+                    color: _OlTheme.mute,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _HistoryRow extends StatelessWidget {
   const _HistoryRow({required this.item});
 
@@ -3940,7 +4201,7 @@ class _ApprovalCard extends StatefulWidget {
   });
 
   final Approval approval;
-  final VoidCallback onAllow;
+  final ValueChanged<Map<String, dynamic>?> onAllow;
   final ValueChanged<String?> onDeny;
 
   @override
@@ -3949,6 +4210,46 @@ class _ApprovalCard extends StatefulWidget {
 
 class _ApprovalCardState extends State<_ApprovalCard> {
   final _guidanceController = TextEditingController();
+  final Map<String, dynamic> _answers = {};
+
+  List<Map<String, dynamic>> get _questions {
+    final raw = widget.approval.interaction?['questions'];
+    if (raw is! List) return const [];
+    return raw
+        .whereType<Map>()
+        .map((item) => Map<String, dynamic>.from(item))
+        .where((item) => (item['question']?.toString().trim() ?? '').isNotEmpty)
+        .toList();
+  }
+
+  bool get _allQuestionsAnswered => _questions.every((question) {
+    final answer = _answers[question['question']?.toString()];
+    return answer is List
+        ? answer.isNotEmpty
+        : answer?.toString().trim().isNotEmpty == true;
+  });
+
+  void _toggleAnswer(
+    String question,
+    String option, {
+    required bool multiSelect,
+  }) {
+    setState(() {
+      if (!multiSelect) {
+        _answers[question] = option;
+        return;
+      }
+      final selected = <String>{
+        ...((_answers[question] is List)
+            ? (_answers[question] as List).map((item) => item.toString())
+            : const <String>[]),
+      };
+      selected.contains(option)
+          ? selected.remove(option)
+          : selected.add(option);
+      _answers[question] = selected.toList();
+    });
+  }
 
   @override
   void dispose() {
@@ -3960,12 +4261,17 @@ class _ApprovalCardState extends State<_ApprovalCard> {
   Widget build(BuildContext context) {
     final approval = widget.approval;
     final supportsGuidance = _supportsAgentGuidance(approval.agentKind);
+    final headline = approval.isQuestion
+        ? '${approval.agent} asks'
+        : approval.isPlan
+        ? 'Review ${approval.agent}’s plan'
+        : 'Allow ${approval.agent}?';
     return _Panel(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            'Allow ${approval.agent}?',
+            headline,
             style: const TextStyle(fontSize: 28, fontWeight: FontWeight.w900),
           ),
           const SizedBox(height: 8),
@@ -4000,7 +4306,113 @@ class _ApprovalCardState extends State<_ApprovalCard> {
             const SizedBox(height: 14),
             _ApprovalContextBox(approval: approval),
           ],
-          if (supportsGuidance) ...[
+          if (approval.isQuestion) ...[
+            const SizedBox(height: 14),
+            ..._questions.map((question) {
+              final prompt = question['question']!.toString();
+              final multiSelect = question['multiSelect'] == true;
+              final options = ((question['options'] as List?) ?? const [])
+                  .whereType<Map>()
+                  .map((item) => item['label']?.toString() ?? '')
+                  .where((item) => item.isNotEmpty)
+                  .toList();
+              final answer = _answers[prompt];
+              return Padding(
+                padding: const EdgeInsets.only(bottom: 14),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      prompt,
+                      style: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                    if (options.isNotEmpty) ...[
+                      const SizedBox(height: 8),
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        children: options.map((option) {
+                          final selected = multiSelect
+                              ? answer is List && answer.contains(option)
+                              : answer == option;
+                          return FilterChip(
+                            label: Text(option),
+                            selected: selected,
+                            onSelected: (_) => _toggleAnswer(
+                              prompt,
+                              option,
+                              multiSelect: multiSelect,
+                            ),
+                          );
+                        }).toList(),
+                      ),
+                    ],
+                    const SizedBox(height: 8),
+                    TextField(
+                      onChanged: (value) => setState(() {
+                        final cleaned = value.trim();
+                        if (cleaned.isEmpty) {
+                          _answers.remove(prompt);
+                        } else {
+                          _answers[prompt] = cleaned;
+                        }
+                      }),
+                      decoration: InputDecoration(
+                        hintText: options.isEmpty
+                            ? 'Type your answer'
+                            : 'Or type another answer',
+                        filled: true,
+                        fillColor: _OlTheme.bg2,
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            }),
+            if (_questions.isEmpty)
+              TextField(
+                onChanged: (value) => setState(() {
+                  final cleaned = value.trim();
+                  if (cleaned.isEmpty) {
+                    _answers.remove('answer');
+                  } else {
+                    _answers['answer'] = cleaned;
+                  }
+                }),
+                decoration: const InputDecoration(
+                  hintText: 'Type your answer',
+                  filled: true,
+                  fillColor: _OlTheme.bg2,
+                ),
+              ),
+          ] else if (approval.isPlan) ...[
+            if (approval.interaction?['markdown']
+                    ?.toString()
+                    .trim()
+                    .isNotEmpty ??
+                false) ...[
+              const SizedBox(height: 14),
+              _PurposeBox(text: approval.interaction!['markdown'].toString()),
+            ],
+            const SizedBox(height: 14),
+            TextField(
+              controller: _guidanceController,
+              onChanged: (_) => setState(() {}),
+              maxLength: 500,
+              maxLines: 3,
+              decoration: const InputDecoration(
+                hintText: 'Feedback if the agent should revise the plan',
+                filled: true,
+                fillColor: _OlTheme.bg2,
+              ),
+            ),
+          ] else if (supportsGuidance) ...[
             const SizedBox(height: 14),
             TextField(
               controller: _guidanceController,
@@ -4030,28 +4442,50 @@ class _ApprovalCardState extends State<_ApprovalCard> {
             ),
           ],
           const SizedBox(height: 20),
-          Row(
-            children: [
-              Expanded(
-                child: _SecondaryButton(
-                  label: _guidanceController.text.trim().isEmpty
-                      ? 'Deny'
-                      : 'Deny & guide',
-                  onPressed: () => widget.onDeny(_guidanceController.text),
+          if (approval.isQuestion)
+            _PrimaryButton(
+              label: 'Send answer',
+              icon: Icons.send_rounded,
+              onPressed:
+                  (_questions.isEmpty
+                      ? (_answers['answer']?.toString().trim().isNotEmpty ==
+                            true)
+                      : _allQuestionsAnswered)
+                  ? () => widget.onAllow({
+                      ...approval.originalInput,
+                      'answers': _answers,
+                    })
+                  : null,
+            )
+          else
+            Row(
+              children: [
+                Expanded(
+                  child: _SecondaryButton(
+                    label: approval.isPlan
+                        ? 'Request changes'
+                        : _guidanceController.text.trim().isEmpty
+                        ? 'Deny'
+                        : 'Deny & guide',
+                    onPressed: () => widget.onDeny(_guidanceController.text),
+                  ),
                 ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: _PrimaryButton(
-                  label: 'Allow',
-                  icon: Icons.check,
-                  onPressed: _guidanceController.text.trim().isEmpty
-                      ? widget.onAllow
-                      : null,
+                const SizedBox(width: 12),
+                Expanded(
+                  child: _PrimaryButton(
+                    label: approval.isPlan ? 'Approve plan' : 'Allow',
+                    icon: Icons.check,
+                    onPressed:
+                        approval.isPlan ||
+                            _guidanceController.text.trim().isEmpty
+                        ? () => widget.onAllow(
+                            approval.isPlan ? approval.originalInput : null,
+                          )
+                        : null,
+                  ),
                 ),
-              ),
-            ],
-          ),
+              ],
+            ),
         ],
       ),
     );
