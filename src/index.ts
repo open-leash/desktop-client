@@ -62,6 +62,7 @@ export type PluginPermission =
   | "model:invoke"
   | "network:access"
   | "instructions:read"
+  | "conversation:read"
   | "filesystem:read"
   | "filesystem:write"
   | "storage:read"
@@ -112,6 +113,38 @@ export type PluginContainerExecution = {
     volumeName?: string;
   };
 };
+
+export function firstPartyEventContainer(
+  slug: string,
+  version: string,
+  options: Partial<PluginContainerExecution> = {},
+): PluginContainerExecution {
+  const edgePorts: Record<string, number> = {
+    "blast-radius": 9351,
+    "sensitive-access": 9352,
+    "data-leakage-prevention": 9353,
+    "rules-enforcer": 9354,
+    "mcp-scanner": 9355,
+    "code-scanner": 9356,
+    "skill-scanner": 9357,
+    "siem-exporter": 9358,
+  };
+  return {
+    type: "container",
+    placement: "either",
+    protocol: "openleash-container-plugin.v1",
+    image: `ghcr.io/open-leash/plugin-${slug}:${version}`,
+    healthPath: "/healthz",
+    eventPath: "/v1/events",
+    edgePort: edgePorts[slug],
+    timeoutMs: 30_000,
+    failureMode: "closed",
+    isolation: "shared-trusted",
+    resources: { memoryMb: 256, cpuShares: 256 },
+    storage: { persistent: true },
+    ...options,
+  };
+}
 
 export type PluginOrdering = {
   before?: string[];
@@ -290,8 +323,8 @@ export const FIRST_PARTY_PLUGIN_MANIFESTS = [
       storage: { persistent: true, volumeName: "openleash-token-saver-data" }
     },
     entrypoint: "container",
-    events: ["provider.request.beforeSend", "plugin.tool.execute"],
-    permissions: ["event:read", "prompt:read", "prompt:write", "provider-request:read", "provider-request:write", "local-model:run", "storage:read", "storage:write", "audit:write", "log:write", "usage:write", "island:publish"],
+    events: ["provider.request.beforeSend", "plugin.tool.execute", "prompt.beforeSubmit"],
+    permissions: ["event:read", "prompt:read", "prompt:write", "provider-request:read", "provider-request:write", "local-model:run", "audit:write", "log:write", "usage:write", "island:publish"],
     effects: ["transform", "observe"],
     ordering: { priority: 100, before: ["openleash.dlp"] },
     configSchema: {
@@ -1098,6 +1131,18 @@ export type PluginInstructionListRequest = {
   scope?: "global" | "project";
 };
 
+export type PluginConversationRecentRequest = {
+  /** Bounded by the runtime. Defaults to 20 and never exceeds 100. */
+  limit?: number;
+};
+
+export type PluginConversationContext = {
+  sessionId: string;
+  turns: ConversationTurn[];
+  /** True when older turns exist outside the returned bounded window. */
+  truncated: boolean;
+};
+
 export type PluginLlmJsonRequest = {
   system?: string;
   prompt: string;
@@ -1118,6 +1163,13 @@ export type PluginCapabilities = {
   context: {
     instructions: {
       list(request?: PluginInstructionListRequest): Promise<PluginInstructionFile[]>;
+    };
+    conversation: {
+      /**
+       * Returns only the authenticated current session. A plugin cannot select
+       * another user, organization, or arbitrary session through this API.
+       */
+      recent(request?: PluginConversationRecentRequest): Promise<PluginConversationContext>;
     };
   };
   llm: {
@@ -1277,6 +1329,7 @@ export type OpenLeashAttentionEvent = {
     | { type: "approval" }
     | {
         type: "questions";
+        originalInput: Record<string, unknown>;
         questions: Array<{
           question: string;
           header?: string;
@@ -1369,6 +1422,8 @@ export type MobileDeviceRegisterRequest = {
 
 export type MobilePendingApproval = {
   id: string;
+  attention_kind: "approval" | "question" | "plan_review";
+  interaction?: OpenLeashAttentionEvent["interaction"];
   summary: string;
   question?: string;
   created_at: string;
@@ -1399,10 +1454,21 @@ export type MobileStateResponse = {
   apiUrl: string;
   mode: OpenLeashClientMode;
   pendingApprovals: MobilePendingApproval[];
+  attentionEvents: OpenLeashAttentionEvent[];
   clientConfig: {
     approvalNotifications: boolean;
     managedByOrganization: boolean;
   };
+};
+
+export type OpenLeashClientSyncEvent = {
+  schemaVersion: "2026-07-27.client-sync.v1";
+  id: string;
+  kind:
+    | "activity.created"
+    | "interaction.created"
+    | "interaction.resolved";
+  occurredAt: string;
 };
 
 export type MobileDecisionResolveRequest = {
@@ -1507,6 +1573,7 @@ export const OPENLEASH_API_CONTRACTS = {
   mobileState: "2026-05-22.mobile-state.v1",
   mobileDecisionResolve: "2026-05-22.mobile-decision-resolve.v1",
   clientNotifications: "2026-06-28.client-notifications.v1",
+  clientEvents: "2026-07-27.client-events.v1",
   clientDecisionResolve: "2026-06-28.client-decision-resolve.v1",
   organizationsRead: "2026-05-16.organizations-read.v1",
   organizationsWrite: "2026-05-16.organizations-write.v1",

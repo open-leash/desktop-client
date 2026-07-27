@@ -24,6 +24,25 @@ Organization policy controls four independent decisions: mandatory installation,
 
 The same contract is used by Individual Open Source, personal OpenLeash Cloud, organization OpenLeash Cloud, and Private Cloud. A manifest should declare `executionEnvironment: "cloud-only"` only when it truly depends on OpenLeash-operated infrastructure.
 
+## Conversation context
+
+History-aware plugins should declare `conversation:read` and use the bounded,
+host-scoped conversation capability:
+
+```ts
+const conversation = await capabilities.context.conversation.recent({
+  limit: 20
+});
+```
+
+OpenLeash returns only the authenticated current session. A plugin cannot choose
+another organization, user, or arbitrary conversation.
+
+Container files and databases under `/data` are private to one runtime.
+OpenLeash does not copy or merge SQLite, PostgreSQL, MongoDB, or other database
+files between desktop and cloud containers. Keep `capabilities.storage` for
+occasional small plugin-owned values; it is not the conversation-history API.
+
 ## Island contributions
 
 Plugins with the narrow `island:publish` permission can contribute typed, expiring information to the OpenLeash Live Sessions Island:
@@ -49,7 +68,7 @@ await capabilities.island.reportActivity({
 
 OpenLeash owns layout, accessibility, truncation, animation, scope filtering, and navigation. Plugins cannot provide HTML, CSS, JavaScript, arbitrary URLs, shell commands, custom components, or Electron IPC.
 
-Use Island contributions for short-lived, glanceable state. Use signals and usage for durable outcomes, notifications for interruptions, scoped storage for plugin-owned state, and the manifest settings schema for configuration.
+Use Island contributions for short-lived, glanceable state. Use signals and usage for durable outcomes, notifications for interruptions, conversation context for history-aware decisions, optional scoped storage for small plugin-owned values, and the manifest settings schema for configuration.
 
 ## Development
 
