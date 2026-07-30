@@ -26,6 +26,12 @@ type FocusResult = {
   error?: string;
 };
 
+type MacOpenAction = {
+  command: string;
+  args: string[];
+  delayMs?: number;
+};
+
 const TERMINAL_APPLICATIONS = ["Ghostty", "iTerm2", "Terminal", "Warp", "kitty", "Alacritty"];
 const IDE_APPLICATIONS = ["Visual Studio Code", "Cursor", "Windsurf"] as const;
 
@@ -120,9 +126,7 @@ function focusMacAgentSession(target: AgentSessionFocusTarget): FocusResult {
   try {
     if (isIdeAgent(target.agentKind)) {
       const application = ideApplication(target.agentKind);
-      const args = ["-a", application];
-      if (target.projectPath) args.push(target.projectPath);
-      detached("/usr/bin/open", args);
+      runMacOpenActions(macIdeOpenActions(application, target));
       return { ok: true, exact: Boolean(target.projectPath), application };
     }
 
@@ -133,9 +137,7 @@ function focusMacAgentSession(target: AgentSessionFocusTarget): FocusResult {
     }
     const ideHost = macIdeHostForAgent(target, resolved?.pid);
     if (ideHost) {
-      const args = ["-a", ideHost];
-      if (target.projectPath) args.push(target.projectPath);
-      detached("/usr/bin/open", args);
+      runMacOpenActions(macIdeOpenActions(ideHost, target));
       return { ok: true, exact: Boolean(target.projectPath), application: ideHost };
     }
 
@@ -145,6 +147,67 @@ function focusMacAgentSession(target: AgentSessionFocusTarget): FocusResult {
   } catch (error) {
     return { ok: false, error: error instanceof Error ? error.message : "Could not focus the agent session." };
   }
+}
+
+export function macIdeOpenActions(
+  application: (typeof IDE_APPLICATIONS)[number],
+  target: AgentSessionFocusTarget,
+): MacOpenAction[] {
+  const projectPath = normalizedProjectPath(target.projectPath);
+  if (!projectPath) {
+    return [{ command: "/usr/bin/open", args: ["-a", application] }];
+  }
+
+  const scheme = macIdeScheme(application);
+  const actions: MacOpenAction[] = [
+    {
+      command: "/usr/bin/open",
+      args: [`${scheme}://file${encodeURI(projectPath)}`],
+    },
+  ];
+  const conversationId =
+    application === "Visual Studio Code" &&
+    String(target.agentKind ?? "").toLowerCase() === "codex"
+      ? codexConversationId(target)
+      : undefined;
+  if (conversationId) {
+    actions.push({
+      command: "/usr/bin/open",
+      args: [
+        `vscode://openai.chatgpt/local/${encodeURIComponent(conversationId)}`,
+      ],
+      delayMs: 650,
+    });
+  }
+  return actions;
+}
+
+function runMacOpenActions(actions: MacOpenAction[]) {
+  for (const action of actions) {
+    if (action.delayMs) {
+      const timer = setTimeout(
+        () => detached(action.command, action.args),
+        action.delayMs,
+      );
+      timer.unref();
+    } else {
+      detached(action.command, action.args);
+    }
+  }
+}
+
+function macIdeScheme(application: (typeof IDE_APPLICATIONS)[number]) {
+  if (application === "Cursor") return "cursor";
+  if (application === "Windsurf") return "windsurf";
+  return "vscode";
+}
+
+function codexConversationId(target: AgentSessionFocusTarget) {
+  return [target.sessionId, ...(target.sourceSessionIds ?? [])].find((value) =>
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+      String(value ?? ""),
+    ),
+  );
 }
 
 function focusWindowsAgentSession(target: AgentSessionFocusTarget): FocusResult {

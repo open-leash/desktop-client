@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   detectIdeHostFromProcessTree,
+  macIdeOpenActions,
   matchesWindowsFrontmost,
   parseProcessTable,
   rankAgentProcesses,
@@ -50,6 +51,58 @@ test("does not mistake a standalone terminal Codex process for an IDE session", 
   102 101 /opt/homebrew/bin/codex
   `;
   assert.equal(detectIdeHostFromProcessTree(tree, { agentKind: "codex" }, 102), undefined);
+});
+
+test("macOS reuses the existing VS Code project and opens the exact Codex conversation", () => {
+  assert.deepEqual(
+    macIdeOpenActions("Visual Studio Code", {
+      agentKind: "codex",
+      projectPath: "/Users/max/Code/FileMesh (All)",
+      sessionId: "019fb4c2-7954-7c30-87c0-c833911c6d44",
+    }),
+    [
+      {
+        command: "/usr/bin/open",
+        args: ["vscode://file/Users/max/Code/FileMesh%20(All)"],
+      },
+      {
+        command: "/usr/bin/open",
+        args: [
+          "vscode://openai.chatgpt/local/019fb4c2-7954-7c30-87c0-c833911c6d44",
+        ],
+        delayMs: 650,
+      },
+    ],
+  );
+});
+
+test("macOS does not route non-Codex or non-UUID sessions through the Codex extension", () => {
+  assert.deepEqual(
+    macIdeOpenActions("Cursor", {
+      agentKind: "cursor",
+      projectPath: "/Users/max/Code/OpenLeash",
+      sessionId: "cursor-session",
+    }),
+    [
+      {
+        command: "/usr/bin/open",
+        args: ["cursor://file/Users/max/Code/OpenLeash"],
+      },
+    ],
+  );
+  assert.deepEqual(
+    macIdeOpenActions("Visual Studio Code", {
+      agentKind: "codex",
+      projectPath: "/Users/max/Code/OpenLeash",
+      sessionId: "not-a-codex-thread-id",
+    }),
+    [
+      {
+        command: "/usr/bin/open",
+        args: ["vscode://file/Users/max/Code/OpenLeash"],
+      },
+    ],
+  );
 });
 
 test("smart suppression keeps the island collapsed only when the target is frontmost", () => {
