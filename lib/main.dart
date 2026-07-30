@@ -36,25 +36,28 @@ const _contracts = <String, String>{
 };
 
 class _OlTheme {
-  static const bg = Color(0xfffafaf6);
-  static const bg2 = Color(0xfff3f2ec);
-  static const surface = Color(0xffffffff);
-  static const line = Color(0xffe8e5dd);
-  static const line2 = Color(0xffd8d3c7);
-  static const ink = Color(0xff0c0c0a);
-  static const ink2 = Color(0xff2a2a26);
-  static const dim = Color(0xff6b6b63);
-  static const mute = Color(0xff9d9c92);
-  static const accent = Color(0xff5b4fe5);
-  static const accent2 = Color(0xffec4899);
-  static const accentSoft = Color(0xffefedfd);
-  static const danger = Color(0xffe94e3a);
-  static const dangerSoft = Color(0xfffdeae6);
-  static const ok = Color(0xff18a558);
-  static const okSoft = Color(0xffe6f5ed);
+  static const bg = Color(0xff050607);
+  static const bg2 = Color(0xff0d1013);
+  static const surface = Color(0xff090b0d);
+  static const surfaceRaised = Color(0xff111418);
+  static const line = Color(0xff24282d);
+  static const line2 = Color(0xff343940);
+  static const ink = Color(0xfff6f7f8);
+  static const ink2 = Color(0xffd4d7db);
+  static const dim = Color(0xff999da4);
+  static const mute = Color(0xff686d75);
+  static const accent = Color(0xffa58af7);
+  static const accent2 = Color(0xff7656df);
+  static const accentSoft = Color(0xff171327);
+  static const attention = Color(0xffffaa2b);
+  static const attentionSoft = Color(0xff1b1206);
+  static const danger = Color(0xffff5b52);
+  static const dangerSoft = Color(0xff2b100f);
+  static const ok = Color(0xff4be0a3);
+  static const okSoft = Color(0xff0c271e);
 
   static const panelShadow = [
-    BoxShadow(color: Color(0x160c0c0a), blurRadius: 28, offset: Offset(0, 14)),
+    BoxShadow(color: Color(0x99000000), blurRadius: 28, offset: Offset(0, 14)),
   ];
 }
 
@@ -90,8 +93,8 @@ class OpenLeashMobileApp extends StatelessWidget {
         scaffoldBackgroundColor: _OlTheme.bg,
         colorScheme: ColorScheme.fromSeed(
           seedColor: _OlTheme.accent,
-          brightness: Brightness.light,
-          primary: _OlTheme.ink,
+          brightness: Brightness.dark,
+          primary: _OlTheme.accent,
           secondary: _OlTheme.accent,
           surface: _OlTheme.surface,
           error: _OlTheme.danger,
@@ -104,6 +107,24 @@ class OpenLeashMobileApp extends StatelessWidget {
         progressIndicatorTheme: const ProgressIndicatorThemeData(
           color: _OlTheme.accent,
           linearTrackColor: _OlTheme.accentSoft,
+        ),
+        inputDecorationTheme: InputDecorationTheme(
+          filled: true,
+          fillColor: _OlTheme.bg2,
+          hintStyle: const TextStyle(color: _OlTheme.mute),
+          counterStyle: const TextStyle(color: _OlTheme.mute),
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide: const BorderSide(color: _OlTheme.line2),
+          ),
+          enabledBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide: const BorderSide(color: _OlTheme.line2),
+          ),
+          focusedBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide: const BorderSide(color: _OlTheme.accent, width: 1.3),
+          ),
         ),
       ),
       builder: (context, child) {
@@ -853,9 +874,9 @@ class _OpenLeashHomeState extends State<OpenLeashHome> {
             end: Alignment.bottomRight,
             colors: [
               _OlTheme.bg,
-              _OlTheme.surface,
+              _OlTheme.bg2,
               Color.alphaBlend(
-                _OlTheme.accent2.withValues(alpha: 0.025),
+                _OlTheme.accent2.withValues(alpha: 0.10),
                 _OlTheme.bg,
               ),
             ],
@@ -870,7 +891,7 @@ class _OpenLeashHomeState extends State<OpenLeashHome> {
                 onRefresh: () => _refreshState(showNotifications: true),
                 child: ListView(
                   physics: const AlwaysScrollableScrollPhysics(),
-                  padding: const EdgeInsets.fromLTRB(20, 22, 20, 32),
+                  padding: const EdgeInsets.fromLTRB(16, 14, 16, 32),
                   children: [
                     _LogoHeader(
                       signedIn: _signedIn,
@@ -1028,81 +1049,86 @@ class _OpenLeashHomeState extends State<OpenLeashHome> {
           ..sort(_comparePlugins);
     final agentCount = visibleAgents.length;
     return [
-      _Panel(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                const CircleAvatar(
-                  radius: 24,
-                  backgroundColor: _OlTheme.okSoft,
-                  child: Icon(Icons.verified_user_outlined, color: _OlTheme.ok),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        user,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          fontSize: 19,
-                          letterSpacing: -0.3,
-                          fontWeight: FontWeight.w800,
+      if (_pendingApprovals.isEmpty) ...[
+        _Panel(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  const CircleAvatar(
+                    radius: 24,
+                    backgroundColor: _OlTheme.okSoft,
+                    child: Icon(
+                      Icons.verified_user_outlined,
+                      color: _OlTheme.ok,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          user,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            fontSize: 19,
+                            letterSpacing: -0.3,
+                            fontWeight: FontWeight.w800,
+                          ),
                         ),
-                      ),
-                      const SizedBox(height: 3),
-                      Text(
-                        organization,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          fontSize: 14,
-                          color: _OlTheme.dim,
-                          fontWeight: FontWeight.w600,
+                        const SizedBox(height: 3),
+                        Text(
+                          organization,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            fontSize: 14,
+                            color: _OlTheme.dim,
+                            fontWeight: FontWeight.w600,
+                          ),
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
-                ),
-                IconButton(
-                  onPressed: () => _refreshState(showNotifications: true),
-                  icon: const Icon(Icons.refresh),
-                ),
-              ],
-            ),
-            const SizedBox(height: 18),
-            Row(
-              children: [
-                Expanded(
-                  child: _DashboardMetric(
-                    value: '$agentCount',
-                    label: agentCount == 1 ? 'agent' : 'agents',
+                  IconButton(
+                    onPressed: () => _refreshState(showNotifications: true),
+                    icon: const Icon(Icons.refresh),
                   ),
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: _DashboardMetric(
-                    value: '${_pendingApprovals.length}',
-                    label: 'pending',
+                ],
+              ),
+              const SizedBox(height: 18),
+              Row(
+                children: [
+                  Expanded(
+                    child: _DashboardMetric(
+                      value: '$agentCount',
+                      label: agentCount == 1 ? 'agent' : 'agents',
+                    ),
                   ),
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: _DashboardMetric(
-                    value: _formatDuration(sessionMetrics['last24h_seconds']),
-                    label: '$sessionCount sessions',
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: _DashboardMetric(
+                      value: '${_pendingApprovals.length}',
+                      label: 'pending',
+                    ),
                   ),
-                ),
-              ],
-            ),
-          ],
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: _DashboardMetric(
+                      value: _formatDuration(sessionMetrics['last24h_seconds']),
+                      label: '$sessionCount sessions',
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
         ),
-      ),
-      const SizedBox(height: 16),
+        const SizedBox(height: 16),
+      ],
       if (_pendingApprovals.isNotEmpty) ...[
         const _SectionTitle('Needs your attention'),
         const SizedBox(height: 8),
@@ -2013,9 +2039,9 @@ IconData _categoryIcon(String category) {
 }
 
 Color _categoryColor(String category) {
-  if (category == 'security') return const Color(0xffddefe8);
-  if (category == 'observability') return const Color(0xffdfeaf8);
-  if (category == 'utility') return const Color(0xfff4e9d5);
+  if (category == 'security') return const Color(0xff0e251d);
+  if (category == 'observability') return const Color(0xff101c2b);
+  if (category == 'utility') return const Color(0xff251b0e);
   return _OlTheme.accentSoft;
 }
 
@@ -2351,8 +2377,8 @@ class _LogoHeader extends StatelessWidget {
         const Text(
           'OpenLeash',
           style: TextStyle(
-            fontSize: 25,
-            letterSpacing: -0.7,
+            fontSize: 20,
+            letterSpacing: -0.4,
             fontWeight: FontWeight.w800,
           ),
         ),
@@ -2360,8 +2386,8 @@ class _LogoHeader extends StatelessWidget {
         if (signedIn)
           PopupMenuButton<String>(
             tooltip: 'Settings',
-            icon: const Icon(Icons.menu_rounded, size: 28),
-            color: _OlTheme.ink,
+            icon: const Icon(Icons.more_horiz_rounded, size: 25),
+            color: _OlTheme.surfaceRaised,
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(12),
             ),
@@ -2473,11 +2499,11 @@ class _Panel extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: _OlTheme.surface.withValues(alpha: 0.94),
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: _OlTheme.line2),
+        color: _OlTheme.surface.withValues(alpha: 0.96),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: _OlTheme.line),
         boxShadow: _OlTheme.panelShadow,
       ),
       child: child,
@@ -2539,7 +2565,7 @@ class _PrimaryButton extends StatelessWidget {
   Widget build(BuildContext context) {
     return FilledButton.icon(
       style: FilledButton.styleFrom(
-        backgroundColor: _OlTheme.ink,
+        backgroundColor: _OlTheme.accent,
         foregroundColor: _OlTheme.bg,
         padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 20),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -2566,13 +2592,13 @@ class _GoogleButton extends StatelessWidget {
       width: double.infinity,
       child: OutlinedButton(
         style: OutlinedButton.styleFrom(
-          backgroundColor: _OlTheme.ink,
-          foregroundColor: _OlTheme.bg,
+          backgroundColor: _OlTheme.surfaceRaised,
+          foregroundColor: _OlTheme.ink,
           padding: const EdgeInsets.symmetric(vertical: 18, horizontal: 20),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(12),
           ),
-          side: const BorderSide(color: _OlTheme.ink),
+          side: const BorderSide(color: _OlTheme.line2),
         ),
         onPressed: busy ? null : onPressed,
         child: Row(
@@ -3961,18 +3987,18 @@ _AgentTint _agentTint(String status) {
   final value = status.toLowerCase();
   if (value == 'ask') {
     return const _AgentTint(
-      card: Color(0xfffffcf5),
-      surface: Color(0xfffff4dc),
-      border: Color(0xffffd58a),
-      text: Color(0xffa14b00),
-      dot: Color(0xffff9d00),
+      card: _OlTheme.surface,
+      surface: _OlTheme.attentionSoft,
+      border: Color(0xff614217),
+      text: _OlTheme.attention,
+      dot: _OlTheme.attention,
     );
   }
   if (value == 'deny' || value == 'denied') {
     return const _AgentTint(
       card: _OlTheme.surface,
       surface: _OlTheme.dangerSoft,
-      border: Color(0xfff6c8c0),
+      border: Color(0xff652925),
       text: _OlTheme.danger,
       dot: _OlTheme.danger,
     );
@@ -3980,7 +4006,7 @@ _AgentTint _agentTint(String status) {
   return const _AgentTint(
     card: _OlTheme.surface,
     surface: _OlTheme.okSoft,
-    border: Color(0xffbfe8d0),
+    border: Color(0xff1d5d45),
     text: _OlTheme.ok,
     dot: _OlTheme.ok,
   );
@@ -4266,20 +4292,72 @@ class _ApprovalCardState extends State<_ApprovalCard> {
         : approval.isPlan
         ? 'Review ${approval.agent}’s plan'
         : 'Allow ${approval.agent}?';
-    return _Panel(
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: _OlTheme.surface.withValues(alpha: 0.98),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(
+          color: _OlTheme.attention.withValues(alpha: 0.72),
+          width: 1.2,
+        ),
+        boxShadow: [
+          ..._OlTheme.panelShadow,
+          BoxShadow(
+            color: _OlTheme.attention.withValues(alpha: 0.08),
+            blurRadius: 22,
+          ),
+        ],
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            headline,
-            style: const TextStyle(fontSize: 28, fontWeight: FontWeight.w900),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: Text(
+                  headline,
+                  style: const TextStyle(
+                    fontSize: 25,
+                    height: 1.05,
+                    letterSpacing: -0.5,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 6,
+                ),
+                decoration: BoxDecoration(
+                  color: _OlTheme.attention,
+                  borderRadius: BorderRadius.circular(999),
+                ),
+                child: Text(
+                  approval.isQuestion
+                      ? 'QUESTION'
+                      : approval.isPlan
+                      ? 'PLAN'
+                      : 'APPROVAL',
+                  style: const TextStyle(
+                    color: _OlTheme.bg,
+                    fontSize: 10,
+                    letterSpacing: 0.7,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+              ),
+            ],
           ),
           const SizedBox(height: 8),
           Text(
             approval.title,
             style: const TextStyle(
-              fontSize: 17,
-              height: 1.35,
+              fontSize: 15,
+              height: 1.4,
               color: _OlTheme.ink2,
               fontWeight: FontWeight.w600,
             ),
@@ -4441,7 +4519,7 @@ class _ApprovalCardState extends State<_ApprovalCard> {
               ),
             ),
           ],
-          const SizedBox(height: 20),
+          const SizedBox(height: 16),
           if (approval.isQuestion)
             _PrimaryButton(
               label: 'Send answer',
@@ -4461,7 +4539,8 @@ class _ApprovalCardState extends State<_ApprovalCard> {
             Row(
               children: [
                 Expanded(
-                  child: _SecondaryButton(
+                  child: _DecisionButton(
+                    allow: false,
                     label: approval.isPlan
                         ? 'Request changes'
                         : _guidanceController.text.trim().isEmpty
@@ -4472,9 +4551,9 @@ class _ApprovalCardState extends State<_ApprovalCard> {
                 ),
                 const SizedBox(width: 12),
                 Expanded(
-                  child: _PrimaryButton(
+                  child: _DecisionButton(
+                    allow: true,
                     label: approval.isPlan ? 'Approve plan' : 'Allow',
-                    icon: Icons.check,
                     onPressed:
                         approval.isPlan ||
                             _guidanceController.text.trim().isEmpty
@@ -4492,6 +4571,54 @@ class _ApprovalCardState extends State<_ApprovalCard> {
   }
 }
 
+class _DecisionButton extends StatelessWidget {
+  const _DecisionButton({
+    required this.allow,
+    required this.label,
+    required this.onPressed,
+  });
+
+  final bool allow;
+  final String label;
+  final VoidCallback? onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    final background = allow ? _OlTheme.ok : _OlTheme.dangerSoft;
+    final foreground = allow ? _OlTheme.bg : _OlTheme.ink;
+    final border = allow ? _OlTheme.ok : _OlTheme.danger;
+    return FilledButton(
+      style: FilledButton.styleFrom(
+        backgroundColor: background,
+        foregroundColor: foreground,
+        disabledBackgroundColor: background.withValues(alpha: 0.34),
+        disabledForegroundColor: foreground.withValues(alpha: 0.5),
+        minimumSize: const Size.fromHeight(50),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        side: BorderSide(color: border.withValues(alpha: 0.8)),
+      ),
+      onPressed: onPressed,
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(allow ? Icons.check_rounded : Icons.close_rounded, size: 18),
+          const SizedBox(width: 6),
+          Flexible(
+            child: Text(
+              label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w900),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _ApprovalContextBox extends StatelessWidget {
   const _ApprovalContextBox({required this.approval});
 
@@ -4503,9 +4630,9 @@ class _ApprovalContextBox extends StatelessWidget {
       data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
       child: Container(
         decoration: BoxDecoration(
-          color: _OlTheme.bg2,
+          color: _OlTheme.surfaceRaised,
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: _OlTheme.line),
+          border: Border.all(color: _OlTheme.attention.withValues(alpha: 0.26)),
         ),
         child: ExpansionTile(
           initiallyExpanded: true,
@@ -4551,9 +4678,9 @@ class _PurposeBox extends StatelessWidget {
       width: double.infinity,
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: _OlTheme.bg2,
+        color: _OlTheme.surfaceRaised,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: _OlTheme.line),
+        border: Border.all(color: _OlTheme.attention.withValues(alpha: 0.24)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -4654,7 +4781,7 @@ class _Pill extends StatelessWidget {
       decoration: BoxDecoration(
         color: _OlTheme.accentSoft,
         borderRadius: BorderRadius.circular(999),
-        border: Border.all(color: _OlTheme.accent.withValues(alpha: 0.12)),
+        border: Border.all(color: _OlTheme.accent.withValues(alpha: 0.42)),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
