@@ -1,12 +1,54 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { openCodePluginSource } from "./agent-registry";
+import { hasManagedCodexProxy, openCodePluginSource } from "./agent-registry";
+import { enableCodexHooksFeature } from "./codex-config";
 
 const context = {
   apiUrl: "https://api.openleash.test",
   token: "test-token",
   clientVersion: "test-version",
 };
+
+test("Codex monitoring re-enables hooks after an earlier uninstall", () => {
+  const config = [
+    'model = "gpt-5.6-sol"',
+    "",
+    "[features]",
+    "hooks = false",
+    'other_feature = "preserved"',
+    "",
+    "[mcp_servers.docs]",
+    'url = "https://example.test/mcp"',
+    "",
+  ].join("\n");
+
+  const enabled = enableCodexHooksFeature(config);
+  assert.match(enabled, /\[features\]\nhooks = true\n/);
+  assert.doesNotMatch(enabled, /hooks = false/);
+  assert.match(enabled, /other_feature = "preserved"/);
+  assert.match(enabled, /\[mcp_servers\.docs\]/);
+  assert.equal(enableCodexHooksFeature(enabled), enabled);
+});
+
+test("Codex monitoring adds the hooks feature when no features table exists", () => {
+  const enabled = enableCodexHooksFeature('model = "gpt-5.6-sol"\n');
+  assert.match(enabled, /\[features\]\nhooks = true\n$/);
+});
+
+test("Codex monitoring recognizes the OpenLeash-managed local proxy", () => {
+  const configured = [
+    "# Managed by OpenLeash local proxy",
+    'model_provider = "openleash"',
+    "",
+    "[model_providers.openleash]",
+    'name = "OpenLeash local proxy"',
+    'base_url = "http://127.0.0.1:9320/agent/codex/v1"',
+    'wire_api = "responses"',
+  ].join("\n");
+  assert.equal(hasManagedCodexProxy(configured), true);
+  assert.equal(hasManagedCodexProxy(configured.replace("# Managed by OpenLeash local proxy\n", "")), false);
+  assert.equal(hasManagedCodexProxy(configured.replace("/agent/codex/v1", "/v1")), false);
+});
 
 async function loadOpenCodePlugin() {
   const source = openCodePluginSource(context);

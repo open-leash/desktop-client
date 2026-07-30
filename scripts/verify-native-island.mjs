@@ -130,7 +130,7 @@ try {
     title: "3 agents working",
     project: "3 active sessions",
     sessions: [
-      { id: "claude", agentKind: "claude-code", agentName: "Claude Code", visualState: "running", project: "client-api", title: "Test Claude", latestAction: "Running tests", eventCount: 3 },
+      { id: "claude", sessionId: "claude-session", sourceSessionIds: ["claude-session"], agentKind: "claude-code", agentName: "Claude Code", visualState: "running", project: "client-api", title: "Test Claude", latestAction: "Running tests", eventCount: 3, canPauseMonitoring: true },
       { id: "codex", sessionId: "codex-session", agentKind: "codex", agentName: "OpenAI Codex", visualState: "processing", project: "desktop", title: "Test Codex", latestAction: "Editing files", eventCount: 5, contributions: [{ pluginId: "openleash.blast-radius", pluginName: "blast-radius", pluginIcon: "💥", kind: "annotation", label: "Destructive operation", tone: "danger" }, { pluginId: "openleash.prompt-compression", pluginName: "token-saver", pluginIcon: "✂️", kind: "annotation", label: "token-saver", value: "42% saved", tone: "success" }] },
       { id: "gemini", agentKind: "gemini", agentName: "Gemini CLI", visualState: "processing", project: "docs", title: "Test Gemini", latestAction: "Reading docs", eventCount: 2 },
     ],
@@ -142,6 +142,12 @@ try {
   assert.equal(activity.layout.sessionCount, 3, "activity island did not render every active session");
   assert.equal(activity.layout.activityDetailVisible, false, "multi-session activity opened a detail without selection");
   assert.equal(activity.layout.historyButtonVisible, true, "activity island did not offer optional history");
+  assert.equal(activity.layout.pauseMonitoringButtonVisible, true, "selected conversation did not offer a temporary monitoring pause");
+  send({ type: "clickPauseMonitoring" });
+  const pauseMonitoring = await waitFor("action");
+  assert.equal(pauseMonitoring.action, "session-monitoring", "conversation pause did not use the native island bridge");
+  assert.equal(pauseMonitoring.payload?.paused, true, "conversation pause did not request the paused state");
+  assert.equal(pauseMonitoring.payload?.session?.sessionId, "claude-session", "conversation pause lost the exact session identifier");
   assert.ok(activity.layout.contributionCount >= 2, "activity island did not render plugin contributions");
   assert.equal(activity.layout.notchAgentCount, 3, "notch rail did not render active agent icons");
   assert.equal(activity.layout.capAgentCount, 3, "plain-display compact pill did not render active agent icons");
@@ -151,8 +157,18 @@ try {
   assert.ok(activity.layout.mascotStates.includes("running") && activity.layout.mascotStates.includes("processing"), "mascots did not receive state-specific animation modes");
   assert.match(activity.layout.notchTokenSaving, /42% saved/, "notch rail did not render token savings");
   assert.match(activity.layout.capTokenSaving, /42% saved/, "compact header did not retain token savings for displays without a notch");
+  assert.equal(activity.layout.compactProgressVisible, true, "compact island did not expose plugin progress");
+  assert.ok(
+    activity.layout.compactProgressPercent >= 58 && activity.layout.compactProgressPercent <= 62,
+    `compact plugin progress is not 3 of 5: ${activity.layout.compactProgressPercent}%`,
+  );
+  assert.equal(activity.layout.backgroundColor, "rgb(0, 0, 0)", "activity island background is not black");
   assert.equal(activity.layout.islandWidth, activity.layout.activityCompactWidth, "collapsed activity island did not use its measured content width");
   if (activity.display.hasNotch) {
+    assert.ok(
+      activity.layout.notchAgentLeftGap <= 14,
+      `agent icon is not left-aligned: ${activity.layout.notchAgentLeftGap}px`,
+    );
     assert.equal(activity.layout.islandHeight, activity.display.safeTop, "notched compact activity grew below the hardware notch");
     assert.ok(activity.layout.islandWidth < 430, `notched compact activity retained the oversized fixed width: ${activity.layout.islandWidth}`);
     assert.ok(activity.layout.islandWidth >= activity.display.notchWidth, "notched compact activity is narrower than the hardware notch");
@@ -167,6 +183,16 @@ try {
   assert.equal(expandedActivity.layout.expanded, true, "compact activity rail did not expand");
   assert.ok(expandedActivity.layout.islandHeight > activity.layout.islandHeight, "expanded activity did not reveal its details");
   assert.ok(expandedActivity.layout.islandWidth > activity.layout.islandWidth, "expanded activity did not grow wider than its compact content");
+  if (expandedActivity.display.hasNotch) {
+    assert.ok(
+      expandedActivity.layout.notchAgentLeftGap <= 14,
+      `expanded agent icon is not left-aligned: ${expandedActivity.layout.notchAgentLeftGap}px`,
+    );
+    assert.ok(
+      expandedActivity.layout.notchTokenRightGap <= 14,
+      `token-saver metric is not right-aligned: ${expandedActivity.layout.notchTokenRightGap}px`,
+    );
+  }
   send({ type: "pointerInside" });
   send({ type: "show", payload: {
     kind: "activity",

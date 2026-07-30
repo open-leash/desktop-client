@@ -2,6 +2,10 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
 import os from "node:os";
+import {
+  enableCodexHooksFeature,
+  probeCodexHooks,
+} from "../codex-config.js";
 import { apiVersionHeaders } from "./api-contract.js";
 import { hookApiUrl, readConfig } from "./config.js";
 import {
@@ -138,15 +142,15 @@ export async function installCodexHooks() {
   } catch {
     config = "";
   }
-  config = enableCodexApprovalHandoff(config);
+  config = enableCodexHooksFeature(enableCodexApprovalHandoff(config));
   if (!/^\s*hooks\s*=\s*true\s*$/m.test(config)) {
     if (/^\s*\[features\]\s*$/m.test(config)) {
       config = config.replace(/^(\s*\[features\]\s*\n)/m, "$1hooks = true\n");
     } else {
       config += `${config.endsWith("\n") || config.length === 0 ? "" : "\n"}[features]\nhooks = true\n`;
     }
-    await fs.writeFile(codexConfigPath, config);
   }
+  await fs.writeFile(codexConfigPath, config);
   await fs.writeFile(
     codexHooksPath,
     `${JSON.stringify(
@@ -596,39 +600,15 @@ function shellQuote(value: string) {
 }
 
 async function trustCodexHooks() {
-  const messages = [
-    {
-      id: 1,
-      method: "initialize",
-      params: {
-        clientInfo: { name: "openleash", title: "OpenLeash", version: "0.1.0" },
-        capabilities: { experimentalApi: true }
-      }
-    },
-    { method: "initialized" },
-    { id: 2, method: "hooks/list", params: { cwds: [process.cwd()] } }
-  ]
-    .map((message) => JSON.stringify(message))
-    .join("\n");
-
-  const result = spawnSync("codex", ["app-server", "--listen", "stdio://"], {
-    input: `${messages}\n`,
-    encoding: "utf8",
-    maxBuffer: 10 * 1024 * 1024
-  });
-  if (result.error || result.status !== 0) return;
-
-  const hooks = result.stdout
-    .split("\n")
-    .flatMap((line) => {
-      try {
-        const parsed = JSON.parse(line) as { id?: number; result?: { data?: Array<{ hooks?: unknown[] }> } };
-        return parsed.id === 2 ? (parsed.result?.data ?? []).flatMap((entry) => entry.hooks ?? []) : [];
-      } catch {
-        return [];
-      }
-    })
-    .filter(isHookMetadata);
+  const hooks = probeCodexHooks("0.1.0").filter(
+    (
+      hook,
+    ): hook is typeof hook & {
+      key: string;
+      sourcePath: string;
+      currentHash: string;
+    } => isHookMetadata(hook),
+  );
 
   const installed = hooks.filter((hook) => path.resolve(hook.sourcePath) === path.resolve(codexHooksPath));
   if (installed.length === 0) return;

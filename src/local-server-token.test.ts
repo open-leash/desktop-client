@@ -19,14 +19,20 @@ test("the configured local service token survives setup and install resets", asy
     assert.equal(server.token, configuredToken);
 
     assert.equal(server.islandActivityOnly, false, "the Island should stay visible by default");
+    assert.equal(server.islandVisibility, "always");
+    server.updateSettings("openai", undefined, undefined, undefined, "notifications");
+    assert.equal(server.islandVisibility, "notifications");
     server.updateSettings("openai", undefined, undefined, true);
     assert.equal(server.islandActivityOnly, true);
+    assert.equal(server.islandVisibility, "activity");
     server.resetSetup();
     assert.equal(server.islandActivityOnly, true, "setup reset should preserve the Island visibility preference");
+    assert.equal(server.islandVisibility, "activity");
 
     server.resetAllLocalState();
     assert.equal(server.token, configuredToken);
     assert.equal(server.islandActivityOnly, false, "a full settings reset should restore always-on Island visibility");
+    assert.equal(server.islandVisibility, "always");
   } finally {
     await server.stop();
     fs.rmSync(dataDir, { recursive: true, force: true });

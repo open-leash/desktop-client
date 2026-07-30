@@ -47,6 +47,7 @@ export type ActiveAgentSession = {
   eventCount: number;
   events: ActivityIslandEvent[];
   visualState: "processing" | "running" | "waiting" | "completed";
+  monitoringPausedUntil?: string;
 };
 
 export type CompletedAgentSession = {
@@ -70,6 +71,34 @@ export type ImmediateAgentActivity = {
   toolName?: string;
   occurredAt: string;
 };
+
+export type IslandVisibility = "always" | "activity" | "notifications";
+
+export function shouldPresentActivityIsland(input: {
+  visibility: IslandVisibility;
+  hasPending: boolean;
+  hasVisibleActivity: boolean;
+  manualReveal?: boolean;
+}) {
+  if (input.hasPending || input.manualReveal) return true;
+  if (input.visibility === "notifications") return false;
+  return input.visibility === "always" || input.hasVisibleActivity;
+}
+
+export function islandDisplayTargets(
+  displayIds: number[],
+  activeDisplayId: number,
+  hasPassiveIsland: boolean,
+) {
+  return displayIds.map((displayId) => ({
+    displayId,
+    presentation: displayId === activeDisplayId
+      ? "active" as const
+      : hasPassiveIsland
+        ? "passive" as const
+        : "hidden" as const,
+  }));
+}
 
 const TERMINAL_EVENTS = new Set(["sessionend", "stop", "completed", "agentstop"]);
 
@@ -124,10 +153,14 @@ export function activeAgentSessions(
       const lastActivityAt = session.last_activity_at ?? agent.activity_at;
       if (!lastActivityAt) return [];
       const sourceEvents = session.events ?? [];
-      const visibleEvents = sourceEvents.filter((event) => !isClaudeStatusPrompt(agent, {
-        ...event,
-        prompt: event.prompt ?? session.title,
-      }));
+      if (sourceEvents.length === 0 && isBackgroundTitlePrompt(session.title)) return [];
+      const visibleEvents = sourceEvents.filter((event) =>
+        !isBackgroundTitlePrompt(event.prompt ?? session.title) &&
+        !isClaudeStatusPrompt(agent, {
+          ...event,
+          prompt: event.prompt ?? session.title,
+        })
+      );
       if (sourceEvents.length > 0 && visibleEvents.length === 0) return [];
       const latestEvent = visibleEvents[0];
       const latestPrompt = visibleEvents.find((event) => userFacingText(event.prompt));
@@ -358,6 +391,17 @@ function isInternalControlText(value: string) {
     /^this session is being continued from a previous conversation\b/i.test(value) ||
     /^suggest what the user might naturally type next\b/i.test(value) ||
     /^you have \d+ weighted tokens left\b/i.test(value);
+}
+
+function isBackgroundTitlePrompt(value: unknown) {
+  if (typeof value !== "string") return false;
+  const normalized = value.toLowerCase();
+  return (
+    normalized.includes("you will be presented with a user prompt") &&
+    normalized.includes("provide a short title for a task that will be created from that prompt") &&
+    normalized.includes("generate a concise ui title") &&
+    normalized.includes("fill the structured title field with plain text")
+  );
 }
 
 function isClaudeStatusPrompt(agent: ActivityIslandSourceAgent, event: ActivityIslandEvent) {

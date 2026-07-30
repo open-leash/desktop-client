@@ -130,6 +130,8 @@ export async function installLocalProxy(options: {
     "OPENLEASH_ANTHROPIC_UPSTREAM=https://api.anthropic.com",
     "-e",
     "OPENLEASH_OPENAI_UPSTREAM=https://api.openai.com",
+    "-e",
+    "OPENLEASH_CHATGPT_UPSTREAM=https://chatgpt.com/backend-api/codex",
   ];
   if (options.corporateProxy?.trim())
     args.push(
@@ -251,16 +253,34 @@ function configureCodex(enabled: boolean) {
   fs.mkdirSync(path.dirname(file), { recursive: true });
   if (!fs.existsSync(backup))
     fs.writeFileSync(backup, fs.existsSync(file) ? fs.readFileSync(file) : "");
-  let source = fs.readFileSync(backup, "utf8");
-  source = source
-    .replace(/^model_provider\s*=.*$/m, "")
-    .replace(/\n{3,}/g, "\n\n")
-    .trim();
-  const block = `# Managed by OpenLeash local proxy\nmodel_provider = "openleash"\n\n${source}\n\n[model_providers.openleash]\nname = "OpenLeash local proxy"\nbase_url = "${agentProxyUrl("codex", true)}"\nwire_api = "responses"\nrequires_openai_auth = true\n`;
+  const current = fs.existsSync(file) ? fs.readFileSync(file, "utf8") : "";
+  const source = stripManagedCodexProxy(current);
+  const chatGptHeader =
+    codexAuthMode() === "chatgpt"
+      ? '\nhttp_headers = { "x-openleash-codex-auth-mode" = "chatgpt" }'
+      : "";
+  const block = `# Managed by OpenLeash local proxy\nmodel_provider = "openleash"\n\n${source}\n\n[model_providers.openleash]\nname = "OpenLeash local proxy"\nbase_url = "${agentProxyUrl("codex", true)}"\nwire_api = "responses"\nrequires_openai_auth = true${chatGptHeader}\n`;
   fs.writeFileSync(
     file,
     block.replace(`\n\n${source}\n\n`, source ? `\n\n${source}\n\n` : "\n\n"),
   );
+}
+
+function stripManagedCodexProxy(config: string) {
+  return config
+    .replace(/^\s*# Managed by OpenLeash local proxy\s*\n?/m, "")
+    .replace(/^\s*model_provider\s*=\s*"openleash"\s*\n?/m, "")
+    .replace(
+      /\n?\[model_providers\.openleash\]\s*\n(?:^(?!\s*\[).*(?:\n|$))*/gm,
+      "\n",
+    )
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
+
+function codexAuthMode() {
+  const auth = readJson(path.join(os.homedir(), ".codex", "auth.json"));
+  return typeof auth.auth_mode === "string" ? auth.auth_mode.toLowerCase() : "";
 }
 
 function configuredAgents(): ProxyAgentKind[] {

@@ -51,15 +51,24 @@ export type PluginContainerStatus = {
   error?: string;
 };
 
+export type PluginContainerProgress = {
+  current: number;
+  total: number;
+  pluginId: string;
+  phase: "installing" | "ready" | "failed";
+  status?: PluginContainerStatus;
+};
+
 let reconciliationQueue: Promise<PluginContainerStatus[]> = Promise.resolve([]);
 
 export function reconcilePluginContainers(
   plugins: PluginCatalogItem[],
+  onProgress?: (progress: PluginContainerProgress) => void,
 ): Promise<PluginContainerStatus[]> {
   const snapshot = structuredClone(plugins);
   const next = reconciliationQueue.then(
-    () => reconcilePluginContainersNow(snapshot),
-    () => reconcilePluginContainersNow(snapshot),
+    () => reconcilePluginContainersNow(snapshot, onProgress),
+    () => reconcilePluginContainersNow(snapshot, onProgress),
   );
   reconciliationQueue = next.catch(() => []);
   return next;
@@ -67,18 +76,24 @@ export function reconcilePluginContainers(
 
 async function reconcilePluginContainersNow(
   plugins: PluginCatalogItem[],
+  onProgress?: (progress: PluginContainerProgress) => void,
 ): Promise<PluginContainerStatus[]> {
   const desired = plugins.filter(isDesiredEdgeContainer);
   if (!dockerOk(["version", "--format", "{{.Server.Version}}"])) {
-    return desired.map((plugin) => ({
-      pluginId: plugin.id,
-      containerName: containerName(plugin.id),
-      image: plugin.execution!.image,
-      running: false,
-      healthy: false,
-      endpoint: statusEndpoint(plugin),
-      error: "Docker is unavailable; install or start Docker to run this plugin",
-    }));
+    return desired.map((plugin, index) => {
+      onProgress?.({ current: index, total: desired.length, pluginId: plugin.id, phase: "installing" });
+      const status = {
+        pluginId: plugin.id,
+        containerName: containerName(plugin.id),
+        image: plugin.execution!.image,
+        running: false,
+        healthy: false,
+        endpoint: statusEndpoint(plugin),
+        error: "Docker is unavailable; install or start Docker to run this plugin",
+      };
+      onProgress?.({ current: index + 1, total: desired.length, pluginId: plugin.id, phase: "failed", status });
+      return status;
+    });
   }
   ensureIsolatedPluginNetwork();
   ensurePluginGateway(desired);
@@ -87,7 +102,18 @@ async function reconcilePluginContainersNow(
     if (!desiredNames.has(name)) docker(["rm", "-f", name]);
   }
   const statuses: PluginContainerStatus[] = [];
-  for (const plugin of desired) statuses.push(await reconcileOne(plugin));
+  for (const [index, plugin] of desired.entries()) {
+    onProgress?.({ current: index, total: desired.length, pluginId: plugin.id, phase: "installing" });
+    const status = await reconcileOne(plugin);
+    statuses.push(status);
+    onProgress?.({
+      current: index + 1,
+      total: desired.length,
+      pluginId: plugin.id,
+      phase: status.healthy ? "ready" : "failed",
+      status,
+    });
+  }
   return statuses;
 }
 

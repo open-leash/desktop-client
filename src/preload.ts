@@ -29,12 +29,14 @@ contextBridge.exposeInMainWorld("openleash", {
   savePolicies: (policies: unknown) => ipcRenderer.invoke("openleash:save-policies", policies),
   importRules: (payload: unknown) => ipcRenderer.invoke("openleash:import-rules", payload),
   importRuleListJson: () => ipcRenderer.invoke("openleash:import-rule-list-json"),
-  discoverInstructionRules: () => ipcRenderer.invoke("openleash:discover-instruction-rules"),
+  discoverInstructionRules: (options?: { chooseProject?: boolean }) =>
+    ipcRenderer.invoke("openleash:discover-instruction-rules", options),
   resolve: (id: string, resolution: "allow" | "deny", resolutionGuidance?: string, rememberForMs?: number, response?: Record<string, unknown>) => ipcRenderer.invoke("openleash:resolve", id, resolution, resolutionGuidance, rememberForMs, response),
   dismissNotice: () => ipcRenderer.invoke("openleash:dismiss-notice"),
   resizeNotice: (size: number | { width?: number; height?: number; interactiveBounds?: { x?: number; y?: number; width?: number; height?: number } }) => ipcRenderer.invoke("openleash:resize-notice", size),
   setNoticePointerInside: (inside: boolean) => ipcRenderer.invoke("openleash:set-notice-pointer-inside", inside),
   jumpToAgent: (payload: unknown) => ipcRenderer.invoke("openleash:jump-to-agent", payload),
+  setSessionMonitoring: (payload: unknown) => ipcRenderer.invoke("openleash:set-session-monitoring", payload),
   pluginIslandAction: (payload: unknown) => ipcRenderer.invoke("openleash:plugin-island-action", payload),
   islandCommand: (command: string) => ipcRenderer.invoke("openleash:island-command", command),
   onUpdate: (callback: (payload: unknown) => void) => {

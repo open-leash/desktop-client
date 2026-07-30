@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  detectIdeHostFromProcessTree,
   matchesWindowsFrontmost,
   parseProcessTable,
   rankAgentProcesses,
@@ -30,6 +31,25 @@ test("ranks an exact transcript and project match ahead of another agent process
     sessionId: "session-42",
   });
   assert.equal(ranked[0]?.pid, 10);
+});
+
+test("detects Codex hosted by the VS Code extension instead of treating it as a terminal agent", () => {
+  const tree = `
+  64108 1 /Applications/Visual Studio Code.app/Contents/MacOS/Electron
+  64565 64108 /Applications/Visual Studio Code.app/Contents/Frameworks/Code Helper (Plugin).app/Contents/MacOS/Code Helper (Plugin)
+  64721 64565 /Users/max/.vscode/extensions/openai.chatgpt/bin/codex app-server
+  `;
+  assert.equal(detectIdeHostFromProcessTree(tree, { agentKind: "codex" }), "Visual Studio Code");
+  assert.equal(detectIdeHostFromProcessTree(tree, { agentKind: "codex" }, 64721), "Visual Studio Code");
+});
+
+test("does not mistake a standalone terminal Codex process for an IDE session", () => {
+  const tree = `
+  100 1 /Applications/Terminal.app/Contents/MacOS/Terminal
+  101 100 /bin/zsh
+  102 101 /opt/homebrew/bin/codex
+  `;
+  assert.equal(detectIdeHostFromProcessTree(tree, { agentKind: "codex" }, 102), undefined);
 });
 
 test("smart suppression keeps the island collapsed only when the target is frontmost", () => {

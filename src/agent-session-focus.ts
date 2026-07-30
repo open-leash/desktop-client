@@ -27,6 +27,7 @@ type FocusResult = {
 };
 
 const TERMINAL_APPLICATIONS = ["Ghostty", "iTerm2", "Terminal", "Warp", "kitty", "Alacritty"];
+const IDE_APPLICATIONS = ["Visual Studio Code", "Cursor", "Windsurf"] as const;
 
 export function parseProcessTable(value: string): AgentProcess[] {
   return value.split(/\r?\n/).flatMap((line) => {
@@ -53,6 +54,34 @@ export function rankAgentProcesses(processes: AgentProcess[], target: AgentSessi
     .sort((left, right) => right.score - left.score || right.pid - left.pid);
 }
 
+export function detectIdeHostFromProcessTree(
+  value: string,
+  target: AgentSessionFocusTarget,
+  preferredPid?: number,
+) {
+  const processes = value.split(/\r?\n/).flatMap((line) => {
+    const match = line.match(/^\s*(\d+)\s+(\d+)\s+(.+?)\s*$/);
+    return match ? [{ pid: Number(match[1]), ppid: Number(match[2]), command: match[3] }] : [];
+  });
+  const byPid = new Map(processes.map((process) => [process.pid, process]));
+  const candidates = preferredPid
+    ? processes.filter((process) => process.pid === preferredPid)
+    : processes.filter((process) => processMatchesAgent(process.command, target.agentKind));
+  for (const candidate of candidates) {
+    let current = candidate;
+    const visited = new Set<number>();
+    while (current && !visited.has(current.pid)) {
+      visited.add(current.pid);
+      const application = ideHostForCommand(current.command);
+      if (application) return application;
+      const parent = byPid.get(current.ppid);
+      if (!parent) break;
+      current = parent;
+    }
+  }
+  return undefined;
+}
+
 export function shouldAutoExpandAttention(frontmost: boolean) {
   return !frontmost;
 }
@@ -71,6 +100,11 @@ export function isAgentSessionFrontmost(target: AgentSessionFocusTarget) {
       return !project || frontmost.windowTitle.toLowerCase().includes(project);
     }
     const resolved = resolveMacAgentProcess(target);
+    const ideHost = macIdeHostForAgent(target, resolved?.pid);
+    if (ideHost) {
+      const project = projectLeaf(target.projectPath ?? target.project ?? "").toLowerCase();
+      return frontmost.application === ideHost && (!project || frontmost.windowTitle.toLowerCase().includes(project));
+    }
     return Boolean(resolved?.tty && frontmost.tty && resolved.tty === frontmost.tty);
   }
   return false;
@@ -96,6 +130,13 @@ function focusMacAgentSession(target: AgentSessionFocusTarget): FocusResult {
     if (resolved?.tty) {
       const application = focusMacTty(resolved.tty);
       if (application) return { ok: true, exact: true, application };
+    }
+    const ideHost = macIdeHostForAgent(target, resolved?.pid);
+    if (ideHost) {
+      const args = ["-a", ideHost];
+      if (target.projectPath) args.push(target.projectPath);
+      detached("/usr/bin/open", args);
+      return { ok: true, exact: Boolean(target.projectPath), application: ideHost };
     }
 
     const application = firstRunningMacApplication(TERMINAL_APPLICATIONS) || "Terminal";
@@ -207,6 +248,21 @@ function resolveMacAgentProcess(target: AgentSessionFocusTarget) {
       openFiles: target.sessionId || target.sourceSessionIds?.length ? openFilesForPid(candidate.pid) : undefined,
     }));
   return rankAgentProcesses(candidates, target)[0];
+}
+
+function macIdeHostForAgent(target: AgentSessionFocusTarget, preferredPid?: number) {
+  const table = commandOutput("/bin/ps", ["-axo", "pid=,ppid=,command="]);
+  return detectIdeHostFromProcessTree(table, target, preferredPid);
+}
+
+function ideHostForCommand(command: string): typeof IDE_APPLICATIONS[number] | undefined {
+  const normalized = command.toLowerCase();
+  if (normalized.includes("/visual studio code.app/") || normalized.includes("/.vscode/extensions/")) {
+    return "Visual Studio Code";
+  }
+  if (normalized.includes("/cursor.app/") || normalized.includes("/.cursor/extensions/")) return "Cursor";
+  if (normalized.includes("/windsurf.app/") || normalized.includes("/.windsurf/extensions/")) return "Windsurf";
+  return undefined;
 }
 
 function processMatchesAgent(command: string, kind?: string) {

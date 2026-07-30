@@ -22,6 +22,10 @@ import {
   handledIntentKeysMatch,
   isReusableHandledIntent,
 } from "./intent-dedupe";
+import {
+  SessionMonitoringPauses,
+  type SessionMonitoringPause,
+} from "./session-monitoring";
 
 const ACTION_PURPOSE_CONTEXT_MESSAGES = Number(process.env.OPENLEASH_ACTION_PURPOSE_MESSAGES ?? 5);
 type ClientMode = "personal" | "cloud" | "custom";
@@ -224,12 +228,26 @@ type SkillRecord = {
 
 type SkillLifecycleEvent = "detected" | "changed" | "seen" | "removed";
 
+type IslandVisibility = "always" | "activity" | "notifications";
+
+function normalizeIslandVisibility(
+  value: unknown,
+  legacyActivityOnly = false,
+): IslandVisibility {
+  return value === "activity" || value === "notifications"
+    ? value
+    : legacyActivityOnly
+      ? "activity"
+      : "always";
+}
+
 type Store = {
   token: string;
   setupComplete: boolean;
   installIdentity?: string;
   introSeen?: boolean;
   agentDoneSound?: boolean;
+  islandVisibility?: IslandVisibility;
   islandActivityOnly?: boolean;
   clientMode?: ClientMode;
   remoteApiUrl?: string;
@@ -338,6 +356,7 @@ export class LocalOpenLeashServer {
   private db: Database.Database;
   private store!: Store;
   private pluginRuntimeStatuses: PluginContainerStatus[] = [];
+  private readonly sessionMonitoringPauses = new SessionMonitoringPauses();
 
   constructor(private readonly dir: string, private readonly options: LocalServerOptions = {}) {
     fs.mkdirSync(dir, { recursive: true });
@@ -423,6 +442,29 @@ export class LocalOpenLeashServer {
     return this.store.remoteToken ?? this.store.token;
   }
 
+  pauseSessionMonitoring(
+    agentKind: string,
+    sessionIds: unknown[],
+    durationMs?: number,
+  ) {
+    return this.sessionMonitoringPauses.pause(agentKind, sessionIds, durationMs);
+  }
+
+  resumeSessionMonitoring(agentKind: string, sessionIds: unknown[]) {
+    return this.sessionMonitoringPauses.resume(agentKind, sessionIds);
+  }
+
+  replaceSessionMonitoringPauses(pauses: SessionMonitoringPause[]) {
+    this.sessionMonitoringPauses.replace(pauses);
+  }
+
+  sessionMonitoringPause(
+    agentKind: string,
+    sessionId: unknown,
+  ): SessionMonitoringPause | undefined {
+    return this.sessionMonitoringPauses.active(agentKind, sessionId);
+  }
+
   resetSetup() {
     const introSeen = this.store?.introSeen ?? false;
     this.store = {
@@ -431,7 +473,7 @@ export class LocalOpenLeashServer {
       installIdentity: this.store?.installIdentity,
       introSeen,
       agentDoneSound: this.store?.agentDoneSound ?? false,
-      islandActivityOnly: this.store?.islandActivityOnly ?? false,
+      islandVisibility: this.islandVisibility,
       clientMode: initialClientMode(),
       promptTransforms: this.store?.promptTransforms ?? defaultPromptTransformConfig,
       plugins: bundledPluginCatalog(),
@@ -447,7 +489,7 @@ export class LocalOpenLeashServer {
       setupComplete: false,
       introSeen: false,
       agentDoneSound: false,
-      islandActivityOnly: false,
+      islandVisibility: "always",
       clientMode: initialClientMode(),
       promptTransforms: defaultPromptTransformConfig,
       plugins: bundledPluginCatalog(),
@@ -539,15 +581,28 @@ export class LocalOpenLeashServer {
     this.writeStore();
   }
 
+  markSetupIncomplete() {
+    this.store.setupComplete = false;
+    this.writeStore();
+  }
+
   get agentDoneSound() {
     return Boolean(this.store.agentDoneSound);
   }
 
   get islandActivityOnly() {
-    return Boolean(this.store.islandActivityOnly);
+    return this.islandVisibility === "activity";
+  }
+
+  get islandVisibility(): IslandVisibility {
+    return normalizeIslandVisibility(
+      this.store.islandVisibility,
+      Boolean(this.store.islandActivityOnly),
+    );
   }
 
   updateIslandActivityOnly(activityOnly: boolean) {
+    this.store.islandVisibility = activityOnly ? "activity" : "always";
     this.store.islandActivityOnly = activityOnly;
     this.writeStore();
   }
@@ -570,11 +625,18 @@ export class LocalOpenLeashServer {
     apiKey?: string,
     agentDoneSound?: boolean,
     islandActivityOnly?: boolean,
+    islandVisibility?: IslandVisibility,
   ) {
     this.store.apiProvider = undefined;
     this.store.apiKey = undefined;
     if (typeof agentDoneSound === "boolean") this.store.agentDoneSound = agentDoneSound;
-    if (typeof islandActivityOnly === "boolean") this.store.islandActivityOnly = islandActivityOnly;
+    if (islandVisibility) {
+      this.store.islandVisibility = normalizeIslandVisibility(islandVisibility);
+      this.store.islandActivityOnly = this.store.islandVisibility === "activity";
+    } else if (typeof islandActivityOnly === "boolean") {
+      this.store.islandVisibility = islandActivityOnly ? "activity" : "always";
+      this.store.islandActivityOnly = islandActivityOnly;
+    }
     this.writeStore();
   }
 
@@ -651,6 +713,7 @@ export class LocalOpenLeashServer {
           token: this.store.token,
           clientMode: this.clientMode,
           agentDoneSound: this.agentDoneSound,
+          islandVisibility: this.islandVisibility,
           remoteApiUrl: this.store.remoteApiUrl,
           remoteOrganization: this.store.remoteOrganization,
           remoteUser: this.store.remoteUser,
@@ -675,6 +738,11 @@ export class LocalOpenLeashServer {
       }
       if (req.method === "POST" && req.url === "/v1/evaluate") {
         const request = await readJson(req) as EvaluationRequest;
+        const pause = this.sessionMonitoringPause(
+          request.agent?.kind ?? request.event?.agentKind,
+          request.event?.sessionId,
+        );
+        if (pause) return json(res, monitoringPausedDecision(pause));
         this.notifyAgentActivity(request);
         return json(res, await this.evaluate(request));
       }
@@ -689,6 +757,17 @@ export class LocalOpenLeashServer {
         };
         if (!body.requestBody || typeof body.requestBody !== "object" || Array.isArray(body.requestBody)) {
           return json(res, { error: "requestBody must be a JSON object" }, 400);
+        }
+        const pause = this.sessionMonitoringPause(body.agentKind ?? "unknown", body.sessionId);
+        if (pause) {
+          return json(res, {
+            protocol: "openleash-container-plugin.v1",
+            requestBody: body.requestBody,
+            appliedPluginIds: [],
+            runs: [],
+            monitoringPaused: true,
+            monitoringPausedUntil: new Date(pause.expiresAt).toISOString(),
+          });
         }
         return json(res, await transformViaLocalPluginContainers({
           plugins: this.store.plugins,
@@ -723,13 +802,25 @@ export class LocalOpenLeashServer {
       }
       if (req.method === "POST" && req.url === "/v1/agent-events") {
         const body = await readJson(req);
+        const scope = agentEventScope(body);
+        const pause = this.sessionMonitoringPause(scope.agentKind, scope.sessionId);
+        if (pause) return json(res, monitoringPausedDecision(pause));
         this.notifyAgentActivity((body as { request?: unknown })?.request);
         return json(res, await this.forwardRemoteAgentEvent(body));
       }
       const hookMatch = req.url?.match(/^\/v1\/hooks\/([^/?]+)\/([^/?]+)(?:\?.*)?$/);
       if (req.method === "POST" && hookMatch) {
         const body = await readJson(req);
-        this.notifyAgentActivity(normalizeHookRequest(hookMatch[1], hookMatch[2], body, req.url ?? ""));
+        const request = normalizeHookRequest(hookMatch[1], hookMatch[2], body, req.url ?? "");
+        const pause = this.sessionMonitoringPause(request.agent.kind, request.event.sessionId);
+        if (pause) {
+          return json(res, nativeHookDecision(
+            hookMatch[1],
+            hookMatch[2],
+            monitoringPausedDecision(pause),
+          ));
+        }
+        this.notifyAgentActivity(request);
         const remoteDecision = await this.forwardRemoteHook(hookMatch[1], hookMatch[2], body, req.url ?? "");
         if (remoteDecision) {
           this.notifyAgentStop(hookMatch[1], hookMatch[2], body);
@@ -774,6 +865,11 @@ export class LocalOpenLeashServer {
     const agent = request.agent;
     const event = request.event;
     if (!agent || !event || !agent.kind || !event.eventName || !event.sessionId) return;
+    if (
+      event.raw &&
+      typeof event.raw === "object" &&
+      (event.raw as { backgroundControl?: unknown }).backgroundControl === true
+    ) return;
     this.options.onAgentActivity?.({
       agentKind: agent.kind,
       agentName: agent.displayName || hookAgentMetadata(agent.kind).displayName,
@@ -1183,7 +1279,10 @@ export class LocalOpenLeashServer {
       installIdentity: this.settingValue("installIdentity"),
       introSeen: this.getSetting("introSeen") === "true",
       agentDoneSound: this.getSetting("agentDoneSound") === "true",
-      islandActivityOnly: this.getSetting("islandActivityOnly") === "true",
+      islandVisibility: normalizeIslandVisibility(
+        this.settingValue("islandVisibility"),
+        this.getSetting("islandActivityOnly") === "true",
+      ),
       clientMode: normalizeClientMode(this.settingValue<ClientMode>("clientMode") ?? initialClientMode()),
       remoteApiUrl: configuredRemoteApiUrl,
       remoteToken,
@@ -1308,7 +1407,8 @@ export class LocalOpenLeashServer {
       if (store.installIdentity) insertSetting.run("installIdentity", store.installIdentity);
       insertSetting.run("introSeen", String(Boolean(store.introSeen)));
       insertSetting.run("agentDoneSound", String(Boolean(store.agentDoneSound)));
-      insertSetting.run("islandActivityOnly", String(Boolean(store.islandActivityOnly)));
+      insertSetting.run("islandVisibility", normalizeIslandVisibility(store.islandVisibility, Boolean(store.islandActivityOnly)));
+      insertSetting.run("islandActivityOnly", String(normalizeIslandVisibility(store.islandVisibility, Boolean(store.islandActivityOnly)) === "activity"));
       if (store.clientMode) insertSetting.run("clientMode", store.clientMode);
       if (store.remoteApiUrl) insertSetting.run("remoteApiUrl", store.remoteApiUrl);
       if (store.remoteToken) insertSetting.run("remoteToken", store.remoteToken);
@@ -1690,7 +1790,10 @@ export class LocalOpenLeashServer {
         installIdentity: parsed.installIdentity,
         clientMode: parsedClientMode,
         agentDoneSound: Boolean(parsed.agentDoneSound),
-        islandActivityOnly: Boolean(parsed.islandActivityOnly),
+        islandVisibility: normalizeIslandVisibility(
+          parsed.islandVisibility,
+          Boolean(parsed.islandActivityOnly),
+        ),
         remoteApiUrl: parsed.remoteApiUrl,
         remoteToken: parsed.remoteToken,
         remoteOrganization: parsed.remoteOrganization,
@@ -2620,6 +2723,27 @@ function slug(value: string) {
 
 function truncate(value: string, max: number) {
   return value.length <= max ? value : `${value.slice(0, max - 1)}...`;
+}
+
+function monitoringPausedDecision(pause: SessionMonitoringPause) {
+  return {
+    decision: "allow" as const,
+    decisionId: "",
+    summary: "Monitoring is temporarily paused for this conversation.",
+    results: [],
+    monitoringPaused: true,
+    monitoringPausedUntil: new Date(pause.expiresAt).toISOString(),
+  };
+}
+
+function agentEventScope(value: unknown) {
+  const body = value && typeof value === "object"
+    ? value as { request?: { agent?: { kind?: unknown }; event?: { agentKind?: unknown; sessionId?: unknown } } }
+    : undefined;
+  return {
+    agentKind: String(body?.request?.agent?.kind ?? body?.request?.event?.agentKind ?? ""),
+    sessionId: String(body?.request?.event?.sessionId ?? ""),
+  };
 }
 
 async function readJson(req: http.IncomingMessage) {

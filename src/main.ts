@@ -58,7 +58,10 @@ import {
   uninstallLocalProxy,
   type LocalProxyStatus,
 } from "./proxy-manager";
-import { reconcilePluginContainers } from "./plugin-container-manager";
+import {
+  reconcilePluginContainers,
+  type PluginContainerProgress,
+} from "./plugin-container-manager";
 import { pendingIntentKey as stablePendingIntentKey } from "./intent-dedupe";
 import {
   activeAgentSessions,
@@ -66,8 +69,10 @@ import {
   ambientIslandContributions,
   applyCompletedAgentSessions,
   contributionsForSession,
+  islandDisplayTargets,
   mergeImmediateAgentActivity,
   prioritizeAgentSessions,
+  shouldPresentActivityIsland,
   type ActivityIslandSourceAgent,
   type ActiveAgentSession,
 } from "./activity-island";
@@ -84,6 +89,14 @@ import {
   matchingPendingSourceIds,
   preferPreviouslyPresentedPending,
 } from "./notice-presentation";
+import {
+  SESSION_MONITORING_PAUSE_MS,
+  pausableSessionIds,
+} from "./session-monitoring";
+import {
+  discoverAgentInstructionFiles,
+  ruleCandidatesFromMarkdown,
+} from "./instruction-rules";
 
 const APP_DISPLAY_NAME = app.isPackaged ? "OpenLeash" : "OpenLeash (Dev)";
 let proxyStatus: LocalProxyStatus = {
@@ -260,6 +273,14 @@ type RemoteMobileState = {
   sessionMetrics?: Record<string, unknown>;
   attentionEvents?: AttentionEvent[];
   islandContributions?: PluginIslandContribution[];
+  clientConfig?: {
+    managedByOrganization?: boolean;
+  };
+  sessionMonitoringPauses?: Array<{
+    agentKind?: string;
+    sessionIds?: string[];
+    expiresAt?: string;
+  }>;
 };
 
 type PluginOutcome = OpenLeashOutcomeRecord;
@@ -345,21 +366,34 @@ let tray: Tray | undefined;
 let traySingleClickTimer: NodeJS.Timeout | undefined;
 let window: BrowserWindow | undefined;
 let noticeWindow: BrowserWindow | undefined;
-let nativeIslandProcess: ReturnType<typeof spawn> | undefined;
-let nativeIslandReady = false;
-let nativeIslandOutput = "";
-let pendingNativeIslandPayload: Record<string, unknown> | undefined;
+type NativeIslandHost = {
+  displayId: number;
+  process: ReturnType<typeof spawn>;
+  ready: boolean;
+  output: string;
+  pendingMessage?: Record<string, unknown>;
+};
+const nativeIslandHosts = new Map<number, NativeIslandHost>();
+let manualIslandReveal = false;
 let activeActivityFingerprint: string | undefined;
 let latestPending: PendingDecision[] = [];
 let latestPendingSources: PendingDecision[] = [];
 let latestAgents: AgentStatus[] = [];
 const completedAgentSessions = new Map<string, { completedAt: number; response?: string }>();
+const pausedIslandSessions = new Map<string, {
+  session: ActiveAgentSession;
+  expiresAt: number;
+}>();
+let pausedIslandSessionTimer: NodeJS.Timeout | undefined;
 let latestSessionMetrics: SessionMetrics = {};
 let latestPlugins: PluginCatalogItem[] = [];
 let latestOutcomes: PluginOutcome[] = [];
 let latestViewModel: OpenLeashClientViewModel | undefined;
+let monitoringManagedByOrganization = false;
 let latestAttentionEvents: AttentionEvent[] = [];
 let latestIslandContributions: PluginIslandContribution[] = [];
+let pluginInstallContribution: PluginIslandContribution | undefined;
+let pluginInstallContributionTimer: NodeJS.Timeout | undefined;
 const seenAttentionEventIds = new Set<string>();
 const desktopStartedAt = Date.now();
 let pollInFlight = false;
@@ -778,6 +812,14 @@ if (singleInstanceLock) app
     }
     ensureTray("ok");
     installApplicationMenu();
+    if (process.platform === "darwin") {
+      const refreshNativeIslands = () => {
+        setTimeout(() => syncActivityIsland(true), 180);
+      };
+      screen.on("display-added", refreshNativeIslands);
+      screen.on("display-removed", refreshNativeIslands);
+      screen.on("display-metrics-changed", refreshNativeIslands);
+    }
     startupLog("tray created");
     refreshMenu();
     startupLog("menu refreshed");
@@ -871,6 +913,7 @@ ipcMain.handle("openleash:list", () => ({
   apiProvider: localServer?.apiProvider ?? "openai",
   apiKeySet: localServer?.apiKeySet ?? false,
   agentDoneSound: localServer?.agentDoneSound ?? false,
+  islandVisibility: localServer?.islandVisibility ?? "always",
   islandActivityOnly: localServer?.islandActivityOnly ?? false,
   promptTransforms: localServer?.promptTransforms,
   plugins:
@@ -1610,10 +1653,30 @@ ipcMain.handle(
     });
     await configureLocalAgent();
     await installLeashCli();
-    const selectedAgents = payload.agents ?? [];
+    const selectedAgents = [
+      ...new Set(
+        (payload.agents ?? [])
+          .map((kind) => String(kind).trim().toLowerCase())
+          .filter(Boolean),
+      ),
+    ];
+    const agentSetupErrors: string[] = [];
     for (const agentKind of selectedAgents) {
-      await installAgentProtection(agentKind, hookInstallContext());
-      enforcedAgentKinds.add(agentKind);
+      try {
+        const installed = await installAgentProtection(
+          agentKind,
+          hookInstallContext(),
+        );
+        if (!installed) {
+          agentSetupErrors.push(`${agentKind}: monitoring is not supported`);
+          continue;
+        }
+        enforcedAgentKinds.add(agentKind);
+      } catch (error) {
+        agentSetupErrors.push(
+          `${agentKind}: ${error instanceof Error ? error.message : "installation failed"}`,
+        );
+      }
     }
     let proxyInstallError: string | undefined;
     try {
@@ -1621,6 +1684,54 @@ ipcMain.handle(
     } catch (error) {
       proxyInstallError = `Agent hooks are active, but the full-conversation proxy needs attention: ${error instanceof Error ? error.message : "unknown error"}`;
       proxyStatus = await localProxyStatus();
+    }
+    await refreshLocalProtections(true);
+    const protectedByKind = new Map(
+      localProtections.map((agent) => [agent.kind, agent]),
+    );
+    for (const agentKind of selectedAgents) {
+      const protection = protectedByKind.get(agentKind);
+      if (!protection?.protected) {
+        agentSetupErrors.push(
+          `${protection?.displayName ?? agentKind}: monitoring did not become active`,
+        );
+      }
+      if (
+        isAutomaticProxyAgent(agentKind) &&
+        !(proxyStatus.configuredAgents as readonly string[]).includes(agentKind)
+      ) {
+        agentSetupErrors.push(
+          `${protection?.displayName ?? agentKind}: full-conversation proxy was not configured`,
+        );
+      }
+    }
+    const desiredAgentKinds = new Set(selectedAgents);
+    for (const protection of localProtections.filter(
+      (agent) => agent.installed && agent.supportsInstall,
+    )) {
+      const saved = await saveRemoteAgentMonitoring(
+        remoteApiUrl,
+        remoteToken,
+        protection.kind,
+        desiredAgentKinds.has(protection.kind),
+      );
+      if (!saved.ok) {
+        agentSetupErrors.push(
+          `${protection.displayName}: ${saved.error ?? "monitoring preference was not saved"}`,
+        );
+      }
+    }
+    if (proxyInstallError && selectedAgents.some(isAutomaticProxyAgent)) {
+      agentSetupErrors.push(proxyInstallError);
+    }
+    if (agentSetupErrors.length > 0) {
+      localServer.markSetupIncomplete();
+      return {
+        ok: false,
+        error: `OpenLeash could not finish agent monitoring. ${[
+          ...new Set(agentSetupErrors),
+        ].join(" ")}`,
+      };
     }
     app.setLoginItemSettings({
       openAtLogin: true,
@@ -1645,7 +1756,6 @@ ipcMain.handle(
         .filter(Boolean)
         .join(" ");
     }
-    await refreshLocalProtections(true);
     startProtectionIntegrityGuard();
     if (localServer.remoteApiUrl && localServer.effectiveToken) {
       latestPlugins = await fetchRemotePluginCatalog(
@@ -1668,6 +1778,7 @@ ipcMain.handle(
       apiProvider: payload.apiProvider === "anthropic" ? "anthropic" : "openai",
       apiKeySet: localServer.apiKeySet,
       agentDoneSound: localServer.agentDoneSound,
+      islandVisibility: localServer.islandVisibility,
       islandActivityOnly: localServer.islandActivityOnly,
       promptTransforms: localServer.promptTransforms,
       plugins: latestPlugins,
@@ -1770,6 +1881,7 @@ ipcMain.handle(
       apiProvider?: "openai" | "anthropic";
       apiKey?: string;
       agentDoneSound?: boolean;
+      islandVisibility?: "always" | "activity" | "notifications";
       islandActivityOnly?: boolean;
     },
   ) => {
@@ -1782,6 +1894,7 @@ ipcMain.handle(
       typeof payload.islandActivityOnly === "boolean"
         ? payload.islandActivityOnly
         : undefined,
+      payload.islandVisibility,
     );
     syncActivityIsland(true);
     return {
@@ -1789,6 +1902,7 @@ ipcMain.handle(
       apiProvider: "openai",
       apiKeySet: false,
       agentDoneSound: localServer.agentDoneSound,
+      islandVisibility: localServer.islandVisibility,
       islandActivityOnly: localServer.islandActivityOnly,
     };
   },
@@ -1954,61 +2068,94 @@ ipcMain.handle("openleash:import-rule-list-json", async () => {
     };
   }
 });
-ipcMain.handle("openleash:discover-instruction-rules", async () => {
-  try {
-    const sources = discoverAgentInstructionFiles();
-    const importedRules = [];
-    const candidates = [];
-    for (const source of sources) {
-      try {
-        const content = fs.readFileSync(source.path, "utf8");
-        const parsed = parseRulesImport(content, source.path);
-        const rules = Array.isArray((parsed as { rules?: unknown[] }).rules)
-          ? (parsed as { rules: unknown[] }).rules
-          : [];
-        for (const rule of rules) {
-          if (!rule || typeof rule !== "object") continue;
-          importedRules.push({
-            ...(rule as Record<string, unknown>),
-            category: `${source.agent} instructions`,
-            source: source.path,
-          });
-          const record = rule as Record<string, unknown>;
-          const text = String(
-            record.description ??
-              record.natural_language_rule ??
-              record.name ??
-              "",
-          ).trim();
-          if (text) {
-            candidates.push({
-              text,
-              action: "ask",
-              agent: source.agent,
-              label: source.label,
-              path: source.path,
-              scope: source.scope,
-            });
-          }
+ipcMain.handle(
+  "openleash:discover-instruction-rules",
+  async (_event, options?: { chooseProject?: boolean }) => {
+    try {
+      const projectPaths = new Set(knownProjectPaths());
+      if (options?.chooseProject) {
+        const dialogOptions: OpenDialogOptions = {
+          title: "Choose a project with agent instruction files",
+          buttonLabel: "Scan project",
+          properties: ["openDirectory"],
+        };
+        const selected = window
+          ? await dialog.showOpenDialog(window, dialogOptions)
+          : await dialog.showOpenDialog(dialogOptions);
+        if (selected.canceled || !selected.filePaths[0]) {
+          return { ok: false, canceled: true };
         }
-      } catch (error) {
-        startupLog(
-          `instruction discovery skipped ${source.path}: ${error instanceof Error ? error.message : String(error)}`,
-        );
+        projectPaths.add(selected.filePaths[0]);
       }
+      const sources = discoverAgentInstructionFiles({
+        projectPaths: [...projectPaths],
+      });
+      const importedRules = [];
+      const candidates = [];
+      for (const source of sources) {
+        try {
+          if (fs.statSync(source.path).size > 512 * 1024) {
+            startupLog(
+              `instruction discovery skipped ${source.path}: file exceeds 512 KiB`,
+            );
+            continue;
+          }
+          const content = fs.readFileSync(source.path, "utf8");
+          const parsed = parseRulesImport(content, source.path);
+          const rules = Array.isArray((parsed as { rules?: unknown[] }).rules)
+            ? (parsed as { rules: unknown[] }).rules
+            : [];
+          for (const rule of rules) {
+            if (!rule || typeof rule !== "object") continue;
+            importedRules.push({
+              ...(rule as Record<string, unknown>),
+              category: `${source.agent} instructions`,
+              source: source.path,
+            });
+            const record = rule as Record<string, unknown>;
+            const text = String(
+              record.description ??
+                record.natural_language_rule ??
+                record.name ??
+                "",
+            ).trim();
+            if (text) {
+              candidates.push({
+                text,
+                action: "ask",
+                agent: source.agent,
+                label: source.label,
+                path: source.path,
+                scope: source.scope,
+                agentKinds: source.agentKinds,
+              });
+            }
+          }
+        } catch (error) {
+          startupLog(
+            `instruction discovery skipped ${source.path}: ${error instanceof Error ? error.message : String(error)}`,
+          );
+        }
+      }
+      const policies = normalizePolicies({ rules: importedRules }, [], true);
+      return {
+        ok: true,
+        policies,
+        candidates,
+        sources,
+        count: policies.length,
+      };
+    } catch (error) {
+      return {
+        ok: false,
+        error:
+          error instanceof Error
+            ? error.message
+            : "Could not scan agent instruction files.",
+      };
     }
-    const policies = normalizePolicies({ rules: importedRules }, [], true);
-    return { ok: true, policies, candidates, sources, count: policies.length };
-  } catch (error) {
-    return {
-      ok: false,
-      error:
-        error instanceof Error
-          ? error.message
-          : "Could not scan agent instruction files.",
-    };
-  }
-});
+  },
+);
 ipcMain.handle(
   "openleash:resolve",
   async (
@@ -2049,6 +2196,9 @@ ipcMain.handle("openleash:set-notice-pointer-inside", (event, inside: unknown) =
 });
 ipcMain.handle("openleash:jump-to-agent", async (_event, payload: AgentSessionFocusTarget & { session?: AgentSessionFocusTarget }) => {
   return openAgentApplication(payload?.session ?? payload);
+});
+ipcMain.handle("openleash:set-session-monitoring", async (_event, payload: unknown) => {
+  return setSessionMonitoring(payload);
 });
 ipcMain.handle("openleash:plugin-island-action", async (_event, payload: unknown) => {
   return handlePluginIslandAction(payload);
@@ -2152,7 +2302,11 @@ async function poll() {
     localServer.syncPlugins(latestPlugins);
     const nextPluginContainerFingerprint = pluginFingerprint(latestPlugins);
     if (nextPluginContainerFingerprint !== pluginContainerFingerprint) {
-      const statuses = await reconcilePluginContainers(latestPlugins);
+      let failedPluginContainers = 0;
+      const statuses = await reconcilePluginContainers(latestPlugins, (progress) => {
+        if (progress.phase === "failed") failedPluginContainers += 1;
+        presentPluginInstallProgress(progress, failedPluginContainers);
+      });
       localServer.syncPluginRuntimeStatuses(statuses);
       const failed = statuses.filter((status) => !status.healthy);
       if (failed.length > 0) {
@@ -2162,6 +2316,22 @@ async function poll() {
     }
     latestOutcomes = body.outcomes ?? [];
     latestViewModel = body.viewModel ?? latestViewModel;
+    if (typeof body.managedByOrganization === "boolean")
+      monitoringManagedByOrganization = body.managedByOrganization;
+    if (Array.isArray(body.sessionMonitoringPauses)) {
+      localServer.replaceSessionMonitoringPauses(
+        body.sessionMonitoringPauses.flatMap((pause) => {
+          const expiresAt = Date.parse(pause.expiresAt);
+          return Number.isFinite(expiresAt)
+            ? [{
+                agentKind: pause.agentKind,
+                sessionIds: pausableSessionIds(pause.sessionIds),
+                expiresAt,
+              }]
+            : [];
+        }),
+      );
+    }
     latestAttentionEvents = body.attentionEvents ?? [];
     rememberCompletedAgentSessions(latestAttentionEvents);
     latestIslandContributions = body.islandContributions ?? [];
@@ -2180,6 +2350,7 @@ async function poll() {
       apiProvider: localServer.apiProvider ?? "openai",
       apiKeySet: localServer.apiKeySet,
       agentDoneSound: localServer.agentDoneSound,
+      islandVisibility: localServer.islandVisibility,
       islandActivityOnly: localServer.islandActivityOnly,
       plugins: latestPlugins,
       outcomes: latestOutcomes,
@@ -2336,6 +2507,12 @@ async function fetchTrayState(): Promise<
       plugins: PluginCatalogItem[];
       outcomes?: PluginOutcome[];
       viewModel?: OpenLeashClientViewModel;
+      managedByOrganization?: boolean;
+      sessionMonitoringPauses?: Array<{
+        agentKind: string;
+        sessionIds: string[];
+        expiresAt: string;
+      }>;
     }
   | undefined
 > {
@@ -2351,11 +2528,25 @@ async function fetchTrayState(): Promise<
       remoteToken,
     );
     if (notifications?.pending.length) {
+      // A waiting approval is the latency-sensitive path, but it must not make
+      // the desktop fall back to its bundled/stale plugin catalog. Doing so
+      // immediately after setup makes successfully installed plugins appear
+      // uninstalled and can reconcile their containers against the wrong
+      // state. Refresh the account-owned plugin state even when we skip the
+      // larger mobile-state request.
+      const [plugins, outcomes] = await Promise.all([
+        fetchRemotePluginCatalog(
+          remoteApiUrl,
+          remoteToken,
+          localState?.plugins ?? latestPlugins,
+        ),
+        fetchRemotePluginOutcomes(remoteApiUrl, remoteToken),
+      ]);
       return mergeTrayState(
         localState,
         notifications,
-        localState?.plugins ?? latestPlugins,
-        latestOutcomes,
+        plugins,
+        outcomes,
       );
     }
 
@@ -2800,6 +2991,12 @@ function mergeTrayState(
         viewModel?: OpenLeashClientViewModel;
         attentionEvents?: AttentionEvent[];
         islandContributions?: PluginIslandContribution[];
+        managedByOrganization?: boolean;
+        sessionMonitoringPauses?: Array<{
+          agentKind: string;
+          sessionIds: string[];
+          expiresAt: string;
+        }>;
       }
     | undefined,
   remoteState: {
@@ -2808,6 +3005,12 @@ function mergeTrayState(
     sessionMetrics?: SessionMetrics;
     attentionEvents?: AttentionEvent[];
     islandContributions?: PluginIslandContribution[];
+    managedByOrganization?: boolean;
+    sessionMonitoringPauses?: Array<{
+      agentKind: string;
+      sessionIds: string[];
+      expiresAt: string;
+    }>;
   },
   plugins: PluginCatalogItem[],
   outcomes: PluginOutcome[] = [],
@@ -2823,6 +3026,10 @@ function mergeTrayState(
       ...(localState.attentionEvents ?? []),
     ]),
     islandContributions: remoteState.islandContributions ?? localState.islandContributions ?? [],
+    managedByOrganization:
+      remoteState.managedByOrganization ?? localState.managedByOrganization,
+    sessionMonitoringPauses:
+      remoteState.sessionMonitoringPauses ?? localState.sessionMonitoringPauses,
     plugins,
     outcomes,
     viewModel: latestViewModel ?? localState.viewModel,
@@ -2943,6 +3150,12 @@ function mapRemoteMobileState(state: RemoteMobileState): {
   sessionMetrics?: SessionMetrics;
   attentionEvents?: AttentionEvent[];
   islandContributions?: PluginIslandContribution[];
+  managedByOrganization?: boolean;
+  sessionMonitoringPauses?: Array<{
+    agentKind: string;
+    sessionIds: string[];
+    expiresAt: string;
+  }>;
 } {
   return {
     pending: (state.pendingApprovals ?? []).map((item) => ({
@@ -2995,6 +3208,15 @@ function mapRemoteMobileState(state: RemoteMobileState): {
     islandContributions: Array.isArray(state.islandContributions)
       ? state.islandContributions
       : [],
+    managedByOrganization: Boolean(state.clientConfig?.managedByOrganization),
+    sessionMonitoringPauses: (state.sessionMonitoringPauses ?? []).flatMap((pause) => {
+      const agentKind = String(pause.agentKind ?? "").trim().toLowerCase();
+      const sessionIds = pausableSessionIds(pause.sessionIds ?? []);
+      const expiresAt = String(pause.expiresAt ?? "");
+      return agentKind && sessionIds.length > 0 && Number.isFinite(Date.parse(expiresAt))
+        ? [{ agentKind, sessionIds, expiresAt }]
+        : [];
+    }),
   };
 }
 
@@ -4201,8 +4423,15 @@ function skillWatchTargets() {
 function knownProjectPaths() {
   const paths = new Set<string>();
   paths.add(process.cwd());
-  for (const agent of latestAgents)
+  if (process.env.OPENLEASH_PROJECT_ROOT)
+    paths.add(process.env.OPENLEASH_PROJECT_ROOT);
+  if (process.env.PWD) paths.add(process.env.PWD);
+  for (const agent of latestAgents) {
     if (agent.project_path) paths.add(agent.project_path);
+    for (const session of agent.sessions ?? []) {
+      if (session.project_path) paths.add(session.project_path);
+    }
+  }
   for (const item of localServer?.history ?? [])
     if (item.project_path) paths.add(item.project_path);
   return [...paths]
@@ -4681,6 +4910,7 @@ function showMainWindow(
       apiProvider: localServer?.apiProvider ?? "openai",
       apiKeySet: localServer?.apiKeySet ?? false,
       agentDoneSound: localServer?.agentDoneSound ?? false,
+      islandVisibility: localServer?.islandVisibility ?? "always",
       islandActivityOnly: localServer?.islandActivityOnly ?? false,
       pending: latestPending,
       agents: latestAgents,
@@ -4784,8 +5014,8 @@ function quitOpenLeash() {
   noticeWindow?.destroy();
   noticeWindow = undefined;
   sendNativeIsland({ type: "quit" });
-  nativeIslandProcess?.kill();
-  nativeIslandProcess = undefined;
+  for (const host of nativeIslandHosts.values()) host.process.kill();
+  nativeIslandHosts.clear();
   window?.destroy();
   window = undefined;
   for (const watcher of protectionWatchers.values()) watcher.close();
@@ -4832,11 +5062,12 @@ function suppressMainWindowActivation(durationMs = 30000) {
 
 function closeNoticeWithoutOpeningMainWindow() {
   suppressMainWindowActivation();
+  manualIslandReveal = false;
   if (noticeDismissTimer) clearTimeout(noticeDismissTimer);
   noticeDismissTimer = undefined;
   if (noticeWindow && !noticeWindow.isDestroyed()) noticeWindow.destroy();
   noticeWindow = undefined;
-  pendingNativeIslandPayload = undefined;
+  for (const host of nativeIslandHosts.values()) host.pendingMessage = undefined;
   sendNativeIsland({ type: "dismiss" });
   activeNoticeKey = undefined;
   activeActivityFingerprint = undefined;
@@ -4849,8 +5080,9 @@ function closeNoticeWithoutOpeningMainWindow() {
 }
 
 function expandVisibleIsland() {
-  if (process.platform === "darwin" && nativeIslandProcess && activeNoticeKey) {
-    return sendNativeIsland({ type: "expand" });
+  if (process.platform === "darwin" && nativeIslandHosts.size > 0 && activeNoticeKey) {
+    const displayId = screen.getDisplayNearestPoint(screen.getCursorScreenPoint()).id;
+    return sendNativeIsland({ type: "expand" }, nativeIslandHosts.get(displayId));
   }
   if (noticeWindow && !noticeWindow.isDestroyed() && noticeWindow.isVisible()) {
     void noticeWindow.webContents.executeJavaScript(
@@ -4864,16 +5096,20 @@ function expandVisibleIsland() {
 function revealIslandFromTray() {
   if (!app.isReady() || !localServer) return;
   if (expandVisibleIsland()) return;
+  manualIslandReveal = true;
   const pending = latestPending[0];
   if (pending) {
     syncActivityIsland(true, pending);
     return;
   }
-  syncActivityIsland(true);
+  syncActivityIsland(true, undefined, true);
 }
 
 function dismissNoticeByUser() {
-  if (activeNoticeKey?.startsWith("activity:")) return;
+  if (
+    activeNoticeKey?.startsWith("activity:") &&
+    localServer.islandVisibility === "always"
+  ) return;
   closeNoticeWithoutOpeningMainWindow();
   setTimeout(() => syncActivityIsland(true), 180);
 }
@@ -4890,6 +5126,152 @@ function handlePluginIslandAction(payload: unknown) {
     return { ok: true };
   }
   return { ok: false };
+}
+
+function sessionMonitoringPauseAllowed() {
+  if (monitoringManagedByOrganization) return false;
+  const hasLockedPolicy = localServer.policies.some(
+    (policy) => policy.enabled && policy.locked,
+  );
+  const hasMandatoryPlugin = latestPlugins.some(
+    (plugin) =>
+      plugin.settings?.enabled &&
+      plugin.organizationPolicy?.mandatory,
+  );
+  return !hasLockedPolicy && !hasMandatoryPlugin;
+}
+
+async function setSessionMonitoring(payload: unknown) {
+  if (!payload || typeof payload !== "object")
+    return { ok: false, error: "Conversation is required." };
+  const input = payload as {
+    paused?: unknown;
+    session?: Partial<ActiveAgentSession>;
+  };
+  const requested = input.session;
+  const requestedAgentKind = String(requested?.agentKind ?? "").trim().toLowerCase();
+  const requestedIds = pausableSessionIds([
+    requested?.sessionId,
+    ...(Array.isArray(requested?.sourceSessionIds) ? requested.sourceSessionIds : []),
+    requested?.id,
+  ]);
+  const session = currentActiveAgentSessions().find((candidate) =>
+    candidate.agentKind.toLowerCase() === requestedAgentKind &&
+    (
+      candidate.id === requested?.id ||
+      candidate.sourceSessionIds.some((id) => requestedIds.includes(id))
+    )
+  );
+  if (!session) return { ok: false, error: "Conversation is no longer available." };
+
+  const sessionIds = pausableSessionIds([
+    session.sessionId,
+    ...session.sourceSessionIds,
+  ]);
+  if (sessionIds.length === 0)
+    return { ok: false, error: "This conversation has no stable monitoring identifier." };
+  const paused = input.paused === true;
+  if (paused && !sessionMonitoringPauseAllowed()) {
+    return {
+      ok: false,
+      error: "Monitoring cannot be paused while mandatory organization protection is active.",
+    };
+  }
+
+  const expiresAt = Date.now() + SESSION_MONITORING_PAUSE_MS;
+  const remote = await syncRemoteSessionMonitoring({
+    agentKind: session.agentKind,
+    sessionIds,
+    paused,
+    expiresAt,
+  });
+  if (!remote.ok) return remote;
+
+  if (paused) {
+    const pause = localServer.pauseSessionMonitoring(
+      session.agentKind,
+      sessionIds,
+      SESSION_MONITORING_PAUSE_MS,
+    );
+    if (!pause) return { ok: false, error: "Could not pause this conversation." };
+    pausedIslandSessions.set(session.id, {
+      expiresAt: pause.expiresAt,
+      session: {
+        ...session,
+        sourceSessionIds: sessionIds,
+        latestAction: "Monitoring paused",
+        monitoringPausedUntil: new Date(pause.expiresAt).toISOString(),
+      },
+    });
+  } else {
+    localServer.resumeSessionMonitoring(session.agentKind, sessionIds);
+    for (const [key, item] of pausedIslandSessions) {
+      if (
+        item.session.agentKind === session.agentKind &&
+        item.session.sourceSessionIds.some((id) => sessionIds.includes(id))
+      ) pausedIslandSessions.delete(key);
+    }
+  }
+  schedulePausedIslandSessionRefresh();
+  syncActivityIsland(true, latestPending[0], true);
+  return {
+    ok: true,
+    paused,
+    expiresAt: paused ? new Date(expiresAt).toISOString() : undefined,
+  };
+}
+
+async function syncRemoteSessionMonitoring(input: {
+  agentKind: string;
+  sessionIds: string[];
+  paused: boolean;
+  expiresAt: number;
+}) {
+  const remoteApiUrl = localServer.remoteApiUrl;
+  const token = localServer.effectiveToken;
+  if (!remoteApiUrl || !token) return { ok: true };
+  try {
+    const response = await fetch(new URL("/v1/session-monitoring", remoteApiUrl), {
+      method: input.paused ? "POST" : "DELETE",
+      headers: {
+        "content-type": "application/json",
+        authorization: `Bearer ${token}`,
+        ...apiVersionHeaders("sessionMonitoring"),
+      },
+      body: JSON.stringify({
+        agentKind: input.agentKind,
+        sessionIds: input.sessionIds,
+        ...(input.paused ? { expiresAt: new Date(input.expiresAt).toISOString() } : {}),
+      }),
+      signal: AbortSignal.timeout(10_000),
+    });
+    const body = await response.json().catch(() => ({})) as { error?: string };
+    if (!response.ok) {
+      return {
+        ok: false,
+        error: body.error || "Could not change monitoring for this conversation.",
+      };
+    }
+    return { ok: true };
+  } catch {
+    return {
+      ok: false,
+      error: "Could not reach OpenLeash to change monitoring for this conversation.",
+    };
+  }
+}
+
+function schedulePausedIslandSessionRefresh() {
+  if (pausedIslandSessionTimer) clearTimeout(pausedIslandSessionTimer);
+  pausedIslandSessionTimer = undefined;
+  const nextExpiry = [...pausedIslandSessions.values()]
+    .map((item) => item.expiresAt)
+    .sort((left, right) => left - right)[0];
+  if (!nextExpiry) return;
+  pausedIslandSessionTimer = setTimeout(() => {
+    pausedIslandSessionTimer = undefined;
+    syncActivityIsland(true);
+  }, Math.max(0, nextExpiry - Date.now()) + 50);
 }
 
 function islandMenuState() {
@@ -4963,17 +5345,25 @@ function activityNoticeKey(
   });
 }
 
-function syncActivityIsland(force = false, pending = latestPending[0]) {
+function syncActivityIsland(
+  force = false,
+  pending = latestPending[0],
+  manualReveal = false,
+) {
+  manualReveal ||= manualIslandReveal;
   const sessions = currentActiveAgentSessions();
-  const contributions = latestIslandContributions.filter((contribution) =>
-    Date.parse(contribution.expiresAt) > Date.now()
-  );
+  const contributions = activeIslandContributions();
   const hasNonTokenSaverContribution = contributions.some(
     (contribution) => contribution.pluginId !== "openleash.prompt-compression",
   );
   const hasVisibleActivity = sessions.length > 0 || hasNonTokenSaverContribution;
   if (!pending && !hasVisibleActivity && Date.now() < completionNoticeUntil) return;
-  if (!pending && !hasVisibleActivity && localServer.islandActivityOnly) {
+  if (!shouldPresentActivityIsland({
+    visibility: localServer.islandVisibility,
+    hasPending: Boolean(pending),
+    hasVisibleActivity,
+    manualReveal,
+  })) {
     if (activeNoticeKey?.startsWith("activity:")) closeNoticeWithoutOpeningMainWindow();
     return;
   }
@@ -5002,7 +5392,63 @@ function syncActivityIsland(force = false, pending = latestPending[0]) {
   showDecisionNotice({ kind: "activity", sessions, contributions, pending, autoExpand });
 }
 
+function activeIslandContributions() {
+  return [
+    ...latestIslandContributions,
+    ...(pluginInstallContribution ? [pluginInstallContribution] : []),
+  ].filter((contribution) => Date.parse(contribution.expiresAt) > Date.now());
+}
+
+function presentPluginInstallProgress(
+  progress: PluginContainerProgress,
+  failedCount: number,
+) {
+  if (progress.total <= 0) return;
+  if (pluginInstallContributionTimer) {
+    clearTimeout(pluginInstallContributionTimer);
+    pluginInstallContributionTimer = undefined;
+  }
+  const plugin = latestPlugins.find((item) => item.id === progress.pluginId);
+  const pluginName = canonicalPluginSlug(plugin?.slug || plugin?.id || progress.pluginId);
+  const finished = progress.current >= progress.total && progress.phase !== "installing";
+  const now = new Date();
+  pluginInstallContribution = {
+    schemaVersion: "2026-07-20.plugin-island.v1",
+    id: "desktop:plugin-container-install",
+    pluginId: "openleash.plugin-installer",
+    kind: "status",
+    key: "plugin-container-install",
+    title: finished
+      ? failedCount > 0 ? "Plugin setup needs attention" : "Plugins ready"
+      : "Installing plugins",
+    detail: progress.phase === "installing"
+      ? `Starting the ${pluginName} container…`
+      : progress.phase === "failed"
+        ? `${pluginName}: ${progress.status?.error || "Container did not become healthy."}`
+        : `${pluginName} is ready.`,
+    tone: finished ? failedCount > 0 ? "danger" : "success" : progress.phase === "failed" ? "warning" : "info",
+    status: finished ? failedCount > 0 ? "failed" : "completed" : "running",
+    progress: {
+      current: progress.current,
+      total: progress.total,
+      label: `${progress.current} of ${progress.total}`,
+    },
+    updatedAt: now.toISOString(),
+    expiresAt: new Date(now.getTime() + 2 * 60_000).toISOString(),
+  };
+  syncActivityIsland(true, latestPending[0], true);
+  if (!finished) return;
+  const completedAt = pluginInstallContribution.updatedAt;
+  pluginInstallContributionTimer = setTimeout(() => {
+    if (pluginInstallContribution?.updatedAt !== completedAt) return;
+    pluginInstallContribution = undefined;
+    pluginInstallContributionTimer = undefined;
+    syncActivityIsland(true);
+  }, failedCount > 0 ? 10_000 : 3_500);
+}
+
 function currentActiveAgentSessions() {
+  const now = Date.now();
   const cutoff = Date.now() - 10 * 60_000;
   for (const [sessionId, completion] of completedAgentSessions) {
     if (completion.completedAt < cutoff) completedAgentSessions.delete(sessionId);
@@ -5010,13 +5456,38 @@ function currentActiveAgentSessions() {
   for (const [key, hint] of immediateActivityHints) {
     if (hint.expiresAt <= Date.now()) immediateActivityHints.delete(key);
   }
-  return applyCompletedAgentSessions(
+  const active = applyCompletedAgentSessions(
     activeAgentSessions([
       ...latestAgents,
       ...[...immediateActivityHints.values()].map((hint) => hint.source),
     ]),
     completedAgentSessions,
   );
+  const activeIds = new Set(active.map((session) => session.id));
+  for (const [key, item] of pausedIslandSessions) {
+    if (item.expiresAt <= now) {
+      localServer.resumeSessionMonitoring(
+        item.session.agentKind,
+        item.session.sourceSessionIds,
+      );
+      pausedIslandSessions.delete(key);
+    }
+  }
+  const decorated = active.map((session) => {
+    const pause = session.sourceSessionIds
+      .map((sessionId) => localServer.sessionMonitoringPause(session.agentKind, sessionId))
+      .find(Boolean);
+    if (!pause) return session;
+    return {
+      ...session,
+      latestAction: "Monitoring paused",
+      monitoringPausedUntil: new Date(pause.expiresAt).toISOString(),
+    };
+  });
+  for (const item of pausedIslandSessions.values()) {
+    if (!activeIds.has(item.session.id)) decorated.push(item.session);
+  }
+  return decorated;
 }
 
 function handleImmediateAgentActivity(activity: LocalAgentActivity) {
@@ -5129,95 +5600,158 @@ function nativeIslandExecutable() {
   return names.find((candidate) => fs.existsSync(candidate));
 }
 
-function ensureNativeIsland() {
-  if (process.platform !== "darwin") return false;
-  if (nativeIslandProcess && !nativeIslandProcess.killed) return true;
+function ensureNativeIslands() {
+  if (process.platform !== "darwin") return [];
   const executable = nativeIslandExecutable();
   const html = executable && app.isPackaged
     ? path.join(path.dirname(executable), "notice.html")
     : path.join(here, "notice.html");
-  if (!executable || !fs.existsSync(html)) return false;
+  if (!executable || !fs.existsSync(html)) return [];
 
-  try {
-    const child = spawn(executable, [html], { stdio: ["pipe", "pipe", "pipe"] });
-    nativeIslandProcess = child;
-    nativeIslandReady = false;
-    nativeIslandOutput = "";
-    child.stdout?.setEncoding("utf8");
-    child.stdout?.on("data", (chunk: string) => {
-      nativeIslandOutput += chunk;
-      let newline = nativeIslandOutput.indexOf("\n");
-      while (newline >= 0) {
-        const line = nativeIslandOutput.slice(0, newline).trim();
-        nativeIslandOutput = nativeIslandOutput.slice(newline + 1);
-        if (line) handleNativeIslandMessage(line);
-        newline = nativeIslandOutput.indexOf("\n");
-      }
-    });
-    child.stderr?.setEncoding("utf8");
-    child.stderr?.on("data", (chunk: string) => {
-      const message = chunk.trim();
-      if (message) startupLog(`native island: ${message}`);
-    });
-    child.stdin?.on("error", (error: NodeJS.ErrnoException) => {
-      if (error.code !== "EPIPE") startupLog(`native island input failed: ${error.message}`);
-      if (nativeIslandProcess === child) nativeIslandProcess = undefined;
-      nativeIslandReady = false;
-      if (!child.killed) child.kill();
-    });
-    child.once("error", (error) => {
-      startupLog(`native island failed: ${error.message}`);
-    });
-    child.once("exit", (code, signal) => {
-      if (!quitting) startupLog(`native island exited (${code ?? signal ?? "unknown"})`);
-      if (nativeIslandProcess === child) nativeIslandProcess = undefined;
-      nativeIslandReady = false;
-    });
-    return true;
-  } catch (error) {
-    startupLog(`native island launch failed: ${error instanceof Error ? error.message : String(error)}`);
-    nativeIslandProcess = undefined;
-    return false;
+  const displayIds = new Set(screen.getAllDisplays().map((display) => display.id));
+  for (const [displayId, host] of nativeIslandHosts) {
+    if (displayIds.has(displayId) && !host.process.killed) continue;
+    host.process.kill();
+    nativeIslandHosts.delete(displayId);
   }
+  for (const displayId of displayIds) {
+    if (nativeIslandHosts.has(displayId)) continue;
+    try {
+      const child = spawn(executable, [html], { stdio: ["pipe", "pipe", "pipe"] });
+      const host: NativeIslandHost = {
+        displayId,
+        process: child,
+        ready: false,
+        output: "",
+      };
+      nativeIslandHosts.set(displayId, host);
+      child.stdout?.setEncoding("utf8");
+      child.stdout?.on("data", (chunk: string) => {
+        host.output += chunk;
+        let newline = host.output.indexOf("\n");
+        while (newline >= 0) {
+          const line = host.output.slice(0, newline).trim();
+          host.output = host.output.slice(newline + 1);
+          if (line) handleNativeIslandMessage(line, host);
+          newline = host.output.indexOf("\n");
+        }
+      });
+      child.stderr?.setEncoding("utf8");
+      child.stderr?.on("data", (chunk: string) => {
+        const message = chunk.trim();
+        if (message) startupLog(`native island display ${displayId}: ${message}`);
+      });
+      child.stdin?.on("error", (error: NodeJS.ErrnoException) => {
+        if (error.code !== "EPIPE") startupLog(`native island display ${displayId} input failed: ${error.message}`);
+        if (nativeIslandHosts.get(displayId) === host) nativeIslandHosts.delete(displayId);
+        host.ready = false;
+        if (!child.killed) child.kill();
+      });
+      child.once("error", (error) => {
+        startupLog(`native island display ${displayId} failed: ${error.message}`);
+      });
+      child.once("exit", (code, signal) => {
+        if (!quitting) startupLog(`native island display ${displayId} exited (${code ?? signal ?? "unknown"})`);
+        if (nativeIslandHosts.get(displayId) === host) nativeIslandHosts.delete(displayId);
+        host.ready = false;
+      });
+    } catch (error) {
+      startupLog(`native island display ${displayId} launch failed: ${error instanceof Error ? error.message : String(error)}`);
+    }
+  }
+  return [...nativeIslandHosts.values()];
 }
 
-function sendNativeIsland(message: Record<string, unknown>) {
-  if (!nativeIslandProcess?.stdin || nativeIslandProcess.stdin.destroyed) return false;
-  try {
-    nativeIslandProcess.stdin.write(`${JSON.stringify(message)}\n`);
-    return true;
-  } catch (error) {
-    startupLog(`native island write failed: ${error instanceof Error ? error.message : String(error)}`);
-    nativeIslandProcess = undefined;
-    nativeIslandReady = false;
-    return false;
+function sendNativeIsland(
+  message: Record<string, unknown>,
+  target?: NativeIslandHost,
+) {
+  const hosts = target ? [target] : [...nativeIslandHosts.values()];
+  let sent = false;
+  for (const host of hosts) {
+    const input = host.process.stdin;
+    if (!input || input.destroyed) continue;
+    try {
+      input.write(`${JSON.stringify(message)}\n`);
+      sent = true;
+    } catch (error) {
+      startupLog(`native island display ${host.displayId} input failed: ${error instanceof Error ? error.message : String(error)}`);
+      if (nativeIslandHosts.get(host.displayId) === host) nativeIslandHosts.delete(host.displayId);
+      host.ready = false;
+    }
   }
+  return sent;
+}
+
+function passiveNativeIslandPayload() {
+  const sessions = currentActiveAgentSessions();
+  const contributions = activeIslandContributions();
+  const hasVisibleActivity = sessions.length > 0 || contributions.some(
+    (contribution) => contribution.pluginId !== "openleash.prompt-compression",
+  );
+  if (!shouldPresentActivityIsland({
+    visibility: localServer.islandVisibility,
+    hasPending: false,
+    hasVisibleActivity,
+  })) return undefined;
+  return {
+    ...(formatNotice({
+      kind: "activity",
+      sessions,
+      contributions,
+    }) as Record<string, unknown>),
+    islandMenu: islandMenuState(),
+  };
 }
 
 function showNativeIsland(payload: Record<string, unknown>, noticeKey: string) {
-  if (!ensureNativeIsland()) return false;
+  const hosts = ensureNativeIslands();
+  if (hosts.length === 0) return false;
+  const activeDisplayId = screen.getDisplayNearestPoint(screen.getCursorScreenPoint()).id;
+  const passivePayload = passiveNativeIslandPayload();
   suppressMainWindowActivation();
   noticeWindow?.destroy();
   noticeWindow = undefined;
   activeNoticeKey = noticeKey;
-  pendingNativeIslandPayload = payload;
-  if (nativeIslandReady) sendNativeIsland({ type: "show", payload });
+  const presentations = new Map(islandDisplayTargets(
+    hosts.map((host) => host.displayId),
+    activeDisplayId,
+    Boolean(passivePayload),
+  ).map((item) => [item.displayId, item.presentation]));
+  for (const host of hosts) {
+    const presentation = presentations.get(host.displayId);
+    const hostPayload = presentation === "active"
+      ? payload
+      : presentation === "passive"
+        ? passivePayload
+        : undefined;
+    if (!hostPayload) {
+      host.pendingMessage = undefined;
+      if (host.ready) sendNativeIsland({ type: "dismiss" }, host);
+      continue;
+    }
+    host.pendingMessage = {
+      type: "show",
+      payload: hostPayload,
+      displayId: host.displayId,
+      reposition: true,
+    };
+    if (host.ready) sendNativeIsland(host.pendingMessage, host);
+  }
   return true;
 }
 
-function handleNativeIslandMessage(line: string) {
+function handleNativeIslandMessage(line: string, host: NativeIslandHost) {
   let message: Record<string, unknown>;
   try {
     message = JSON.parse(line) as Record<string, unknown>;
   } catch {
-    startupLog("native island returned malformed JSON");
+    startupLog(`native island display ${host.displayId} returned malformed JSON`);
     return;
   }
   if (message.type === "ready") {
-    nativeIslandReady = true;
-    if (pendingNativeIslandPayload) {
-      sendNativeIsland({ type: "show", payload: pendingNativeIslandPayload });
-    }
+    host.ready = true;
+    if (host.pendingMessage) sendNativeIsland(host.pendingMessage, host);
     return;
   }
   if (message.type !== "action") return;
@@ -5230,6 +5764,10 @@ function handleNativeIslandMessage(line: string) {
       ? message.payload as AgentSessionFocusTarget & { session?: AgentSessionFocusTarget }
       : undefined;
     void openAgentApplication(payload?.session ?? payload);
+    return;
+  }
+  if (message.action === "session-monitoring") {
+    void setSessionMonitoring(message.payload);
     return;
   }
   if (message.action === "plugin-action") {
@@ -5461,6 +5999,13 @@ function formatNotice(notice: DecisionNotice) {
         ...session,
         agentIcon: noticeAgentIconFor(session.agentName),
         canJump: canOpenAgent(session.agentKind),
+        canPauseMonitoring:
+          Boolean(session.monitoringPausedUntil) ||
+          (
+            session.visualState !== "completed" &&
+            sessionMonitoringPauseAllowed() &&
+            pausableSessionIds([session.sessionId, ...session.sourceSessionIds]).length > 0
+          ),
         time: timeAgo(session.lastActivityAt),
         contributions: contributionsForSession(decorated, session.sourceSessionIds),
       })),
@@ -6220,205 +6765,6 @@ function localRulesConfigPath() {
   return path.join(os.homedir(), ".openleash", "rules.json");
 }
 
-type InstructionRuleSource = {
-  agent: string;
-  scope: "global" | "project";
-  label: string;
-  path: string;
-};
-
-function discoverAgentInstructionFiles(): InstructionRuleSource[] {
-  const home = os.homedir();
-  const appData = process.env.APPDATA || path.join(home, "AppData", "Roaming");
-  const sources: InstructionRuleSource[] = [
-    {
-      agent: "Claude Code",
-      scope: "global",
-      label: "Global CLAUDE.md",
-      path: path.join(home, ".claude", "CLAUDE.md"),
-    },
-    {
-      agent: "Codex CLI",
-      scope: "global",
-      label: "Global AGENTS.md",
-      path: path.join(home, ".codex", "AGENTS.md"),
-    },
-    {
-      agent: "Cline",
-      scope: "global",
-      label: "Global AGENTS.md",
-      path: path.join(home, ".agents", "AGENTS.md"),
-    },
-    {
-      agent: "OpenCode",
-      scope: "global",
-      label: "Global AGENTS.md",
-      path: path.join(
-        process.platform === "win32" ? appData : path.join(home, ".config"),
-        "opencode",
-        "AGENTS.md",
-      ),
-    },
-    {
-      agent: "Windsurf",
-      scope: "global",
-      label: "Global rules",
-      path: path.join(
-        home,
-        ".codeium",
-        "windsurf",
-        "memories",
-        "global_rules.md",
-      ),
-    },
-    {
-      agent: "GitHub Copilot",
-      scope: "global",
-      label: "CLI instructions",
-      path: path.join(home, ".copilot", "copilot-instructions.md"),
-    },
-  ];
-
-  for (const root of projectInstructionRoots()) {
-    sources.push(
-      {
-        agent: "Claude Code",
-        scope: "project",
-        label: "Project CLAUDE.md",
-        path: path.join(root, "CLAUDE.md"),
-      },
-      {
-        agent: "Claude Code",
-        scope: "project",
-        label: "Project .claude/CLAUDE.md",
-        path: path.join(root, ".claude", "CLAUDE.md"),
-      },
-      {
-        agent: "Codex/OpenCode/Cline/Cursor/Copilot",
-        scope: "project",
-        label: "Project AGENTS.md",
-        path: path.join(root, "AGENTS.md"),
-      },
-      {
-        agent: "Cursor",
-        scope: "project",
-        label: "Legacy .cursorrules",
-        path: path.join(root, ".cursorrules"),
-      },
-      {
-        agent: "Cline",
-        scope: "project",
-        label: "Legacy .clinerules",
-        path: path.join(root, ".clinerules"),
-      },
-      {
-        agent: "Windsurf",
-        scope: "project",
-        label: "Project .windsurfrules",
-        path: path.join(root, ".windsurfrules"),
-      },
-      {
-        agent: "GitHub Copilot",
-        scope: "project",
-        label: "Copilot instructions",
-        path: path.join(root, ".github", "copilot-instructions.md"),
-      },
-    );
-    for (const filePath of filesInDirectory(
-      path.join(root, ".cursor", "rules"),
-      /\.(mdc|md|markdown|txt)$/i,
-    )) {
-      sources.push({
-        agent: "Cursor",
-        scope: "project",
-        label: "Cursor rule",
-        path: filePath,
-      });
-    }
-    for (const filePath of filesInDirectory(
-      path.join(root, ".clinerules"),
-      /\.(md|markdown|txt|rules)$/i,
-    )) {
-      sources.push({
-        agent: "Cline",
-        scope: "project",
-        label: "Cline rule",
-        path: filePath,
-      });
-    }
-    for (const filePath of filesInDirectory(
-      path.join(root, ".windsurf", "rules"),
-      /\.(md|markdown|txt|rules)$/i,
-    )) {
-      sources.push({
-        agent: "Windsurf",
-        scope: "project",
-        label: "Windsurf rule",
-        path: filePath,
-      });
-    }
-    for (const filePath of filesInDirectory(
-      path.join(root, ".github", "instructions"),
-      /\.instructions\.md$/i,
-    )) {
-      sources.push({
-        agent: "GitHub Copilot",
-        scope: "project",
-        label: "Path-specific Copilot instruction",
-        path: filePath,
-      });
-    }
-  }
-
-  const byPath = new Map<string, InstructionRuleSource>();
-  for (const source of sources) {
-    if (!fs.existsSync(source.path)) continue;
-    const resolved = path.resolve(source.path);
-    if (!byPath.has(resolved))
-      byPath.set(resolved, { ...source, path: resolved });
-  }
-  return [...byPath.values()];
-}
-
-function projectInstructionRoots() {
-  const candidates = [
-    process.env.OPENLEASH_PROJECT_ROOT,
-    process.env.PWD,
-    process.cwd(),
-  ].filter((value): value is string => Boolean(value));
-  const roots = new Set<string>();
-  for (const candidate of candidates) {
-    let current = path.resolve(candidate);
-    if (!fs.existsSync(current)) continue;
-    if (!fs.statSync(current).isDirectory()) current = path.dirname(current);
-    roots.add(current);
-    const gitRoot = nearestGitRoot(current);
-    if (gitRoot) roots.add(gitRoot);
-  }
-  return [...roots];
-}
-
-function nearestGitRoot(start: string) {
-  let current = path.resolve(start);
-  while (true) {
-    if (fs.existsSync(path.join(current, ".git"))) return current;
-    const parent = path.dirname(current);
-    if (parent === current) return undefined;
-    current = parent;
-  }
-}
-
-function filesInDirectory(directory: string, pattern: RegExp) {
-  try {
-    return fs
-      .readdirSync(directory, { withFileTypes: true })
-      .filter((entry) => entry.isFile() && pattern.test(entry.name))
-      .map((entry) => path.join(directory, entry.name));
-  } catch {
-    return [];
-  }
-}
-
 function parseRulesImport(content: string, filePath: string) {
   if (path.extname(filePath).toLowerCase() === ".json")
     return JSON.parse(content) as unknown;
@@ -6431,38 +6777,6 @@ function parseRulesImport(content: string, filePath: string) {
     match: [text],
   }));
   return { rules };
-}
-
-function ruleCandidatesFromMarkdown(content: string) {
-  const cleaned = content.replace(/```[\s\S]*?```/g, "").replace(/\r\n/g, "\n");
-  const candidates: string[] = [];
-  for (const paragraph of cleaned.split(/\n{2,}/g)) {
-    const lines = paragraph
-      .split(/\n/g)
-      .map((line) => line.replace(/^#{1,6}\s+/, "").trim())
-      .filter(Boolean);
-    if (lines.length === 0) continue;
-    const listItems = lines
-      .filter((line) => /^\s*(?:[-*]|\d+[.)])\s+/.test(line))
-      .map((line) => line.replace(/^\s*(?:[-*]|\d+[.)])\s+/, "").trim())
-      .filter(isRuleCandidateText);
-    if (listItems.length > 0) {
-      candidates.push(...listItems);
-      continue;
-    }
-    const text = lines.join(" ").replace(/\s+/g, " ").trim();
-    if (isRuleCandidateText(text)) candidates.push(text);
-  }
-  return [
-    ...new Map(candidates.map((text) => [text.toLowerCase(), text])).values(),
-  ];
-}
-
-function isRuleCandidateText(text: string) {
-  return (
-    text.length >= 8 &&
-    !/^(rules|instructions|guidelines|notes?|overview|context)$/i.test(text)
-  );
 }
 
 function parsePluginRulesJsonImport(content: string) {

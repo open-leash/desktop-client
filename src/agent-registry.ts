@@ -2,6 +2,10 @@ import { spawnSync } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import {
+  enableCodexHooksFeature,
+  probeCodexHooks,
+} from "./codex-config.js";
 
 export type LocalAgentProtection = {
   kind: string;
@@ -427,24 +431,35 @@ function detectCodexProtection(
   const hooksFileLooksInstalled = JSON.stringify(
     readJson(hooksPath) ?? {},
   ).includes("hook --agent codex");
-  const approvalHandoff = codexApprovalHandoff(readText(configPath));
+  const config = readText(configPath);
+  const protectedByProxy = hasManagedCodexProxy(config);
+  const protectedByOpenLeash = allTrusted || protectedByProxy;
+  const approvalHandoff = codexApprovalHandoff(config);
   return agentStatus({
     kind: "codex",
     displayName: "OpenAI Codex",
     installed,
-    protected: allTrusted,
+    protected: protectedByOpenLeash,
     executablePath,
     icon: "openai",
     supportsInstall: true,
     approvalHandoff,
     detail: installed
-      ? allTrusted
-        ? "Active"
+      ? protectedByOpenLeash
+        ? protectedByProxy && !allTrusted
+          ? "Active via local proxy"
+          : "Active"
         : hooksFileLooksInstalled
           ? "Needs confirmation in Codex"
           : "Unmonitored"
       : "Not installed",
   });
+}
+
+export function hasManagedCodexProxy(config: string) {
+  return /^\s*# Managed by OpenLeash local proxy\s*$/m.test(config) &&
+    /^\s*model_provider\s*=\s*"openleash"\s*$/m.test(config) &&
+    /^\s*base_url\s*=\s*"https?:\/\/(?:127\.0\.0\.1|localhost):9320\/agent\/codex\/v1\/?"\s*$/m.test(config);
 }
 
 function detectGenericAgent(
@@ -728,7 +743,9 @@ function installCodexProtection(context: InstallContext) {
   fs.mkdirSync(path.dirname(configPath), { recursive: true });
   fs.writeFileSync(
     configPath,
-    enableCodexApprovalHandoff(readText(configPath)),
+    enableCodexHooksFeature(
+      enableCodexApprovalHandoff(readText(configPath)),
+    ),
   );
   fs.writeFileSync(
     hooksPath,
@@ -1477,49 +1494,7 @@ function codexHookMetadata(
   currentHash?: string;
 }> {
   if (!findOnPath("codex")) return [];
-  const messages = [
-    {
-      id: 1,
-      method: "initialize",
-      params: {
-        clientInfo: {
-          name: "openleash-tray",
-          title: "OpenLeash Tray",
-          version: appVersion,
-        },
-        capabilities: { experimentalApi: true },
-      },
-    },
-    { method: "initialized" },
-    { id: 2, method: "hooks/list", params: { cwds: [process.cwd()] } },
-  ]
-    .map((message) => JSON.stringify(message))
-    .join("\n");
-
-  const result = spawnSync("codex", ["app-server", "--listen", "stdio://"], {
-    input: `${messages}\n`,
-    encoding: "utf8",
-    timeout: 2500,
-    maxBuffer: 4 * 1024 * 1024,
-  });
-  if (result.error || result.status !== 0) return [];
-  return result.stdout
-    .split("\n")
-    .flatMap((line) => {
-      try {
-        const parsed = JSON.parse(line) as {
-          id?: number;
-          result?: { data?: Array<{ hooks?: unknown[] }> };
-        };
-        if (parsed.id !== 2) return [];
-        return (parsed.result?.data ?? []).flatMap(
-          (entry) => entry.hooks ?? [],
-        );
-      } catch {
-        return [];
-      }
-    })
-    .filter(isCodexHookMetadata);
+  return probeCodexHooks(appVersion);
 }
 
 function isCodexHookMetadata(

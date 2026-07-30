@@ -84,6 +84,22 @@ test("desktop client-api edge transforms provider requests through a container A
     const result = JSON.parse(responseText) as any;
     assert.equal(result.requestBody.messages[0].content, "compressed");
     assert.deepEqual(result.appliedPluginIds, [plugin.id]);
+    edge.pauseSessionMonitoring("codex", ["paused-edge-test"]);
+    const pausedResponse = await fetch(`${edge.apiUrl}/v1/plugin-runtime/transform`, {
+      method: "POST",
+      headers: { authorization: `Bearer ${edge.token}`, "content-type": "application/json" },
+      body: JSON.stringify({
+        provider: "openai",
+        agentKind: "codex",
+        sessionId: "paused-edge-test",
+        requestBody: { messages: [{ role: "user", content: "unchanged" }] },
+      }),
+    });
+    const pausedResult = await pausedResponse.json() as any;
+    assert.equal(pausedResponse.status, 200);
+    assert.equal(pausedResult.requestBody.messages[0].content, "unchanged");
+    assert.deepEqual(pausedResult.appliedPluginIds, []);
+    assert.equal(pausedResult.monitoringPaused, true);
     const toolResponse = await fetch(`${edge.apiUrl}/v1/plugin-runtime/tools/execute`, {
       method: "POST",
       headers: { authorization: `Bearer ${edge.token}`, "content-type": "application/json" },

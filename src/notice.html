@@ -53,7 +53,7 @@
         overflow: hidden;
         border: 1px solid rgba(255, 255, 255, .115);
         border-radius: 18px;
-        background: var(--black);
+        background: #000000;
         box-shadow:
           0 30px 76px rgba(0, 0, 0, .27),
           0 10px 30px rgba(0, 0, 0, .18),
@@ -109,12 +109,8 @@
         pointer-events: none;
       }
       .notch-agents, .notch-metric { min-width: 0; display: flex; align-items: center; gap: 5px; }
-      .notch-agents { justify-content: flex-end; padding: 0 9px 0 12px; }
-      .notch-metric { justify-content: flex-start; padding: 0 12px 0 9px; }
-      body.native-macos.has-display-notch .island.expanded .notch-agents {
-        justify-content: flex-start;
-        padding: 0 9px 0 12px;
-      }
+      .notch-agents { justify-content: flex-start; padding: 0 9px 0 12px; }
+      .notch-metric { justify-content: flex-end; padding: 0 12px 0 9px; }
       .notch-agent {
         position: relative;
         width: 18px;
@@ -131,6 +127,30 @@
       }
       .notch-metric-value { overflow: hidden; color: var(--green); font-size: 9px; font-weight: 700; text-overflow: ellipsis; white-space: nowrap; }
       .notch-metric-value.danger { color: var(--red); background: transparent; border: 0; }
+      .compact-progress {
+        position: absolute;
+        z-index: 4;
+        left: 12px;
+        right: 12px;
+        bottom: 3px;
+        height: 3px;
+        overflow: hidden;
+        border-radius: 999px;
+        background: rgba(255,255,255,.11);
+        pointer-events: none;
+      }
+      .compact-progress span {
+        display: block;
+        width: 0;
+        height: 100%;
+        border-radius: inherit;
+        background: linear-gradient(90deg, var(--cyan), var(--green));
+        box-shadow: 0 0 8px rgba(88,216,255,.58);
+        transition: width 320ms var(--ease);
+      }
+      .compact-progress.tone-success span { background: var(--green); }
+      .compact-progress.tone-danger span { background: var(--red); }
+      body.native-macos.has-display-notch .compact-progress { bottom: 2px; }
       .cap-metric { color: var(--green); font-size: 9px; font-weight: 700; white-space: nowrap; }
       body.native-macos.has-display-notch .cap-metric { display: none; }
       .island.expandable .cap { cursor: pointer; }
@@ -260,7 +280,6 @@
       body.animations-paused .island,
       body.animations-paused .reveal,
       body.animations-paused .toggle svg { transition: none !important; }
-      body.native-macos .island { transition: none; }
       .island.activity-mode:not(.expanded) { width: var(--activity-compact-width, 180px); }
       .island.menu-open { min-height: 438px; }
       .island.activity-mode.menu-open:not(.expanded) { width: 286px; }
@@ -559,6 +578,7 @@
       .session-live.processing { color: var(--cyan); }
       .session-live.waiting { color: var(--amber); }
       .session-live.completed { color: var(--green); }
+      .session-live.paused { color: var(--amber); }
       .contribution-pills { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 7px; }
       .contribution-pill { max-width: 100%; overflow: hidden; padding: 4px 6px; border: 1px solid var(--line); border-radius: 7px; color: var(--soft-ink); background: rgba(255,255,255,.04); font-size: 8.5px; text-overflow: ellipsis; white-space: nowrap; }
       .contribution-pill.info { color: var(--cyan); border-color: rgba(88,216,255,.22); }
@@ -784,6 +804,7 @@
         <span aria-hidden="true"></span>
         <div class="notch-metric" id="notchMetric"></div>
       </div>
+      <div class="compact-progress" id="compactProgress" role="progressbar" hidden><span id="compactProgressFill"></span></div>
       <header class="cap" id="cap">
         <div class="agent-mark" id="glyph">OL</div>
         <span class="signal-wrap"><span class="signal" id="status"></span></span>
@@ -873,7 +894,7 @@
       let pointerInsideIsland = false;
       let installAnimation;
       const $ = (id) => document.getElementById(id);
-      const island = $("island"), cap = $("cap"), glyph = $("glyph"), status = $("status"), eyebrow = $("eyebrow"), title = $("title"), count = $("count"), capAgents = $("capAgents"), capMetric = $("capMetric"), notchRail = $("notchRail"), notchAgents = $("notchAgents"), notchMetric = $("notchMetric");
+      const island = $("island"), cap = $("cap"), glyph = $("glyph"), status = $("status"), eyebrow = $("eyebrow"), title = $("title"), count = $("count"), capAgents = $("capAgents"), capMetric = $("capMetric"), notchRail = $("notchRail"), notchAgents = $("notchAgents"), notchMetric = $("notchMetric"), compactProgress = $("compactProgress"), compactProgressFill = $("compactProgressFill");
       const installSuccess = $("installSuccess"), installFireworks = $("installFireworks"), socialFollow = $("socialFollow"), activityPanel = $("activityPanel"), attentionPanel = $("attentionPanel"), sessionSectionLabel = $("sessionSectionLabel"), sessionList = $("sessionList"), activityDetail = $("activityDetail"), ambientContributions = $("ambientContributions"), summary = $("summary"), purpose = $("purpose"), evidenceBlock = $("evidenceBlock"), evidence = $("evidence"), chips = $("chips"), questions = $("questions"), plan = $("plan");
       const guidance = $("guidance"), rememberRow = $("rememberRow"), remember = $("remember"), actions = $("actions"), hint = $("hint"), islandMenu = $("islandMenu"), menuToggle = $("menuToggle");
       const previewParams = new URLSearchParams(location.search);
@@ -900,12 +921,13 @@
         resolve: (id, resolution, resolutionGuidance = "", rememberForMs = 0, response) => nativeHandler.postMessage({ type: "action", action: "resolve", id, resolution, guidance: resolutionGuidance, rememberForMs, response }),
         dismissNotice: () => nativeHandler.postMessage({ type: "action", action: "dismiss" }),
         jumpToAgent: (payload) => nativeHandler.postMessage({ type: "action", action: "jump", payload }),
+        setSessionMonitoring: (payload) => nativeHandler.postMessage({ type: "action", action: "session-monitoring", payload }),
         pluginIslandAction: (payload) => nativeHandler.postMessage({ type: "action", action: "plugin-action", payload }),
         islandCommand: (command) => nativeHandler.postMessage({ type: "action", action: "island-command", command }),
         setNoticePointerInside: () => {},
         onNotice: () => {},
       } : {
-        resizeNotice: () => {}, resolve: () => {}, dismissNotice: () => {}, jumpToAgent: () => {}, pluginIslandAction: () => {}, islandCommand: () => {}, setNoticePointerInside: () => {}, onNotice: () => {},
+        resizeNotice: () => {}, resolve: () => {}, dismissNotice: () => {}, jumpToAgent: () => {}, setSessionMonitoring: () => {}, pluginIslandAction: () => {}, islandCommand: () => {}, setNoticePointerInside: () => {}, onNotice: () => {},
       });
       const scheduleVisualUpdate = (callback) => nativeHandler ? callback() : requestAnimationFrame(callback);
 
@@ -985,6 +1007,7 @@
         installAnimation?.destroy(); installAnimation = undefined; installFireworks.innerHTML = ""; installSuccess.hidden = true; socialFollow.hidden = true;
         activityPanel.hidden = true; attentionPanel.hidden = true; attentionPanel.innerHTML = ""; sessionSectionLabel.hidden = false; sessionList.innerHTML = ""; activityDetail.hidden = true; activityDetail.innerHTML = ""; ambientContributions.innerHTML = "";
         notchAgents.innerHTML = ""; notchMetric.innerHTML = ""; capAgents.innerHTML = ""; capMetric.hidden = true; capMetric.textContent = "";
+        compactProgress.hidden = true; compactProgress.className = "compact-progress"; compactProgressFill.style.width = "0"; compactProgress.removeAttribute("aria-valuenow"); compactProgress.removeAttribute("aria-valuemax"); compactProgress.removeAttribute("aria-label");
         selectedAnswers = new Map(); questions.innerHTML = ""; actions.innerHTML = ""; chips.innerHTML = ""; guidance.value = "";
         actions.className = "actions"; summary.hidden = false; purpose.hidden = true; evidenceBlock.hidden = true; plan.hidden = true;
         guidance.hidden = true; rememberRow.hidden = true; hint.textContent = ""; island.classList.remove("expanded", "expandable", "leaving", "activity-mode", "menu-open");
@@ -1129,6 +1152,10 @@
       };
       window.inspectOpenLeashIsland = () => {
         const copyRect = document.querySelector(".cap-copy")?.getBoundingClientRect();
+        const islandRect = island.getBoundingClientRect();
+        const notchAgentRect = notchAgents.firstElementChild?.getBoundingClientRect();
+        const notchTokenRect = notchMetric.firstElementChild?.getBoundingClientRect();
+        const compactProgressRect = compactProgress.getBoundingClientRect();
         const safeTop = parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--hardware-safe-top")) || 0;
         const compactNotch = document.body.classList.contains("has-display-notch") && island.classList.contains("activity-mode") && !island.classList.contains("expanded");
         return {
@@ -1159,8 +1186,16 @@
           notchAgentCount: notchAgents.children.length,
           capAgentCount: capAgents.children.length,
           notchTokenSaving: notchMetric.textContent.trim(),
+          notchAgentLeftGap: notchAgentRect ? notchAgentRect.left - islandRect.left : null,
+          notchTokenRightGap: notchTokenRect ? islandRect.right - notchTokenRect.right : null,
+          compactProgressVisible: !compactProgress.hidden,
+          compactProgressPercent: compactProgress.hidden || compactProgressRect.width <= 0
+            ? 0
+            : compactProgressFill.getBoundingClientRect().width / compactProgressRect.width * 100,
           capTokenSaving: capMetric.textContent.trim(),
           historyButtonVisible: Boolean(actions.querySelector('[data-action="show-history"]')),
+          pauseMonitoringButtonVisible: Boolean(actions.querySelector('[data-action="pause-monitoring"]')),
+          resumeMonitoringButtonVisible: Boolean(actions.querySelector('[data-action="resume-monitoring"]')),
           islandHeight: island.getBoundingClientRect().height,
           islandWidth: island.getBoundingClientRect().width,
           activityCompactWidth: parseFloat(getComputedStyle(island).getPropertyValue("--activity-compact-width")) || 0,
@@ -1179,6 +1214,7 @@
       window.clickSocialXForVerification = () => socialFollow.querySelector('[data-social="x"]')?.click();
       window.clickSocialLinkedInForVerification = () => socialFollow.querySelector('[data-social="linkedin"]')?.click();
       window.clickFirstSessionMascotForVerification = () => sessionList.querySelector(".session-agent-icon")?.click();
+      window.clickPauseMonitoringForVerification = () => actions.querySelector('[data-action="pause-monitoring"]')?.click();
 
       function renderIslandMenu(menu) {
         $("menuProtection").textContent = menu.protection || "Protection status unavailable";
@@ -1329,8 +1365,8 @@
           const action = document.createElement("span"); action.className = "session-action"; action.textContent = session.latestAction || "Working";
           copy.append(heading, meta, action);
           renderContributionPills(copy, session.contributions || []);
-          const live = document.createElement("span"); live.className = `session-live ${visualState}`;
-          live.textContent = visualState === "waiting" ? "Waiting" : visualState === "running" ? "Active" : visualState === "completed" ? "Done" : "Thinking";
+          const live = document.createElement("span"); live.className = `session-live ${session.monitoringPausedUntil ? "paused" : visualState}`;
+          live.textContent = session.monitoringPausedUntil ? "Paused" : visualState === "waiting" ? "Waiting" : visualState === "running" ? "Active" : visualState === "completed" ? "Done" : "Thinking";
           card.append(icon, copy, live);
           card.addEventListener("click", () => selectActivitySession(session, card));
           sessionList.appendChild(card);
@@ -1423,6 +1459,17 @@
           capAgents.appendChild(animatedAgentIcon(session, "cap-agent", session.visualState));
         });
         const contributions = [...sessions.flatMap((session) => session.contributions || []), ...ambient];
+        const progressContribution = ambient.find((item) => Number(item.progress?.total || 0) > 0);
+        if (progressContribution) {
+          const current = Math.max(0, Number(progressContribution.progress.current || 0));
+          const total = Math.max(1, Number(progressContribution.progress.total || 1));
+          compactProgress.hidden = false;
+          compactProgress.className = `compact-progress tone-${progressContribution.tone || "info"}`;
+          compactProgressFill.style.width = `${Math.min(100, current / total * 100)}%`;
+          compactProgress.setAttribute("aria-valuenow", String(current));
+          compactProgress.setAttribute("aria-valuemax", String(total));
+          compactProgress.setAttribute("aria-label", `${progressContribution.title || "Plugin progress"}: ${progressContribution.progress.label || `${current} of ${total}`}`);
+        }
         const tokenSaver = contributions.find((item) => item.pluginId === "openleash.prompt-compression" && item.value) || tokenSaverStatus;
         if (tokenSaver) {
           const value = document.createElement("span"); value.className = `notch-metric-value ${tokenSaver.tone || ""}`; value.textContent = `✂ ${tokenSaver.value}`; value.title = tokenSaver.detail || "token-saver";
@@ -1439,7 +1486,17 @@
         actions.innerHTML = ""; actions.className = "actions";
         actions.append(button("View history", "secondary", "show-history"));
         if (session.canJump) actions.append(button(`Open ${session.agentName}`, "secondary", "jump-session"));
-        if (!session.canJump) actions.className = "actions single";
+        if (session.canPauseMonitoring) {
+          const pauseAction = session.monitoringPausedUntil ? "resume-monitoring" : "pause-monitoring";
+          const label = session.monitoringPausedUntil ? "Resume monitoring" : "Pause monitoring · 30 min";
+          actions.append(button(label, session.monitoringPausedUntil ? "primary" : "danger", pauseAction));
+        }
+        if (actions.childElementCount === 1) actions.className = "actions single";
+        hint.textContent = session.monitoringPausedUntil
+          ? `Only this conversation is unmonitored until ${new Date(session.monitoringPausedUntil).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}.`
+          : session.canPauseMonitoring
+            ? "Pausing bypasses protection only for this conversation."
+            : "";
         resize();
       }
 
@@ -1536,6 +1593,16 @@
         }
         if (action === "install-next") {
           renderSocialFollow();
+          return;
+        }
+        if (action === "pause-monitoring" || action === "resume-monitoring") {
+          if (!current.selectedSession) return;
+          actions.querySelectorAll("button").forEach((item) => item.disabled = true);
+          target.textContent = action === "pause-monitoring" ? "Pausing…" : "Resuming…";
+          bridge.setSessionMonitoring({
+            paused: action === "pause-monitoring",
+            session: current.selectedSession,
+          });
           return;
         }
         actions.querySelectorAll("button").forEach((item) => item.disabled = true);

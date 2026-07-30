@@ -7,8 +7,10 @@ import {
   ambientIslandContributions,
   applyCompletedAgentSessions,
   contributionsForSession,
+  islandDisplayTargets,
   mergeImmediateAgentActivity,
   prioritizeAgentSessions,
+  shouldPresentActivityIsland,
 } from "./activity-island";
 import { canonicalPluginSlug } from "./plugin-slug";
 
@@ -18,6 +20,53 @@ test("plugin presentation always uses canonical slugs", () => {
   assert.equal(canonicalPluginSlug("openleash.prompt-compression"), "token-saver");
   assert.equal(canonicalPluginSlug("token-compression"), "token-saver");
   assert.equal(canonicalPluginSlug("openleash.core"), "openleash-core");
+});
+
+test("supports always-on, activity-only, and notification-only Island visibility", () => {
+  assert.equal(shouldPresentActivityIsland({
+    visibility: "always",
+    hasPending: false,
+    hasVisibleActivity: false,
+  }), true);
+  assert.equal(shouldPresentActivityIsland({
+    visibility: "activity",
+    hasPending: false,
+    hasVisibleActivity: true,
+  }), true);
+  assert.equal(shouldPresentActivityIsland({
+    visibility: "activity",
+    hasPending: false,
+    hasVisibleActivity: false,
+  }), false);
+  assert.equal(shouldPresentActivityIsland({
+    visibility: "notifications",
+    hasPending: false,
+    hasVisibleActivity: true,
+  }), false);
+  assert.equal(shouldPresentActivityIsland({
+    visibility: "notifications",
+    hasPending: true,
+    hasVisibleActivity: false,
+  }), true);
+  assert.equal(shouldPresentActivityIsland({
+    visibility: "notifications",
+    hasPending: false,
+    hasVisibleActivity: false,
+    manualReveal: true,
+  }), true);
+});
+
+test("shows compact Islands on every display but activates only the pointer display", () => {
+  assert.deepEqual(islandDisplayTargets([10, 20, 30], 20, true), [
+    { displayId: 10, presentation: "passive" },
+    { displayId: 20, presentation: "active" },
+    { displayId: 30, presentation: "passive" },
+  ]);
+  assert.deepEqual(islandDisplayTargets([10, 20, 30], 20, false), [
+    { displayId: 10, presentation: "hidden" },
+    { displayId: 20, presentation: "active" },
+    { displayId: 30, presentation: "hidden" },
+  ]);
 });
 
 test("shows an agent immediately from the first local ingestion event", () => {
@@ -139,6 +188,45 @@ test("does not show Claude quota checks as active agent work", () => {
         event_name: "UserPromptSubmit",
         created_at: new Date(now - 1_000).toISOString(),
       }],
+    }],
+  }], now);
+
+  assert.deepEqual(sessions, []);
+});
+
+test("does not show Codex task-title generation as active agent work", () => {
+  const now = Date.parse("2026-07-29T06:48:40.000Z");
+  const titlePrompt = "You are a helpful assistant. You will be presented with a user prompt, and your job is to provide a short title for a task that will be created from that prompt.\nGenerate a concise UI title (up to 36 characters) for this task.\nFill the structured title field with plain text.\n\nUser prompt:\nSummarize run.py";
+  const sessions = activeAgentSessions([{
+    kind: "codex",
+    display_name: "OpenAI Codex",
+    activity_at: new Date(now - 1_000).toISOString(),
+    sessions: [{
+      id: "codex-title-generation",
+      title: titlePrompt,
+      last_activity_at: new Date(now - 1_000).toISOString(),
+      events: [{
+        event_name: "UserPromptSubmit",
+        prompt: titlePrompt,
+        created_at: new Date(now - 1_000).toISOString(),
+      }],
+    }],
+  }], now);
+
+  assert.deepEqual(sessions, []);
+});
+
+test("does not show a Codex title-generation session without event details", () => {
+  const now = Date.parse("2026-07-29T06:48:40.000Z");
+  const titlePrompt = "You will be presented with a user prompt, and your job is to provide a short title for a task that will be created from that prompt. Generate a concise UI title. Fill the structured title field with plain text.";
+  const sessions = activeAgentSessions([{
+    kind: "codex",
+    display_name: "OpenAI Codex",
+    activity_at: new Date(now - 1_000).toISOString(),
+    sessions: [{
+      id: "codex-title-generation-without-events",
+      title: titlePrompt,
+      last_activity_at: new Date(now - 1_000).toISOString(),
     }],
   }], now);
 

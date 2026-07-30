@@ -35,6 +35,7 @@ private final class IslandController: NSObject, WKNavigationDelegate, WKScriptMe
     private let webView: FirstMouseWebView
     private let scriptMessageRelay: ScriptMessageRelay
     private var screen: NSScreen?
+    private var targetDisplayID: UInt32?
     private var pendingPayload: [String: Any]?
     private var pageReady = false
     private var interactiveBounds: CGRect?
@@ -131,10 +132,20 @@ private final class IslandController: NSObject, WKNavigationDelegate, WKScriptMe
         }
     }
 
-    func show(payload: [String: Any]) {
+    func show(
+        payload: [String: Any],
+        displayID: UInt32? = nil,
+        reposition: Bool = true
+    ) {
         pendingPayload = payload
         guard pageReady else { return }
-        screen = activeScreen()
+        if let displayID {
+            targetDisplayID = displayID
+            screen = screen(for: displayID) ?? activeScreen()
+        } else if reposition || screen == nil {
+            targetDisplayID = nil
+            screen = activeScreen()
+        }
         place(width: panel.frame.width, height: panel.frame.height)
         panel.level = .screenSaver
         panel.orderFrontRegardless()
@@ -201,6 +212,10 @@ private final class IslandController: NSObject, WKNavigationDelegate, WKScriptMe
 
     func clickFirstSessionMascotForVerification() {
         webView.evaluateJavaScript("window.clickFirstSessionMascotForVerification && window.clickFirstSessionMascotForVerification()")
+    }
+
+    func clickPauseMonitoringForVerification() {
+        webView.evaluateJavaScript("window.clickPauseMonitoringForVerification && window.clickPauseMonitoringForVerification()")
     }
 
     func advanceInstallSuccessForVerification() {
@@ -316,7 +331,7 @@ private final class IslandController: NSObject, WKNavigationDelegate, WKScriptMe
 
     private func refreshDisplayPlacement() {
         guard pendingPayload != nil else { return }
-        screen = activeScreen()
+        screen = targetDisplayID.flatMap { self.screen(for: $0) } ?? activeScreen()
         place(width: panel.frame.width, height: panel.frame.height)
 
         guard pageReady, let screen else { return }
@@ -373,6 +388,14 @@ private final class IslandController: NSObject, WKNavigationDelegate, WKScriptMe
             ?? NSScreen.main
             ?? NSScreen.screens[0]
     }
+
+    private func screen(for displayID: UInt32) -> NSScreen? {
+        NSScreen.screens.first { candidate in
+            (candidate.deviceDescription[
+                NSDeviceDescriptionKey("NSScreenNumber")
+            ] as? NSNumber)?.uint32Value == displayID
+        }
+    }
 }
 
 @main
@@ -396,7 +419,11 @@ private struct OpenLeashIslandApplication {
                     switch type {
                     case "show":
                         if let payload = message["payload"] as? [String: Any] {
-                            controller.show(payload: payload)
+                            controller.show(
+                                payload: payload,
+                                displayID: (message["displayId"] as? NSNumber)?.uint32Value,
+                                reposition: (message["reposition"] as? Bool) ?? true
+                            )
                         }
                     case "dismiss":
                         controller.dismiss()
@@ -408,6 +435,8 @@ private struct OpenLeashIslandApplication {
                         controller.openMenuForVerification()
                     case "clickSessionMascot":
                         controller.clickFirstSessionMascotForVerification()
+                    case "clickPauseMonitoring":
+                        controller.clickPauseMonitoringForVerification()
                     case "advanceInstallSuccess":
                         controller.advanceInstallSuccessForVerification()
                     case "clickSocialX":

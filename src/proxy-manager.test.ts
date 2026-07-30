@@ -39,13 +39,35 @@ test("Codex proxy configuration is idempotent and reversible", () => {
   const original = 'model = "gpt-5"\n\n[projects."/tmp"]\ntrust_level = "trusted"\n';
   fs.writeFileSync(file, original);
   configureAgentProxy("codex", true);
+  fs.appendFileSync(
+    file,
+    '\n[features]\nhooks = true\n\n[hooks.state."openleash-test"]\ntrusted_hash = "sha256:test"\n',
+  );
   configureAgentProxy("codex", true);
   const configured = fs.readFileSync(file, "utf8");
   assert.equal((configured.match(/Managed by OpenLeash/g) ?? []).length, 1);
   assert.match(configured, new RegExp(`base_url = "${LOCAL_PROXY_URL.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}/agent/codex/v1"`));
   assert.match(configured, /\[projects\."\/tmp"\]/);
+  assert.match(configured, /\[features\]\nhooks = true/);
+  assert.match(configured, /\[hooks\.state\."openleash-test"\]/);
   configureAgentProxy("codex", false);
   assert.equal(fs.readFileSync(file, "utf8"), original);
+});
+
+test("Codex ChatGPT authentication selects the ChatGPT proxy upstream", () => {
+  const dir = path.join(home, ".codex");
+  const file = path.join(dir, "config.toml");
+  fs.mkdirSync(dir, { recursive: true });
+  fs.writeFileSync(path.join(dir, "auth.json"), '{"auth_mode":"chatgpt"}\n');
+  fs.writeFileSync(file, 'model = "gpt-5"\n');
+  fs.rmSync(`${file}.openleash-proxy-backup`, { force: true });
+  configureAgentProxy("codex", true);
+  const configured = fs.readFileSync(file, "utf8");
+  assert.match(
+    configured,
+    /http_headers = \{ "x-openleash-codex-auth-mode" = "chatgpt" \}/,
+  );
+  configureAgentProxy("codex", false);
 });
 
 test("unsupported agents fail without changing files", () => {

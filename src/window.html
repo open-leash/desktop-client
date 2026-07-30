@@ -3752,11 +3752,11 @@
       }
 
       function installedPlugins() {
-        return (state.plugins || []).filter((plugin) => plugin.organizationPolicy?.mandatory || plugin.settings?.enabled === true);
+        return (state.plugins || []).filter(pluginInstalled);
       }
 
       function availablePlugins() {
-        return (state.plugins || []).filter((plugin) => !plugin.organizationPolicy?.mandatory && plugin.settings?.enabled !== true);
+        return (state.plugins || []).filter((plugin) => !pluginInstalled(plugin));
       }
 
       function pluginInstalled(plugin) {
@@ -3764,7 +3764,6 @@
           plugin?.organizationPolicy?.mandatory ||
           plugin?.installed === true ||
           plugin?.settings?.enabled === true ||
-          plugin?.settings?.installedVersion ||
           [...(plugin?.settings?.inheritedProfiles || []), ...(plugin?.settings?.profiles || [])]
             .some((profile) => profile.enabled === true)
         );
@@ -4402,9 +4401,11 @@
             installed,
             protected: protectedAgent,
             desiredMonitored: typeof detectedAgent?.desiredMonitored === "boolean" ? detectedAgent.desiredMonitored : protectedAgent,
-            detail: installed
-              ? protectedAgent ? "Active" : "Unmonitored"
-              : "Not installed"
+            detail: detectedAgent?.detail || (
+              installed
+                ? protectedAgent ? "Active" : "Unmonitored"
+                : "Not installed"
+            )
           };
         });
         return merged;
@@ -5085,12 +5086,13 @@
               <div class="fieldRow">
                 <div>
                   <strong>Island visibility</strong>
-                  <p>Keep the Island at the top of the screen even when every agent is idle.</p>
+                  <p>Choose when the local Island appears. Notifications always pop up on the display under your mouse.</p>
                 </div>
-                <label class="toggleRow">
-                  <input id="islandActivityOnly" type="checkbox" ${state.islandActivityOnly ? "checked" : ""}>
-                  <span>Show only during agent activity</span>
-                </label>
+                <select id="islandVisibility">
+                  <option value="always" ${(state.islandVisibility || (state.islandActivityOnly ? "activity" : "always")) === "always" ? "selected" : ""}>Always visible</option>
+                  <option value="activity" ${(state.islandVisibility || (state.islandActivityOnly ? "activity" : "always")) === "activity" ? "selected" : ""}>During agent activity</option>
+                  <option value="notifications" ${state.islandVisibility === "notifications" ? "selected" : ""}>Notifications only</option>
+                </select>
               </div>
               <div id="settingsMessage" class="notice"></div>
             </div>
@@ -5138,7 +5140,7 @@
           };
         });
         const agentDoneSoundInput = document.getElementById("agentDoneSound");
-        const islandActivityOnlyInput = document.getElementById("islandActivityOnly");
+        const islandVisibilityInput = document.getElementById("islandVisibility");
         agentDoneSoundInput.onchange = async () => {
           const nextAgentDoneSound = agentDoneSoundInput.checked;
           state.agentDoneSound = nextAgentDoneSound;
@@ -5151,33 +5153,40 @@
           state.apiProvider = "openai";
           state.apiKeySet = false;
           state.agentDoneSound = result.agentDoneSound;
+          state.islandVisibility = result.islandVisibility;
           state.islandActivityOnly = result.islandActivityOnly;
           agentDoneSoundInput.checked = state.agentDoneSound;
           document.getElementById("settingsMessage").textContent = "Settings saved.";
         };
-        islandActivityOnlyInput.onchange = async () => {
-          const nextIslandActivityOnly = islandActivityOnlyInput.checked;
-          state.islandActivityOnly = nextIslandActivityOnly;
-          const result = await window.openleash.saveSettings({ islandActivityOnly: nextIslandActivityOnly });
+        islandVisibilityInput.onchange = async () => {
+          const previousIslandVisibility = state.islandVisibility || (state.islandActivityOnly ? "activity" : "always");
+          const nextIslandVisibility = islandVisibilityInput.value;
+          state.islandVisibility = nextIslandVisibility;
+          const result = await window.openleash.saveSettings({ islandVisibility: nextIslandVisibility });
           if (!result?.ok) {
-            state.islandActivityOnly = !nextIslandActivityOnly;
-            islandActivityOnlyInput.checked = state.islandActivityOnly;
+            state.islandVisibility = previousIslandVisibility;
+            islandVisibilityInput.value = previousIslandVisibility;
             return;
           }
+          state.islandVisibility = result.islandVisibility;
           state.islandActivityOnly = result.islandActivityOnly;
-          islandActivityOnlyInput.checked = state.islandActivityOnly;
-          document.getElementById("settingsMessage").textContent = nextIslandActivityOnly
-            ? "The Island will hide while all agents are idle."
-            : "The Island will stay visible.";
+          islandVisibilityInput.value = state.islandVisibility;
+          document.getElementById("settingsMessage").textContent =
+            state.islandVisibility === "notifications"
+              ? "The Island will appear only for notifications or when opened from the tray."
+              : state.islandVisibility === "activity"
+                ? "The Island will hide while all agents are idle."
+                : "The Island will stay visible.";
         };
         document.getElementById("saveSettings").onclick = async () => {
           const agentDoneSound = document.getElementById("agentDoneSound").checked;
-          const islandActivityOnly = document.getElementById("islandActivityOnly").checked;
-          const result = await window.openleash.saveSettings({ agentDoneSound, islandActivityOnly });
+          const islandVisibility = document.getElementById("islandVisibility").value;
+          const result = await window.openleash.saveSettings({ agentDoneSound, islandVisibility });
           if (result?.ok) {
             state.apiProvider = "openai";
             state.apiKeySet = false;
             state.agentDoneSound = result.agentDoneSound;
+            state.islandVisibility = result.islandVisibility;
             state.islandActivityOnly = result.islandActivityOnly;
             document.getElementById("settingsMessage").textContent = "Settings saved.";
           }
@@ -6460,17 +6469,10 @@
       }
 
       function baseEffectivePluginConfig(plugin) {
-        const config = {
+        return {
           ...(plugin.defaultConfig || {}),
           ...(plugin.settings?.config || {})
         };
-        if (plugin.id === "openleash.rules-enforcer" && (!Array.isArray(config.rules) || config.rules.length === 0)) {
-          config.rules = (state.rules || [])
-            .filter((rule) => rule.enabled || rule.locked)
-            .map((rule) => rule.description || rule.natural_language_rule || rule.name)
-            .filter(Boolean);
-        }
-        return config;
       }
 
       function addRulesToPluginDraft(plugin, rules) {
@@ -6579,9 +6581,9 @@
         if (scanRules) {
           scanRules.onclick = async () => {
             status.textContent = "Scanning agent instruction files...";
-            const result = await window.openleash.discoverInstructionRules();
+            const result = await window.openleash.discoverInstructionRules({ chooseProject: true });
             if (!result?.ok) {
-              status.textContent = result?.error || "Could not scan agent instruction files.";
+              status.textContent = result?.canceled ? "" : result?.error || "Could not scan agent instruction files.";
               return;
             }
             const rawCandidates = Array.isArray(result.candidates) && result.candidates.length ? result.candidates : (result.policies || []);
