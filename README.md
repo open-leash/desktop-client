@@ -55,6 +55,7 @@ The proxy complements provider-specific API hooks. The proxy is authoritative fo
 - Asynchronous text-response telemetry when no pre-execution decision is required
 - HTTP streaming, redirects, WebSockets, corporate proxy chaining, and hop-by-hop header sanitation
 - Bounded bodies, concurrency limits, timeouts, and TCP backpressure
+- Exact-session, time-bounded monitoring pauses authorized by `client-api`; unrelated conversations remain fully protected
 
 ---
 

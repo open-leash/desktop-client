@@ -44,6 +44,12 @@ struct Config {
     openai_upstream: String,
     #[arg(
         long,
+        env = "OPENLEASH_CHATGPT_UPSTREAM",
+        default_value = "https://chatgpt.com/backend-api/codex"
+    )]
+    chatgpt_upstream: String,
+    #[arg(
+        long,
         env = "OPENLEASH_VERTEX_UPSTREAM",
         default_value = "https://us-central1-aiplatform.googleapis.com"
     )]
@@ -137,6 +143,8 @@ struct TransformDecision {
     applied_plugin_ids: Vec<String>,
     #[serde(default)]
     runs: Vec<Value>,
+    #[serde(rename = "monitoringPaused", default)]
+    monitoring_paused: bool,
 }
 #[derive(Serialize)]
 struct Health {
@@ -262,8 +270,14 @@ async fn forward(
             .await
             .map_err(|error| (StatusCode::BAD_REQUEST, error.to_string()))?;
         let upstream = websocket_url(
-            upstream_for(&app.config, parts.uri.path(), &Value::Null),
-            &parts.uri.to_string(),
+            upstream_for(
+                &app.config,
+                parts.uri.path(),
+                &Value::Null,
+                &parts.headers,
+                &agent_kind,
+            ),
+            &upstream_request_uri(&parts.uri.to_string(), &parts.headers, &agent_kind),
         );
         let headers = parts.headers.clone();
         return Ok(ws.on_upgrade(move |socket| async move {
@@ -323,6 +337,12 @@ async fn forward(
     let mut transformed = false;
     let mut applied_plugin_ids = Vec::new();
     let mut container_plugin_runs = Vec::new();
+    let mut monitoring_paused = false;
+    let session_id = if intercept {
+        provider_session_id(&value).unwrap_or_else(|| "proxy".to_owned())
+    } else {
+        "proxy".to_owned()
+    };
     let background_control_request =
         intercept && is_background_control_request(&agent_kind, &value);
     // Background control requests (for example Claude's session-title
@@ -343,6 +363,7 @@ async fn forward(
                 }
                 applied_plugin_ids = result.applied_plugin_ids;
                 container_plugin_runs = result.runs;
+                monitoring_paused = result.monitoring_paused;
             }
             Ok(Err(error)) if !app.config.fail_open => {
                 return Err((
@@ -359,52 +380,62 @@ async fn forward(
             }
             Err(_) => {}
         }
-        let evaluation = tokio::time::timeout(
-            Duration::from_secs(app.config.evaluation_timeout_seconds),
-            evaluate(
-                &app,
-                &parts.uri.to_string(),
-                &value,
-                &agent_kind,
-                &applied_plugin_ids,
-                &container_plugin_runs,
-            ),
-        )
-        .await;
-        match evaluation {
-            Ok(Ok(decision)) if decision.decision == "deny" => {
-                return Err((
-                    StatusCode::FORBIDDEN,
-                    "OpenLeash blocked this model request".into(),
-                ))
-            }
-            Ok(Ok(decision)) => {
-                if let Some(prompt) = decision.final_prompt {
-                    if latest_prompt(&value).as_deref() != Some(prompt.as_str()) {
-                        replace_latest_prompt(&mut value, &prompt);
-                        transformed = true;
+        if !monitoring_paused {
+            let evaluation = tokio::time::timeout(
+                Duration::from_secs(app.config.evaluation_timeout_seconds),
+                evaluate(
+                    &app,
+                    &parts.uri.to_string(),
+                    &value,
+                    &agent_kind,
+                    &applied_plugin_ids,
+                    &container_plugin_runs,
+                    background_control_request,
+                ),
+            )
+            .await;
+            match evaluation {
+                Ok(Ok(decision)) if decision.decision == "deny" => {
+                    return Err((
+                        StatusCode::FORBIDDEN,
+                        "OpenLeash blocked this model request".into(),
+                    ))
+                }
+                Ok(Ok(decision)) => {
+                    if let Some(prompt) = decision.final_prompt {
+                        if latest_prompt(&value).as_deref() != Some(prompt.as_str()) {
+                            replace_latest_prompt(&mut value, &prompt);
+                            transformed = true;
+                        }
                     }
                 }
+                Ok(Err(error)) if !app.config.fail_open => {
+                    return Err((
+                        StatusCode::SERVICE_UNAVAILABLE,
+                        format!("OpenLeash backend unavailable: {error}"),
+                    ))
+                }
+                Ok(Err(_)) => {}
+                Err(_) if !app.config.fail_open => {
+                    return Err((
+                        StatusCode::SERVICE_UNAVAILABLE,
+                        "OpenLeash request evaluation timed out".to_owned(),
+                    ))
+                }
+                Err(_) => {}
             }
-            Ok(Err(error)) if !app.config.fail_open => {
-                return Err((
-                    StatusCode::SERVICE_UNAVAILABLE,
-                    format!("OpenLeash backend unavailable: {error}"),
-                ))
-            }
-            Ok(Err(_)) => {}
-            Err(_) if !app.config.fail_open => {
-                return Err((
-                    StatusCode::SERVICE_UNAVAILABLE,
-                    "OpenLeash request evaluation timed out".to_owned(),
-                ))
-            }
-            Err(_) => {}
         }
     }
     drop(request_evaluation_permit);
-    let upstream_base = upstream_for(&app.config, &parts.uri.to_string(), &value);
-    let url = join_upstream_url(upstream_base, &parts.uri.to_string())
+    let upstream_base = upstream_for(
+        &app.config,
+        &parts.uri.to_string(),
+        &value,
+        &parts.headers,
+        &agent_kind,
+    );
+    let upstream_uri = upstream_request_uri(&parts.uri.to_string(), &parts.headers, &agent_kind);
+    let url = join_upstream_url(upstream_base, &upstream_uri)
         .map_err(|error| (StatusCode::BAD_GATEWAY, error))?;
     let mut outbound = app
         .client
@@ -430,6 +461,7 @@ async fn forward(
         .unwrap_or("")
         .to_owned();
     if intercept
+        && !monitoring_paused
         && !background_control_request
         && status.is_success()
         && request_can_produce_tools(&value)
@@ -454,6 +486,7 @@ async fn forward(
                     &agent_kind,
                     tool,
                     &observation.text,
+                    &session_id,
                 ),
             )
             .await;
@@ -497,6 +530,7 @@ async fn forward(
                     &report_content_type,
                     &report_bytes,
                     &report_agent,
+                    &session_id,
                 )
                 .await;
             });
@@ -508,7 +542,8 @@ async fn forward(
     let report_app = app.clone();
     let report_path = parts.uri.to_string();
     let report_agent = agent_kind.clone();
-    let report_agent_response = intercept && !background_control_request;
+    let report_agent_response = intercept && !monitoring_paused && !background_control_request;
+    let report_session = session_id.clone();
     tokio::spawn(async move {
         let mut captured = Vec::new();
         while let Some(chunk) = stream.next().await {
@@ -529,6 +564,7 @@ async fn forward(
                 &content_type,
                 &captured,
                 &report_agent,
+                &report_session,
             )
             .await;
         }
@@ -666,6 +702,7 @@ async fn report_response(
     content_type: &str,
     bytes: &[u8],
     agent_kind: &str,
+    session_id: &str,
 ) -> Result<(), reqwest::Error> {
     let response = response_observation_for_content_type(content_type, bytes);
     if response.text.trim().is_empty() && response.tool.is_none() {
@@ -679,9 +716,10 @@ async fn report_response(
     let occurred_at = chrono::Utc::now().to_rfc3339();
     let envelope = json!({
       "source":"local_proxy", "provider":provider(path, &Value::Null),
+      "correlationId":session_id,
       "request":{"computer":{"hostname":"local-proxy","platform":std::env::consts::OS},
         "agent":{"kind":agent_kind,"displayName":agent_display_name(agent_kind)},
-        "event":{"eventName":event_name,"agentKind":agent_kind,"sessionId":"proxy","prompt":response.text,
+        "event":{"eventName":event_name,"agentKind":agent_kind,"sessionId":session_id,"prompt":response.text,
           "tool":response.tool,"transcript":[{"role":"assistant","content":response.text}],"raw":{"proxyPath":path,"response":true},"occurredAt":occurred_at}}
     });
     app.client
@@ -714,13 +752,15 @@ async fn evaluate_tool_call(
     agent_kind: &str,
     tool: &Value,
     response_text: &str,
+    session_id: &str,
 ) -> Result<Decision, reqwest::Error> {
     let occurred_at = chrono::Utc::now().to_rfc3339();
     let envelope = json!({
       "source":"local_proxy", "provider":provider(path, &Value::Null),
+      "correlationId":session_id,
       "request":{"computer":{"hostname":"local-proxy","platform":std::env::consts::OS},
         "agent":{"kind":agent_kind,"displayName":agent_display_name(agent_kind)},
-        "event":{"eventName":"PreToolUse","agentKind":agent_kind,"sessionId":"proxy","prompt":response_text,
+        "event":{"eventName":"PreToolUse","agentKind":agent_kind,"sessionId":session_id,"prompt":response_text,
           "tool":tool,"transcript":[{"role":"assistant","content":response_text}],"raw":{"proxyPath":path,"response":true,"gated":true},"occurredAt":occurred_at}}
     });
     app.client
@@ -971,6 +1011,7 @@ async fn evaluate(
     agent_kind: &str,
     applied_plugin_ids: &[String],
     container_plugin_runs: &[Value],
+    background_control_request: bool,
 ) -> Result<Decision, reqwest::Error> {
     let prompt = latest_prompt(body).unwrap_or_default();
     let (event_name, tool) = request_event(body);
@@ -987,7 +1028,8 @@ async fn evaluate(
       "request": { "computer": {"hostname":"local-proxy","platform":std::env::consts::OS},
         "agent":{"kind":agent_kind,"displayName":agent_display_name(agent_kind)},
         "event":{"eventName":event_name,"agentKind":agent_kind,"sessionId":session,"prompt":prompt,"tool":tool,"transcript":transcript,
-          "raw":{"proxyPath":path,"containerPluginApplied":applied_plugin_ids,"containerPluginRuns":container_plugin_runs},"occurredAt":occurred_at}}
+          "raw":{"proxyPath":path,"containerPluginApplied":applied_plugin_ids,"containerPluginRuns":container_plugin_runs,
+            "backgroundControl":background_control_request},"occurredAt":occurred_at}}
     });
     app.client
         .post(format!(
@@ -1261,17 +1303,28 @@ fn latest_prompt(body: &Value) -> Option<String> {
 }
 
 fn is_background_control_request(agent_kind: &str, body: &Value) -> bool {
-    if agent_kind != "claude-code" || request_can_produce_tools(body) {
-        return false;
-    }
     let Some(prompt) = latest_prompt(body) else {
         return false;
     };
     let normalized = prompt.to_ascii_lowercase();
-    normalized.contains("<session>")
-        && normalized.contains("</session>")
-        && normalized.contains("write the title in the predominant language of the session")
-        && normalized.contains("ignore the language of the examples above")
+    match agent_kind {
+        "claude-code" => {
+            !request_can_produce_tools(body)
+                && normalized.contains("<session>")
+                && normalized.contains("</session>")
+                && normalized.contains("write the title in the predominant language of the session")
+                && normalized.contains("ignore the language of the examples above")
+        }
+        "codex" => {
+            normalized.contains("you will be presented with a user prompt")
+                && normalized.contains(
+                    "provide a short title for a task that will be created from that prompt",
+                )
+                && normalized.contains("generate a concise ui title")
+                && normalized.contains("fill the structured title field with plain text")
+        }
+        _ => false,
+    }
 }
 
 fn replace_latest_prompt(body: &mut Value, replacement: &str) {
@@ -1336,7 +1389,16 @@ fn provider(path: &str, body: &Value) -> &'static str {
         "openai"
     }
 }
-fn upstream_for<'a>(config: &'a Config, path: &str, body: &Value) -> &'a str {
+fn upstream_for<'a>(
+    config: &'a Config,
+    path: &str,
+    body: &Value,
+    headers: &HeaderMap,
+    agent_kind: &str,
+) -> &'a str {
+    if is_codex_chatgpt_request(headers, agent_kind) {
+        return &config.chatgpt_upstream;
+    }
     if path.contains("aiplatform.googleapis.com")
         || path.contains("/publishers/")
         || path.contains(":rawPredict")
@@ -1349,6 +1411,34 @@ fn upstream_for<'a>(config: &'a Config, path: &str, body: &Value) -> &'a str {
         "openai" | "openai-responses" => &config.openai_upstream,
         _ => &config.upstream,
     }
+}
+
+fn is_codex_chatgpt_request(headers: &HeaderMap, agent_kind: &str) -> bool {
+    let explicitly_marked = headers
+        .get("x-openleash-codex-auth-mode")
+        .and_then(|value| value.to_str().ok())
+        .is_some_and(|value| value.eq_ignore_ascii_case("chatgpt"));
+    if explicitly_marked {
+        return true;
+    }
+    if agent_kind != "codex" {
+        return false;
+    }
+    headers
+        .get("authorization")
+        .and_then(|value| value.to_str().ok())
+        .and_then(|value| value.strip_prefix("Bearer "))
+        .is_some_and(|token| token.starts_with("eyJ") && token.matches('.').count() == 2)
+}
+
+fn upstream_request_uri(request_path_query: &str, headers: &HeaderMap, agent_kind: &str) -> String {
+    if !is_codex_chatgpt_request(headers, agent_kind) {
+        return request_path_query.to_owned();
+    }
+    request_path_query
+        .strip_prefix("/v1/")
+        .map(|suffix| format!("/{suffix}"))
+        .unwrap_or_else(|| request_path_query.to_owned())
 }
 fn copy_headers(
     mut request: reqwest::RequestBuilder,
@@ -1505,6 +1595,21 @@ mod tests {
         assert_eq!(provider_session_id(&value).as_deref(), Some("session-123"));
     }
     #[test]
+    fn transform_response_can_pause_monitoring_for_one_request_session() {
+        let decision: TransformDecision = serde_json::from_value(json!({
+            "requestBody": {"prompt_cache_key": "conversation-1"},
+            "appliedPluginIds": [],
+            "runs": [],
+            "monitoringPaused": true
+        }))
+        .unwrap();
+        assert!(decision.monitoring_paused);
+        assert_eq!(
+            provider_session_id(&decision.request_body).as_deref(),
+            Some("conversation-1"),
+        );
+    }
+    #[test]
     fn normalizes_tool_conversation() {
         let v = json!({"messages":[{"role":"assistant","content":[{"type":"tool_use","name":"Read","input":{"path":"a"}}]},{"role":"user","content":[{"type":"tool_result","content":"ok"}]}]});
         let t = normalized_transcript(&v);
@@ -1542,6 +1647,42 @@ mod tests {
             "https://example.com/v1/messages"
         );
     }
+
+    #[test]
+    fn codex_chatgpt_requests_drop_the_standard_v1_prefix() {
+        let mut headers = HeaderMap::new();
+        headers.insert("x-openleash-codex-auth-mode", "chatgpt".parse().unwrap());
+        assert!(is_codex_chatgpt_request(&headers, "codex"));
+        assert_eq!(
+            upstream_request_uri("/v1/models?client_version=1", &headers, "codex"),
+            "/models?client_version=1",
+        );
+        assert_eq!(
+            upstream_request_uri("/v1/responses", &headers, "codex"),
+            "/responses",
+        );
+        assert_eq!(
+            join_upstream_url(
+                "https://chatgpt.com/backend-api/codex",
+                &upstream_request_uri("/v1/responses", &headers, "codex"),
+            )
+            .unwrap(),
+            "https://chatgpt.com/backend-api/codex/responses",
+        );
+    }
+
+    #[test]
+    fn codex_chatgpt_bearer_tokens_select_the_chatgpt_upstream_without_a_marker() {
+        let mut headers = HeaderMap::new();
+        headers.insert(
+            "authorization",
+            "Bearer eyJheader.payload.signature".parse().unwrap(),
+        );
+        assert!(is_codex_chatgpt_request(&headers, "codex"));
+        assert!(!is_codex_chatgpt_request(&headers, "claude-code"));
+        headers.insert("authorization", "Bearer sk-test".parse().unwrap());
+        assert!(!is_codex_chatgpt_request(&headers, "codex"));
+    }
     #[test]
     fn hop_by_hop_and_connection_headers_are_identified() {
         let mut headers = HeaderMap::new();
@@ -1577,6 +1718,39 @@ mod tests {
             }]
         });
         assert!(is_background_control_request("claude-code", &request));
+        assert!(!is_background_control_request("codex", &request));
+    }
+    #[test]
+    fn recognizes_codex_task_title_generation_as_background_control_traffic() {
+        let request = json!({
+            "tools": [{
+                "type": "function",
+                "name": "read_only_app_lookup"
+            }],
+            "input": [{
+                "type": "message",
+                "role": "user",
+                "content": [{
+                    "type": "input_text",
+                    "text": "You are a helpful assistant. You will be presented with a user prompt, and your job is to provide a short title for a task that will be created from that prompt.\nGenerate a concise UI title (up to 36 characters) for this task.\nFill the structured title field with plain text.\n\nUser prompt:\nSummarize run.py"
+                }]
+            }]
+        });
+        assert!(is_background_control_request("codex", &request));
+        assert!(!is_background_control_request("claude-code", &request));
+    }
+    #[test]
+    fn does_not_hide_an_ordinary_codex_prompt_without_tools() {
+        let request = json!({
+            "input": [{
+                "type": "message",
+                "role": "user",
+                "content": [{
+                    "type": "input_text",
+                    "text": "Summarize run.py in one line"
+                }]
+            }]
+        });
         assert!(!is_background_control_request("codex", &request));
     }
     #[test]
