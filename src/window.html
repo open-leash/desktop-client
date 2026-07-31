@@ -2760,6 +2760,12 @@
         }
       }
 
+      /* plugin-detail-edit-refresh:start */
+      function shouldPreservePluginDetailEditor(currentView, currentTab, editorHasFocus) {
+        return currentView === "plugin-detail" && currentTab === "settings" && editorHasFocus;
+      }
+      /* plugin-detail-edit-refresh:end */
+
       function modeLabel() {
         if (state.clientMode === "cloud") return "OpenLeash Cloud";
         if (state.clientMode === "custom" && isLocalOpenSourceApi(state.remoteApiUrl)) return "Individual Open Source";
@@ -3671,6 +3677,17 @@
       }
 
       function renderView() {
+        const activeElement = document.activeElement;
+        const activePluginEditor = Boolean(
+          activeElement
+          && root.contains(activeElement)
+          && activeElement.closest?.("[data-plugin-detail-setting], [data-plugin-profile]")
+        );
+        if (shouldPreservePluginDetailEditor(view, pluginDetailTab, activePluginEditor)) {
+          const plugin = (state.plugins || []).find((item) => item.id === selectedPluginId);
+          if (plugin) pluginDetailDraftConfigs[plugin.id] = collectPluginDetailConfig(plugin);
+          return;
+        }
         renderNavigation();
         if (view === "rules") {
           selectedPluginId = "openleash.rules-enforcer";
@@ -6562,9 +6579,18 @@
           };
         });
         root.querySelectorAll(`[data-rule-remove="${cssEscape(plugin.id)}"]`).forEach((removeButton) => {
-          removeButton.onclick = () => removeButton.closest(".ruleListRow")?.remove();
+          removeButton.onclick = () => {
+            removeButton.closest(".ruleListRow")?.remove();
+            pluginDetailDraftConfigs[plugin.id] = collectPluginDetailConfig(plugin);
+          };
         });
         autosizeRuleTextareas();
+        const detailSettings = root.querySelector(".pluginDetailSettings");
+        const persistDraft = () => {
+          pluginDetailDraftConfigs[plugin.id] = collectPluginDetailConfig(plugin);
+        };
+        detailSettings?.addEventListener("input", persistDraft);
+        detailSettings?.addEventListener("change", persistDraft);
         if (addRule) {
           addRule.onclick = () => {
             const list = root.querySelector(`[data-rule-list="${cssEscape(plugin.id)}"][data-setting-key="rules"]`);
@@ -6572,7 +6598,12 @@
               list.insertAdjacentHTML("beforeend", ruleEditorRow(plugin.id, "rules", ""));
               const row = list.lastElementChild;
               const removeButton = row?.querySelector("[data-rule-remove]");
-              if (removeButton) removeButton.onclick = () => removeButton.closest(".ruleListRow")?.remove();
+              if (removeButton) {
+                removeButton.onclick = () => {
+                  removeButton.closest(".ruleListRow")?.remove();
+                  persistDraft();
+                };
+              }
               autosizeRuleTextareas(row || root);
               row?.querySelector("textarea")?.focus();
             }
