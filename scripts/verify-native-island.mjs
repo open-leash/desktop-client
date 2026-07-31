@@ -143,6 +143,7 @@ try {
   assert.equal(activity.layout.activityDetailVisible, false, "multi-session activity opened a detail without selection");
   assert.equal(activity.layout.historyButtonVisible, true, "activity island did not offer optional history");
   assert.equal(activity.layout.pauseMonitoringButtonVisible, true, "selected conversation did not offer a temporary monitoring pause");
+  assert.equal(activity.layout.monitoringButtonInsideSessionCard, true, "monitoring pause is not inside the conversation card");
   send({ type: "clickPauseMonitoring" });
   const pauseMonitoring = await waitFor("action");
   assert.equal(pauseMonitoring.action, "session-monitoring", "conversation pause did not use the native island bridge");

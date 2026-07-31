@@ -579,6 +579,43 @@
       .session-live.waiting { color: var(--amber); }
       .session-live.completed { color: var(--green); }
       .session-live.paused { color: var(--amber); }
+      .session-card-controls { display: flex; align-items: center; justify-content: flex-end; gap: 7px; }
+      .session-monitoring-toggle {
+        width: 26px;
+        height: 26px;
+        display: grid;
+        place-items: center;
+        flex: 0 0 26px;
+        padding: 0;
+        border: 1px solid rgba(255,255,255,.11);
+        border-radius: 8px;
+        color: var(--muted);
+        background: rgba(255,255,255,.045);
+        cursor: pointer;
+        transition: color 140ms ease, border-color 140ms ease, background 140ms ease, transform 140ms ease;
+      }
+      .session-monitoring-toggle:hover {
+        border-color: rgba(255,182,74,.38);
+        color: var(--amber);
+        background: rgba(255,182,74,.1);
+        transform: translateY(-1px);
+      }
+      .session-monitoring-toggle.paused {
+        border-color: rgba(255,182,74,.28);
+        color: var(--amber);
+        background: rgba(255,182,74,.08);
+      }
+      .session-monitoring-toggle:focus-visible { outline: 2px solid rgba(88,216,255,.72); outline-offset: 2px; }
+      .session-monitoring-toggle:disabled { cursor: wait; opacity: .55; transform: none; }
+      .session-monitoring-toggle svg {
+        width: 14px;
+        height: 14px;
+        fill: none;
+        stroke: currentColor;
+        stroke-width: 1.8;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+      }
       .contribution-pills { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 7px; }
       .contribution-pill { max-width: 100%; overflow: hidden; padding: 4px 6px; border: 1px solid var(--line); border-radius: 7px; color: var(--soft-ink); background: rgba(255,255,255,.04); font-size: 8.5px; text-overflow: ellipsis; white-space: nowrap; }
       .contribution-pill.info { color: var(--cyan); border-color: rgba(88,216,255,.22); }
@@ -1002,6 +1039,28 @@
       function button(label, className, action) {
         const item = document.createElement("button"); item.className = `action ${className}`; item.textContent = label; item.dataset.action = action; return item;
       }
+      function sessionMonitoringToggle(session) {
+        const paused = Boolean(session.monitoringPausedUntil);
+        const item = document.createElement("button");
+        item.type = "button";
+        item.className = `session-monitoring-toggle${paused ? " paused" : ""}`;
+        item.dataset.action = paused ? "resume-monitoring" : "pause-monitoring";
+        item.title = paused ? "Resume monitoring" : "Pause monitoring for 30 minutes";
+        item.setAttribute("aria-label", item.title);
+        item.innerHTML = paused
+          ? `<svg viewBox="0 0 20 20" aria-hidden="true"><path d="M2.5 10s2.7-5 7.5-5 7.5 5 7.5 5-2.7 5-7.5 5-7.5-5-7.5-5Z"/><circle cx="10" cy="10" r="2.2"/></svg>`
+          : `<svg viewBox="0 0 20 20" aria-hidden="true"><path d="M2.5 10s2.7-5 7.5-5 7.5 5 7.5 5-2.7 5-7.5 5-7.5-5-7.5-5Z"/><circle cx="10" cy="10" r="2.2"/><path d="m3 3 14 14"/></svg>`;
+        item.addEventListener("click", (event) => {
+          event.stopPropagation();
+          const card = item.closest(".session-card");
+          if (card) selectActivitySession(session, card);
+          item.disabled = true;
+          item.title = paused ? "Resuming monitoring…" : "Pausing monitoring…";
+          item.setAttribute("aria-label", item.title);
+          bridge.setSessionMonitoring({ paused: !paused, session });
+        });
+        return item;
+      }
       function reset() {
         clearTimeout(expandTimer);
         installAnimation?.destroy(); installAnimation = undefined; installFireworks.innerHTML = ""; installSuccess.hidden = true; socialFollow.hidden = true;
@@ -1201,8 +1260,9 @@
             : compactProgressFill.getBoundingClientRect().width / compactProgressRect.width * 100,
           capTokenSaving: capMetric.textContent.trim(),
           historyButtonVisible: Boolean(actions.querySelector('[data-action="show-history"]')),
-          pauseMonitoringButtonVisible: Boolean(actions.querySelector('[data-action="pause-monitoring"]')),
-          resumeMonitoringButtonVisible: Boolean(actions.querySelector('[data-action="resume-monitoring"]')),
+          pauseMonitoringButtonVisible: Boolean(sessionList.querySelector('[data-action="pause-monitoring"]')),
+          resumeMonitoringButtonVisible: Boolean(sessionList.querySelector('[data-action="resume-monitoring"]')),
+          monitoringButtonInsideSessionCard: Boolean(sessionList.querySelector('.session-card [data-action="pause-monitoring"], .session-card [data-action="resume-monitoring"]')),
           islandHeight: island.getBoundingClientRect().height,
           islandWidth: island.getBoundingClientRect().width,
           activityCompactWidth: parseFloat(getComputedStyle(island).getPropertyValue("--activity-compact-width")) || 0,
@@ -1221,7 +1281,7 @@
       window.clickSocialXForVerification = () => socialFollow.querySelector('[data-social="x"]')?.click();
       window.clickSocialLinkedInForVerification = () => socialFollow.querySelector('[data-social="linkedin"]')?.click();
       window.clickFirstSessionMascotForVerification = () => sessionList.querySelector(".session-agent-icon")?.click();
-      window.clickPauseMonitoringForVerification = () => actions.querySelector('[data-action="pause-monitoring"]')?.click();
+      window.clickPauseMonitoringForVerification = () => sessionList.querySelector('[data-action="pause-monitoring"]')?.click();
 
       function renderIslandMenu(menu) {
         $("menuProtection").textContent = menu.protection || "Protection status unavailable";
@@ -1359,7 +1419,8 @@
           sessionList.appendChild(idle);
         }
         sessions.forEach((session, index) => {
-          const card = document.createElement("button"); card.type = "button"; card.className = "session-card";
+          const card = document.createElement("div"); card.className = "session-card";
+          card.setAttribute("role", "button"); card.tabIndex = 0;
           const visualState = session.visualState || "processing";
           const icon = animatedAgentIcon(session, "session-agent-icon", visualState);
           icon.title = `Return to ${session.agentName || "agent"} session`;
@@ -1374,8 +1435,15 @@
           renderContributionPills(copy, session.contributions || []);
           const live = document.createElement("span"); live.className = `session-live ${session.monitoringPausedUntil ? "paused" : visualState}`;
           live.textContent = session.monitoringPausedUntil ? "Paused" : visualState === "waiting" ? "Waiting" : visualState === "running" ? "Active" : visualState === "completed" ? "Done" : "Thinking";
-          card.append(icon, copy, live);
+          const controls = document.createElement("span"); controls.className = "session-card-controls";
+          controls.appendChild(live);
+          if (session.canPauseMonitoring) controls.appendChild(sessionMonitoringToggle(session));
+          card.append(icon, copy, controls);
           card.addEventListener("click", () => selectActivitySession(session, card));
+          card.addEventListener("keydown", (event) => {
+            if (event.target !== card || (event.key !== "Enter" && event.key !== " ")) return;
+            event.preventDefault(); selectActivitySession(session, card);
+          });
           sessionList.appendChild(card);
           if (index === 0 && !attention?.id) selectActivitySession(session, card);
         });
@@ -1493,11 +1561,6 @@
         actions.innerHTML = ""; actions.className = "actions";
         actions.append(button("View history", "secondary", "show-history"));
         if (session.canJump) actions.append(button(`Open ${session.agentName}`, "secondary", "jump-session"));
-        if (session.canPauseMonitoring) {
-          const pauseAction = session.monitoringPausedUntil ? "resume-monitoring" : "pause-monitoring";
-          const label = session.monitoringPausedUntil ? "Resume monitoring" : "Pause monitoring · 30 min";
-          actions.append(button(label, session.monitoringPausedUntil ? "primary" : "danger", pauseAction));
-        }
         if (actions.childElementCount === 1) actions.className = "actions single";
         hint.textContent = session.monitoringPausedUntil
           ? `Only this conversation is unmonitored until ${new Date(session.monitoringPausedUntil).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}.`
@@ -1600,16 +1663,6 @@
         }
         if (action === "install-next") {
           renderSocialFollow();
-          return;
-        }
-        if (action === "pause-monitoring" || action === "resume-monitoring") {
-          if (!current.selectedSession) return;
-          actions.querySelectorAll("button").forEach((item) => item.disabled = true);
-          target.textContent = action === "pause-monitoring" ? "Pausing…" : "Resuming…";
-          bridge.setSessionMonitoring({
-            paused: action === "pause-monitoring",
-            session: current.selectedSession,
-          });
           return;
         }
         actions.querySelectorAll("button").forEach((item) => item.disabled = true);
