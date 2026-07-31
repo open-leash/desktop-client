@@ -153,7 +153,7 @@ export function macIdeOpenActions(
   application: (typeof IDE_APPLICATIONS)[number],
   target: AgentSessionFocusTarget,
 ): MacOpenAction[] {
-  const projectPath = normalizedProjectPath(target.projectPath);
+  const projectPath = normalizedMacProjectPath(target.projectPath);
   if (!projectPath) {
     return [{ command: "/usr/bin/open", args: ["-a", application] }];
   }
@@ -396,6 +396,11 @@ function normalizeTty(value: string) {
 function normalizedProjectPath(value?: string) {
   if (!value || !path.isAbsolute(value)) return undefined;
   return path.resolve(value);
+}
+
+function normalizedMacProjectPath(value?: string) {
+  if (!value || !path.posix.isAbsolute(value)) return undefined;
+  return path.posix.normalize(value);
 }
 
 function projectLeaf(value: string) {

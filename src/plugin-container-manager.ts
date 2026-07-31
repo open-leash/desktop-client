@@ -571,10 +571,10 @@ async function pluginContainerReadiness(plugin: PluginCatalogItem): Promise<
   if (result.status !== 0) {
     return {
       ready: false,
-      error: result.stderr.trim() || `container ${name} does not exist`,
+      error: String(result.stderr ?? "").trim() || `container ${name} does not exist`,
     };
   }
-  const [running, health] = result.stdout.trim().split(/\s+/, 2);
+  const [running, health] = String(result.stdout ?? "").trim().split(/\s+/, 2);
   if (running === "true" && (health === "healthy" || health === "none")) {
     return { ready: true };
   }
