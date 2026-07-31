@@ -491,6 +491,12 @@
       .setupSection h2 {
         margin: 0;
       }
+      .setupSectionHead {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 16px;
+      }
       .cardList {
         display: grid;
         gap: 14px;
@@ -3052,8 +3058,11 @@
             ` : ""}
             ${currentId === "plugins" ? `
               <section class="setupSection">
-                <h2>Plugins</h2>
-        <p>Search the OpenLeash plugin catalog and add reviewed plugins that should run on this device. Changes apply when you finish setup.</p>
+                <div class="setupSectionHead">
+                  <h2>Plugins</h2>
+                  ${isDevelopmentDesktopRenderer() ? `<button type="button" class="secondary" id="addAllDevelopmentPlugins">Add all plugins</button>` : ""}
+                </div>
+                <p>Search the OpenLeash plugin catalog and add reviewed plugins that should run on this device. Changes apply when you finish setup.</p>
                 ${setupPluginInstallCards()}
               </section>
             ` : ""}
@@ -3124,6 +3133,7 @@
         bindRuleSelection();
         bindPluginExpansion();
         bindPluginSelection();
+        bindDevelopmentPluginSelection();
         bindPluginMarketplaceSearch();
         bindPluginSettingInputs();
         bindAudienceSelection();
@@ -5633,6 +5643,21 @@
           .replace(/\b\w/g, (char) => char.toUpperCase());
       }
 
+      /* development-plugin-selection:start */
+      function isDevelopmentDesktopRenderer(pathname = window.location.pathname) {
+        const normalized = decodeURIComponent(String(pathname || "")).replace(/\\/g, "/");
+        return normalized.includes("/apps/desktop-client/.dev/")
+          || normalized.endsWith("/apps/desktop-client/dist/window.html");
+      }
+
+      function developmentPluginSelectionIds(plugins) {
+        return (plugins || [])
+          .filter((plugin) => plugin?.settings?.runtimeAvailable !== false)
+          .map((plugin) => plugin.id)
+          .filter(Boolean);
+      }
+      /* development-plugin-selection:end */
+
       function bindPluginSelection() {
         root.querySelectorAll("[data-plugin-install]").forEach((input) => {
           const label = input.closest("label");
@@ -5644,6 +5669,18 @@
           };
           input.onchange = () => setPluginSelected(input, input.checked, true);
         });
+      }
+
+      function bindDevelopmentPluginSelection() {
+        const button = document.getElementById("addAllDevelopmentPlugins");
+        if (!button || !isDevelopmentDesktopRenderer()) return;
+        button.onclick = () => {
+          selectedPlugins = new Set(developmentPluginSelectionIds(state.plugins));
+          for (const plugin of state.plugins || []) {
+            ensurePluginSetupConfig(plugin.id).enabled = selectedPlugins.has(plugin.id);
+          }
+          renderSetup();
+        };
       }
 
       function setPluginSelected(input, checked, flash = false) {
