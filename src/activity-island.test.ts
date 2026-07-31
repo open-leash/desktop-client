@@ -3,6 +3,7 @@ import test from "node:test";
 import type { PluginIslandContribution } from "@openleash/shared";
 import {
   activeAgentSessions,
+  activityIslandPresentationSummary,
   activityIslandKey,
   ambientIslandContributions,
   applyCompletedAgentSessions,
@@ -54,6 +55,25 @@ test("supports always-on, activity-only, and notification-only Island visibility
     hasVisibleActivity: false,
     manualReveal: true,
   }), true);
+});
+
+test("passive token savings do not masquerade as a plugin update", () => {
+  assert.deepEqual(activityIslandPresentationSummary({
+    sessionCount: 0,
+    activeSessionCount: 0,
+    pluginUpdateCount: 0,
+  }), {
+    title: "OpenLeash",
+    project: "Watching your agents",
+  });
+  assert.deepEqual(activityIslandPresentationSummary({
+    sessionCount: 0,
+    activeSessionCount: 0,
+    pluginUpdateCount: 1,
+  }), {
+    title: "1 plugin update",
+    project: "Plugin activity",
+  });
 });
 
 test("shows compact Islands on every display but activates only the pointer display", () => {

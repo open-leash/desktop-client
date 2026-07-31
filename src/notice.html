@@ -256,8 +256,8 @@
         font-weight: 900;
         line-height: 1;
       }
-      .agent-avatar.idle .agent-avatar-orbit { opacity: .48; animation-duration: 7s; }
-      .agent-avatar.idle .agent-avatar-core { opacity: .78; animation: agent-breathe 2.8s ease-in-out infinite; }
+      .agent-avatar.idle .agent-avatar-orbit { display: none; animation: none; }
+      .agent-avatar.idle .agent-avatar-core { opacity: .78; animation: none; }
       @keyframes agent-orbit { to { transform: rotate(360deg); } }
       @keyframes agent-walk { 50% { transform: translateY(-1.5px) rotate(-4deg); } }
       @keyframes agent-breathe { 50% { opacity: .5; transform: scale(.86); } }
@@ -1180,6 +1180,13 @@
           animatedAgentCount: document.querySelectorAll(".agent-avatar-orbit").length,
           mascotCount: document.querySelectorAll(".agent-mascot").length,
           mascotStates: [...document.querySelectorAll(".agent-avatar[data-visual-state]")].map((item) => item.dataset.visualState),
+          idleAnimatedPartCount: document.querySelectorAll(".agent-avatar.idle .agent-avatar-orbit, .agent-avatar.idle .agent-avatar-core").length
+            ? [...document.querySelectorAll(".agent-avatar.idle .agent-avatar-orbit, .agent-avatar.idle .agent-avatar-core")]
+                .filter((item) => {
+                  const style = getComputedStyle(item);
+                  return style.display !== "none" && style.animationName !== "none";
+                }).length
+            : 0,
           sessionMascotJumpCount: document.querySelectorAll('.session-agent-icon[title^="Return to"]').length,
           animationsPaused: document.body.classList.contains("animations-paused"),
           contributionCount: document.querySelectorAll(".island-contribution, .contribution-pill").length,

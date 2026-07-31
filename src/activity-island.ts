@@ -85,6 +85,50 @@ export function shouldPresentActivityIsland(input: {
   return input.visibility === "always" || input.hasVisibleActivity;
 }
 
+export function activityIslandPresentationSummary(input: {
+  sessionCount: number;
+  activeSessionCount: number;
+  pluginUpdateCount: number;
+  pendingCount?: number;
+  pendingAgentName?: string;
+}) {
+  const pendingCount = Math.max(0, input.pendingCount ?? 0);
+  if (pendingCount > 0) {
+    return {
+      title: `${pendingCount} approval${pendingCount === 1 ? "" : "s"} waiting`,
+      project: `${input.pendingAgentName || "Agent"} needs your attention`,
+    };
+  }
+  if (input.sessionCount === 0 && input.pluginUpdateCount === 0) {
+    return { title: "OpenLeash", project: "Watching your agents" };
+  }
+  if (input.sessionCount === 0) {
+    return {
+      title: `${input.pluginUpdateCount} plugin update${input.pluginUpdateCount === 1 ? "" : "s"}`,
+      project: "Plugin activity",
+    };
+  }
+  if (input.activeSessionCount === 0) {
+    return {
+      title: input.sessionCount === 1
+        ? "Agent finished"
+        : `${input.sessionCount} recent sessions`,
+      project: `${input.sessionCount} recent session${input.sessionCount === 1 ? "" : "s"}`,
+    };
+  }
+  const completedSessionCount = input.sessionCount - input.activeSessionCount;
+  return {
+    title: completedSessionCount > 0
+      ? `${input.activeSessionCount} working · ${completedSessionCount} done`
+      : input.sessionCount === 1
+        ? "Agent working"
+        : `${input.sessionCount} agents working`,
+    project: completedSessionCount > 0
+      ? `${input.activeSessionCount} active · ${completedSessionCount} recent`
+      : `${input.sessionCount} active session${input.sessionCount === 1 ? "" : "s"}`,
+  };
+}
+
 export function islandDisplayTargets(
   displayIds: number[],
   activeDisplayId: number,

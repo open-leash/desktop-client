@@ -65,6 +65,7 @@ import {
 import { pendingIntentKey as stablePendingIntentKey } from "./intent-dedupe";
 import {
   activeAgentSessions,
+  activityIslandPresentationSummary,
   activityIslandKey,
   ambientIslandContributions,
   applyCompletedAgentSessions,
@@ -5967,33 +5968,19 @@ function formatNotice(notice: DecisionNotice) {
         : undefined
     );
     const activeSessionCount = notice.sessions.filter((session) => session.visualState !== "completed").length;
-    const completedSessionCount = notice.sessions.length - activeSessionCount;
+    const presentation = activityIslandPresentationSummary({
+      sessionCount: notice.sessions.length,
+      activeSessionCount,
+      pluginUpdateCount: ambient.length,
+      pendingCount: notice.pending ? latestPending.length : 0,
+      pendingAgentName: notice.pending?.agent_name,
+    });
     return {
       kind: "activity",
       agentName: "OpenLeash",
       agentIcon: noticeAgentIconFor("OpenLeash"),
-      title: notice.pending
-        ? `${latestPending.length} approval${latestPending.length === 1 ? "" : "s"} waiting`
-        : notice.sessions.length === 0 && notice.contributions.length === 0
-          ? "OpenLeash"
-        : notice.sessions.length === 0
-          ? `${notice.contributions.length} plugin update${notice.contributions.length === 1 ? "" : "s"}`
-        : activeSessionCount === 0
-          ? notice.sessions.length === 1 ? "Agent finished" : `${notice.sessions.length} recent sessions`
-        : completedSessionCount > 0
-          ? `${activeSessionCount} working · ${completedSessionCount} done`
-        : notice.sessions.length === 1 ? "Agent working" : `${notice.sessions.length} agents working`,
-      project: notice.pending
-        ? `${notice.pending.agent_name} needs your attention`
-        : notice.sessions.length === 0 && notice.contributions.length === 0
-          ? "Watching your agents"
-        : notice.sessions.length === 0
-        ? "Plugin activity"
-        : activeSessionCount === 0
-          ? `${notice.sessions.length} recent session${notice.sessions.length === 1 ? "" : "s"}`
-        : completedSessionCount > 0
-          ? `${activeSessionCount} active · ${completedSessionCount} recent`
-          : `${notice.sessions.length} active session${notice.sessions.length === 1 ? "" : "s"}`,
+      title: presentation.title,
+      project: presentation.project,
       autoExpand: notice.autoExpand ?? Boolean(notice.pending),
       sessions: rankedSessions.map((session) => ({
         ...session,

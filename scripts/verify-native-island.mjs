@@ -298,8 +298,9 @@ try {
   assert.equal(idle.visible, true, "always-on idle island disappeared");
   assert.equal(idle.layout.sessionCount, 0, "idle island rendered a fake active session");
   assert.equal(idle.layout.expanded, false, "idle island remained expanded after the agent finished");
-  assert.equal(idle.layout.notchAgentCount, 1, "idle island did not keep its animated OpenLeash glyph");
-  assert.equal(idle.layout.capAgentCount, 1, "plain idle island did not keep its animated OpenLeash glyph");
+  assert.equal(idle.layout.notchAgentCount, 1, "idle island did not keep its OpenLeash glyph");
+  assert.equal(idle.layout.capAgentCount, 1, "plain idle island did not keep its OpenLeash glyph");
+  assert.equal(idle.layout.idleAnimatedPartCount, 0, "idle OpenLeash glyph still looks like an active agent");
 
   const approvalPayload = {
     kind: "activity",
