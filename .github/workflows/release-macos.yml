@@ -1,0 +1,128 @@
+name: Release macOS desktop
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  macos-arm64:
+    runs-on: macos-14
+    steps:
+      - name: Checkout desktop client
+        uses: actions/checkout@v7
+        with:
+          path: apps/desktop-client
+
+      - name: Checkout shared contracts
+        uses: actions/checkout@v7
+        with:
+          repository: open-leash/shared
+          ref: b039732fd7298d69b50978e03151338083706f82
+          path: packages/shared
+
+      - name: Checkout public release tooling
+        uses: actions/checkout@v7
+        with:
+          repository: open-leash/openleash
+          ref: v0.36.49
+          path: platform
+
+      - name: Setup Node
+        uses: actions/setup-node@v7
+        with:
+          node-version: "22"
+
+      - name: Require production signing and notarization credentials
+        shell: bash
+        env:
+          CSC_LINK: ${{ secrets.MAC_CSC_LINK }}
+          CSC_KEY_PASSWORD: ${{ secrets.MAC_CSC_KEY_PASSWORD }}
+          APPLE_API_KEY: ${{ secrets.APPLE_API_KEY }}
+          APPLE_API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
+          APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
+        run: |
+          set -euo pipefail
+          for name in CSC_LINK CSC_KEY_PASSWORD APPLE_API_KEY APPLE_API_KEY_ID APPLE_API_ISSUER; do
+            if [[ -z "${!name:-}" ]]; then
+              echo "Required release credential $name is not configured." >&2
+              exit 1
+            fi
+          done
+
+      - name: Create release workspace
+        shell: bash
+        run: |
+          set -euo pipefail
+          printf '%s\n' '{"private":true,"workspaces":["packages/*","apps/*"]}' > package.json
+          cp platform/scripts/install-openleash-personal.sh apps/desktop-client/scripts/install-openleash-personal.sh
+          npm install
+
+      - name: Verify tag matches package version
+        if: startsWith(github.ref, 'refs/tags/')
+        shell: bash
+        run: |
+          set -euo pipefail
+          package_version=$(node -p "require('./apps/desktop-client/package.json').version")
+          test "v$package_version" = "${{ github.ref_name }}"
+
+      - name: Test and build
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm run build -w @openleash/shared
+          npm run typecheck -w @openleash/desktop-client
+          npm run test -w @openleash/desktop-client
+          npm run build -w @openleash/desktop-client
+
+      - name: Build, sign, and notarize DMG
+        working-directory: apps/desktop-client
+        shell: bash
+        env:
+          CSC_LINK: ${{ secrets.MAC_CSC_LINK }}
+          CSC_KEY_PASSWORD: ${{ secrets.MAC_CSC_KEY_PASSWORD }}
+          APPLE_API_KEY: ${{ secrets.APPLE_API_KEY }}
+          APPLE_API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
+          APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
+        run: |
+          set -euo pipefail
+          npx electron-rebuild -v 40.10.6 -w better-sqlite3 --force
+          npx electron-builder --config electron-builder.mac.yml --mac --arm64 --publish never
+
+      - name: Verify signature, notarization ticket, and Gatekeeper
+        working-directory: apps/desktop-client
+        shell: bash
+        run: |
+          set -euo pipefail
+          app_path=$(find release/macos -type d -name 'OpenLeash.app' -print -quit)
+          test -n "$app_path"
+          codesign --verify --deep --strict --verbose=2 "$app_path"
+          xcrun stapler validate "$app_path"
+          spctl --assess --type execute --verbose=2 "$app_path"
+
+      - name: Create checksums
+        working-directory: apps/desktop-client/release/macos
+        shell: bash
+        run: shasum -a 256 OpenLeash-*.dmg *.blockmap > SHA256SUMS-MACOS
+
+      - name: Upload workflow artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: OpenLeash-macOS-arm64-${{ github.ref_name }}
+          path: |
+            apps/desktop-client/release/macos/*.dmg
+            apps/desktop-client/release/macos/*.blockmap
+            apps/desktop-client/release/macos/latest-mac.yml
+            apps/desktop-client/release/macos/SHA256SUMS-MACOS
+
+      - name: Attach immutable assets to GitHub release
+        if: startsWith(github.ref, 'refs/tags/')
+        working-directory: apps/desktop-client
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release upload "${{ github.ref_name }}" release/macos/*.dmg release/macos/*.blockmap release/macos/latest-mac.yml release/macos/SHA256SUMS-MACOS --clobber=false
