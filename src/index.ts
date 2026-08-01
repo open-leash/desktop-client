@@ -337,7 +337,9 @@ export const FIRST_PARTY_PLUGIN_MANIFESTS = [
     version: "1.0.2",
     publisher: "openleash",
     runtime: "container",
-    execution: firstPartyEventContainer("skill-scanner", "1.0.2"),
+    execution: firstPartyEventContainer("skill-scanner", "1.0.2", {
+      digest: "sha256:746f546c26ba5c0ecacbf559f231186f65b8133de1cd5ae4bb0a4c2e6ad740af",
+    }),
     entrypoint: "container",
     events: ["openleash.startup", "agent.detected", "skill.detected", "skill.changed"],
     permissions: ["event:read", "filesystem:read", "decision:write", "model:invoke", "audit:write", "log:write", "signal:write", "notification:send"],
@@ -358,7 +360,9 @@ export const FIRST_PARTY_PLUGIN_MANIFESTS = [
     version: "1.0.0",
     publisher: "openleash",
     runtime: "container",
-    execution: firstPartyEventContainer("data-leakage-prevention", "1.0.0"),
+    execution: firstPartyEventContainer("data-leakage-prevention", "1.0.0", {
+      digest: "sha256:df368f0dec7df9022e5f8204730e44660ae8eb56f733a49afd528f8911e25dbe",
+    }),
     entrypoint: "container",
     events: ["prompt.beforeSubmit"],
     permissions: ["event:read", "prompt:read", "prompt:write", "decision:write", "model:invoke", "audit:write", "signal:write"],
@@ -393,7 +397,9 @@ export const FIRST_PARTY_PLUGIN_MANIFESTS = [
     version: "1.0.0",
     publisher: "openleash",
     runtime: "container",
-    execution: firstPartyEventContainer("sensitive-access", "1.0.0"),
+    execution: firstPartyEventContainer("sensitive-access", "1.0.0", {
+      digest: "sha256:ca0b01b5f001a624733a0e1417625225806b1f02b73249babf064e24241e75ce",
+    }),
     entrypoint: "container",
     events: ["prompt.beforeSubmit", "agent.response", "tool.beforeUse", "tool.afterUse"],
     permissions: ["event:read", "prompt:read", "tool:read", "model:invoke", "decision:write", "audit:write", "log:write", "signal:write"],
@@ -426,7 +432,9 @@ export const FIRST_PARTY_PLUGIN_MANIFESTS = [
     version: "1.0.2",
     publisher: "openleash",
     runtime: "container",
-    execution: firstPartyEventContainer("blast-radius", "1.0.2"),
+    execution: firstPartyEventContainer("blast-radius", "1.0.2", {
+      digest: "sha256:edc8cc0d9755a8dfbb25a0805c6a2c9fdb0d12bc56514c15f3663428fb54de1f",
+    }),
     entrypoint: "container",
     events: ["prompt.beforeSubmit", "tool.beforeUse"],
     permissions: ["event:read", "prompt:read", "tool:read", "decision:write", "audit:write", "log:write", "signal:write", "island:publish"],
@@ -459,7 +467,9 @@ export const FIRST_PARTY_PLUGIN_MANIFESTS = [
     version: "1.0.0",
     publisher: "openleash",
     runtime: "container",
-    execution: firstPartyEventContainer("rules-enforcer", "1.0.0"),
+    execution: firstPartyEventContainer("rules-enforcer", "1.0.0", {
+      digest: "sha256:b39fc2580e02d46b20672341278080b57c40e9e8869136c01cb10c98ade9f7f1",
+    }),
     entrypoint: "container",
     events: ["prompt.beforeSubmit", "agent.response", "tool.beforeUse", "tool.afterUse"],
     permissions: ["event:read", "prompt:read", "tool:read", "decision:write", "model:invoke", "audit:write", "log:write", "signal:write", "usage:write", "notification:send"],
@@ -498,7 +508,9 @@ export const FIRST_PARTY_PLUGIN_MANIFESTS = [
     version: "1.0.0",
     publisher: "openleash",
     runtime: "container",
-    execution: firstPartyEventContainer("mcp-scanner", "1.0.0"),
+    execution: firstPartyEventContainer("mcp-scanner", "1.0.0", {
+      digest: "sha256:34d1568441f4b1ba5b5a067cb6ef2c85a8879eaa9581c3f4fac9271ff3200a27",
+    }),
     entrypoint: "container",
     events: ["tool.beforeUse", "tool.afterUse"],
     permissions: ["event:read", "tool:read", "audit:write", "signal:write"],
@@ -520,6 +532,7 @@ export const FIRST_PARTY_PLUGIN_MANIFESTS = [
     publisher: "openleash",
     runtime: "container",
     execution: firstPartyEventContainer("siem-exporter", "1.0.0", {
+      digest: "sha256:7d41e5ca00d06ec65e75d9db3f8060ee875c2959afcea1537dc514a424048ba4",
       failureMode: "open",
     }),
     entrypoint: "container",
