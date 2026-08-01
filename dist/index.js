@@ -53,7 +53,7 @@ export const FIRST_PARTY_PLUGIN_MANIFESTS = [
             storage: { persistent: true, volumeName: "openleash-token-saver-data" }
         },
         entrypoint: "container",
-        events: ["provider.request.beforeSend", "plugin.tool.execute", "prompt.beforeSubmit"],
+        events: ["provider.request.beforeSend", "plugin.tool.execute"],
         permissions: ["event:read", "prompt:read", "prompt:write", "provider-request:read", "provider-request:write", "local-model:run", "audit:write", "log:write", "usage:write", "island:publish"],
         effects: ["transform", "observe"],
         ordering: { priority: 100, before: ["openleash.dlp"] },
@@ -468,6 +468,7 @@ export const OPENLEASH_API_CONTRACTS = {
     clientNotifications: "2026-06-28.client-notifications.v1",
     clientEvents: "2026-07-27.client-events.v1",
     clientDecisionResolve: "2026-06-28.client-decision-resolve.v1",
+    sessionMonitoring: "2026-07-29.session-monitoring.v1",
     organizationsRead: "2026-05-16.organizations-read.v1",
     organizationsWrite: "2026-05-16.organizations-write.v1",
     organizationSsoProviders: "2026-05-16.organization-sso-providers.v1",

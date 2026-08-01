@@ -26,13 +26,16 @@ export type PluginContainerExecution = {
         memoryMb?: number;
         cpuShares?: number;
     };
-    isolation?: "shared-trusted" | "tenant-dedicated" | "customer-hosted";
+    /**
+     * shared-trusted is reserved for reviewed images that keep no tenant state in-process.
+     * user-dedicated binds one workload and its storage identity to one authenticated user.
+     */
+    isolation?: "shared-trusted" | "user-dedicated" | "tenant-dedicated" | "customer-hosted";
     storage?: {
         persistent: boolean;
         volumeName?: string;
     };
 };
-export declare function firstPartyEventContainer(slug: string, version: string, options?: Partial<PluginContainerExecution>): PluginContainerExecution;
 export type PluginOrdering = {
     before?: string[];
     after?: string[];
@@ -141,6 +144,7 @@ export type PluginSettingState = {
     updatePolicy?: "manual" | "patch" | "minor" | "locked";
     updatedAt?: string;
 };
+export declare function firstPartyEventContainer(slug: string, version: string, options?: Partial<PluginContainerExecution>): PluginContainerExecution;
 export declare const FIRST_PARTY_PLUGIN_MANIFESTS: ({
     id: string;
     slug: string;
@@ -174,7 +178,7 @@ export declare const FIRST_PARTY_PLUGIN_MANIFESTS: ({
         };
     };
     entrypoint: string;
-    events: ("prompt.beforeSubmit" | "provider.request.beforeSend" | "plugin.tool.execute")[];
+    events: ("provider.request.beforeSend" | "plugin.tool.execute")[];
     permissions: ("event:read" | "prompt:read" | "prompt:write" | "provider-request:read" | "provider-request:write" | "local-model:run" | "audit:write" | "log:write" | "usage:write" | "island:publish")[];
     effects: ("observe" | "transform")[];
     ordering: {
@@ -1650,6 +1654,7 @@ export declare const OPENLEASH_API_CONTRACTS: {
     readonly clientNotifications: "2026-06-28.client-notifications.v1";
     readonly clientEvents: "2026-07-27.client-events.v1";
     readonly clientDecisionResolve: "2026-06-28.client-decision-resolve.v1";
+    readonly sessionMonitoring: "2026-07-29.session-monitoring.v1";
     readonly organizationsRead: "2026-05-16.organizations-read.v1";
     readonly organizationsWrite: "2026-05-16.organizations-write.v1";
     readonly organizationSsoProviders: "2026-05-16.organization-sso-providers.v1";
@@ -1662,8 +1667,8 @@ export declare const OPENLEASH_API_CONTRACTS: {
 export type OpenLeashApiFunction = keyof typeof OPENLEASH_API_CONTRACTS;
 export declare function apiVersionHeaders(functionName: OpenLeashApiFunction): Record<string, string>;
 export declare function apiContractFor(functionName: OpenLeashApiFunction): {
-    functionName: "health" | "tenantEnroll" | "tenantEvaluate" | "tenantHookEvaluate" | "tenantDecisionPoll" | "tenantDecisionResolve" | "tenantTrayStatus" | "tenantSkillObservation" | "tenantPluginsRead" | "desktopEnroll" | "adminOverview" | "adminSecurity" | "adminOutcomes" | "adminMcpServers" | "adminMcpServerDetail" | "adminSkills" | "adminPluginsRead" | "adminPluginsWrite" | "adminLogs" | "adminLogDetail" | "adminTriggers" | "adminTriggerDetail" | "adminEventDetail" | "adminExternalAgents" | "adminExternalAgentsSync" | "adminProviderUsageRead" | "adminProviderUsageWrite" | "adminProviderUsageSync" | "adminOnboardingRead" | "adminOnboardingWrite" | "adminIdentityRead" | "adminUsersWrite" | "adminDeploymentTokensRead" | "adminDeploymentTokensWrite" | "adminPoliciesRead" | "adminPoliciesWrite" | "adminPromptTransformsRead" | "adminPromptTransformsWrite" | "authSession" | "authAccountOutcomes" | "authLogout" | "authSsoAuthorize" | "authSsoCallback" | "authGoogleCallback" | "mobileBootstrap" | "mobileAuthStart" | "mobileAuthExchange" | "mobileModelKey" | "mobileDeviceRegister" | "mobileState" | "mobileDecisionResolve" | "clientNotifications" | "clientEvents" | "clientDecisionResolve" | "organizationsRead" | "organizationsWrite" | "organizationSsoProviders" | "clientUpdateCheck" | "clientUpdateLatest" | "clientReleasePublish" | "localEvaluate" | "localHookEvaluate";
-    version: "2026-05-16.health.v1" | "2026-05-16.tenant-enroll.v1" | "2026-05-16.tenant-evaluate.v1" | "2026-05-22.tenant-hook-evaluate.v1" | "2026-05-16.tenant-decision-poll.v1" | "2026-05-16.tenant-decision-resolve.v1" | "2026-05-16.tenant-tray-status.v1" | "2026-05-27.tenant-skill-observation.v1" | "2026-06-20.tenant-plugins-read.v1" | "2026-06-03.desktop-enroll.v1" | "2026-05-16.admin-overview.v1" | "2026-06-22.admin-security.v1" | "2026-06-24.admin-outcomes.v1" | "2026-05-27.admin-mcp-servers.v1" | "2026-05-27.admin-mcp-server-detail.v1" | "2026-05-27.admin-skills.v1" | "2026-06-20.admin-plugins-read.v1" | "2026-06-20.admin-plugins-write.v1" | "2026-06-03.admin-logs.v1" | "2026-06-03.admin-log-detail.v1" | "2026-05-16.admin-triggers.v1" | "2026-05-16.admin-trigger-detail.v1" | "2026-05-16.admin-event-detail.v1" | "2026-05-16.admin-external-agents.v1" | "2026-05-16.admin-external-agents-sync.v1" | "2026-06-09.admin-provider-usage-read.v1" | "2026-06-09.admin-provider-usage-write.v1" | "2026-06-09.admin-provider-usage-sync.v1" | "2026-05-16.admin-onboarding-read.v1" | "2026-05-16.admin-onboarding-write.v1" | "2026-05-16.admin-identity-read.v1" | "2026-05-16.admin-users-write.v1" | "2026-05-16.admin-deployment-tokens-read.v1" | "2026-05-16.admin-deployment-tokens-write.v1" | "2026-05-16.admin-policies-read.v1" | "2026-05-16.admin-policies-write.v1" | "2026-06-06.admin-prompt-transforms-read.v1" | "2026-06-06.admin-prompt-transforms-write.v1" | "2026-05-16.auth-session.v1" | "2026-06-24.auth-account-outcomes.v1" | "2026-05-16.auth-logout.v1" | "2026-05-16.auth-sso-authorize.v1" | "2026-05-16.auth-sso-callback.v1" | "2026-05-24.auth-google-callback.v1" | "2026-05-22.mobile-bootstrap.v1" | "2026-05-22.mobile-auth-start.v1" | "2026-05-22.mobile-auth-exchange.v1" | "2026-05-23.mobile-model-key.v1" | "2026-05-22.mobile-device-register.v1" | "2026-05-22.mobile-state.v1" | "2026-05-22.mobile-decision-resolve.v1" | "2026-06-28.client-notifications.v1" | "2026-07-27.client-events.v1" | "2026-06-28.client-decision-resolve.v1" | "2026-05-16.organizations-read.v1" | "2026-05-16.organizations-write.v1" | "2026-05-16.organization-sso-providers.v1" | "2026-05-16.client-update-check.v1" | "2026-05-16.client-update-latest.v1" | "2026-05-16.client-release-publish.v1" | "2026-05-16.local-evaluate.v1" | "2026-05-22.local-hook-evaluate.v1";
+    functionName: "health" | "tenantEnroll" | "tenantEvaluate" | "tenantHookEvaluate" | "tenantDecisionPoll" | "tenantDecisionResolve" | "tenantTrayStatus" | "tenantSkillObservation" | "tenantPluginsRead" | "desktopEnroll" | "adminOverview" | "adminSecurity" | "adminOutcomes" | "adminMcpServers" | "adminMcpServerDetail" | "adminSkills" | "adminPluginsRead" | "adminPluginsWrite" | "adminLogs" | "adminLogDetail" | "adminTriggers" | "adminTriggerDetail" | "adminEventDetail" | "adminExternalAgents" | "adminExternalAgentsSync" | "adminProviderUsageRead" | "adminProviderUsageWrite" | "adminProviderUsageSync" | "adminOnboardingRead" | "adminOnboardingWrite" | "adminIdentityRead" | "adminUsersWrite" | "adminDeploymentTokensRead" | "adminDeploymentTokensWrite" | "adminPoliciesRead" | "adminPoliciesWrite" | "adminPromptTransformsRead" | "adminPromptTransformsWrite" | "authSession" | "authAccountOutcomes" | "authLogout" | "authSsoAuthorize" | "authSsoCallback" | "authGoogleCallback" | "mobileBootstrap" | "mobileAuthStart" | "mobileAuthExchange" | "mobileModelKey" | "mobileDeviceRegister" | "mobileState" | "mobileDecisionResolve" | "clientNotifications" | "clientEvents" | "clientDecisionResolve" | "sessionMonitoring" | "organizationsRead" | "organizationsWrite" | "organizationSsoProviders" | "clientUpdateCheck" | "clientUpdateLatest" | "clientReleasePublish" | "localEvaluate" | "localHookEvaluate";
+    version: "2026-05-16.health.v1" | "2026-05-16.tenant-enroll.v1" | "2026-05-16.tenant-evaluate.v1" | "2026-05-22.tenant-hook-evaluate.v1" | "2026-05-16.tenant-decision-poll.v1" | "2026-05-16.tenant-decision-resolve.v1" | "2026-05-16.tenant-tray-status.v1" | "2026-05-27.tenant-skill-observation.v1" | "2026-06-20.tenant-plugins-read.v1" | "2026-06-03.desktop-enroll.v1" | "2026-05-16.admin-overview.v1" | "2026-06-22.admin-security.v1" | "2026-06-24.admin-outcomes.v1" | "2026-05-27.admin-mcp-servers.v1" | "2026-05-27.admin-mcp-server-detail.v1" | "2026-05-27.admin-skills.v1" | "2026-06-20.admin-plugins-read.v1" | "2026-06-20.admin-plugins-write.v1" | "2026-06-03.admin-logs.v1" | "2026-06-03.admin-log-detail.v1" | "2026-05-16.admin-triggers.v1" | "2026-05-16.admin-trigger-detail.v1" | "2026-05-16.admin-event-detail.v1" | "2026-05-16.admin-external-agents.v1" | "2026-05-16.admin-external-agents-sync.v1" | "2026-06-09.admin-provider-usage-read.v1" | "2026-06-09.admin-provider-usage-write.v1" | "2026-06-09.admin-provider-usage-sync.v1" | "2026-05-16.admin-onboarding-read.v1" | "2026-05-16.admin-onboarding-write.v1" | "2026-05-16.admin-identity-read.v1" | "2026-05-16.admin-users-write.v1" | "2026-05-16.admin-deployment-tokens-read.v1" | "2026-05-16.admin-deployment-tokens-write.v1" | "2026-05-16.admin-policies-read.v1" | "2026-05-16.admin-policies-write.v1" | "2026-06-06.admin-prompt-transforms-read.v1" | "2026-06-06.admin-prompt-transforms-write.v1" | "2026-05-16.auth-session.v1" | "2026-06-24.auth-account-outcomes.v1" | "2026-05-16.auth-logout.v1" | "2026-05-16.auth-sso-authorize.v1" | "2026-05-16.auth-sso-callback.v1" | "2026-05-24.auth-google-callback.v1" | "2026-05-22.mobile-bootstrap.v1" | "2026-05-22.mobile-auth-start.v1" | "2026-05-22.mobile-auth-exchange.v1" | "2026-05-23.mobile-model-key.v1" | "2026-05-22.mobile-device-register.v1" | "2026-05-22.mobile-state.v1" | "2026-05-22.mobile-decision-resolve.v1" | "2026-06-28.client-notifications.v1" | "2026-07-27.client-events.v1" | "2026-06-28.client-decision-resolve.v1" | "2026-07-29.session-monitoring.v1" | "2026-05-16.organizations-read.v1" | "2026-05-16.organizations-write.v1" | "2026-05-16.organization-sso-providers.v1" | "2026-05-16.client-update-check.v1" | "2026-05-16.client-update-latest.v1" | "2026-05-16.client-release-publish.v1" | "2026-05-16.local-evaluate.v1" | "2026-05-22.local-hook-evaluate.v1";
 };
 export type OpenLeashEdition = "managed-cloud" | "managed-self-hosted";
 export type OpenLeashClientMode = "community" | "cloud" | "enterprise";

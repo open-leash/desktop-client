@@ -107,44 +107,20 @@ export type PluginContainerExecution = {
     memoryMb?: number;
     cpuShares?: number;
   };
-  isolation?: "shared-trusted" | "tenant-dedicated" | "customer-hosted";
+  /**
+   * shared-trusted is reserved for reviewed images that keep no tenant state in-process.
+   * user-dedicated binds one workload and its storage identity to one authenticated user.
+   */
+  isolation?:
+    | "shared-trusted"
+    | "user-dedicated"
+    | "tenant-dedicated"
+    | "customer-hosted";
   storage?: {
     persistent: boolean;
     volumeName?: string;
   };
 };
-
-export function firstPartyEventContainer(
-  slug: string,
-  version: string,
-  options: Partial<PluginContainerExecution> = {},
-): PluginContainerExecution {
-  const edgePorts: Record<string, number> = {
-    "blast-radius": 9351,
-    "sensitive-access": 9352,
-    "data-leakage-prevention": 9353,
-    "rules-enforcer": 9354,
-    "mcp-scanner": 9355,
-    "code-scanner": 9356,
-    "skill-scanner": 9357,
-    "siem-exporter": 9358,
-  };
-  return {
-    type: "container",
-    placement: "either",
-    protocol: "openleash-container-plugin.v1",
-    image: `ghcr.io/open-leash/plugin-${slug}:${version}`,
-    healthPath: "/healthz",
-    eventPath: "/v1/events",
-    edgePort: edgePorts[slug],
-    timeoutMs: 30_000,
-    failureMode: "closed",
-    isolation: "shared-trusted",
-    resources: { memoryMb: 256, cpuShares: 256 },
-    storage: { persistent: true },
-    ...options,
-  };
-}
 
 export type PluginOrdering = {
   before?: string[];
@@ -263,6 +239,38 @@ export type PluginSettingState = {
   updatedAt?: string;
 };
 
+export function firstPartyEventContainer(
+  slug: string,
+  version: string,
+  options: Partial<PluginContainerExecution> = {},
+): PluginContainerExecution {
+  const edgePorts: Record<string, number> = {
+    "blast-radius": 9351,
+    "sensitive-access": 9352,
+    "data-leakage-prevention": 9353,
+    "rules-enforcer": 9354,
+    "mcp-scanner": 9355,
+    "code-scanner": 9356,
+    "skill-scanner": 9357,
+    "siem-exporter": 9358,
+  };
+  return {
+    type: "container",
+    placement: "either",
+    protocol: "openleash-container-plugin.v1",
+    image: `ghcr.io/open-leash/plugin-${slug}:${version}`,
+    healthPath: "/healthz",
+    eventPath: "/v1/events",
+    edgePort: edgePorts[slug],
+    timeoutMs: 30_000,
+    failureMode: "closed",
+    isolation: "shared-trusted",
+    resources: { memoryMb: 256, cpuShares: 256 },
+    storage: { persistent: true },
+    ...options,
+  };
+}
+
 export const FIRST_PARTY_PLUGIN_MANIFESTS = [
   {
     id: "openleash.prompt-compression",
@@ -291,7 +299,7 @@ export const FIRST_PARTY_PLUGIN_MANIFESTS = [
       storage: { persistent: true, volumeName: "openleash-token-saver-data" }
     },
     entrypoint: "container",
-    events: ["provider.request.beforeSend", "plugin.tool.execute", "prompt.beforeSubmit"],
+    events: ["provider.request.beforeSend", "plugin.tool.execute"],
     permissions: ["event:read", "prompt:read", "prompt:write", "provider-request:read", "provider-request:write", "local-model:run", "audit:write", "log:write", "usage:write", "island:publish"],
     effects: ["transform", "observe"],
     ordering: { priority: 100, before: ["openleash.dlp"] },
@@ -1543,6 +1551,7 @@ export const OPENLEASH_API_CONTRACTS = {
   clientNotifications: "2026-06-28.client-notifications.v1",
   clientEvents: "2026-07-27.client-events.v1",
   clientDecisionResolve: "2026-06-28.client-decision-resolve.v1",
+  sessionMonitoring: "2026-07-29.session-monitoring.v1",
   organizationsRead: "2026-05-16.organizations-read.v1",
   organizationsWrite: "2026-05-16.organizations-write.v1",
   organizationSsoProviders: "2026-05-16.organization-sso-providers.v1",
