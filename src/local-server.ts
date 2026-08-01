@@ -1272,7 +1272,8 @@ export class LocalOpenLeashServer {
     const remoteToken = devToken && /^https?:\/\/(127\.0\.0\.1|localhost)(?::\d+)?\/?$/i.test(configuredRemoteApiUrl ?? "")
       ? devToken
       : this.settingValue("remoteToken");
-    const policies = migrateDefaultPolicies(this.readPolicies());
+    const storedPolicies = this.readPolicies();
+    const policies = migrateDefaultPolicies(storedPolicies);
     const store = {
       token,
       setupComplete: this.getSetting("setupComplete") === "true",
@@ -1295,7 +1296,11 @@ export class LocalOpenLeashServer {
       policies: enforceLockedPolicies(policies.length > 0 ? policies : defaultPolicies()),
       history: this.readHistory()
     };
-    if (this.getSetting("token") !== token || (devToken && this.getSetting("remoteToken") !== remoteToken) || policies.length === 0) {
+    if (
+      this.getSetting("token") !== token ||
+      (devToken && this.getSetting("remoteToken") !== remoteToken) ||
+      policies.length !== storedPolicies.length
+    ) {
       this.store = store;
       this.writeStore();
     }
@@ -2496,38 +2501,20 @@ function sessionMetrics(sessions: Array<{ last_activity_at: string; duration_sec
 }
 
 function defaultPolicies(): Policy[] {
-  return [
-    { id: "filesystem-destruction", name: "Filesystem destruction", category: "Local destruction", description: "Pause before recursive deletion of /, the current directory, the workspace, or project directories.", enabled: true },
-    { id: "database-destruction", name: "Database destructive changes", category: "Database safety", description: "Pause before DROP DATABASE, DROP TABLE, TRUNCATE TABLE, or unfiltered DELETE statements.", enabled: true },
-    { id: "database-mass-update", name: "Database mass update", category: "Database safety", description: "Pause before UPDATE statements that appear to modify whole tables without a WHERE clause.", enabled: true },
-    { id: "cloud-resource-deletion", name: "Cloud resource deletion", category: "Cloud infrastructure", description: "Pause before deleting S3 buckets, GCP projects, Kubernetes namespaces, VMs, DNS zones, stacks, or similar cloud resources.", enabled: true },
-    { id: "infra-destruction", name: "Terraform and Kubernetes destruction", category: "Cloud infrastructure", description: "Pause before terraform destroy, kubectl delete namespace, helm uninstall, or equivalent destructive infrastructure operations.", enabled: true },
-    { id: "git-publish", name: "Git commit or push", category: "Source control", description: "Pause before agents commit or push code without explicit approval.", enabled: true },
-    { id: "protected-branch-push", name: "Protected branch push", category: "Source control", description: "Pause before direct pushes to main, master, trunk, production, or release branches.", enabled: true },
-    { id: "git-history-rewrite", name: "Git history rewrite or cleanup", category: "Source control", description: "Pause before force-push, git reset --hard, git clean -fdx, rebase rewrites, or similar destructive source-control actions.", enabled: true },
-    { id: "committing-secrets", name: "Committing secrets", category: "Secrets and credentials", description: "Pause before committing staged content that appears to contain .env values, private keys, access tokens, API keys, or cloud credentials.", enabled: true },
-    { id: "supply-chain-change", name: "Dependency or lockfile changes", category: "Supply chain", description: "Pause before installing dependencies, upgrading packages, or changing lockfiles and package manifests.", enabled: true },
-    { id: "global-package-install", name: "Global package install", category: "Supply chain", description: "Pause before installing packages globally with npm, pnpm, yarn, pip, gem, cargo, or similar package managers.", enabled: true },
-    { id: "credentials", name: "Secrets and credentials access", category: "Secrets and credentials", description: "Pause before agents read, create, copy, print, or expose .env files, SSH keys, cloud credentials, API tokens, cookies, kubeconfig, npm tokens, and password stores.", enabled: true },
-    { id: "exfiltration", name: "External data sharing", category: "Network and sharing", description: "Pause before uploading files, calling unknown external URLs, sending logs to third parties, or exfiltrating source code or secrets.", enabled: true },
-    { id: "personal-data", name: "Personal data use", category: "Secrets and credentials", description: "Pause before agents process personal, customer, employee, passport, SSN, or credit card data.", enabled: true }
-  ];
+  return [];
 }
 
-function migrateDefaultPolicies(existing: Policy[]) {
-  if (existing.length === 0) return existing;
-  const deprecatedDefaultIds = new Set(["destructive", "git-repo", "package-install"]);
-  const custom = existing.filter((policy) => !deprecatedDefaultIds.has(policy.id));
-  const existingById = new Map(custom.map((policy) => [policy.id, policy]));
-  const defaults = defaultPolicies().map((policy) => ({
-    ...policy,
-    enabled: existingById.get(policy.id)?.enabled ?? policy.enabled
-  }));
-  const defaultIds = new Set(defaults.map((policy) => policy.id));
-  return [
-    ...defaults,
-    ...custom.filter((policy) => !defaultIds.has(policy.id))
-  ];
+const generatedDefaultPolicyIds = new Set([
+  "destructive", "git-repo", "package-install",
+  "filesystem-destruction", "database-destruction", "database-mass-update",
+  "cloud-resource-deletion", "infra-destruction", "git-publish",
+  "protected-branch-push", "git-history-rewrite", "committing-secrets",
+  "supply-chain-change", "global-package-install", "credentials",
+  "exfiltration", "personal-data"
+]);
+
+export function migrateDefaultPolicies(existing: Policy[]) {
+  return existing.filter((policy) => !generatedDefaultPolicyIds.has(policy.id));
 }
 
 export function normalizePolicies(input: unknown, existing: Policy[] = defaultPolicies(), replace = false): Policy[] {

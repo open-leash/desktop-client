@@ -7,6 +7,8 @@ import {
   activityIslandKey,
   ambientIslandContributions,
   applyCompletedAgentSessions,
+  mergeRecoveredAgentSessions,
+  recoverSuspendedAgentSessions,
   contributionsForSession,
   islandDisplayTargets,
   mergeImmediateAgentActivity,
@@ -409,6 +411,60 @@ test("keeps a finished turn visible as completed with the assistant response", (
     applyCompletedAgentSessions([{ ...session, lastActivityAt: new Date(completedAt + 1_000).toISOString() }], completions),
     [{ ...session, lastActivityAt: new Date(completedAt + 1_000).toISOString() }],
   );
+});
+
+test("recovers the same live conversation after the computer wakes", () => {
+  const suspendedAt = Date.parse("2026-07-20T10:00:00.000Z");
+  const resumedAt = Date.parse("2026-07-20T10:30:00.000Z");
+  const session = {
+    id: "runtime:codex-session:/code/OpenLeash",
+    sessionId: "codex-session",
+    sourceSessionIds: ["codex-session", "proxy-codex-session"],
+    agentKind: "codex",
+    agentName: "OpenAI Codex",
+    projectPath: "/code/OpenLeash",
+    project: "OpenLeash",
+    title: "Fix island positioning",
+    summary: "Agent is working",
+    latestAction: "Reviewing project files",
+    lastActivityAt: new Date(suspendedAt).toISOString(),
+    durationSeconds: 25,
+    eventCount: 8,
+    events: [],
+    visualState: "processing" as const,
+  };
+
+  const recovered = recoverSuspendedAgentSessions([session], [], resumedAt);
+
+  assert.equal(recovered.length, 1);
+  assert.equal(recovered[0]?.id, session.id);
+  assert.equal(recovered[0]?.sessionId, session.sessionId);
+  assert.equal(recovered[0]?.lastActivityAt, new Date(resumedAt).toISOString());
+  assert.equal(recovered[0]?.visualState, "processing");
+});
+
+test("wake recovery neither duplicates a live session nor revives a completed one", () => {
+  const base = {
+    id: "runtime:codex-session:/code/OpenLeash",
+    sessionId: "codex-session",
+    sourceSessionIds: ["codex-session"],
+    agentKind: "codex",
+    agentName: "OpenAI Codex",
+    project: "OpenLeash",
+    title: "Fix island positioning",
+    summary: "Agent is working",
+    latestAction: "Updating files",
+    lastActivityAt: "2026-07-20T10:00:00.000Z",
+    durationSeconds: 25,
+    eventCount: 8,
+    events: [],
+    visualState: "running" as const,
+  };
+  const current = [{ ...base, id: "remote-view", sourceSessionIds: ["codex-session", "proxy-view"] }];
+  const completed = { ...base, id: "done", sessionId: "done", sourceSessionIds: ["done"], visualState: "completed" as const };
+
+  assert.deepEqual(recoverSuspendedAgentSessions([base, completed], current), []);
+  assert.deepEqual(mergeRecoveredAgentSessions(current, [base]), current);
 });
 
 test("preserves the prompt and marks the live Claude Stop payload completed", () => {

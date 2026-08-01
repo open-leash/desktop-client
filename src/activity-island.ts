@@ -274,6 +274,33 @@ export function applyCompletedAgentSessions(
   });
 }
 
+export function recoverSuspendedAgentSessions(
+  suspended: ActiveAgentSession[],
+  current: ActiveAgentSession[],
+  resumedAt = Date.now(),
+) {
+  const recoveredAt = new Date(resumedAt).toISOString();
+  return suspended
+    .filter((session) => session.visualState !== "completed")
+    .filter((session) => !current.some((candidate) => sameAgentSession(candidate, session)))
+    .map((session) => ({
+      ...session,
+      lastActivityAt: recoveredAt,
+    }));
+}
+
+export function mergeRecoveredAgentSessions(
+  current: ActiveAgentSession[],
+  recovered: ActiveAgentSession[],
+) {
+  return [
+    ...current,
+    ...recovered.filter((session) =>
+      !current.some((candidate) => sameAgentSession(candidate, session))
+    ),
+  ];
+}
+
 export function contributionsForSession(
   contributions: PluginIslandContribution[],
   sessionIds: string | string[],
@@ -327,6 +354,13 @@ function dedupeSessions(sessions: ActiveAgentSession[]) {
 
 function comparableTitle(value: string) {
   return value.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+}
+
+function sameAgentSession(left: ActiveAgentSession, right: ActiveAgentSession) {
+  if (left.agentKind !== right.agentKind) return false;
+  if (left.id === right.id || left.sessionId === right.sessionId) return true;
+  const leftIds = new Set([left.sessionId, ...left.sourceSessionIds]);
+  return [right.sessionId, ...right.sourceSessionIds].some((id) => leftIds.has(id));
 }
 
 function uniqueEvents(events: ActivityIslandEvent[]) {

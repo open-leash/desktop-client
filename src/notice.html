@@ -1141,8 +1141,10 @@
       }
 
       function renderNotice(payload) {
+        const previousKind = currentKind;
         const previousAttention = current?.attention || current;
         const nextAttention = payload?.attention || payload;
+        const nextKind = payload.interaction?.type === "questions" ? "question" : payload.interaction?.type === "plan" ? "plan_review" : payload.interaction?.type === "approval" ? "approval" : payload.kind;
         const sameAttention = Boolean(
           previousAttention?.intentKey &&
           nextAttention?.intentKey &&
@@ -1150,7 +1152,7 @@
         );
         const hasLiveSession = (payload.sessions || []).some((session) => session.visualState !== "completed");
         const preserveExpanded = island.classList.contains("expanded") && (
-          sameAttention || (pointerInsideIsland && (Boolean(payload.attention?.id) || hasLiveSession))
+          sameAttention || (pointerInsideIsland && previousKind === "activity" && nextKind === "activity" && hasLiveSession)
         );
         const draftGuidance = sameAttention
           ? (attentionPanel.querySelector(".attention-guidance")?.value ?? guidance.value)
@@ -1159,7 +1161,7 @@
           ? (attentionPanel.querySelector('input[type="checkbox"]')?.checked ?? remember.checked)
           : false;
         current = payload; reset(); setGlyph(payload);
-        currentKind = payload.interaction?.type === "questions" ? "question" : payload.interaction?.type === "plan" ? "plan_review" : payload.interaction?.type === "approval" ? "approval" : payload.kind;
+        currentKind = nextKind;
         status.className = `signal ${currentKind || "approval"}`;
         eyebrow.textContent = currentKind === "activity"
           ? (payload.agentName || "OpenLeash")

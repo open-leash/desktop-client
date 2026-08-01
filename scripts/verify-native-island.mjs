@@ -93,6 +93,30 @@ try {
   });
   const transparentHit = await waitFor("hitTestResult");
   assert.equal(transparentHit.ignoresMouseEvents, true, "transparent space below the island blocks clicks");
+  const visiblePoint = {
+    x: visibleBounds.x + visibleBounds.width / 2,
+    y: visibleBounds.y + visibleBounds.height / 2,
+  };
+  const transparentPoint = {
+    x: visiblePoint.x,
+    y: Math.min(compact.frame.height - 1, visibleBounds.y + visibleBounds.height + 20),
+  };
+  send({ type: "pointerSequence", active: true, ...transparentPoint });
+  const pointerDown = await waitFor("pointerSequenceResult");
+  assert.equal(pointerDown.ignoresMouseEvents, false, "the island released hit testing during mouse down");
+  send({ type: "hitTest", ...transparentPoint });
+  const draggedOutside = await waitFor("hitTestResult");
+  assert.equal(draggedOutside.ignoresMouseEvents, false, "the island released a click after its bounds changed");
+  send({ type: "pointerSequence", active: false, ...transparentPoint });
+  const pointerUp = await waitFor("pointerSequenceResult");
+  assert.equal(pointerUp.ignoresMouseEvents, false, "the island released hit testing on mouse up");
+  send({ type: "hitTest", ...transparentPoint });
+  const releaseGrace = await waitFor("hitTestResult");
+  assert.equal(releaseGrace.ignoresMouseEvents, false, "the island did not absorb the end of the click sequence");
+  await new Promise((resolve) => setTimeout(resolve, 180));
+  send({ type: "hitTest", ...transparentPoint });
+  const passthroughRestored = await waitFor("hitTestResult");
+  assert.equal(passthroughRestored.ignoresMouseEvents, true, "transparent-space passthrough did not resume after the click");
   if (compact.display.hasNotch) {
     assert.ok(compact.display.safeTop > 0, "notched display did not report a safe top inset");
     assert.ok(compact.layout.contentTop >= compact.display.safeTop, `compact content overlaps notch: ${compact.layout.contentTop} < ${compact.display.safeTop}`);

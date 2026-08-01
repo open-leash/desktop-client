@@ -106,6 +106,8 @@ export async function installLocalProxy(options: {
     throw new Error(
       "OpenLeash backend token is required before installing the proxy.",
     );
+  const agents = options.agents ?? [];
+  for (const agent of agents) configureAgentProxy(agent, false);
   docker(["rm", "-f", CONTAINER_NAME]);
   const args = [
     "run",
@@ -144,14 +146,25 @@ export async function installLocalProxy(options: {
     throw new Error(
       result.stderr.trim() || "Could not start the OpenLeash proxy container.",
     );
-  for (const agent of options.agents ?? []) configureAgentProxy(agent, true);
+  for (const agent of agents) configureAgentProxy(agent, true);
   return waitForHealthyProxy();
 }
 
 export async function uninstallLocalProxy() {
   for (const agent of ["claude-code", "codex", "nanoclaw", "opencode"] as const)
     configureAgentProxy(agent, false);
-  docker(["rm", "-f", CONTAINER_NAME]);
+  const removal = docker(["rm", "-f", CONTAINER_NAME]);
+  const message = `${removal.stderr ?? ""} ${removal.stdout ?? ""}`.trim();
+  const dockerMissing = removal.error && "code" in removal.error && removal.error.code === "ENOENT";
+  if (
+    !dockerMissing &&
+    removal.status !== 0 &&
+    !/no such (?:container|object)/i.test(message)
+  ) {
+    throw new Error(
+      message || "Docker is unavailable, so the OpenLeash proxy container could not be removed.",
+    );
+  }
   return localProxyStatus();
 }
 
@@ -181,7 +194,21 @@ function configureClaude(enabled: boolean) {
 
 function configureClaudeCompatible(file: string, enabled: boolean) {
   const backup = `${file}.openleash-proxy-backup`;
-  if (!enabled) return restoreBackup(file, backup);
+  if (!enabled)
+    return restoreBackupOrClean(file, backup, () => {
+      if (!fs.existsSync(file)) return;
+      const settings = readJson(file);
+      const env = settings.env && typeof settings.env === "object"
+        ? settings.env as Record<string, unknown>
+        : undefined;
+      const kind = file.includes(`${path.sep}.nanoclaw${path.sep}`)
+        ? "nanoclaw"
+        : "claude-code";
+      if (env?.ANTHROPIC_BASE_URL === agentProxyUrl(kind))
+        delete env.ANTHROPIC_BASE_URL;
+      if (env && Object.keys(env).length === 0) delete settings.env;
+      writeJson(file, settings);
+    });
   fs.mkdirSync(path.dirname(file), { recursive: true });
   if (!fs.existsSync(backup))
     fs.writeFileSync(
@@ -203,7 +230,23 @@ function configureClaudeCompatible(file: string, enabled: boolean) {
 function configureOpenCode(enabled: boolean) {
   const file = path.join(os.homedir(), ".config", "opencode", "opencode.json");
   const backup = `${file}.openleash-proxy-backup`;
-  if (!enabled) return restoreBackup(file, backup);
+  if (!enabled)
+    return restoreBackupOrClean(file, backup, () => {
+      if (!fs.existsSync(file)) return;
+      const config = readJson(file);
+      const providers = config.provider && typeof config.provider === "object"
+        ? config.provider as Record<string, unknown>
+        : undefined;
+      removeManagedProviderBaseUrl(
+        providers?.anthropic,
+        agentProxyUrl("opencode"),
+      );
+      removeManagedProviderBaseUrl(
+        providers?.openai,
+        agentProxyUrl("opencode", true),
+      );
+      writeJson(file, config);
+    });
   fs.mkdirSync(path.dirname(file), { recursive: true });
   if (!fs.existsSync(backup)) {
     const original = fs.existsSync(file)
@@ -246,10 +289,24 @@ function mergeProviderBaseUrl(value: unknown, baseURL: string) {
   return { ...provider, options: { ...options, baseURL } };
 }
 
+function removeManagedProviderBaseUrl(value: unknown, expected: string) {
+  if (!value || typeof value !== "object") return;
+  const provider = value as Record<string, unknown>;
+  if (!provider.options || typeof provider.options !== "object") return;
+  const options = provider.options as Record<string, unknown>;
+  if (options.baseURL === expected) delete options.baseURL;
+  if (Object.keys(options).length === 0) delete provider.options;
+}
+
 function configureCodex(enabled: boolean) {
   const file = path.join(os.homedir(), ".codex", "config.toml");
   const backup = `${file}.openleash-proxy-backup`;
-  if (!enabled) return restoreBackup(file, backup);
+  if (!enabled)
+    return restoreBackupOrClean(file, backup, () => {
+      if (!fs.existsSync(file)) return;
+      const clean = stripManagedCodexProxy(fs.readFileSync(file, "utf8"));
+      fs.writeFileSync(file, clean ? `${clean}\n` : "");
+    });
   fs.mkdirSync(path.dirname(file), { recursive: true });
   if (!fs.existsSync(backup))
     fs.writeFileSync(backup, fs.existsSync(file) ? fs.readFileSync(file) : "");
@@ -380,8 +437,15 @@ function parseJsonOrThrow(
 function writeJson(file: string, value: unknown) {
   fs.writeFileSync(file, `${JSON.stringify(value, null, 2)}\n`);
 }
-function restoreBackup(file: string, backup: string) {
-  if (!fs.existsSync(backup)) return;
-  fs.copyFileSync(backup, file);
-  fs.rmSync(backup, { force: true });
+function restoreBackupOrClean(
+  file: string,
+  backup: string,
+  cleanManagedValues: () => void,
+) {
+  if (fs.existsSync(backup)) {
+    fs.copyFileSync(backup, file);
+    fs.rmSync(backup, { force: true });
+    return;
+  }
+  cleanManagedValues();
 }

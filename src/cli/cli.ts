@@ -132,14 +132,14 @@ program
   .option("--all", "install every production-ready hook")
   .action(async (options) => {
     const all = options.all || noHookAgentSelected(options);
-    if (all || options.claude) await installClaudeHooks();
-    if (all || options.codex) await installCodexHooks();
-    if (all || options.copilot) await installCopilotHooks();
-    if (all || options.gemini) await installGeminiHooks();
-    if (all || options.opencode) await installOpenCodeHooks();
-    if (all || options.cursor) await installCursorHooks();
-    if (all || options.openclaw) await installOpenClawHooks();
-    if (all || options.nanoclaw) await installNanoClawHooks();
+    if (all || options.claude) await reinstallHook(uninstallClaudeHooks, installClaudeHooks);
+    if (all || options.codex) await reinstallHook(uninstallCodexHooks, installCodexHooks);
+    if (all || options.copilot) await reinstallHook(uninstallCopilotHooks, installCopilotHooks);
+    if (all || options.gemini) await reinstallHook(uninstallGeminiHooks, installGeminiHooks);
+    if (all || options.opencode) await reinstallHook(uninstallOpenCodeHooks, installOpenCodeHooks);
+    if (all || options.cursor) await reinstallHook(uninstallCursorHooks, installCursorHooks);
+    if (all || options.openclaw) await reinstallHook(uninstallOpenClawHooks, installOpenClawHooks);
+    if (all || options.nanoclaw) await reinstallHook(uninstallNanoClawHooks, installNanoClawHooks);
     console.log("OpenLeash hooks installed.");
   });
 
@@ -292,6 +292,14 @@ program
   });
 
 void program.parseAsync();
+
+async function reinstallHook(
+  uninstall: () => Promise<void>,
+  install: () => Promise<void>,
+) {
+  await uninstall();
+  await install();
+}
 
 function configuredRemoteApiUrl(config: { remoteApiUrl?: string; tenantUrl?: string; apiUrl?: string }) {
   const candidate =

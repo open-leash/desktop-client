@@ -164,6 +164,10 @@ export async function installAgentProtection(
 ) {
   const definition = agentDefinitions.find((agent) => agent.kind === kind);
   if (!definition?.install) return false;
+  // Never preserve an older OpenLeash hook as the user's original config.
+  // Reinstalls always remove our previous integration before writing a fresh
+  // endpoint and token.
+  await definition.uninstall?.();
   await definition.install(context);
   return true;
 }
@@ -173,6 +177,22 @@ export async function uninstallAgentProtection(kind: string) {
   if (!definition?.uninstall) return false;
   await definition.uninstall();
   return true;
+}
+
+export async function uninstallAllAgentProtections() {
+  const failures: string[] = [];
+  for (const definition of agentDefinitions) {
+    if (!definition.uninstall) continue;
+    try {
+      await definition.uninstall();
+    } catch (error) {
+      failures.push(
+        `${definition.displayName}: ${error instanceof Error ? error.message : String(error)}`,
+      );
+    }
+  }
+  if (failures.length > 0)
+    throw new Error(`Could not remove every agent integration. ${failures.join("; ")}`);
 }
 
 export function protectionWatchTargets() {
@@ -606,6 +626,7 @@ function uninstallClaudeCompatibleProtection(
   settingsPath: string,
   agent: "claude" | "nanoclaw",
 ) {
+  if (!fs.existsSync(settingsPath)) return;
   const existing = (readJson(settingsPath) as Record<string, unknown>) ?? {};
   const metadata = openLeashMetadata(existing);
   const backup = metadata[agent];
@@ -613,9 +634,12 @@ function uninstallClaudeCompatibleProtection(
     existing.hooks && typeof existing.hooks === "object"
       ? (existing.hooks as Record<string, unknown>)
       : {};
-  restoreHookEntries(hooks, backup?.hooks);
+  const managedNeedle = `/v1/hooks/${agent}/`;
+  const hadManagedHooks = JSON.stringify(hooks).includes(managedNeedle);
+  restoreHookEntries(hooks, backup?.hooks, managedNeedle);
   existing.hooks = hooks;
-  restoreClaudePermissions(existing, backup?.permissions);
+  if (backup?.permissions) restoreClaudePermissions(existing, backup.permissions);
+  else if (hadManagedHooks) removeManagedClaudePermissions(existing);
   delete metadata[agent];
   if (Object.keys(metadata).length > 0) existing.__openleash = metadata;
   else delete existing.__openleash;
@@ -644,6 +668,7 @@ function snapshotHookEntries(hooks: Record<string, unknown>) {
 function restoreHookEntries(
   hooks: Record<string, unknown>,
   backup?: Record<string, { existed?: boolean; value?: unknown }>,
+  managedNeedle = "OpenLeash",
 ) {
   for (const event of [
     "UserPromptSubmit",
@@ -653,7 +678,8 @@ function restoreHookEntries(
   ]) {
     const item = backup?.[event];
     if (item?.existed) hooks[event] = item.value;
-    else delete hooks[event];
+    else if (JSON.stringify(hooks[event] ?? {}).includes(managedNeedle))
+      delete hooks[event];
   }
 }
 
@@ -708,6 +734,19 @@ function restoreClaudePermissions(
   else delete settings.skipDangerousModePermissionPrompt;
 }
 
+function removeManagedClaudePermissions(settings: Record<string, unknown>) {
+  const permissions =
+    settings.permissions && typeof settings.permissions === "object"
+      ? (settings.permissions as Record<string, unknown>)
+      : undefined;
+  if (permissions?.defaultMode === "bypassPermissions")
+    delete permissions.defaultMode;
+  if (permissions && Object.keys(permissions).length === 0)
+    delete settings.permissions;
+  if (settings.skipDangerousModePermissionPrompt === true)
+    delete settings.skipDangerousModePermissionPrompt;
+}
+
 function hasClaudeCompatibleApprovalHandoff(settings: unknown) {
   if (!settings || typeof settings !== "object") return false;
   const record = settings as {
@@ -733,6 +772,7 @@ function installOpenClawProtection(context: InstallContext) {
 
 function uninstallOpenClawProtection() {
   const hookDir = path.join(os.homedir(), ".openclaw", "hooks", "openleash");
+  if (!fs.existsSync(hookDir)) return;
   spawnSync("openclaw", ["hooks", "disable", "openleash"], { stdio: "ignore" });
   fs.rmSync(hookDir, { recursive: true, force: true });
 }
@@ -740,51 +780,83 @@ function uninstallOpenClawProtection() {
 function installCodexProtection(context: InstallContext) {
   const configPath = path.join(os.homedir(), ".codex", "config.toml");
   const hooksPath = path.join(os.homedir(), ".codex", "hooks.json");
+  const metadataPath = `${hooksPath}.openleash-metadata.json`;
   fs.mkdirSync(path.dirname(configPath), { recursive: true });
+  const originalConfig = readText(configPath);
   fs.writeFileSync(
     configPath,
     enableCodexHooksFeature(
-      enableCodexApprovalHandoff(readText(configPath)),
+      enableCodexApprovalHandoff(originalConfig),
     ),
   );
+  const existing = (readJson(hooksPath) as Record<string, unknown>) ?? {};
+  const hooks = existing.hooks && typeof existing.hooks === "object"
+    ? existing.hooks as Record<string, unknown>
+    : {};
   fs.writeFileSync(
-    hooksPath,
-    `${JSON.stringify(
-      {
-        hooks: {
-          PreToolUse: [codexHookGroup(context, "PreToolUse")],
-          PostToolUse: [codexHookGroup(context, "PostToolUse")],
-          UserPromptSubmit: [codexHookGroup(context, "UserPromptSubmit")],
-          Stop: [codexHookGroup(context, "Stop")],
-        },
-      },
-      null,
-      2,
-    )}\n`,
+    metadataPath,
+    `${JSON.stringify({
+      hooksExisted: Object.prototype.hasOwnProperty.call(existing, "hooks"),
+      events: snapshotNamedHookEntries(hooks, codexHookEvents()),
+      config: snapshotCodexHooksFeature(originalConfig),
+    }, null, 2)}\n`,
   );
+  existing.hooks = {
+    ...hooks,
+    PreToolUse: [codexHookGroup(context, "PreToolUse")],
+    PostToolUse: [codexHookGroup(context, "PostToolUse")],
+    UserPromptSubmit: [codexHookGroup(context, "UserPromptSubmit")],
+    Stop: [codexHookGroup(context, "Stop")],
+  };
+  fs.writeFileSync(hooksPath, `${JSON.stringify(existing, null, 2)}\n`);
   trustCodexHooks(configPath, hooksPath, context.clientVersion);
 }
 
 function uninstallCodexProtection() {
   const configPath = path.join(os.homedir(), ".codex", "config.toml");
   const hooksPath = path.join(os.homedir(), ".codex", "hooks.json");
-  fs.mkdirSync(path.dirname(configPath), { recursive: true });
-  const hooks = readJson(hooksPath) as
-    { hooks?: Record<string, unknown> } | undefined;
+  const metadataPath = `${hooksPath}.openleash-metadata.json`;
+  const configExists = fs.existsSync(configPath);
+  const hooksExist = fs.existsSync(hooksPath);
+  const metadataExists = fs.existsSync(metadataPath);
+  if (!configExists && !hooksExist && !metadataExists) return;
+  const hookDocument = (readJson(hooksPath) as Record<string, unknown>) ?? {};
+  const hooks = hookDocument.hooks && typeof hookDocument.hooks === "object"
+    ? hookDocument.hooks as Record<string, unknown>
+    : {};
+  const metadata = (readJson(metadataPath) as {
+    hooksExisted?: boolean;
+    events?: Record<string, { existed?: boolean; value?: unknown }>;
+    config?: ReturnType<typeof snapshotCodexHooksFeature>;
+  } | undefined);
+  restoreNamedHookEntries(
+    hooks,
+    metadata?.events,
+    codexHookEvents(),
+    "/v1/hooks/codex/",
+  );
+  if (metadata?.hooksExisted || Object.keys(hooks).length > 0)
+    hookDocument.hooks = hooks;
+  else delete hookDocument.hooks;
   const config = removeCodexOpenLeashHookTrust(
     disableCodexApprovalHandoff(readText(configPath)),
     hooksPath,
   );
-  fs.writeFileSync(
-    configPath,
-    disableCodexHooksIfNoManagedHooks(config, hooks ?? {}),
-  );
-  if (
-    hooks?.hooks &&
-    JSON.stringify(hooks.hooks).includes("/v1/hooks/codex/")
-  ) {
-    fs.rmSync(hooksPath, { force: true });
-  }
+  if (configExists)
+    fs.writeFileSync(
+      configPath,
+      metadata?.config
+        ? restoreCodexHooksFeature(config, metadata.config)
+        : disableCodexHooksIfNoManagedHooks(config, hookDocument),
+    );
+  if (Object.keys(hookDocument).length > 0)
+    fs.writeFileSync(hooksPath, `${JSON.stringify(hookDocument, null, 2)}\n`);
+  else fs.rmSync(hooksPath, { force: true });
+  fs.rmSync(metadataPath, { force: true });
+}
+
+function codexHookEvents() {
+  return ["PreToolUse", "PostToolUse", "UserPromptSubmit", "Stop"];
 }
 
 function installGeminiProtection(context: InstallContext) {
@@ -818,6 +890,7 @@ function installGeminiProtection(context: InstallContext) {
 
 function uninstallGeminiProtection() {
   const settingsPath = path.join(os.homedir(), ".gemini", "settings.json");
+  if (!fs.existsSync(settingsPath)) return;
   const existing = (readJson(settingsPath) as Record<string, unknown>) ?? {};
   const metadata = openLeashMetadata(existing);
   const backup = metadata.gemini;
@@ -896,6 +969,7 @@ function installCursorProtection(context: InstallContext) {
 
 function uninstallCursorProtection() {
   const hooksPath = path.join(os.homedir(), ".cursor", "hooks.json");
+  if (!fs.existsSync(hooksPath)) return;
   const existing = (readJson(hooksPath) as Record<string, unknown>) ?? {};
   const metadata = openLeashMetadata(existing);
   const hookKeys = [
@@ -1279,6 +1353,44 @@ function disableCodexHooksIfNoManagedHooks(
       .replace(/\n{3,}/g, "\n\n")
       .trimEnd() + "\n"
   );
+}
+
+function snapshotCodexHooksFeature(config: string) {
+  const lines = config.split(/\r?\n/);
+  const start = lines.findIndex((line) => /^\s*\[features\]\s*$/.test(line));
+  if (start < 0) return { featuresExisted: false, hooksExisted: false };
+  const endOffset = lines.slice(start + 1).findIndex((line) => /^\s*\[/.test(line));
+  const end = endOffset < 0 ? lines.length : start + 1 + endOffset;
+  const hooks = lines.slice(start + 1, end).find((line) =>
+    /^\s*hooks\s*=\s*(?:true|false)\s*$/.test(line)
+  );
+  return {
+    featuresExisted: true,
+    hooksExisted: Boolean(hooks),
+    hooksValue: hooks?.match(/=\s*(true|false)/)?.[1],
+  };
+}
+
+function restoreCodexHooksFeature(
+  config: string,
+  snapshot: ReturnType<typeof snapshotCodexHooksFeature>,
+) {
+  let restored = config;
+  if (snapshot.hooksExisted) {
+    restored = restored.replace(
+      /(^\s*\[features\]\s*\n(?:[^\[]*\n)*?)^\s*hooks\s*=\s*(?:true|false)\s*$/m,
+      (_match, prefix: string) => `${prefix}hooks = ${snapshot.hooksValue}`,
+    );
+  } else {
+    restored = restored.replace(
+      /(^\s*\[features\]\s*\n(?:[^\[]*\n)*?)^\s*hooks\s*=\s*(?:true|false)\s*\n?/m,
+      "$1",
+    );
+  }
+  if (!snapshot.featuresExisted) {
+    restored = restored.replace(/\n?^\s*\[features\]\s*\n(?=\s*(?:\[|$))/m, "\n");
+  }
+  return restored.replace(/\n{3,}/g, "\n\n").trimEnd() + "\n";
 }
 
 function stripCodexHandoff(config: string) {

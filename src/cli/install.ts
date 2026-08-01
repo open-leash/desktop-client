@@ -108,14 +108,17 @@ async function installClaudeCompatibleHooks(settingsPath: string, agent: "claude
 }
 
 async function uninstallClaudeCompatibleHooks(settingsPath: string, agent: "claude" | "nanoclaw") {
-  await fs.mkdir(path.dirname(settingsPath), { recursive: true });
+  if (!(await fileExists(settingsPath))) return;
   const existing = await readJsonObject(settingsPath);
   const metadata = openLeashMetadata(existing);
   const backup = metadata[agent];
   const hooks = existing.hooks && typeof existing.hooks === "object" ? existing.hooks as Record<string, unknown> : {};
-  restoreHookEntries(hooks, backup?.hooks);
+  const managedNeedle = `/v1/hooks/${agent}/`;
+  const hadManagedHooks = JSON.stringify(hooks).includes(managedNeedle);
+  restoreHookEntries(hooks, backup?.hooks, managedNeedle);
   existing.hooks = hooks;
-  restoreClaudePermissions(existing, backup?.permissions);
+  if (backup?.permissions) restoreClaudePermissions(existing, backup.permissions);
+  else if (hadManagedHooks) removeManagedClaudePermissions(existing);
   delete metadata[agent];
   if (Object.keys(metadata).length > 0) existing.__openleash = metadata;
   else delete existing.__openleash;
@@ -130,18 +133,21 @@ export async function installOpenClawHooks() {
 }
 
 export async function uninstallOpenClawHooks() {
+  if (!(await fileExists(openClawOpenLeashHookDir))) return;
   spawnSync("openclaw", ["hooks", "disable", "openleash"], { stdio: "ignore" });
   await fs.rm(openClawOpenLeashHookDir, { recursive: true, force: true });
 }
 
 export async function installCodexHooks() {
   await fs.mkdir(path.dirname(codexConfigPath), { recursive: true });
+  const metadataPath = `${codexHooksPath}.openleash-metadata.json`;
   let config = "";
   try {
     config = await fs.readFile(codexConfigPath, "utf8");
   } catch {
     config = "";
   }
+  const originalConfig = config;
   config = enableCodexHooksFeature(enableCodexApprovalHandoff(config));
   if (!/^\s*hooks\s*=\s*true\s*$/m.test(config)) {
     if (/^\s*\[features\]\s*$/m.test(config)) {
@@ -151,34 +157,64 @@ export async function installCodexHooks() {
     }
   }
   await fs.writeFile(codexConfigPath, config);
-  await fs.writeFile(
-    codexHooksPath,
-    `${JSON.stringify(
-      {
-        hooks: {
-          PreToolUse: [await codexHookGroup("PreToolUse")],
-          PostToolUse: [await codexHookGroup("PostToolUse")],
-          UserPromptSubmit: [await codexHookGroup("UserPromptSubmit")],
-          Stop: [await codexHookGroup("Stop")]
-        }
-      },
-      null,
-      2
-    )}\n`
-  );
+  const existing = await readJsonObject(codexHooksPath);
+  const hooks = existing.hooks && typeof existing.hooks === "object"
+    ? existing.hooks as Record<string, unknown>
+    : {};
+  await fs.writeFile(metadataPath, `${JSON.stringify({
+    hooksExisted: Object.prototype.hasOwnProperty.call(existing, "hooks"),
+    events: snapshotNamedHookEntries(hooks, codexHookEvents()),
+    config: snapshotCodexHooksFeature(originalConfig),
+  }, null, 2)}\n`);
+  existing.hooks = {
+    ...hooks,
+    PreToolUse: [await codexHookGroup("PreToolUse")],
+    PostToolUse: [await codexHookGroup("PostToolUse")],
+    UserPromptSubmit: [await codexHookGroup("UserPromptSubmit")],
+    Stop: [await codexHookGroup("Stop")]
+  };
+  await fs.writeFile(codexHooksPath, `${JSON.stringify(existing, null, 2)}\n`);
   await trustCodexHooks();
 }
 
 export async function uninstallCodexHooks() {
-  await fs.mkdir(path.dirname(codexConfigPath), { recursive: true });
+  const metadataPath = `${codexHooksPath}.openleash-metadata.json`;
+  const configExists = await fileExists(codexConfigPath);
+  const hooksExist = await fileExists(codexHooksPath);
+  const metadataExists = await fileExists(metadataPath);
+  if (!configExists && !hooksExist && !metadataExists) return;
   const config = await fs.readFile(codexConfigPath, "utf8").catch(() => "");
-  const hooks = await readJsonObject(codexHooksPath);
-  const hadOpenLeashHooks = Boolean(hooks.hooks && JSON.stringify(hooks.hooks).includes("/v1/hooks/codex/"));
-  const nextConfig = disableCodexHooksIfNoManagedHooks(removeCodexOpenLeashHookTrust(disableCodexApprovalHandoff(config)), hooks);
-  await fs.writeFile(codexConfigPath, nextConfig);
-  if (hadOpenLeashHooks) {
-    await fs.rm(codexHooksPath, { force: true });
-  }
+  const hookDocument = await readJsonObject(codexHooksPath);
+  const hooks = hookDocument.hooks && typeof hookDocument.hooks === "object"
+    ? hookDocument.hooks as Record<string, unknown>
+    : {};
+  const metadata = await readJsonObject(metadataPath) as {
+    hooksExisted?: boolean;
+    events?: Record<string, { existed?: boolean; value?: unknown }>;
+    config?: ReturnType<typeof snapshotCodexHooksFeature>;
+  };
+  restoreNamedHookEntries(hooks, metadata.events, codexHookEvents(), "/v1/hooks/codex/");
+  if (metadata.hooksExisted || Object.keys(hooks).length > 0) hookDocument.hooks = hooks;
+  else delete hookDocument.hooks;
+  const nextConfig = disableCodexHooksIfNoManagedHooks(
+    removeCodexOpenLeashHookTrust(disableCodexApprovalHandoff(config)),
+    hookDocument,
+  );
+  if (configExists) await fs.writeFile(
+    codexConfigPath,
+    metadata.config ? restoreCodexHooksFeature(
+      removeCodexOpenLeashHookTrust(disableCodexApprovalHandoff(config)),
+      metadata.config,
+    ) : nextConfig,
+  );
+  if (Object.keys(hookDocument).length > 0)
+    await fs.writeFile(codexHooksPath, `${JSON.stringify(hookDocument, null, 2)}\n`);
+  else await fs.rm(codexHooksPath, { force: true });
+  await fs.rm(metadataPath, { force: true });
+}
+
+function codexHookEvents() {
+  return ["PreToolUse", "PostToolUse", "UserPromptSubmit", "Stop"];
 }
 
 export async function installCopilotHooks() {
@@ -211,7 +247,7 @@ export async function installGeminiHooks() {
 }
 
 export async function uninstallGeminiHooks() {
-  await fs.mkdir(path.dirname(geminiSettingsPath), { recursive: true });
+  if (!(await fileExists(geminiSettingsPath))) return;
   const existing = await readJsonObject(geminiSettingsPath);
   const metadata = openLeashMetadata(existing);
   const hooks = existing.hooks && typeof existing.hooks === "object" ? existing.hooks as Record<string, unknown> : {};
@@ -245,7 +281,7 @@ export async function installCursorHooks() {
 }
 
 export async function uninstallCursorHooks() {
-  await fs.mkdir(path.dirname(cursorHooksPath), { recursive: true });
+  if (!(await fileExists(cursorHooksPath))) return;
   const existing = await readJsonObject(cursorHooksPath);
   const metadata = openLeashMetadata(existing);
   restoreNamedHookEntries(existing, metadata.cursor?.hooks, cursorHookKeys(), "/v1/hooks/cursor/");
@@ -272,6 +308,10 @@ async function readJsonObject(file: string): Promise<Record<string, unknown>> {
   }
 }
 
+async function fileExists(file: string) {
+  return fs.access(file).then(() => true, () => false);
+}
+
 function openLeashMetadata(settings: Record<string, unknown>) {
   const existing = settings.__openleash;
   return existing && typeof existing === "object" ? existing as Record<string, any> : {};
@@ -284,11 +324,15 @@ function snapshotHookEntries(hooks: Record<string, unknown>) {
   }]));
 }
 
-function restoreHookEntries(hooks: Record<string, unknown>, backup?: Record<string, { existed?: boolean; value?: unknown }>) {
+function restoreHookEntries(
+  hooks: Record<string, unknown>,
+  backup: Record<string, { existed?: boolean; value?: unknown }> | undefined,
+  managedNeedle: string,
+) {
   for (const event of ["UserPromptSubmit", "PreToolUse", "PostToolUse", "Stop"]) {
     const item = backup?.[event];
     if (item?.existed) hooks[event] = item.value;
-    else delete hooks[event];
+    else if (JSON.stringify(hooks[event] ?? {}).includes(managedNeedle)) delete hooks[event];
   }
 }
 
@@ -339,6 +383,15 @@ function restoreClaudePermissions(settings: Record<string, unknown>, backup?: Re
   else delete settings.permissions;
   if (backup.skipPromptExisted) settings.skipDangerousModePermissionPrompt = backup.skipPrompt;
   else delete settings.skipDangerousModePermissionPrompt;
+}
+
+function removeManagedClaudePermissions(settings: Record<string, unknown>) {
+  const permissions = settings.permissions && typeof settings.permissions === "object"
+    ? settings.permissions as Record<string, unknown>
+    : undefined;
+  if (permissions?.defaultMode === "bypassPermissions") delete permissions.defaultMode;
+  if (permissions && Object.keys(permissions).length === 0) delete settings.permissions;
+  if (settings.skipDangerousModePermissionPrompt === true) delete settings.skipDangerousModePermissionPrompt;
 }
 
 async function codexHookGroup(event: HookEventName) {
@@ -576,6 +629,41 @@ function disableCodexHooksIfNoManagedHooks(config: string, hooks: Record<string,
     .replace(/(^\s*\[features\]\s*\n(?:[^\[]*\n)*?)^\s*hooks\s*=\s*true\s*$/m, (_match, prefix: string) => `${prefix}hooks = false`)
     .replace(/\n{3,}/g, "\n\n")
     .trimEnd() + "\n";
+}
+
+function snapshotCodexHooksFeature(config: string) {
+  const lines = config.split(/\r?\n/);
+  const start = lines.findIndex((line) => /^\s*\[features\]\s*$/.test(line));
+  if (start < 0) return { featuresExisted: false, hooksExisted: false };
+  const endOffset = lines.slice(start + 1).findIndex((line) => /^\s*\[/.test(line));
+  const end = endOffset < 0 ? lines.length : start + 1 + endOffset;
+  const hooks = lines.slice(start + 1, end).find((line) => /^\s*hooks\s*=\s*(?:true|false)\s*$/.test(line));
+  return {
+    featuresExisted: true,
+    hooksExisted: Boolean(hooks),
+    hooksValue: hooks?.match(/=\s*(true|false)/)?.[1],
+  };
+}
+
+function restoreCodexHooksFeature(
+  config: string,
+  snapshot: ReturnType<typeof snapshotCodexHooksFeature>,
+) {
+  let restored = config;
+  if (snapshot.hooksExisted) {
+    restored = restored.replace(
+      /(^\s*\[features\]\s*\n(?:[^\[]*\n)*?)^\s*hooks\s*=\s*(?:true|false)\s*$/m,
+      (_match, prefix: string) => `${prefix}hooks = ${snapshot.hooksValue}`,
+    );
+  } else {
+    restored = restored.replace(
+      /(^\s*\[features\]\s*\n(?:[^\[]*\n)*?)^\s*hooks\s*=\s*(?:true|false)\s*\n?/m,
+      "$1",
+    );
+  }
+  if (!snapshot.featuresExisted)
+    restored = restored.replace(/\n?^\s*\[features\]\s*\n(?=\s*(?:\[|$))/m, "\n");
+  return restored.replace(/\n{3,}/g, "\n\n").trimEnd() + "\n";
 }
 
 function stripCodexHandoff(config: string) {

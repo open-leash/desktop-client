@@ -1,6 +1,14 @@
 import assert from "node:assert/strict";
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
 import test from "node:test";
-import { hasManagedCodexProxy, openCodePluginSource } from "./agent-registry";
+import {
+  hasManagedCodexProxy,
+  installAgentProtection,
+  openCodePluginSource,
+  uninstallAllAgentProtections,
+} from "./agent-registry";
 import { enableCodexHooksFeature } from "./codex-config";
 
 const context = {
@@ -158,5 +166,106 @@ test("OpenCode uses its event stream for completion and its permission hook for 
     assert.equal(output.status, "deny");
   } finally {
     globalThis.fetch = originalFetch;
+  }
+});
+
+test("agent hook reinstall starts clean and uninstall restores the exact user config", async () => {
+  const previousHome = process.env.HOME;
+  const previousProfile = process.env.USERPROFILE;
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), "openleash-hook-lifecycle-"));
+  process.env.HOME = home;
+  process.env.USERPROFILE = home;
+  try {
+    const settingsPath = path.join(home, ".claude", "settings.json");
+    fs.mkdirSync(path.dirname(settingsPath), { recursive: true });
+    const original = {
+      hooks: {
+        PreToolUse: [{ hooks: [{ type: "command", command: "user-security-check" }] }],
+      },
+      permissions: { defaultMode: "default" },
+      theme: "dark",
+    };
+    fs.writeFileSync(settingsPath, `${JSON.stringify(original, null, 2)}\n`);
+
+    await installAgentProtection("claude-code", context);
+    await installAgentProtection("claude-code", { ...context, token: "replacement-token" });
+    const installed = JSON.parse(fs.readFileSync(settingsPath, "utf8"));
+    assert.match(JSON.stringify(installed.hooks), /replacement-token/);
+    assert.doesNotMatch(JSON.stringify(installed.__openleash), /\/v1\/hooks\/claude\//);
+
+    await uninstallAllAgentProtections();
+    assert.deepEqual(JSON.parse(fs.readFileSync(settingsPath, "utf8")), original);
+
+    const codexDir = path.join(home, ".codex");
+    const codexConfigPath = path.join(codexDir, "config.toml");
+    const codexHooksPath = path.join(codexDir, "hooks.json");
+    fs.mkdirSync(codexDir, { recursive: true });
+    const originalCodexConfig = [
+      'model = "gpt-5"',
+      "",
+      "[features]",
+      "other_feature = true",
+      "",
+      "[mcp_servers.docs]",
+      'url = "https://example.test/mcp"',
+      "",
+    ].join("\n");
+    const originalCodexHooks = {
+      version: 1,
+      hooks: {
+        PreToolUse: [{ hooks: [{ command: "user-security-check" }] }],
+        CustomEvent: [{ hooks: [{ command: "keep-custom-event" }] }],
+      },
+    };
+    fs.writeFileSync(codexConfigPath, originalCodexConfig);
+    fs.writeFileSync(codexHooksPath, `${JSON.stringify(originalCodexHooks, null, 2)}\n`);
+
+    await installAgentProtection("codex", context);
+    await installAgentProtection("codex", { ...context, token: "replacement-token" });
+    await uninstallAllAgentProtections();
+    assert.equal(fs.readFileSync(codexConfigPath, "utf8"), originalCodexConfig);
+    assert.deepEqual(JSON.parse(fs.readFileSync(codexHooksPath, "utf8")), originalCodexHooks);
+    assert.equal(fs.existsSync(`${codexHooksPath}.openleash-metadata.json`), false);
+    for (const file of [
+      path.join(home, ".gemini", "settings.json"),
+      path.join(home, ".cursor", "hooks.json"),
+      path.join(home, ".config", "opencode", "plugins", "openleash.js"),
+    ]) assert.equal(fs.existsSync(file), false, `cleanup created ${file}`);
+  } finally {
+    if (previousHome === undefined) delete process.env.HOME;
+    else process.env.HOME = previousHome;
+    if (previousProfile === undefined) delete process.env.USERPROFILE;
+    else process.env.USERPROFILE = previousProfile;
+    fs.rmSync(home, { recursive: true, force: true });
+  }
+});
+
+test("metadata-free cleanup removes only stale OpenLeash hooks", async () => {
+  const previousHome = process.env.HOME;
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), "openleash-stale-hook-"));
+  process.env.HOME = home;
+  try {
+    const settingsPath = path.join(home, ".claude", "settings.json");
+    fs.mkdirSync(path.dirname(settingsPath), { recursive: true });
+    fs.writeFileSync(settingsPath, `${JSON.stringify({
+      hooks: {
+        UserPromptSubmit: [{ hooks: [{ command: "curl https://api.example/v1/hooks/claude/UserPromptSubmit" }] }],
+        PreToolUse: [{ hooks: [{ command: "user-security-check" }] }],
+      },
+      permissions: { defaultMode: "bypassPermissions", keep: true },
+      skipDangerousModePermissionPrompt: true,
+    })}\n`);
+
+    await uninstallAllAgentProtections();
+    assert.deepEqual(JSON.parse(fs.readFileSync(settingsPath, "utf8")), {
+      hooks: {
+        PreToolUse: [{ hooks: [{ command: "user-security-check" }] }],
+      },
+      permissions: { keep: true },
+    });
+  } finally {
+    if (previousHome === undefined) delete process.env.HOME;
+    else process.env.HOME = previousHome;
+    fs.rmSync(home, { recursive: true, force: true });
   }
 });

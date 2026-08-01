@@ -8,6 +8,7 @@ import {
   screen,
   Tray,
   ipcMain,
+  powerMonitor,
   shell,
   type Display,
   type MenuItemConstructorOptions,
@@ -24,6 +25,7 @@ import {
   detectLocalAgentProtections,
   installAgentProtection,
   protectionWatchTargets,
+  uninstallAllAgentProtections,
   uninstallAgentProtection,
   type LocalAgentProtection,
 } from "./agent-registry";
@@ -72,7 +74,9 @@ import {
   contributionsForSession,
   islandDisplayTargets,
   mergeImmediateAgentActivity,
+  mergeRecoveredAgentSessions,
   prioritizeAgentSessions,
+  recoverSuspendedAgentSessions,
   shouldPresentActivityIsland,
   type ActivityIslandSourceAgent,
   type ActiveAgentSession,
@@ -386,6 +390,11 @@ const pausedIslandSessions = new Map<string, {
   expiresAt: number;
 }>();
 let pausedIslandSessionTimer: NodeJS.Timeout | undefined;
+const resumedIslandSessions = new Map<string, {
+  session: ActiveAgentSession;
+  expiresAt: number;
+}>();
+let suspendedIslandSessions: ActiveAgentSession[] = [];
 let latestSessionMetrics: SessionMetrics = {};
 let latestPlugins: PluginCatalogItem[] = [];
 let latestOutcomes: PluginOutcome[] = [];
@@ -675,11 +684,12 @@ function parseInstallIdentity(identity?: string) {
 
 function syncInstallIdentity() {
   const identity = currentInstallIdentity();
-  if (!identity) return;
+  if (!identity) return false;
   const previous = localServer.installIdentity();
+  const hadExistingSetup = localServer.setupComplete;
   const preserveSettings = shouldPreserveSettingsForLaunch();
   const explicitFreshStart = process.argv.includes("--fresh-install");
-  if (previous === identity && !explicitFreshStart) return;
+  if (previous === identity && !explicitFreshStart) return false;
 
   const shouldReset =
     explicitFreshStart ||
@@ -705,6 +715,7 @@ function syncInstallIdentity() {
     );
   }
   localServer.rememberInstallIdentity(identity);
+  return Boolean(previous) || explicitFreshStart || hadExistingSetup;
 }
 
 startupLog(`main loaded argv=${process.argv.join(" ")}`);
@@ -741,6 +752,14 @@ if (singleInstanceLock) app
   .whenReady()
   .then(async () => {
     startupLog("ready");
+    if (process.argv.includes("--cleanup-integrations")) {
+      const cleanup = await cleanupDesktopIntegrations();
+      if (!cleanup.ok) {
+        console.error(`OpenLeash integration cleanup failed: ${cleanup.errors.join("; ")}`);
+      }
+      app.exit(cleanup.ok ? 0 : 1);
+      return;
+    }
     const forceVisibleLaunch =
       process.argv.includes("--reset-setup") ||
       process.argv.includes("--fresh-install") ||
@@ -772,13 +791,26 @@ if (singleInstanceLock) app
       onAgentActivity: handleImmediateAgentActivity,
     });
     startupLog(`local server constructed at ${app.getPath("userData")}`);
-    syncInstallIdentity();
+    const installReplaced = syncInstallIdentity();
+    if (installReplaced) {
+      const cleanup = await cleanupDesktopIntegrations({
+        removeSystemRegistration: false,
+      });
+      if (!cleanup.ok)
+        throw new Error(`Could not clean previous agent integrations. ${cleanup.errors.join("; ")}`);
+      startupLog("previous agent integrations cleaned before reinstall");
+    }
     if (process.argv.includes("--reset-setup")) {
       localServer.resetSetup();
       startupLog("setup reset");
     }
     await localServer.start();
     startupLog("local server started");
+    if (localServer.setupComplete) {
+      await configureLocalAgent();
+      await installLeashCli();
+      startupLog("client integration config refreshed");
+    }
     const startupPluginStatuses = await reconcilePluginContainers(localServer.plugins);
     localServer.syncPluginRuntimeStatuses(startupPluginStatuses);
     pluginContainerFingerprint = pluginFingerprint(localServer.plugins);
@@ -821,6 +853,10 @@ if (singleInstanceLock) app
       screen.on("display-removed", refreshNativeIslands);
       screen.on("display-metrics-changed", refreshNativeIslands);
     }
+    powerMonitor.on("suspend", captureActiveSessionsForSystemPause);
+    powerMonitor.on("lock-screen", captureActiveSessionsForSystemPause);
+    powerMonitor.on("resume", () => restoreActiveSessionsAfterSystemResume("wake"));
+    powerMonitor.on("unlock-screen", () => restoreActiveSessionsAfterSystemResume("unlock"));
     startupLog("tray created");
     refreshMenu();
     startupLog("menu refreshed");
@@ -4250,8 +4286,46 @@ async function installProxyForMonitoredAgents(agents: string[]) {
 }
 
 async function removeDesktopMonitoring() {
-  await uninstallLocalProxy().catch(() => undefined);
-  for (const kind of [...enforcedAgentKinds]) await unprotectAgentKind(kind);
+  const cleanup = await cleanupDesktopIntegrations();
+  if (!cleanup.ok) throw new Error(cleanup.errors.join("; "));
+  enforcedAgentKinds.clear();
+  syncProtectionWatchers();
+  await refreshLocalProtections(true);
+}
+
+async function cleanupDesktopIntegrations(options: {
+  removeSystemRegistration?: boolean;
+} = {}) {
+  const errors: string[] = [];
+  try {
+    await uninstallLocalProxy();
+  } catch (error) {
+    errors.push(`proxy: ${error instanceof Error ? error.message : String(error)}`);
+  }
+  try {
+    await uninstallAllAgentProtections();
+  } catch (error) {
+    errors.push(`hooks: ${error instanceof Error ? error.message : String(error)}`);
+  }
+  for (const file of [
+    path.join(os.homedir(), ".openleash", "config.json"),
+    path.join(os.homedir(), ".openleash", "bin", "leash"),
+  ]) {
+    try {
+      fs.rmSync(file, { force: true });
+    } catch (error) {
+      errors.push(`${file}: ${error instanceof Error ? error.message : String(error)}`);
+    }
+  }
+  if (options.removeSystemRegistration !== false) {
+    try {
+      app.setLoginItemSettings({ openAtLogin: false });
+      app.removeAsDefaultProtocolClient("openleash");
+    } catch (error) {
+      errors.push(`system registration: ${error instanceof Error ? error.message : String(error)}`);
+    }
+  }
+  return { ok: errors.length === 0, errors };
 }
 
 async function unprotectAgentKind(kind: string) {
@@ -5457,11 +5531,19 @@ function currentActiveAgentSessions() {
   for (const [key, hint] of immediateActivityHints) {
     if (hint.expiresAt <= Date.now()) immediateActivityHints.delete(key);
   }
+  const current = activeAgentSessions([
+    ...latestAgents,
+    ...[...immediateActivityHints.values()].map((hint) => hint.source),
+  ]);
+  const recovered = [...resumedIslandSessions.entries()].flatMap(([key, item]) => {
+    if (item.expiresAt <= now) {
+      resumedIslandSessions.delete(key);
+      return [];
+    }
+    return [item.session];
+  });
   const active = applyCompletedAgentSessions(
-    activeAgentSessions([
-      ...latestAgents,
-      ...[...immediateActivityHints.values()].map((hint) => hint.source),
-    ]),
+    mergeRecoveredAgentSessions(current, recovered),
     completedAgentSessions,
   );
   const activeIds = new Set(active.map((session) => session.id));
@@ -5489,6 +5571,42 @@ function currentActiveAgentSessions() {
     if (!activeIds.has(item.session.id)) decorated.push(item.session);
   }
   return decorated;
+}
+
+function captureActiveSessionsForSystemPause() {
+  const sessions = currentActiveAgentSessions().filter(
+    (session) => session.visualState !== "completed",
+  );
+  if (sessions.length > 0) suspendedIslandSessions = sessions;
+  startupLog(`system pause captured ${sessions.length} active island session${sessions.length === 1 ? "" : "s"}`);
+}
+
+function restoreActiveSessionsAfterSystemResume(reason: "wake" | "unlock") {
+  if (suspendedIslandSessions.length === 0) {
+    void poll();
+    setTimeout(() => syncActivityIsland(true), 180);
+    return;
+  }
+  const resumedAt = Date.now();
+  const current = activeAgentSessions([
+    ...latestAgents,
+    ...[...immediateActivityHints.values()].map((hint) => hint.source),
+  ]);
+  const recovered = recoverSuspendedAgentSessions(
+    suspendedIslandSessions,
+    current,
+    resumedAt,
+  );
+  suspendedIslandSessions = [];
+  for (const session of recovered) {
+    resumedIslandSessions.set(session.id, {
+      session,
+      expiresAt: resumedAt + 2 * 60_000,
+    });
+  }
+  startupLog(`${reason} recovered ${recovered.length} active island session${recovered.length === 1 ? "" : "s"}`);
+  void poll();
+  syncActivityIsland(true);
 }
 
 function handleImmediateAgentActivity(activity: LocalAgentActivity) {

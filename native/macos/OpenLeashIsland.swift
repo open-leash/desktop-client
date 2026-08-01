@@ -10,8 +10,23 @@ private func writeMessage(_ message: [String: Any]) {
 }
 
 private final class IslandPanel: NSPanel {
+    var pointerSequenceChanged: ((Bool) -> Void)?
+
     override var canBecomeKey: Bool { true }
     override var canBecomeMain: Bool { false }
+
+    override func sendEvent(_ event: NSEvent) {
+        switch event.type {
+        case .leftMouseDown, .rightMouseDown, .otherMouseDown:
+            pointerSequenceChanged?(true)
+            super.sendEvent(event)
+        case .leftMouseUp, .rightMouseUp, .otherMouseUp:
+            super.sendEvent(event)
+            pointerSequenceChanged?(false)
+        default:
+            super.sendEvent(event)
+        }
+    }
 }
 
 private final class FirstMouseWebView: WKWebView {
@@ -41,6 +56,8 @@ private final class IslandController: NSObject, WKNavigationDelegate, WKScriptMe
     private var interactiveBounds: CGRect?
     private var pointerTimer: Timer?
     private var displayChangeWorkItem: DispatchWorkItem?
+    private var pointerSequenceActive = false
+    private var pointerPassthroughBlockedUntil: TimeInterval = 0
 
     init(htmlPath: String) {
         let configuration = WKWebViewConfiguration()
@@ -63,6 +80,9 @@ private final class IslandController: NSObject, WKNavigationDelegate, WKScriptMe
         super.init()
 
         scriptMessageRelay.delegate = self
+        panel.pointerSequenceChanged = { [weak self] active in
+            self?.setPointerSequenceActive(active)
+        }
         webView.navigationDelegate = self
         webView.autoresizingMask = [.width, .height]
         webView.setValue(false, forKey: "drawsBackground")
@@ -246,6 +266,42 @@ private final class IslandController: NSObject, WKNavigationDelegate, WKScriptMe
         ])
     }
 
+    func setPointerSequenceForVerification(
+        _ active: Bool,
+        x: Double,
+        y: Double
+    ) {
+        if active, let bounds = interactiveBounds {
+            let point = CGPoint(
+                x: panel.frame.minX + bounds.midX,
+                y: panel.frame.maxY - bounds.midY
+            )
+            refreshPointerPassthrough(at: point)
+        }
+        let eventType: NSEvent.EventType = active ? .leftMouseDown : .leftMouseUp
+        if let event = NSEvent.mouseEvent(
+            with: eventType,
+            location: NSPoint(
+                x: CGFloat(x),
+                y: panel.frame.height - CGFloat(y)
+            ),
+            modifierFlags: [],
+            timestamp: ProcessInfo.processInfo.systemUptime,
+            windowNumber: panel.windowNumber,
+            context: nil,
+            eventNumber: 0,
+            clickCount: 1,
+            pressure: active ? 1 : 0
+        ) {
+            panel.sendEvent(event)
+        }
+        writeMessage([
+            "type": "pointerSequenceResult",
+            "active": active,
+            "ignoresMouseEvents": panel.ignoresMouseEvents
+        ])
+    }
+
     func expand() {
         webView.evaluateJavaScript("window.expandOpenLeashIsland && window.expandOpenLeashIsland()")
         panel.orderFrontRegardless()
@@ -305,10 +361,27 @@ private final class IslandController: NSObject, WKNavigationDelegate, WKScriptMe
     }
 
     private func refreshPointerPassthrough(at pointer: CGPoint = NSEvent.mouseLocation) {
+        if pointerSequenceActive || ProcessInfo.processInfo.systemUptime < pointerPassthroughBlockedUntil {
+            panel.ignoresMouseEvents = false
+            return
+        }
         let isInsideVisibleIsland = interactiveScreenFrame()?
             .insetBy(dx: -1, dy: -1)
             .contains(pointer) ?? false
         panel.ignoresMouseEvents = !isInsideVisibleIsland
+    }
+
+    private func setPointerSequenceActive(_ active: Bool) {
+        pointerSequenceActive = active
+        panel.ignoresMouseEvents = false
+        if active {
+            pointerPassthroughBlockedUntil = 0
+        } else {
+            // Resizing and rerendering can move the interactive bounds while a
+            // button click is completing. Keep the entire click owned by this
+            // panel before transparent-space passthrough resumes.
+            pointerPassthroughBlockedUntil = ProcessInfo.processInfo.systemUptime + 0.15
+        }
     }
 
     @objc private func pollPointerLocation() {
@@ -451,6 +524,14 @@ private struct OpenLeashIslandApplication {
                         let x = (message["x"] as? NSNumber)?.doubleValue ?? 0
                         let y = (message["y"] as? NSNumber)?.doubleValue ?? 0
                         controller.hitTestForVerification(x: x, y: y)
+                    case "pointerSequence":
+                        let x = (message["x"] as? NSNumber)?.doubleValue ?? 0
+                        let y = (message["y"] as? NSNumber)?.doubleValue ?? 0
+                        controller.setPointerSequenceForVerification(
+                            (message["active"] as? Bool) ?? false,
+                            x: x,
+                            y: y
+                        )
                     case "expand":
                         controller.expand()
                     case "quit":
