@@ -88,7 +88,7 @@ export const FIRST_PARTY_PLUGIN_MANIFESTS = [
         name: "skill-scanner",
         description: "Catch suspicious instructions before they spread.",
         repositoryUrl: "https://github.com/open-leash/plugin-skill-scanner",
-        version: "1.0.2",
+        version: "1.0.3",
         publisher: "openleash",
         runtime: "container",
         execution: firstPartyEventContainer("skill-scanner", "1.0.2", {
@@ -186,8 +186,8 @@ export const FIRST_PARTY_PLUGIN_MANIFESTS = [
         version: "1.0.2",
         publisher: "openleash",
         runtime: "container",
-        execution: firstPartyEventContainer("blast-radius", "1.0.2", {
-            digest: "sha256:edc8cc0d9755a8dfbb25a0805c6a2c9fdb0d12bc56514c15f3663428fb54de1f",
+        execution: firstPartyEventContainer("blast-radius", "1.0.3", {
+            digest: "sha256:1c3f8e3063d84d6a1344491c2c2be5635d70f13cbee62362913b03e502b8b10f",
         }),
         entrypoint: "container",
         events: ["prompt.beforeSubmit", "tool.beforeUse"],
