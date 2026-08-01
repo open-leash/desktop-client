@@ -40,4 +40,4 @@ jobs:
         run: npm run test:deployment:public
 
       - name: Product smoke
-        run: npm run smoke:product
+        run: npm run smoke:product:public

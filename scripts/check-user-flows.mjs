@@ -1,7 +1,16 @@
 #!/usr/bin/env node
 import fs from "node:fs";
+import process from "node:process";
 
 const read = (path) => fs.readFileSync(path, "utf8");
+const scopeFlagIndex = process.argv.indexOf("--scope");
+const scope = scopeFlagIndex >= 0 ? process.argv[scopeFlagIndex + 1] : "full";
+if (!new Set(["public", "full"]).has(scope)) {
+  console.error("Usage: check-user-flows.mjs [--scope public|full]");
+  process.exit(2);
+}
+
+const hostedCompositionPrefixes = ["apps/main-web/", "apps/cloud-dashboard-web/"];
 
 const checks = [
   {
@@ -274,6 +283,7 @@ const checks = [
 let failed = false;
 
 for (const check of checks) {
+  if (scope === "public" && hostedCompositionPrefixes.some((prefix) => check.path.startsWith(prefix))) continue;
   const body = read(check.path);
   if (!body.includes(check.text)) {
     failed = true;
@@ -283,4 +293,4 @@ for (const check of checks) {
 
 if (failed) process.exit(1);
 
-console.log("[flows] canonical platform flows are documented and guarded.");
+console.log(`[flows] canonical platform flows are documented and guarded (${scope}).`);
