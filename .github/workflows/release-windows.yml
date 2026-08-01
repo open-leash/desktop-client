@@ -22,7 +22,7 @@ jobs:
         uses: actions/checkout@v7
         with:
           repository: open-leash/shared
-          ref: cb1c6974d6ec2517f35387c3a69291e691c81b42
+          ref: b039732fd7298d69b50978e03151338083706f82
           path: packages/shared
 
       - name: Setup Node
