@@ -242,8 +242,10 @@ test("agent hook reinstall starts clean and uninstall restores the exact user co
 
 test("metadata-free cleanup removes only stale OpenLeash hooks", async () => {
   const previousHome = process.env.HOME;
+  const previousProfile = process.env.USERPROFILE;
   const home = fs.mkdtempSync(path.join(os.tmpdir(), "openleash-stale-hook-"));
   process.env.HOME = home;
+  process.env.USERPROFILE = home;
   try {
     const settingsPath = path.join(home, ".claude", "settings.json");
     fs.mkdirSync(path.dirname(settingsPath), { recursive: true });
@@ -266,6 +268,8 @@ test("metadata-free cleanup removes only stale OpenLeash hooks", async () => {
   } finally {
     if (previousHome === undefined) delete process.env.HOME;
     else process.env.HOME = previousHome;
+    if (previousProfile === undefined) delete process.env.USERPROFILE;
+    else process.env.USERPROFILE = previousProfile;
     fs.rmSync(home, { recursive: true, force: true });
   }
 });
