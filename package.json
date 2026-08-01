@@ -41,6 +41,7 @@
     "schema:prepare-migration": "python3 prepare-migration.py",
     "schema:finalize-migration": "python3 finalize-migration.py",
     "test:deployment": "npm run build -w @openleash/shared && node scripts/check-container-plugin-contracts.mjs && node scripts/check-deployment-readiness.mjs",
+    "test:deployment:public": "npm run build -w @openleash/shared && node scripts/check-container-plugin-contracts.mjs && node scripts/check-deployment-readiness.mjs --scope public",
     "test:container-plugins": "npm run build -w @openleash/shared && node scripts/check-container-plugin-contracts.mjs",
     "test:container-plugins:e2e": "node scripts/test-container-plugin-e2e.mjs",
     "test:token-saver-public": "node scripts/verify-token-saver-public.mjs",

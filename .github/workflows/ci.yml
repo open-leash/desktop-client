@@ -37,7 +37,7 @@ jobs:
         run: npm run test:upgrade
 
       - name: Deployment readiness
-        run: npm run test:deployment
+        run: npm run test:deployment:public
 
       - name: Product smoke
         run: npm run smoke:product

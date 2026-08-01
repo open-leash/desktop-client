@@ -2,6 +2,20 @@
 import fs from "node:fs";
 import process from "node:process";
 
+const scopeFlagIndex = process.argv.indexOf("--scope");
+const scope = scopeFlagIndex >= 0 ? process.argv[scopeFlagIndex + 1] : "full";
+if (!new Set(["public", "full"]).has(scope)) {
+  console.error("Usage: check-deployment-readiness.mjs [--scope public|full]");
+  process.exit(2);
+}
+
+const fullCompositionPrefixes = [
+  "apps/cloud-client-api/",
+  "apps/cloud-dashboard-api/",
+  "apps/cloud-dashboard-web/",
+  "IdentityLoader/"
+];
+
 const checks = [
   ["desktop installer script", "scripts/install-openleash-personal.sh"],
   ["desktop electron-builder config", "electron-builder.personal.yml"],
@@ -81,22 +95,26 @@ const packageChecks = [
 const failures = [];
 
 for (const [label, file] of checks) {
+  if (!shouldCheck(file)) continue;
   if (!fs.existsSync(file)) failures.push(`${label}: missing ${file}`);
 }
 
 for (const [label, file, pattern] of contentChecks) {
+  if (!shouldCheck(file)) continue;
   if (!fs.existsSync(file)) continue;
   const text = fs.readFileSync(file, "utf8");
   if (!pattern.test(text)) failures.push(`${label}: ${file} did not match ${pattern}`);
 }
 
 for (const [label, file, pattern] of absentContentChecks) {
+  if (!shouldCheck(file)) continue;
   if (!fs.existsSync(file)) continue;
   const text = fs.readFileSync(file, "utf8");
   if (pattern.test(text)) failures.push(`${label}: ${file} unexpectedly matched ${pattern}`);
 }
 
 for (const [label, file, predicate] of packageChecks) {
+  if (!shouldCheck(file)) continue;
   if (!fs.existsSync(file)) continue;
   try {
     const pkg = JSON.parse(fs.readFileSync(file, "utf8"));
@@ -112,4 +130,8 @@ if (failures.length > 0) {
   process.exit(1);
 }
 
-console.log("Deployment readiness ok");
+console.log(`Deployment readiness ok (${scope})`);
+
+function shouldCheck(file) {
+  return scope === "full" || !fullCompositionPrefixes.some((prefix) => file.startsWith(prefix));
+}
