@@ -118,7 +118,7 @@ services:
         condition: service_healthy
 
   identity-loader:
-    image: ${OPENLEASH_IDENTITY_LOADER_IMAGE:-ghcr.io/open-leash/identity-loader:${OPENLEASH_IDENTITY_LOADER_VERSION:-0.36.31@sha256:7c413856f9ab1cfd52e61565012401b9784ea31c09befc4cc57b9f35feeb2879}}
+    image: ${OPENLEASH_IDENTITY_LOADER_IMAGE:-ghcr.io/open-leash/identity-loader:${OPENLEASH_IDENTITY_LOADER_VERSION:-0.36.32@sha256:de4dbee18f5c1d5c6380a12d77f7bd88da537de7ded8cb7fe6b3bf400c01a26f}}
     build:
       context: ../../IdentityLoader/IdentityLoader
       dockerfile: Dockerfile
