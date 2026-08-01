@@ -334,7 +334,7 @@ export const FIRST_PARTY_PLUGIN_MANIFESTS = [
     name: "skill-scanner",
     description: "Catch suspicious instructions before they spread.",
     repositoryUrl: "https://github.com/open-leash/plugin-skill-scanner",
-    version: "1.0.3",
+    version: "1.0.2",
     publisher: "openleash",
     runtime: "container",
     execution: firstPartyEventContainer("skill-scanner", "1.0.2", {
@@ -429,7 +429,7 @@ export const FIRST_PARTY_PLUGIN_MANIFESTS = [
     name: "blast-radius",
     description: "Block destructive tool use before agents damage files, databases, or infrastructure.",
     repositoryUrl: "https://github.com/open-leash/plugin-blast-radius",
-    version: "1.0.2",
+    version: "1.0.3",
     publisher: "openleash",
     runtime: "container",
     execution: firstPartyEventContainer("blast-radius", "1.0.3", {
