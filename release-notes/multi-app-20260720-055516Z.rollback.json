@@ -1,0 +1,120 @@
+{
+  "release": "multi-app-20260720-055516Z",
+  "generated_at_utc": "2026-07-20T05:55:16.742851+00:00",
+  "apps": [
+    {
+      "name": "apps/client-api",
+      "version": "0.36.22",
+      "tag": "v0.36.22",
+      "head_before_release": "c6e3cef126864eb4c3de13a468ad561e299c997a"
+    },
+    {
+      "name": "apps/dashboard-web",
+      "version": "0.1.1",
+      "tag": "v0.1.1",
+      "head_before_release": "db42b999d7c28816d0740c2b1c46b1727bf83dc1"
+    },
+    {
+      "name": "apps/desktop-client",
+      "version": "0.36.24",
+      "tag": "v0.36.24",
+      "head_before_release": "953e315a61b4b9802a2afb78d990d0e415f5eac3"
+    },
+    {
+      "name": "apps/main-web",
+      "version": "0.1.14",
+      "tag": "v0.1.14",
+      "head_before_release": "532b1ec39eae0904236f333e67169776b1c03920"
+    }
+  ],
+  "repos": [
+    {
+      "name": "apps/client-api",
+      "path": "apps/client-api",
+      "branch": "main",
+      "head_before_release": "c6e3cef126864eb4c3de13a468ad561e299c997a",
+      "changed_files_before_release": [
+        "package.json",
+        "src/plugins/README.md",
+        "src/plugins/capabilities.ts",
+        "src/plugins/island-contributions.test.ts",
+        "src/plugins/island-contributions.ts",
+        "src/plugins/plugin-lifecycle.test.ts",
+        "src/plugins/settings-profiles.test.ts",
+        "src/plugins/settings-profiles.ts",
+        "src/product-mode.ts",
+        "src/server.ts",
+        "infra/postgres/migrations/0035_plugin_execution_environment.sql",
+        "src/plugins/plugin-policy.test.ts",
+        "src/plugins/plugin-policy.ts",
+        "src/product-mode.test.ts"
+      ]
+    },
+    {
+      "name": "apps/dashboard-api",
+      "path": "apps/dashboard-api",
+      "branch": "main",
+      "head_before_release": "fb8734d1e8c649b48f46a691cdee4770c2feb91c",
+      "changed_files_before_release": []
+    },
+    {
+      "name": "apps/dashboard-web",
+      "path": "apps/dashboard-web",
+      "branch": "main",
+      "head_before_release": "db42b999d7c28816d0740c2b1c46b1727bf83dc1",
+      "changed_files_before_release": [
+        "components/DashboardSettings.tsx",
+        "components/DashboardShell.tsx",
+        "components/PersonalDashboard.tsx",
+        "public/openleash.css"
+      ]
+    },
+    {
+      "name": "apps/desktop-client",
+      "path": "apps/desktop-client",
+      "branch": "main",
+      "head_before_release": "953e315a61b4b9802a2afb78d990d0e415f5eac3",
+      "changed_files_before_release": [
+        "src/main.ts",
+        "src/plugin-catalog.ts",
+        "src/plugin-container-manager.test.ts",
+        "src/plugin-container-manager.ts",
+        "src/window.html"
+      ]
+    },
+    {
+      "name": "apps/docs-web",
+      "path": "apps/docs-web",
+      "branch": "main",
+      "head_before_release": "5e3cade79c25f99e8f2d7c66cb2a26340c6946d8",
+      "changed_files_before_release": [
+        "app/docs-content.tsx"
+      ]
+    },
+    {
+      "name": "apps/main-web",
+      "path": "apps/main-web",
+      "branch": "main",
+      "head_before_release": "532b1ec39eae0904236f333e67169776b1c03920",
+      "changed_files_before_release": []
+    },
+    {
+      "name": "apps/mobile-client",
+      "path": "apps/mobile-client",
+      "branch": "main",
+      "head_before_release": "c39b49fc827ce968e6dd6b611942e31f5734ce9b",
+      "changed_files_before_release": []
+    },
+    {
+      "name": "plugins/plugin-token-saver",
+      "path": "plugins/plugin-token-saver",
+      "branch": "main",
+      "head_before_release": "455d598d02a0406683f8deca176ba166b3d7121a",
+      "changed_files_before_release": []
+    }
+  ],
+  "database": {
+    "postgres_apply_command": "npm run db:migrate:backup",
+    "rollback": "restore the backup emitted by db:migrate:backup, then redeploy previous app tags"
+  }
+}

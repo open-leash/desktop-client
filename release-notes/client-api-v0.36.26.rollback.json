@@ -1,0 +1,76 @@
+{
+  "release": "client-api-v0.36.26",
+  "generated_at_utc": "2026-07-20T12:47:42.902093+00:00",
+  "apps": [
+    {
+      "name": "apps/client-api",
+      "version": "0.36.26",
+      "tag": "v0.36.26",
+      "head_before_release": "d2aacb215645298d836890bfafc482e3bb08f942"
+    }
+  ],
+  "repos": [
+    {
+      "name": "apps/client-api",
+      "path": "apps/client-api",
+      "branch": "main",
+      "head_before_release": "d2aacb215645298d836890bfafc482e3bb08f942",
+      "changed_files_before_release": [
+        "Dockerfile"
+      ]
+    },
+    {
+      "name": "apps/dashboard-api",
+      "path": "apps/dashboard-api",
+      "branch": "main",
+      "head_before_release": "4409685c538ea8c50f5881855082027275c263ec",
+      "changed_files_before_release": []
+    },
+    {
+      "name": "apps/dashboard-web",
+      "path": "apps/dashboard-web",
+      "branch": "main",
+      "head_before_release": "baa05642ba2d44ca40f4d80a411f6cefff5de03a",
+      "changed_files_before_release": []
+    },
+    {
+      "name": "apps/desktop-client",
+      "path": "apps/desktop-client",
+      "branch": "main",
+      "head_before_release": "c73647164c55798bdad122b97138d1af303c5f94",
+      "changed_files_before_release": []
+    },
+    {
+      "name": "apps/docs-web",
+      "path": "apps/docs-web",
+      "branch": "main",
+      "head_before_release": "e65ea108262dc25028dfc36434b6b1e04235279c",
+      "changed_files_before_release": []
+    },
+    {
+      "name": "apps/main-web",
+      "path": "apps/main-web",
+      "branch": "main",
+      "head_before_release": "60f807a5ffb7d4eba9e0d3a1d6158ad123639813",
+      "changed_files_before_release": []
+    },
+    {
+      "name": "apps/mobile-client",
+      "path": "apps/mobile-client",
+      "branch": "main",
+      "head_before_release": "c39b49fc827ce968e6dd6b611942e31f5734ce9b",
+      "changed_files_before_release": []
+    },
+    {
+      "name": "plugins/plugin-token-saver",
+      "path": "plugins/plugin-token-saver",
+      "branch": "main",
+      "head_before_release": "4e297fecc07220540e38ddc2252d77d89bf87f87",
+      "changed_files_before_release": []
+    }
+  ],
+  "database": {
+    "postgres_apply_command": "npm run db:migrate:backup",
+    "rollback": "restore the backup emitted by db:migrate:backup, then redeploy previous app tags"
+  }
+}

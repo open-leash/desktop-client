@@ -1,0 +1,192 @@
+{
+  "release": "multi-app-20260722-143908Z",
+  "generated_at_utc": "2026-07-22T14:39:08.031286+00:00",
+  "apps": [
+    {
+      "name": "apps/desktop-client",
+      "version": "0.36.40",
+      "tag": "v0.36.40",
+      "head_before_release": "08bdf239eb5b5b1e4d5050be8af5298bdbed5f03"
+    },
+    {
+      "name": "apps/main-web",
+      "version": "0.1.31",
+      "tag": "v0.1.31",
+      "head_before_release": "e2be0e0167ba6cbefba2b7907a69e8473c483d3c"
+    }
+  ],
+  "repos": [
+    {
+      "name": "apps/client-api",
+      "path": "apps/client-api",
+      "branch": "main",
+      "head_before_release": "8d5e62b6d96db5a903f11ca54b4eafd4a02e366c",
+      "changed_files_before_release": []
+    },
+    {
+      "name": "apps/dashboard-api",
+      "path": "apps/dashboard-api",
+      "branch": "main",
+      "head_before_release": "b951363ac144fead220386217ec1b69e8abc50a8",
+      "changed_files_before_release": []
+    },
+    {
+      "name": "apps/dashboard-web",
+      "path": "apps/dashboard-web",
+      "branch": "main",
+      "head_before_release": "baa05642ba2d44ca40f4d80a411f6cefff5de03a",
+      "changed_files_before_release": []
+    },
+    {
+      "name": "apps/desktop-client",
+      "path": "apps/desktop-client",
+      "branch": "main",
+      "head_before_release": "08bdf239eb5b5b1e4d5050be8af5298bdbed5f03",
+      "changed_files_before_release": [
+        "native/macos/OpenLeashIsland.swift",
+        "package.json",
+        "scripts/verify-native-island.mjs",
+        "scripts/verify-packaged-windows.mjs",
+        "src/activity-island.test.ts",
+        "src/activity-island.ts",
+        "src/copy-assets.mjs",
+        "src/local-server-token.test.ts",
+        "src/local-server.ts",
+        "src/main.ts",
+        "src/notice.html",
+        "src/window.html",
+        "THIRD_PARTY_NOTICES.md",
+        "src/agent-mascots/",
+        "src/agent-session-focus.test.ts",
+        "src/agent-session-focus.ts",
+        "src/notice-window.test.ts",
+        "src/notice-window.ts"
+      ]
+    },
+    {
+      "name": "apps/docs-web",
+      "path": "apps/docs-web",
+      "branch": "main",
+      "head_before_release": "1f004050cbfe17bf52e6e2da8f225b44d9e1c4f0",
+      "changed_files_before_release": []
+    },
+    {
+      "name": "apps/main-web",
+      "path": "apps/main-web",
+      "branch": "main",
+      "head_before_release": "e2be0e0167ba6cbefba2b7907a69e8473c483d3c",
+      "changed_files_before_release": []
+    },
+    {
+      "name": "apps/mobile-client",
+      "path": "apps/mobile-client",
+      "branch": "main",
+      "head_before_release": "c39b49fc827ce968e6dd6b611942e31f5734ce9b",
+      "changed_files_before_release": []
+    },
+    {
+      "name": "plugins/plugin-token-saver",
+      "path": "plugins/plugin-token-saver",
+      "branch": "main",
+      "head_before_release": "4e297fecc07220540e38ddc2252d77d89bf87f87",
+      "changed_files_before_release": [
+        "Dockerfile",
+        "engine/server.py",
+        "src/index.ts",
+        "src/manifest.ts"
+      ]
+    },
+    {
+      "name": "plugins/plugin-blast-radius",
+      "path": "plugins/plugin-blast-radius",
+      "branch": "main",
+      "head_before_release": "f5a0dd2a4011511951ed7c9274ca5b707d5d6ced",
+      "changed_files_before_release": [
+        "src/manifest.ts",
+        "Dockerfile",
+        "dist/"
+      ]
+    },
+    {
+      "name": "plugins/plugin-sensitive-access",
+      "path": "plugins/plugin-sensitive-access",
+      "branch": "main",
+      "head_before_release": "9583e9cdb3de739c95858b75fbdd105721a09e25",
+      "changed_files_before_release": [
+        "src/manifest.ts",
+        "Dockerfile",
+        "dist/"
+      ]
+    },
+    {
+      "name": "plugins/plugin-data-leakage-prevention",
+      "path": "plugins/plugin-data-leakage-prevention",
+      "branch": "main",
+      "head_before_release": "cee5d0edbbe35208924a8d9bbd32817eda95ec4a",
+      "changed_files_before_release": [
+        "src/manifest.ts",
+        "Dockerfile",
+        "dist/"
+      ]
+    },
+    {
+      "name": "plugins/plugin-rules-enforcer",
+      "path": "plugins/plugin-rules-enforcer",
+      "branch": "main",
+      "head_before_release": "360cc389b5b42c568913cee7b926b830bd50dad2",
+      "changed_files_before_release": [
+        "src/manifest.ts",
+        "Dockerfile",
+        "dist/"
+      ]
+    },
+    {
+      "name": "plugins/plugin-mcp-scanner",
+      "path": "plugins/plugin-mcp-scanner",
+      "branch": "main",
+      "head_before_release": "9a17ab236fe8bd0b1ea5f27d44cc5c3c6c6f0684",
+      "changed_files_before_release": [
+        "src/manifest.ts",
+        "Dockerfile",
+        "dist/"
+      ]
+    },
+    {
+      "name": "plugins/plugin-code-scanner",
+      "path": "plugins/plugin-code-scanner",
+      "branch": "main",
+      "head_before_release": "2ca641c604df6b991b579297e92c237f88fa5d1e",
+      "changed_files_before_release": [
+        "src/manifest.ts",
+        "Dockerfile"
+      ]
+    },
+    {
+      "name": "plugins/plugin-skill-scanner",
+      "path": "plugins/plugin-skill-scanner",
+      "branch": "main",
+      "head_before_release": "e6a1377242920b6b936b6f6734f787d5add628e9",
+      "changed_files_before_release": [
+        "package.json",
+        "src/manifest.ts",
+        "Dockerfile",
+        "dist/"
+      ]
+    },
+    {
+      "name": "plugins/plugin-siem-exporter",
+      "path": "plugins/plugin-siem-exporter",
+      "branch": "main",
+      "head_before_release": "ac916818d1c5d07753e9db1dbf274b2ad20552ac",
+      "changed_files_before_release": [
+        "src/manifest.ts",
+        "Dockerfile",
+        "dist/"
+      ]
+    }
+  ],
+  "database": {
+    "postgres_apply_command": "npm run db:migrate:backup",
+    "rollback": "restore the backup emitted by db:migrate:backup, then redeploy previous app tags"
+  }
+}

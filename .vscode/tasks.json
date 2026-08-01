@@ -1,0 +1,73 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "OpenLeash: Private Cloud",
+      "type": "shell",
+      "command": "npm run dev:mode:self-hosted",
+      "isBackground": true,
+      "problemMatcher": []
+    },
+    {
+      "label": "OpenLeash: OpenLeash Cloud",
+      "type": "shell",
+      "command": "npm run dev:mode:cloud",
+      "isBackground": true,
+      "problemMatcher": []
+    },
+    {
+      "label": "OpenLeash: Postgres Up",
+      "type": "shell",
+      "command": "docker compose up -d postgres",
+      "problemMatcher": []
+    },
+    {
+      "label": "OpenLeash: DB Migrate",
+      "type": "shell",
+      "command": "npm run db:migrate",
+      "problemMatcher": []
+    },
+    {
+      "label": "OpenLeash: Client API",
+      "type": "shell",
+      "command": "npm run dev:client-api",
+      "isBackground": true,
+      "problemMatcher": []
+    },
+    {
+      "label": "OpenLeash: Dashboard API",
+      "type": "shell",
+      "command": "npm run dev:dashboard-api",
+      "isBackground": true,
+      "problemMatcher": []
+    },
+    {
+      "label": "OpenLeash: Dashboard Web",
+      "type": "shell",
+      "command": "npm run dev:dashboard-web",
+      "isBackground": true,
+      "problemMatcher": []
+    },
+    {
+      "label": "OpenLeash: Desktop Client",
+      "type": "shell",
+      "command": "npm run desktop-client",
+      "isBackground": true,
+      "problemMatcher": []
+    },
+    {
+      "label": "OpenLeash: Main Web",
+      "type": "shell",
+      "command": "npm run dev:main-web",
+      "isBackground": true,
+      "problemMatcher": []
+    },
+    {
+      "label": "OpenLeash: Docs Web",
+      "type": "shell",
+      "command": "npm run dev:docs-web",
+      "isBackground": true,
+      "problemMatcher": []
+    }
+  ]
+}

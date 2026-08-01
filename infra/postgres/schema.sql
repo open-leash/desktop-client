@@ -1,0 +1,400 @@
+create extension if not exists pgcrypto;
+
+create table if not exists organizations (
+  id uuid primary key default gen_random_uuid(),
+  name text not null,
+  slug text unique,
+  region text,
+  logo_url text,
+  setup_completed boolean not null default false,
+  current_step integer not null default 1,
+  onboarding_code text unique,
+  deployment_mode text not null default 'cloud',
+  infrastructure_config jsonb not null default '{}'::jsonb,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+alter table organizations add column if not exists deployment_mode text not null default 'cloud';
+alter table organizations add column if not exists infrastructure_config jsonb not null default '{}'::jsonb;
+alter table organizations add column if not exists region text;
+alter table organizations add column if not exists logo_url text;
+alter table organizations add column if not exists setup_completed boolean not null default false;
+alter table organizations add column if not exists current_step integer not null default 1;
+alter table organizations add column if not exists onboarding_code text unique;
+alter table organizations add column if not exists created_at timestamptz not null default now();
+alter table organizations add column if not exists updated_at timestamptz not null default now();
+
+create table if not exists users (
+  id uuid primary key default gen_random_uuid(),
+  organization_id uuid references organizations(id) on delete cascade,
+  email text unique not null,
+  display_name text not null,
+  role text not null default 'engineer',
+  first_name text,
+  last_name text,
+  department text,
+  title text,
+  idp_user_id text,
+  idp_provider text,
+  status text not null default 'active',
+  last_login_at timestamptz,
+  metadata jsonb not null default '{}'::jsonb,
+  token_hash text unique,
+  created_at timestamptz not null default now()
+);
+
+alter table users add column if not exists organization_id uuid references organizations(id) on delete cascade;
+alter table users add column if not exists first_name text;
+alter table users add column if not exists last_name text;
+alter table users add column if not exists department text;
+alter table users add column if not exists title text;
+alter table users add column if not exists idp_user_id text;
+alter table users add column if not exists idp_provider text;
+alter table users add column if not exists status text not null default 'active';
+alter table users add column if not exists last_login_at timestamptz;
+alter table users add column if not exists metadata jsonb not null default '{}'::jsonb;
+alter table users add column if not exists token_hash text unique;
+alter table users add column if not exists created_at timestamptz not null default now();
+create index if not exists users_organization_idx on users(organization_id);
+create unique index if not exists users_org_idp_unique_idx on users(organization_id, idp_user_id) where idp_user_id is not null;
+
+create table if not exists dashboard_sessions (
+  id uuid primary key default gen_random_uuid(),
+  organization_id uuid references organizations(id) on delete cascade,
+  user_id uuid references users(id) on delete cascade,
+  token_hash text unique not null,
+  provider text not null,
+  expires_at timestamptz not null,
+  revoked_at timestamptz,
+  created_at timestamptz not null default now(),
+  last_seen_at timestamptz not null default now()
+);
+
+create index if not exists dashboard_sessions_token_idx on dashboard_sessions(token_hash) where revoked_at is null;
+create index if not exists dashboard_sessions_user_idx on dashboard_sessions(user_id, created_at desc);
+
+create table if not exists mobile_devices (
+  id uuid primary key default gen_random_uuid(),
+  organization_id uuid references organizations(id) on delete cascade,
+  user_id uuid references users(id) on delete cascade,
+  platform text not null default 'unknown',
+  push_token text,
+  device_name text,
+  app_version text,
+  last_seen_at timestamptz not null default now(),
+  created_at timestamptz not null default now(),
+  unique(user_id, push_token)
+);
+
+create index if not exists mobile_devices_user_idx on mobile_devices(user_id, last_seen_at desc);
+create index if not exists mobile_devices_org_idx on mobile_devices(organization_id, last_seen_at desc);
+
+create table if not exists identity_groups (
+  id uuid primary key default gen_random_uuid(),
+  organization_id uuid references organizations(id) on delete cascade,
+  name text not null,
+  description text,
+  idp_group_id text not null,
+  idp_provider text not null,
+  metadata jsonb not null default '{}'::jsonb,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  unique(organization_id, idp_group_id)
+);
+
+create table if not exists identity_group_members (
+  id uuid primary key default gen_random_uuid(),
+  group_id uuid references identity_groups(id) on delete cascade,
+  user_id uuid references users(id) on delete cascade,
+  created_at timestamptz not null default now(),
+  unique(group_id, user_id)
+);
+
+create table if not exists idp_connections (
+  id uuid primary key default gen_random_uuid(),
+  organization_id uuid references organizations(id) on delete cascade,
+  provider text not null,
+  config jsonb not null default '{}'::jsonb,
+  enabled boolean not null default true,
+  last_sync_at timestamptz,
+  user_count integer not null default 0,
+  group_count integer not null default 0,
+  last_error text,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  unique(organization_id)
+);
+
+create table if not exists role_assignments (
+  id uuid primary key default gen_random_uuid(),
+  organization_id uuid references organizations(id) on delete cascade,
+  role text not null,
+  user_id uuid references users(id) on delete cascade,
+  group_id uuid references identity_groups(id) on delete cascade,
+  created_at timestamptz not null default now()
+);
+
+create index if not exists role_assignments_org_idx on role_assignments(organization_id);
+create index if not exists identity_groups_org_idx on identity_groups(organization_id);
+
+create table if not exists computers (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid references users(id) on delete set null,
+  hostname text not null,
+  platform text not null,
+  os_release text,
+  last_seen_at timestamptz not null default now(),
+  unique(user_id, hostname)
+);
+
+create table if not exists agent_runtimes (
+  id uuid primary key default gen_random_uuid(),
+  computer_id uuid references computers(id) on delete cascade,
+  kind text not null,
+  display_name text not null,
+  version text,
+  executable_path text,
+  executable_path_key text generated always as (coalesce(executable_path, '')) stored,
+  last_seen_at timestamptz not null default now(),
+  unique(computer_id, kind, executable_path_key)
+);
+
+create table if not exists policies (
+  id uuid primary key default gen_random_uuid(),
+  name text not null unique,
+  description text not null default '',
+  severity text not null default 'medium',
+  natural_language_rule text not null,
+  enabled boolean not null default true,
+  locked boolean not null default false,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+alter table policies add column if not exists locked boolean not null default false;
+
+create table if not exists conversation_events (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid references users(id) on delete set null,
+  computer_id uuid references computers(id) on delete cascade,
+  agent_runtime_id uuid references agent_runtimes(id) on delete cascade,
+  session_id text not null,
+  event_name text not null,
+  project_path text,
+  prompt text,
+  tool_name text,
+  payload jsonb not null,
+  occurred_at timestamptz not null,
+  created_at timestamptz not null default now()
+);
+
+create table if not exists evaluations (
+  id uuid primary key default gen_random_uuid(),
+  conversation_event_id uuid references conversation_events(id) on delete cascade,
+  user_id uuid references users(id) on delete set null,
+  decision text not null,
+  resolution text,
+  resolution_guidance text,
+  resolved_at timestamptz,
+  resolved_by text,
+  summary text not null,
+  question text,
+  model text,
+  created_at timestamptz not null default now()
+);
+
+alter table evaluations add column if not exists resolution_guidance text;
+
+alter table evaluations add column if not exists resolution text;
+alter table evaluations add column if not exists resolved_at timestamptz;
+alter table evaluations add column if not exists resolved_by text;
+
+create table if not exists prompt_transform_settings (
+  organization_id uuid primary key references organizations(id) on delete cascade,
+  config jsonb not null default '{}'::jsonb,
+  updated_at timestamptz not null default now()
+);
+
+create table if not exists plugin_log_events (
+  id uuid primary key default gen_random_uuid(),
+  organization_id uuid references organizations(id) on delete cascade,
+  plugin_id text not null,
+  conversation_event_id uuid references conversation_events(id) on delete set null,
+  user_id uuid references users(id) on delete set null,
+  computer_id uuid references computers(id) on delete set null,
+  agent_runtime_id uuid references agent_runtimes(id) on delete set null,
+  level text not null,
+  category text not null default 'plugin',
+  code text,
+  message text not null,
+  scope jsonb not null default '{}'::jsonb,
+  data jsonb not null default '{}'::jsonb,
+  created_at timestamptz not null default now(),
+  constraint plugin_log_events_level_check check (level in ('debug', 'info', 'warn', 'error', 'security')),
+  constraint plugin_log_events_category_check check (category in ('system', 'plugin', 'security', 'audit'))
+);
+
+create index if not exists plugin_log_events_org_created_idx on plugin_log_events(organization_id, created_at desc);
+create index if not exists plugin_log_events_plugin_created_idx on plugin_log_events(plugin_id, created_at desc);
+create index if not exists plugin_log_events_conversation_idx on plugin_log_events(conversation_event_id, created_at asc);
+
+create table if not exists mcp_servers (
+  id uuid primary key default gen_random_uuid(),
+  organization_id uuid references organizations(id) on delete cascade,
+  server_name text not null,
+  first_seen_at timestamptz not null default now(),
+  last_seen_at timestamptz not null default now(),
+  tool_count integer not null default 0,
+  call_count integer not null default 0,
+  metadata jsonb not null default '{}'::jsonb,
+  unique(organization_id, server_name)
+);
+
+create table if not exists mcp_tool_calls (
+  id uuid primary key default gen_random_uuid(),
+  organization_id uuid references organizations(id) on delete cascade,
+  mcp_server_id uuid references mcp_servers(id) on delete cascade,
+  conversation_event_id uuid references conversation_events(id) on delete cascade,
+  evaluation_id uuid references evaluations(id) on delete set null,
+  user_id uuid references users(id) on delete set null,
+  computer_id uuid references computers(id) on delete set null,
+  agent_runtime_id uuid references agent_runtimes(id) on delete set null,
+  server_name text not null,
+  tool_name text not null,
+  full_tool_name text not null,
+  arguments jsonb not null default '{}'::jsonb,
+  argument_summary text,
+  project_path text,
+  session_id text,
+  decision text,
+  resolution text,
+  risk_level text not null default 'observed',
+  occurred_at timestamptz not null,
+  created_at timestamptz not null default now()
+);
+
+create index if not exists mcp_servers_org_last_seen_idx on mcp_servers(organization_id, last_seen_at desc);
+create index if not exists mcp_tool_calls_server_idx on mcp_tool_calls(mcp_server_id, occurred_at desc);
+create index if not exists mcp_tool_calls_org_idx on mcp_tool_calls(organization_id, occurred_at desc);
+create index if not exists mcp_tool_calls_user_idx on mcp_tool_calls(user_id, occurred_at desc);
+create index if not exists mcp_tool_calls_event_idx on mcp_tool_calls(conversation_event_id);
+
+create table if not exists skills (
+  id uuid primary key default gen_random_uuid(),
+  organization_id uuid references organizations(id) on delete cascade,
+  user_id uuid references users(id) on delete set null,
+  agent_kind text not null,
+  agent_name text not null,
+  scope text not null,
+  project_path text,
+  skill_name text not null,
+  skill_path text not null,
+  status text not null default 'observed',
+  risk_score integer not null default 0,
+  reasons jsonb not null default '[]'::jsonb,
+  content_hash text not null,
+  first_seen_at timestamptz not null default now(),
+  last_seen_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  unique(organization_id, user_id, skill_path)
+);
+
+create table if not exists skill_events (
+  id uuid primary key default gen_random_uuid(),
+  organization_id uuid references organizations(id) on delete cascade,
+  skill_id uuid references skills(id) on delete cascade,
+  evaluation_id uuid references evaluations(id) on delete set null,
+  user_id uuid references users(id) on delete set null,
+  agent_kind text not null,
+  agent_name text not null,
+  scope text not null,
+  project_path text,
+  skill_name text not null,
+  skill_path text not null,
+  event_type text not null,
+  status text not null,
+  risk_score integer not null default 0,
+  reasons jsonb not null default '[]'::jsonb,
+  content_preview text,
+  occurred_at timestamptz not null default now(),
+  created_at timestamptz not null default now()
+);
+
+create index if not exists skills_org_status_idx on skills(organization_id, status, updated_at desc);
+create index if not exists skills_project_idx on skills(project_path, updated_at desc);
+create index if not exists skill_events_org_idx on skill_events(organization_id, created_at desc);
+
+create table if not exists policy_results (
+  id uuid primary key default gen_random_uuid(),
+  evaluation_id uuid references evaluations(id) on delete cascade,
+  policy_id uuid references policies(id) on delete set null,
+  policy_name text not null,
+  status text not null,
+  severity text not null,
+  explanation text not null,
+  evidence jsonb not null default '[]'::jsonb,
+  question text,
+  created_at timestamptz not null default now()
+);
+
+create index if not exists conversation_events_created_at_idx on conversation_events(created_at desc);
+create index if not exists evaluations_created_at_idx on evaluations(created_at desc);
+create index if not exists policy_results_status_idx on policy_results(status);
+
+create table if not exists deployment_tokens (
+  id uuid primary key default gen_random_uuid(),
+  label text not null,
+  token_hash text unique not null,
+  mode text not null default 'cloud',
+  tenant_url text not null default 'openleash.local',
+  mdm text,
+  expires_at timestamptz,
+  revoked_at timestamptz,
+  created_at timestamptz not null default now(),
+  last_used_at timestamptz
+);
+
+create index if not exists deployment_tokens_created_at_idx on deployment_tokens(created_at desc);
+create index if not exists deployment_tokens_active_idx on deployment_tokens(token_hash) where revoked_at is null;
+
+create table if not exists external_agent_connections (
+  id uuid primary key default gen_random_uuid(),
+  provider text not null,
+  label text not null,
+  status text not null default 'configured',
+  last_sync_at timestamptz,
+  last_error text,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  unique(provider, label)
+);
+
+create index if not exists external_agent_connections_provider_idx on external_agent_connections(provider);
+create index if not exists conversation_events_external_evaluation_key_idx
+  on conversation_events ((payload->'raw'->>'externalEvaluationKey'))
+  where payload->'raw'->>'externalEvaluationKey' is not null;
+
+alter table computers add column if not exists enrollment_token_id uuid references deployment_tokens(id) on delete set null;
+alter table computers add column if not exists enrolled_at timestamptz;
+
+delete from policies p
+using policies older
+where p.name = older.name
+  and p.created_at > older.created_at;
+
+create unique index if not exists policies_name_unique_idx on policies(name);
+
+delete from policies
+where name in ('Credential file protection', 'Destructive command review', 'Sensitive data minimization');
+
+insert into organizations (name, slug, region, setup_completed, current_step, onboarding_code)
+values ('', 'openleash', null, false, 1, null)
+on conflict (slug) do nothing;
+
+insert into users (email, display_name, role, token_hash)
+values ('max.brin@openleash.local', 'Max Brin', 'owner', encode(digest(coalesce(current_setting('openleash.dev_token', true), 'dev-' || gen_random_uuid()::text), 'sha256'), 'hex'))
+on conflict (email) do nothing;
+
+update users set organization_id = (select id from organizations where slug = 'openleash' limit 1)
+where organization_id is null;

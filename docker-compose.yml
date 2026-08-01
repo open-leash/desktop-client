@@ -1,0 +1,111 @@
+services:
+  postgres:
+    image: postgres:16-alpine@sha256:57c72fd2a128e416c7fcc499958864df5301e940bca0a56f58fddf30ffc07777
+    container_name: openleash-postgres
+    environment:
+      POSTGRES_DB: openleash
+      POSTGRES_USER: openleash
+      POSTGRES_PASSWORD: openleash
+    ports:
+      - "9543:5432"
+    volumes:
+      - openleash-postgres:/var/lib/postgresql/data
+      - ./infra/postgres/schema.sql:/docker-entrypoint-initdb.d/001-schema.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U openleash -d openleash"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  client-api:
+    build:
+      context: apps/client-api
+    container_name: openleash-client-api
+    environment:
+      DATABASE_URL: postgres://openleash:openleash@postgres:5432/openleash
+      OPENLEASH_API_PORT: 9318
+      OPENLEASH_API_SURFACE: client
+      OPENLEASH_DEPLOYMENT_MODE: ${OPENLEASH_DEPLOYMENT_MODE:-community}
+      OPENLEASH_GOOGLE_CLIENT_ID: ${OPENLEASH_GOOGLE_CLIENT_ID:-}
+      OPENLEASH_GOOGLE_CLIENT_SECRET: ${OPENLEASH_GOOGLE_CLIENT_SECRET:-}
+      OPENLEASH_RELEASE_ADMIN_TOKEN: ${OPENLEASH_RELEASE_ADMIN_TOKEN:-}
+      OPENLEASH_LATEST_VERSION: ${OPENLEASH_LATEST_VERSION:-}
+      OPENLEASH_LATEST_DMG_URL: ${OPENLEASH_LATEST_DMG_URL:-}
+      OPENLEASH_LATEST_SHA256: ${OPENLEASH_LATEST_SHA256:-}
+      OPENLEASH_LATEST_NOTES_URL: ${OPENLEASH_LATEST_NOTES_URL:-}
+      OPENLEASH_PLUGIN_ENDPOINTS: '{"openleash.prompt-compression":"http://token-saver:8080"}'
+      OPENLEASH_PLUGIN_RUNTIME_SECRET: ${OPENLEASH_PLUGIN_RUNTIME_SECRET:-openleash-local-plugin-secret}
+    ports:
+      - "9318:9318"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - default
+      - plugin-runtime
+
+  token-saver:
+    build:
+      context: plugins/plugin-token-saver
+    image: ghcr.io/open-leash/plugin-token-saver:1.1.3@sha256:a4b393aaea6867516c800e0c8381e03a451750a497d76870725dc8d3eaf1ffd3
+    environment:
+      OPENLEASH_PLUGIN_RUNTIME_SECRET: ${OPENLEASH_PLUGIN_RUNTIME_SECRET:-openleash-local-plugin-secret}
+    volumes:
+      - openleash-token-saver:/data
+    read_only: true
+    tmpfs:
+      - /tmp:size=128m,noexec,nosuid
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8080/healthz', timeout=2)"]
+      interval: 10s
+      timeout: 3s
+      retries: 12
+    networks:
+      - plugin-runtime
+
+  dashboard-api:
+    build:
+      context: apps/client-api
+    container_name: openleash-dashboard-api
+    environment:
+      DATABASE_URL: postgres://openleash:openleash@postgres:5432/openleash
+      OPENLEASH_API_PORT: 9319
+      OPENLEASH_API_SURFACE: dashboard
+      OPENLEASH_DEPLOYMENT_MODE: ${OPENLEASH_DEPLOYMENT_MODE:-community}
+      OPENLEASH_GOOGLE_CLIENT_ID: ${OPENLEASH_GOOGLE_CLIENT_ID:-}
+      OPENLEASH_GOOGLE_CLIENT_SECRET: ${OPENLEASH_GOOGLE_CLIENT_SECRET:-}
+    ports:
+      - "9319:9319"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  local-proxy:
+    profiles: ["proxy"]
+    build:
+      context: apps/local-proxy
+    container_name: openleash-local-proxy
+    environment:
+      OPENLEASH_PROXY_LISTEN: 0.0.0.0:9320
+      OPENLEASH_PROXY_UPSTREAM: ${OPENLEASH_PROXY_UPSTREAM:-https://api.anthropic.com}
+      OPENLEASH_CLIENT_API: http://client-api:9318
+      OPENLEASH_TOKEN: ${OPENLEASH_TOKEN:-}
+      OPENLEASH_CORPORATE_PROXY: ${OPENLEASH_CORPORATE_PROXY:-}
+    ports:
+      - "9320:9320"
+    depends_on:
+      - client-api
+
+volumes:
+  openleash-postgres:
+    name: ${OPENLEASH_POSTGRES_VOLUME:-ol2_openleash-postgres}
+  openleash-token-saver:
+    name: ol2_openleash-token-saver
+
+networks:
+  plugin-runtime:
+    internal: true

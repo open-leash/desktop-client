@@ -1,0 +1,169 @@
+{
+  "release": "multi-app-20260801-163850Z",
+  "generated_at_utc": "2026-08-01T16:38:50.966091+00:00",
+  "apps": [
+    {
+      "name": "apps/client-api",
+      "version": "0.36.31",
+      "tag": "v0.36.31",
+      "head_before_release": "10a1e34f86273c24b50f1eadc36778549c07f267"
+    },
+    {
+      "name": "apps/dashboard-web",
+      "version": "0.1.6",
+      "tag": "v0.1.6",
+      "head_before_release": "61282f1f174bbaaea00e1b59fd654727afc8e01b"
+    },
+    {
+      "name": "apps/desktop-client",
+      "version": "0.36.45",
+      "tag": "v0.36.45",
+      "head_before_release": "c32b481077128967d6d16798f42f9d427d7c6254"
+    },
+    {
+      "name": "apps/main-web",
+      "version": "0.1.36",
+      "tag": "v0.1.36",
+      "head_before_release": "5dafece97b8130383da14e14b9f0e79c1f2d070a"
+    }
+  ],
+  "repos": [
+    {
+      "name": "apps/client-api",
+      "path": "apps/client-api",
+      "branch": "main",
+      "head_before_release": "10a1e34f86273c24b50f1eadc36778549c07f267",
+      "changed_files_before_release": [
+        "Dockerfile",
+        "package.json"
+      ]
+    },
+    {
+      "name": "apps/dashboard-api",
+      "path": "apps/dashboard-api",
+      "branch": "main",
+      "head_before_release": "b951363ac144fead220386217ec1b69e8abc50a8",
+      "changed_files_before_release": []
+    },
+    {
+      "name": "apps/dashboard-web",
+      "path": "apps/dashboard-web",
+      "branch": "main",
+      "head_before_release": "61282f1f174bbaaea00e1b59fd654727afc8e01b",
+      "changed_files_before_release": [
+        "Dockerfile",
+        "package.json"
+      ]
+    },
+    {
+      "name": "apps/desktop-client",
+      "path": "apps/desktop-client",
+      "branch": "main",
+      "head_before_release": "c32b481077128967d6d16798f42f9d427d7c6254",
+      "changed_files_before_release": [
+        ".github/workflows/release-windows.yml",
+        "package.json",
+        "src/agent-registry.test.ts"
+      ]
+    },
+    {
+      "name": "apps/docs-web",
+      "path": "apps/docs-web",
+      "branch": "main",
+      "head_before_release": "1e6f02636c86f04089f3f5a6e1fbdc87d9391e84",
+      "changed_files_before_release": []
+    },
+    {
+      "name": "apps/flow-viewer",
+      "path": "apps/flow-viewer",
+      "branch": "main",
+      "head_before_release": "5f95929f7acb2bbd9c76b5c0a1576f4c0b3bb471",
+      "changed_files_before_release": []
+    },
+    {
+      "name": "apps/main-web",
+      "path": "apps/main-web",
+      "branch": "main",
+      "head_before_release": "5dafece97b8130383da14e14b9f0e79c1f2d070a",
+      "changed_files_before_release": [
+        "Dockerfile",
+        "app/account/AccountClient.tsx",
+        "public/install.sh"
+      ]
+    },
+    {
+      "name": "apps/mobile-client",
+      "path": "apps/mobile-client",
+      "branch": "main",
+      "head_before_release": "24848b70a445a470c66abbb2cdd8b248fac1bc30",
+      "changed_files_before_release": []
+    },
+    {
+      "name": "plugins/plugin-token-saver",
+      "path": "plugins/plugin-token-saver",
+      "branch": "main",
+      "head_before_release": "7cf37a34ce7bf37d1d3d3a96d0d2fb7a103ea90a",
+      "changed_files_before_release": []
+    },
+    {
+      "name": "plugins/plugin-blast-radius",
+      "path": "plugins/plugin-blast-radius",
+      "branch": "main",
+      "head_before_release": "740138052516e56772866899629164681e0f18dd",
+      "changed_files_before_release": []
+    },
+    {
+      "name": "plugins/plugin-sensitive-access",
+      "path": "plugins/plugin-sensitive-access",
+      "branch": "main",
+      "head_before_release": "10d792397898ade1e4d7b81c2b7aa5ff615bef9a",
+      "changed_files_before_release": []
+    },
+    {
+      "name": "plugins/plugin-data-leakage-prevention",
+      "path": "plugins/plugin-data-leakage-prevention",
+      "branch": "main",
+      "head_before_release": "c54229d43b99e87c61f2d59b93fdcfc41f1a1f48",
+      "changed_files_before_release": []
+    },
+    {
+      "name": "plugins/plugin-rules-enforcer",
+      "path": "plugins/plugin-rules-enforcer",
+      "branch": "main",
+      "head_before_release": "fa8f6c5e0d5f8072c94f45ecd68ebdb7608cfa02",
+      "changed_files_before_release": []
+    },
+    {
+      "name": "plugins/plugin-mcp-scanner",
+      "path": "plugins/plugin-mcp-scanner",
+      "branch": "main",
+      "head_before_release": "7fd46969888e02f3167633a48bf1e85e5fdc426d",
+      "changed_files_before_release": []
+    },
+    {
+      "name": "plugins/plugin-code-scanner",
+      "path": "plugins/plugin-code-scanner",
+      "branch": "main",
+      "head_before_release": "e98d1fb9898c1ccdbfd001eeb8eac5c67008c30d",
+      "changed_files_before_release": []
+    },
+    {
+      "name": "plugins/plugin-skill-scanner",
+      "path": "plugins/plugin-skill-scanner",
+      "branch": "main",
+      "head_before_release": "8ad0a298332e568eaad3bbe0fe1efb9e032dbab8",
+      "changed_files_before_release": []
+    },
+    {
+      "name": "plugins/plugin-siem-exporter",
+      "path": "plugins/plugin-siem-exporter",
+      "branch": "main",
+      "head_before_release": "5b499fe718f5a0cddd9c2a02844fa3c6ceae50e5",
+      "changed_files_before_release": []
+    }
+  ],
+  "database": {
+    "postgres_apply_command": "npm run db:migrate:backup",
+    "rollback": "restore the backup emitted by db:migrate:backup, then redeploy previous app tags"
+  }
+}

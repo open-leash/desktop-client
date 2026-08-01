@@ -1,0 +1,87 @@
+{
+  "release": "multi-app-20260720-100914Z",
+  "generated_at_utc": "2026-07-20T10:09:14.740815+00:00",
+  "apps": [
+    {
+      "name": "apps/desktop-client",
+      "version": "0.36.29",
+      "tag": "v0.36.29",
+      "head_before_release": "d57252ca3923e7d5b4a1eafca2e5396d0f0d5513"
+    },
+    {
+      "name": "apps/main-web",
+      "version": "0.1.19",
+      "tag": "v0.1.19",
+      "head_before_release": "dca849f05aaa14cef8fe560d4a3651e8ee59ce4d"
+    }
+  ],
+  "repos": [
+    {
+      "name": "apps/client-api",
+      "path": "apps/client-api",
+      "branch": "main",
+      "head_before_release": "518799966427742b132ced6f3f59ee442e1d52e8",
+      "changed_files_before_release": []
+    },
+    {
+      "name": "apps/dashboard-api",
+      "path": "apps/dashboard-api",
+      "branch": "main",
+      "head_before_release": "4409685c538ea8c50f5881855082027275c263ec",
+      "changed_files_before_release": []
+    },
+    {
+      "name": "apps/dashboard-web",
+      "path": "apps/dashboard-web",
+      "branch": "main",
+      "head_before_release": "baa05642ba2d44ca40f4d80a411f6cefff5de03a",
+      "changed_files_before_release": []
+    },
+    {
+      "name": "apps/desktop-client",
+      "path": "apps/desktop-client",
+      "branch": "main",
+      "head_before_release": "d57252ca3923e7d5b4a1eafca2e5396d0f0d5513",
+      "changed_files_before_release": [
+        "native/macos/OpenLeashIsland.swift",
+        "package.json",
+        "scripts/verify-native-island.mjs",
+        "src/activity-island.test.ts",
+        "src/activity-island.ts",
+        "src/notice.html"
+      ]
+    },
+    {
+      "name": "apps/docs-web",
+      "path": "apps/docs-web",
+      "branch": "main",
+      "head_before_release": "e65ea108262dc25028dfc36434b6b1e04235279c",
+      "changed_files_before_release": []
+    },
+    {
+      "name": "apps/main-web",
+      "path": "apps/main-web",
+      "branch": "main",
+      "head_before_release": "dca849f05aaa14cef8fe560d4a3651e8ee59ce4d",
+      "changed_files_before_release": []
+    },
+    {
+      "name": "apps/mobile-client",
+      "path": "apps/mobile-client",
+      "branch": "main",
+      "head_before_release": "c39b49fc827ce968e6dd6b611942e31f5734ce9b",
+      "changed_files_before_release": []
+    },
+    {
+      "name": "plugins/plugin-token-saver",
+      "path": "plugins/plugin-token-saver",
+      "branch": "main",
+      "head_before_release": "9781e80d432ea82cf6ebaf18d8e25aabd069d119",
+      "changed_files_before_release": []
+    }
+  ],
+  "database": {
+    "postgres_apply_command": "npm run db:migrate:backup",
+    "rollback": "restore the backup emitted by db:migrate:backup, then redeploy previous app tags"
+  }
+}

@@ -1,0 +1,40 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "OpenLeash: Private Cloud",
+      "type": "node-terminal",
+      "request": "launch",
+      "command": "npm run dev:mode:self-hosted",
+      "cwd": "${workspaceFolder}"
+    },
+    {
+      "name": "OpenLeash: OpenLeash Cloud",
+      "type": "node-terminal",
+      "request": "launch",
+      "command": "npm run dev:mode:cloud",
+      "cwd": "${workspaceFolder}"
+    },
+    {
+      "name": "OpenLeash: Dashboard Web Only",
+      "type": "node-terminal",
+      "request": "launch",
+      "command": "npm run dev:dashboard-web",
+      "cwd": "${workspaceFolder}"
+    },
+    {
+      "name": "OpenLeash: Main Web Only",
+      "type": "node-terminal",
+      "request": "launch",
+      "command": "npm run dev:main-web",
+      "cwd": "${workspaceFolder}"
+    },
+    {
+      "name": "OpenLeash: Docs Web Only",
+      "type": "node-terminal",
+      "request": "launch",
+      "command": "npm run dev:docs-web",
+      "cwd": "${workspaceFolder}"
+    }
+  ]
+}

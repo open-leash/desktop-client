@@ -1,0 +1,111 @@
+{
+  "release": "multi-app-20260720-042320Z",
+  "generated_at_utc": "2026-07-20T04:23:20.039590+00:00",
+  "apps": [
+    {
+      "name": "apps/client-api",
+      "version": "0.36.21",
+      "tag": "v0.36.21",
+      "head_before_release": "2f20a8dd6c9388b3feac9d7cadefeafbf33b4606"
+    },
+    {
+      "name": "apps/desktop-client",
+      "version": "0.36.21",
+      "tag": "v0.36.21",
+      "head_before_release": "5ef0305ffe12a8cbbe2f50dcd642e76ce76fdd44"
+    },
+    {
+      "name": "apps/main-web",
+      "version": "0.1.11",
+      "tag": "v0.1.11",
+      "head_before_release": "475b1ee9ff24c168b7146771b8a679dabf29102f"
+    }
+  ],
+  "repos": [
+    {
+      "name": "apps/client-api",
+      "path": "apps/client-api",
+      "branch": "main",
+      "head_before_release": "2f20a8dd6c9388b3feac9d7cadefeafbf33b4606",
+      "changed_files_before_release": [
+        "Dockerfile",
+        "package.json",
+        "src/plugins/README.md",
+        "src/plugins/blast-radius/index.ts",
+        "src/plugins/blast-radius/manifest.ts",
+        "src/plugins/capabilities.ts",
+        "src/plugins/container-runtime.ts",
+        "src/plugins/plugin-lifecycle.test.ts",
+        "src/plugins/runtime.ts",
+        "src/server.ts",
+        "infra/postgres/migrations/0034_plugin_island_contributions.sql",
+        "src/plugins/island-contributions.test.ts",
+        "src/plugins/island-contributions.ts"
+      ]
+    },
+    {
+      "name": "apps/dashboard-api",
+      "path": "apps/dashboard-api",
+      "branch": "main",
+      "head_before_release": "fb8734d1e8c649b48f46a691cdee4770c2feb91c",
+      "changed_files_before_release": []
+    },
+    {
+      "name": "apps/dashboard-web",
+      "path": "apps/dashboard-web",
+      "branch": "main",
+      "head_before_release": "db42b999d7c28816d0740c2b1c46b1727bf83dc1",
+      "changed_files_before_release": []
+    },
+    {
+      "name": "apps/desktop-client",
+      "path": "apps/desktop-client",
+      "branch": "agent/fix-proxy-image-release",
+      "head_before_release": "5ef0305ffe12a8cbbe2f50dcd642e76ce76fdd44",
+      "changed_files_before_release": [
+        "scripts/verify-native-island.mjs",
+        "src/activity-island.test.ts",
+        "src/activity-island.ts",
+        "src/local-server.ts",
+        "src/main.ts",
+        "src/notice.html",
+        "src/plugin-catalog.ts",
+        "src/preload.ts"
+      ]
+    },
+    {
+      "name": "apps/docs-web",
+      "path": "apps/docs-web",
+      "branch": "main",
+      "head_before_release": "5e3cade79c25f99e8f2d7c66cb2a26340c6946d8",
+      "changed_files_before_release": [
+        "app/docs-content.tsx"
+      ]
+    },
+    {
+      "name": "apps/main-web",
+      "path": "apps/main-web",
+      "branch": "main",
+      "head_before_release": "475b1ee9ff24c168b7146771b8a679dabf29102f",
+      "changed_files_before_release": []
+    },
+    {
+      "name": "apps/mobile-client",
+      "path": "apps/mobile-client",
+      "branch": "main",
+      "head_before_release": "c39b49fc827ce968e6dd6b611942e31f5734ce9b",
+      "changed_files_before_release": []
+    },
+    {
+      "name": "plugins/plugin-token-saver",
+      "path": "plugins/plugin-token-saver",
+      "branch": "main",
+      "head_before_release": "455d598d02a0406683f8deca176ba166b3d7121a",
+      "changed_files_before_release": []
+    }
+  ],
+  "database": {
+    "postgres_apply_command": "npm run db:migrate:backup",
+    "rollback": "restore the backup emitted by db:migrate:backup, then redeploy previous app tags"
+  }
+}

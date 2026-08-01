@@ -1,0 +1,57 @@
+[submodule "apps/client-api"]
+	path = apps/client-api
+	url = https://github.com/open-leash/client-api.git
+[submodule "apps/dashboard-api"]
+	path = apps/dashboard-api
+	url = https://github.com/open-leash/dashboard-api.git
+[submodule "apps/dashboard-web"]
+	path = apps/dashboard-web
+	url = https://github.com/open-leash/dashboard-web.git
+[submodule "apps/desktop-client"]
+	path = apps/desktop-client
+	url = https://github.com/open-leash/desktop-client.git
+[submodule "apps/docs-web"]
+	path = apps/docs-web
+	url = https://github.com/open-leash/docs-web.git
+[submodule "apps/flow-viewer"]
+	path = apps/flow-viewer
+	url = https://github.com/open-leash/flow-viewer.git
+[submodule "apps/local-proxy"]
+	path = apps/local-proxy
+	url = https://github.com/open-leash/local-proxy.git
+[submodule "apps/mobile-client"]
+	path = apps/mobile-client
+	url = https://github.com/open-leash/mobile-client.git
+[submodule "apps/provider-puller"]
+	path = apps/provider-puller
+	url = https://github.com/open-leash/provider-puller.git
+[submodule "packages/shared"]
+	path = packages/shared
+	url = https://github.com/open-leash/shared.git
+[submodule "plugins/plugin-blast-radius"]
+	path = plugins/plugin-blast-radius
+	url = https://github.com/open-leash/plugin-blast-radius.git
+[submodule "plugins/plugin-code-scanner"]
+	path = plugins/plugin-code-scanner
+	url = https://github.com/open-leash/plugin-code-scanner.git
+[submodule "plugins/plugin-data-leakage-prevention"]
+	path = plugins/plugin-data-leakage-prevention
+	url = https://github.com/open-leash/plugin-data-leakage-prevention.git
+[submodule "plugins/plugin-mcp-scanner"]
+	path = plugins/plugin-mcp-scanner
+	url = https://github.com/open-leash/plugin-mcp-scanner.git
+[submodule "plugins/plugin-rules-enforcer"]
+	path = plugins/plugin-rules-enforcer
+	url = https://github.com/open-leash/plugin-rules-enforcer.git
+[submodule "plugins/plugin-sensitive-access"]
+	path = plugins/plugin-sensitive-access
+	url = https://github.com/open-leash/plugin-sensitive-access.git
+[submodule "plugins/plugin-siem-exporter"]
+	path = plugins/plugin-siem-exporter
+	url = https://github.com/open-leash/plugin-siem-exporter.git
+[submodule "plugins/plugin-skill-scanner"]
+	path = plugins/plugin-skill-scanner
+	url = https://github.com/open-leash/plugin-skill-scanner.git
+[submodule "plugins/plugin-token-saver"]
+	path = plugins/plugin-token-saver
+	url = https://github.com/open-leash/plugin-token-saver.git

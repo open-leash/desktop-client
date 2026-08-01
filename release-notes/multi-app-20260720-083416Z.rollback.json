@@ -1,0 +1,122 @@
+{
+  "release": "multi-app-20260720-083416Z",
+  "generated_at_utc": "2026-07-20T08:34:16.985197+00:00",
+  "apps": [
+    {
+      "name": "apps/client-api",
+      "version": "0.36.24",
+      "tag": "v0.36.24",
+      "head_before_release": "65be4f978f81f2bc1954689662a41e139c8f4422"
+    },
+    {
+      "name": "apps/dashboard-api",
+      "version": "0.1.1",
+      "tag": "v0.1.1",
+      "head_before_release": "83e773aa337d3ed7ec73e2b3110f3d6f6324379f"
+    },
+    {
+      "name": "apps/desktop-client",
+      "version": "0.36.27",
+      "tag": "v0.36.27",
+      "head_before_release": "e7566df2e83a05119385dce191e52e5dc77c481b"
+    },
+    {
+      "name": "plugins/plugin-token-saver",
+      "version": "1.1.2",
+      "tag": "v1.1.2",
+      "head_before_release": "ae0efcc8dd28da3881fe15154c045b685ace5a90"
+    },
+    {
+      "name": "apps/main-web",
+      "version": "0.1.17",
+      "tag": "v0.1.17",
+      "head_before_release": "e7aa46e6724c9da86aafe45b2b4502266a825ed0"
+    }
+  ],
+  "repos": [
+    {
+      "name": "apps/client-api",
+      "path": "apps/client-api",
+      "branch": "main",
+      "head_before_release": "65be4f978f81f2bc1954689662a41e139c8f4422",
+      "changed_files_before_release": [
+        "src/plugins/blast-radius/index.ts",
+        "src/plugins/plugin-lifecycle.test.ts",
+        "src/plugins/prompt-compression/index.ts",
+        "src/server.ts",
+        "infra/postgres/migrations/0030_client_api_0_36_24_dashboard_api_0_1_1.sql"
+      ]
+    },
+    {
+      "name": "apps/dashboard-api",
+      "path": "apps/dashboard-api",
+      "branch": "main",
+      "head_before_release": "83e773aa337d3ed7ec73e2b3110f3d6f6324379f",
+      "changed_files_before_release": [
+        "package.json"
+      ]
+    },
+    {
+      "name": "apps/dashboard-web",
+      "path": "apps/dashboard-web",
+      "branch": "main",
+      "head_before_release": "baa05642ba2d44ca40f4d80a411f6cefff5de03a",
+      "changed_files_before_release": []
+    },
+    {
+      "name": "apps/desktop-client",
+      "path": "apps/desktop-client",
+      "branch": "main",
+      "head_before_release": "e7566df2e83a05119385dce191e52e5dc77c481b",
+      "changed_files_before_release": [
+        "native/macos/OpenLeashIsland.swift",
+        "scripts/verify-native-island.mjs",
+        "src/activity-island.test.ts",
+        "src/activity-island.ts",
+        "src/notice.html",
+        "src/plugin-catalog.ts"
+      ]
+    },
+    {
+      "name": "apps/docs-web",
+      "path": "apps/docs-web",
+      "branch": "main",
+      "head_before_release": "e65ea108262dc25028dfc36434b6b1e04235279c",
+      "changed_files_before_release": []
+    },
+    {
+      "name": "apps/main-web",
+      "path": "apps/main-web",
+      "branch": "main",
+      "head_before_release": "e7aa46e6724c9da86aafe45b2b4502266a825ed0",
+      "changed_files_before_release": [
+        "Dockerfile",
+        "app/account/AccountClient.tsx",
+        "public/install.sh"
+      ]
+    },
+    {
+      "name": "apps/mobile-client",
+      "path": "apps/mobile-client",
+      "branch": "main",
+      "head_before_release": "c39b49fc827ce968e6dd6b611942e31f5734ce9b",
+      "changed_files_before_release": []
+    },
+    {
+      "name": "plugins/plugin-token-saver",
+      "path": "plugins/plugin-token-saver",
+      "branch": "main",
+      "head_before_release": "ae0efcc8dd28da3881fe15154c045b685ace5a90",
+      "changed_files_before_release": [
+        "engine/server.py",
+        "package.json",
+        "src/index.ts",
+        "src/manifest.ts"
+      ]
+    }
+  ],
+  "database": {
+    "postgres_apply_command": "npm run db:migrate:backup",
+    "rollback": "restore the backup emitted by db:migrate:backup, then redeploy previous app tags"
+  }
+}

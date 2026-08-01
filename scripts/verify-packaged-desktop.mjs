@@ -1,0 +1,93 @@
+#!/usr/bin/env node
+import fs from "node:fs";
+import path from "node:path";
+import process from "node:process";
+import { spawnSync } from "node:child_process";
+import { createRequire } from "node:module";
+
+const require = createRequire(import.meta.url);
+const { extractFile } = require("@electron/asar");
+
+const root = process.cwd();
+const app = path.join(root, "release/personal/mac-arm64/OpenLeash.app");
+const executable = path.join(app, "Contents/MacOS/OpenLeash");
+const packagedApp = path.join(app, "Contents/Resources/app.asar");
+const nativeModule = path.join(
+  app,
+  "Contents/Resources/app.asar.unpacked/node_modules/better-sqlite3/build/Release/better_sqlite3.node",
+);
+const nativeIsland = path.join(
+  app,
+  "Contents/Resources/app.asar.unpacked/apps/desktop-client/dist/openleash-island",
+);
+const nativeIslandHtml = path.join(
+  app,
+  "Contents/Resources/app.asar.unpacked/apps/desktop-client/dist/notice.html",
+);
+const nativeIslandClaudeIcon = path.join(
+  app,
+  "Contents/Resources/app.asar.unpacked/apps/desktop-client/dist/agent-icons/claude.svg",
+);
+const nativeIslandOpenLeashIcon = path.join(
+  app,
+  "Contents/Resources/app.asar.unpacked/apps/desktop-client/dist/openleash-icon.png",
+);
+const nativeIslandCodexMascot = path.join(
+  app,
+  "Contents/Resources/app.asar.unpacked/apps/desktop-client/dist/agent-mascots/codex-pet.webp",
+);
+const nativeIslandFireworks = path.join(
+  app,
+  "Contents/Resources/app.asar.unpacked/apps/desktop-client/dist/Fireworks.json",
+);
+const nativeIslandLottie = path.join(
+  app,
+  "Contents/Resources/app.asar.unpacked/apps/desktop-client/dist/lottie.min.js",
+);
+
+for (const required of [
+  executable,
+  packagedApp,
+  nativeModule,
+  nativeIsland,
+  nativeIslandHtml,
+  nativeIslandClaudeIcon,
+  nativeIslandOpenLeashIcon,
+  nativeIslandCodexMascot,
+  nativeIslandFireworks,
+  nativeIslandLottie,
+]) {
+  if (!fs.existsSync(required)) throw new Error(`Missing packaged file: ${required}`);
+}
+
+const expectedVersion = JSON.parse(
+  fs.readFileSync(path.join(root, "apps/desktop-client/package.json"), "utf8"),
+).version;
+const packagedMetadata = JSON.parse(extractFile(packagedApp, "package.json").toString("utf8"));
+if (packagedMetadata.version !== expectedVersion) {
+  throw new Error(`Packaged desktop version ${packagedMetadata.version} does not match ${expectedVersion}`);
+}
+
+const noticeHtml = fs.readFileSync(nativeIslandHtml, "utf8");
+if (noticeHtml.includes("__OPENLEASH_FIREWORKS_DATA__")) {
+  throw new Error("Packaged notice still contains the unexpanded fireworks placeholder");
+}
+if (!noticeHtml.includes("animationData") || !noticeHtml.includes('"v":"5.1.4"')) {
+  throw new Error("Packaged notice does not contain the embedded Lottie fireworks data");
+}
+
+const result = spawnSync(
+  executable,
+  ["-e", `require(${JSON.stringify(nativeModule)}); console.log('packaged better-sqlite3 ABI ok')`],
+  {
+    cwd: root,
+    env: { ...process.env, ELECTRON_RUN_AS_NODE: "1" },
+    encoding: "utf8",
+  },
+);
+
+if (result.stdout) process.stdout.write(result.stdout);
+if (result.stderr) process.stderr.write(result.stderr);
+if (result.status !== 0) {
+  throw new Error(`Packaged desktop native-module verification failed with exit ${result.status}`);
+}

@@ -1,0 +1,68 @@
+node_modules
+.next
+dist
+build
+.turbo
+.vercel
+.env
+.DS_Store
+*.log
+coverage
+*.tsbuildinfo
+
+# Flutter/mobile generated output.
+.dart_tool
+.flutter-plugins
+.flutter-plugins-dependencies
+**/ios/Pods
+**/ios/.symlinks
+**/ios/Flutter/Generated.xcconfig
+**/ios/Flutter/flutter_export_environment.sh
+**/android/.gradle
+**/android/local.properties
+
+# Local release/package artifacts.
+release
+*.dmg
+*.pkg
+*.msi
+*.exe
+
+# Local experiments or imported old projects.
+dashboard-old/
+IdentityLoader/
+design-txample/
+
+# OpenLeash-operated SaaS/private composition should live outside the public repo.
+private/
+cloud-private/
+openleash-cloud-private/
+
+# Local private cloud wrappers. Keep these out of the public repo.
+apps/cloud-client-api/
+apps/cloud-dashboard-api/
+apps/cloud-dashboard-web/
+apps/main-web/
+apps/provider-mgmt-sync/
+apps/mobile/
+
+# Local workspaces, generated diagnostics, and imported repositories.
+.playwright-cli/
+__pycache__/
+backups/
+other-apps/
+output/
+plugin-repos/
+snapshots/
+tmp/
+video/
+docs.zip
+cloud-sql-proxy
+main.js
+public-config.js
+window.html
+openleash-dangerous-action-rules.json
+
+# Local/private environment overlays.
+.env.local
+.env.*.local

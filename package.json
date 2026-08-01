@@ -1,0 +1,83 @@
+{
+  "name": "openleash",
+  "private": true,
+  "version": "0.36.49",
+  "description": "OpenLeash protects local AI coding agents with hook-based policy enforcement and CISO-grade visibility.",
+  "author": "OpenLeash",
+  "workspaces": [
+    "apps/client-api",
+    "apps/dashboard-api",
+    "apps/dashboard-web",
+    "apps/desktop-client",
+    "apps/docs-web",
+    "apps/flow-viewer",
+    "apps/main-web",
+    "apps/provider-mgmt-sync",
+    "apps/provider-puller",
+    "packages/shared"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "build": "npm run build --workspaces --if-present",
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "desktop-client": "npm run dev -w @openleash/desktop-client",
+    "desktop-cli": "npm run cli -w @openleash/desktop-client --",
+    "dev:client-api": "npm run dev -w @openleash/client-api",
+    "dev:dashboard-api": "npm run dev -w @openleash/dashboard-api",
+    "dev:dashboard-web": "npm run dev -w @openleash/dashboard-web",
+    "dev:docs-web": "npm run dev -w @openleash/docs-web",
+    "dev:flow-viewer": "npm run dev -w @openleash/flow-viewer",
+    "dev:main-web": "npm run dev -w @openleash/main-web",
+    "dev:mode:individual-open-source": "python3 run.py --mode individual-open-source",
+    "dev:mode:self-hosted": "python3 run.py --mode private-cloud",
+    "dev:mode:cloud": "python3 run.py --mode public-cloud",
+    "db:migrate": "npm run db:migrate -w @openleash/client-api --",
+    "db:migrate:backup": "npm run db:migrate -w @openleash/client-api -- --backup --apply",
+    "db:create-org": "node scripts/db-create-organization.mjs",
+    "db:reset-data": "node scripts/db-reset-data.mjs",
+    "schema:snapshot": "python3 snaptshot.py",
+    "schema:prepare-migration": "python3 prepare-migration.py",
+    "schema:finalize-migration": "python3 finalize-migration.py",
+    "test:deployment": "npm run build -w @openleash/shared && node scripts/check-container-plugin-contracts.mjs && node scripts/check-deployment-readiness.mjs",
+    "test:container-plugins": "npm run build -w @openleash/shared && node scripts/check-container-plugin-contracts.mjs",
+    "test:container-plugins:e2e": "node scripts/test-container-plugin-e2e.mjs",
+    "test:token-saver-public": "node scripts/verify-token-saver-public.mjs",
+    "test:flows": "node scripts/check-user-flows.mjs",
+    "test:upgrade": "node scripts/test-postgres-upgrades.mjs && npm rebuild better-sqlite3 && npx tsx scripts/test-desktop-upgrades.mjs",
+    "test:local-proxy": "node scripts/test-local-proxy.mjs",
+    "docker:build": "node scripts/docker-images.mjs --no-latest",
+    "docker:publish": "node scripts/docker-images.mjs --push --no-latest",
+    "release:runtime-image": "node scripts/publish-runtime-image.mjs",
+    "release:desktop-feed": "node scripts/publish-desktop-update.mjs",
+    "release:token-saver": "node scripts/publish-token-saver.mjs",
+    "smoke:product": "node scripts/check-user-flows.mjs && node scripts/smoke-product-logic.mjs",
+    "audit:public": "node scripts/audit-public-boundary.mjs",
+    "release:check": "python3 build.py --full && python3 test.py --full",
+    "release:prep": "python3 release.py",
+    "dist:personal": "npm run build -w @openleash/desktop-client && npm run test:island:mac -w @openleash/desktop-client && npx electron-rebuild -v 40.10.6 -w better-sqlite3 --force && npx electron-builder --config electron-builder.personal.yml --mac --arm64",
+    "backup:ol2": "python3 backup-ol2.py"
+  },
+  "dependencies": {
+    "better-sqlite3": "^12.10.0",
+    "sharp": "0.35.3",
+    "simple-icons": "^16.19.0"
+  },
+  "devDependencies": {
+    "@electron/rebuild": "^4.0.4"
+  },
+  "overrides": {
+    "form-data": "4.0.6",
+    "postcss": "8.5.25",
+    "sharp": "0.35.3",
+    "next": {
+      "postcss": "8.5.25",
+      "sharp": "0.35.3"
+    },
+    "tsx": {
+      "esbuild": "0.28.1"
+    }
+  },
+  "main": "apps/desktop-client/dist/main.js"
+}

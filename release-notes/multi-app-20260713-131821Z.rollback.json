@@ -1,0 +1,75 @@
+{
+  "release": "multi-app-20260713-131821Z",
+  "generated_at_utc": "2026-07-13T13:18:21.472407+00:00",
+  "apps": [
+    {
+      "name": "apps/desktop-client",
+      "version": "0.36.0",
+      "tag": "v0.36.0",
+      "head_before_release": "409de74285eb09af7e3e4fe8e4e004bec5169896"
+    },
+    {
+      "name": "apps/main-web",
+      "version": "0.1.1",
+      "tag": "v0.1.1",
+      "head_before_release": "e50422b2ad43bb8cda5c221c066d23ccf3d8ae7e"
+    }
+  ],
+  "repos": [
+    {
+      "name": "apps/client-api",
+      "path": "apps/client-api",
+      "branch": "main",
+      "head_before_release": "7a045a0a8566e26e68f19373d8e725721124c997",
+      "changed_files_before_release": []
+    },
+    {
+      "name": "apps/dashboard-api",
+      "path": "apps/dashboard-api",
+      "branch": "main",
+      "head_before_release": "fb8734d1e8c649b48f46a691cdee4770c2feb91c",
+      "changed_files_before_release": []
+    },
+    {
+      "name": "apps/dashboard-web",
+      "path": "apps/dashboard-web",
+      "branch": "main",
+      "head_before_release": "cb27c635c5997d3bc99efb546ae5a9df7532ab0f",
+      "changed_files_before_release": []
+    },
+    {
+      "name": "apps/desktop-client",
+      "path": "apps/desktop-client",
+      "branch": "main",
+      "head_before_release": "409de74285eb09af7e3e4fe8e4e004bec5169896",
+      "changed_files_before_release": []
+    },
+    {
+      "name": "apps/docs-web",
+      "path": "apps/docs-web",
+      "branch": "main",
+      "head_before_release": "5e3cade79c25f99e8f2d7c66cb2a26340c6946d8",
+      "changed_files_before_release": [
+        "app/docs-content.tsx"
+      ]
+    },
+    {
+      "name": "apps/main-web",
+      "path": "apps/main-web",
+      "branch": "main",
+      "head_before_release": "e50422b2ad43bb8cda5c221c066d23ccf3d8ae7e",
+      "changed_files_before_release": []
+    },
+    {
+      "name": "apps/mobile-client",
+      "path": "apps/mobile-client",
+      "branch": "main",
+      "head_before_release": "c39b49fc827ce968e6dd6b611942e31f5734ce9b",
+      "changed_files_before_release": []
+    }
+  ],
+  "database": {
+    "postgres_apply_command": "npm run db:migrate:backup",
+    "rollback": "restore the backup emitted by db:migrate:backup, then redeploy previous app tags"
+  }
+}

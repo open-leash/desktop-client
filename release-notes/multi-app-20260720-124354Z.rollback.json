@@ -1,0 +1,128 @@
+{
+  "release": "multi-app-20260720-124354Z",
+  "generated_at_utc": "2026-07-20T12:43:54.034783+00:00",
+  "apps": [
+    {
+      "name": "apps/client-api",
+      "version": "0.36.25",
+      "tag": "v0.36.25",
+      "head_before_release": "518799966427742b132ced6f3f59ee442e1d52e8"
+    },
+    {
+      "name": "apps/desktop-client",
+      "version": "0.36.33",
+      "tag": "v0.36.33",
+      "head_before_release": "d72933a238b77e35e95979019d54ac418493f320"
+    },
+    {
+      "name": "plugins/plugin-token-saver",
+      "version": "1.1.3",
+      "tag": "v1.1.3",
+      "head_before_release": "9781e80d432ea82cf6ebaf18d8e25aabd069d119"
+    },
+    {
+      "name": "apps/main-web",
+      "version": "0.1.23",
+      "tag": "v0.1.23",
+      "head_before_release": "55e5f9607a1f1cb7d0dae7849131c6ce794637b2"
+    }
+  ],
+  "repos": [
+    {
+      "name": "apps/client-api",
+      "path": "apps/client-api",
+      "branch": "main",
+      "head_before_release": "518799966427742b132ced6f3f59ee442e1d52e8",
+      "changed_files_before_release": [
+        "src/notification-plugin-attribution.test.ts",
+        "src/notification-plugin-attribution.ts",
+        "src/plugins/blast-radius/index.ts",
+        "src/plugins/island-contributions.ts",
+        "src/plugins/plugin-lifecycle.test.ts",
+        "src/plugins/prompt-compression/index.ts"
+      ]
+    },
+    {
+      "name": "apps/dashboard-api",
+      "path": "apps/dashboard-api",
+      "branch": "main",
+      "head_before_release": "4409685c538ea8c50f5881855082027275c263ec",
+      "changed_files_before_release": []
+    },
+    {
+      "name": "apps/dashboard-web",
+      "path": "apps/dashboard-web",
+      "branch": "main",
+      "head_before_release": "baa05642ba2d44ca40f4d80a411f6cefff5de03a",
+      "changed_files_before_release": []
+    },
+    {
+      "name": "apps/desktop-client",
+      "path": "apps/desktop-client",
+      "branch": "main",
+      "head_before_release": "d72933a238b77e35e95979019d54ac418493f320",
+      "changed_files_before_release": [
+        "src/main.ts",
+        "src/plugin-catalog.ts"
+      ]
+    },
+    {
+      "name": "apps/docs-web",
+      "path": "apps/docs-web",
+      "branch": "main",
+      "head_before_release": "e65ea108262dc25028dfc36434b6b1e04235279c",
+      "changed_files_before_release": []
+    },
+    {
+      "name": "apps/main-web",
+      "path": "apps/main-web",
+      "branch": "main",
+      "head_before_release": "55e5f9607a1f1cb7d0dae7849131c6ce794637b2",
+      "changed_files_before_release": []
+    },
+    {
+      "name": "apps/mobile-client",
+      "path": "apps/mobile-client",
+      "branch": "main",
+      "head_before_release": "c39b49fc827ce968e6dd6b611942e31f5734ce9b",
+      "changed_files_before_release": []
+    },
+    {
+      "name": "plugins/plugin-token-saver",
+      "path": "plugins/plugin-token-saver",
+      "branch": "main",
+      "head_before_release": "9781e80d432ea82cf6ebaf18d8e25aabd069d119",
+      "changed_files_before_release": [
+        "engine/server.py",
+        "package.json",
+        "src/index.ts",
+        "src/manifest.ts"
+      ]
+    },
+    {
+      "name": "apps/cloud-client-api",
+      "path": "apps/cloud-client-api",
+      "branch": "main",
+      "head_before_release": "d590b65a2bf56cf094ed7241c06aafb8cdadd2c3",
+      "changed_files_before_release": []
+    },
+    {
+      "name": "apps/cloud-dashboard-api",
+      "path": "apps/cloud-dashboard-api",
+      "branch": "main",
+      "head_before_release": "d539e1e289c5b720856d93ea105d6af17765c3d7",
+      "changed_files_before_release": []
+    },
+    {
+      "name": "apps/cloud-dashboard-web",
+      "path": "apps/cloud-dashboard-web",
+      "branch": "main",
+      "head_before_release": "011f09f0d358f346aad7ada91ab236468cfcb944",
+      "changed_files_before_release": []
+    }
+  ],
+  "database": {
+    "postgres_apply_command": "npm run db:migrate:backup",
+    "rollback": "restore the backup emitted by db:migrate:backup, then redeploy previous app tags"
+  }
+}
