@@ -12,8 +12,7 @@ if (!new Set(["public", "full"]).has(scope)) {
 const fullCompositionPrefixes = [
   "apps/cloud-client-api/",
   "apps/cloud-dashboard-api/",
-  "apps/cloud-dashboard-web/",
-  "IdentityLoader/"
+  "apps/cloud-dashboard-web/"
 ];
 
 const checks = [

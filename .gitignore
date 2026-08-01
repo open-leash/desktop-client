@@ -30,7 +30,6 @@ release
 
 # Local experiments or imported old projects.
 dashboard-old/
-IdentityLoader/
 design-txample/
 
 # OpenLeash-operated SaaS/private composition should live outside the public repo.

@@ -55,3 +55,6 @@
 [submodule "plugins/plugin-token-saver"]
 	path = plugins/plugin-token-saver
 	url = https://github.com/open-leash/plugin-token-saver.git
+[submodule "IdentityLoader"]
+	path = IdentityLoader
+	url = https://github.com/open-leash/identity-loader.git
