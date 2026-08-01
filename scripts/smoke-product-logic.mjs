@@ -485,18 +485,37 @@ async function startProxyFixture(clientBase, token) {
       stdio: ["ignore", "pipe", "pipe"],
     },
   );
+  let proxyOutput = "";
+  proxy.stdout.on("data", (chunk) => {
+    proxyOutput += chunk;
+  });
+  proxy.stderr.on("data", (chunk) => {
+    proxyOutput += chunk;
+  });
   children.add(proxy);
   proxy.on("exit", () => children.delete(proxy));
   const proxyBase = `http://127.0.0.1:${proxyPort}`;
-  const deadline = Date.now() + 15000;
+  // A clean GitHub runner has to compile the Rust proxy before it can listen.
+  // Keep the readiness timeout distinct from API startup so a cold Cargo cache
+  // does not make the product smoke test flaky.
+  const deadline = Date.now() + Number(
+    process.env.OPENLEASH_SMOKE_PROXY_TIMEOUT_MS ?? 120000,
+  );
   while (Date.now() < deadline) {
+    if (proxy.exitCode !== null) {
+      throw new Error(
+        `full-pipeline proxy fixture exited ${proxy.exitCode}: ${proxyOutput.slice(-2000)}`,
+      );
+    }
     try {
       if ((await fetch(`${proxyBase}/healthz`)).ok)
         return { proxyBase, upstreamRequests };
     } catch {}
     await new Promise((resolve) => setTimeout(resolve, 100));
   }
-  throw new Error("Timed out waiting for full-pipeline proxy fixture");
+  throw new Error(
+    `Timed out waiting for full-pipeline proxy fixture: ${proxyOutput.slice(-2000)}`,
+  );
 }
 
 async function testRealPluginAgents({
