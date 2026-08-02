@@ -43,6 +43,19 @@ DESKTOP_DEV_RUNTIME_ENV = {
 DEV_PLUGIN_ENDPOINTS = json.dumps({plugin_id: f"http://127.0.0.1:{port}" for plugin_id, _, _, port in EVENT_PLUGIN_SPECS})
 PIPELINE_TRACE_FILE = ROOT / "output" / "openleash-flow.ndjson"
 DEV_COMPOSE = ["docker", "compose", "--project-name", "openleash-dev"]
+OPENLEASH_DOCKER_VOLUMES = {
+    "ol2_openleash-postgres",
+    "ol2_openleash-token-saver",
+    "openleash_openleash-postgres",
+    "openleash_openleash-token-saver",
+    "openleash-individual_openleash-individual-postgres",
+    "openleash-individual_openleash-individual-token-saver",
+    "openleash-private-cloud_openleash-postgres",
+    "openleash-private-cloud_openleash-private-cloud-postgres",
+    "openleash-private-cloud_openleash-private-cloud-token-saver",
+    "openleash-token-saver-data",
+    "openleash-trivy-cache",
+}
 RUN_ALIASES_LEGACY_PATH = Path.home() / ".openleash" / "run-aliases.json"
 RUN_ALIASES_PATH = Path(os.environ.get("XDG_CONFIG_HOME", Path.home() / ".config")) / "openleash" / "run-aliases.json"
 DEFAULT_RUN_ALIASES = [
@@ -1446,7 +1459,7 @@ def cleanup_local_openleash(
     prompt_for_docker_desktop_restart: bool = False,
 ) -> None:
     print("\nMode: Delete local OpenLeash")
-    print("This stops every local OpenLeash service, restores agent proxy configuration, removes OpenLeash containers and Postgres volumes, and deletes client state, settings, hooks, logs, and installed app copies.")
+    print("This stops every local OpenLeash service, restores agent proxy configuration, removes OpenLeash containers, networks, and data volumes, and deletes client state, settings, hooks, logs, and installed app copies.")
 
     individual_runtime_dir = Path.home() / ".openleash" / "individual-open-source"
     steps = [
@@ -1476,12 +1489,8 @@ def cleanup_local_openleash(
     ]
     for step in steps:
         run_optional_step(step)
-    for volume_name in [
-        "ol2_openleash-postgres",
-        "openleash_openleash-postgres",
-        "openleash-individual_openleash-individual-postgres",
-        "openleash-private-cloud_openleash-postgres",
-    ]:
+    remove_managed_plugin_containers()
+    for volume_name in discover_openleash_docker_volumes():
         remove_docker_volume_if_present(
             volume_name,
             recover_stale_reference=lambda name, container_ids: recover_stale_docker_volume_reference(
@@ -1491,6 +1500,7 @@ def cleanup_local_openleash(
                 prompt_for_restart=prompt_for_docker_desktop_restart,
             ),
         )
+    remove_openleash_docker_networks()
 
     cleanup_ports = [4317, 9317, 9318, 9319, 9320, 9321, 9301, 9302, 9305, 9338, 9340]
     cleanup_ports.extend(spec[3] for spec in EVENT_PLUGIN_SPECS)
@@ -1523,12 +1533,82 @@ def run_optional_step(command: Command) -> None:
         print(f"[openleash:{command.name}] skipped; command not found")
 
 
+def remove_managed_plugin_containers() -> None:
+    result = subprocess.run(
+        ["docker", "ps", "-aq", "--filter", "label=com.openleash.plugin-managed=true"],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if result.returncode != 0:
+        return
+    container_ids = result.stdout.split()
+    if container_ids:
+        run_optional_step(Command(
+            "remove-managed-plugin-containers",
+            ["docker", "rm", "-f", *container_ids],
+        ))
+
+
+def is_openleash_docker_volume(volume_name: str) -> bool:
+    return (
+        volume_name in OPENLEASH_DOCKER_VOLUMES
+        or (volume_name.startswith("openleash-plugin-") and volume_name.endswith("-data"))
+        or volume_name.startswith("openleash-dev_")
+    )
+
+
+def discover_openleash_docker_volumes() -> list[str]:
+    result = subprocess.run(
+        ["docker", "volume", "ls", "--format", "{{.Name}}"],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    discovered = result.stdout.split() if result.returncode == 0 else []
+    return sorted(OPENLEASH_DOCKER_VOLUMES | {
+        volume_name for volume_name in discovered if is_openleash_docker_volume(volume_name)
+    })
+
+
+def is_openleash_docker_network(network_name: str) -> bool:
+    return (
+        network_name == "openleash-plugin-runtime"
+        or network_name.startswith("openleash-dev_")
+        or network_name.startswith("openleash-individual_")
+        or network_name.startswith("openleash-private-cloud_")
+        or network_name.startswith("openleash-smoke")
+        or network_name.startswith("openleash-upgrade")
+    )
+
+
+def remove_openleash_docker_networks() -> None:
+    result = subprocess.run(
+        ["docker", "network", "ls", "--format", "{{.Name}}"],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if result.returncode != 0:
+        return
+    network_names = sorted({
+        network_name
+        for network_name in result.stdout.split()
+        if is_openleash_docker_network(network_name)
+    })
+    if network_names:
+        run_optional_step(Command(
+            "remove-openleash-networks",
+            ["docker", "network", "rm", *network_names],
+        ))
+
+
 def remove_docker_volume_if_present(
     volume_name: str,
     *,
     recover_stale_reference: Callable[[str, list[str]], bool] | None = None,
 ) -> None:
-    """Remove an OpenLeash database volume or fail a requested clean slate.
+    """Remove an OpenLeash data volume or fail a requested clean slate.
 
     Docker Compose can leave an unnamed/orphaned container attached to a named
     volume. Silently ignoring that error makes a subsequent `--clean-slate`
@@ -1543,7 +1623,7 @@ def remove_docker_volume_if_present(
     if inspect.returncode != 0:
         return
 
-    print(f"[openleash:remove-openleash-postgres-volume-{volume_name}] docker volume rm {volume_name}")
+    print(f"[openleash:remove-openleash-volume-{volume_name}] docker volume rm {volume_name}")
     attached_result = subprocess.run(
         ["docker", "ps", "-aq", "--filter", f"volume={volume_name}"],
         capture_output=True,

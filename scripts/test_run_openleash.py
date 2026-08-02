@@ -21,6 +21,25 @@ def completed(args: list[str], code: int, stdout: str = "", stderr: str = ""):
 
 
 class DockerVolumeCleanupTests(unittest.TestCase):
+    def test_discovers_all_product_data_volumes_without_unrelated_matches(self):
+        result = completed(
+            ["docker", "volume", "ls"],
+            0,
+            stdout=(
+                "openleash-plugin-rules-enforcer-data\n"
+                "openleash-dev_openleash-token-saver\n"
+                "customer-openleash-backup\n"
+            ),
+        )
+        with patch.object(RUNNER.subprocess, "run", return_value=result):
+            volumes = RUNNER.discover_openleash_docker_volumes()
+
+        self.assertIn("openleash-plugin-rules-enforcer-data", volumes)
+        self.assertIn("openleash-dev_openleash-token-saver", volumes)
+        self.assertIn("openleash-token-saver-data", volumes)
+        self.assertIn("openleash-trivy-cache", volumes)
+        self.assertNotIn("customer-openleash-backup", volumes)
+
     def test_stale_container_reference_recovers_and_retries_volume_removal(self):
         ghost_id = "25ec1efd4652"
         results = [
@@ -87,6 +106,32 @@ class OptionalStepTests(unittest.TestCase):
         with patch.object(RUNNER.subprocess, "run") as run:
             RUNNER.run_optional_step(command)
         run.assert_not_called()
+
+
+class DockerNetworkCleanupTests(unittest.TestCase):
+    def test_removes_only_openleash_runtime_and_test_networks(self):
+        listed = completed(
+            ["docker", "network", "ls"],
+            0,
+            stdout="openleash-plugin-runtime\nopenleash-smoke-42_default\ncustomer-network\n",
+        )
+        with (
+            patch.object(RUNNER.subprocess, "run", return_value=listed),
+            patch.object(RUNNER, "run_optional_step") as remove,
+        ):
+            RUNNER.remove_openleash_docker_networks()
+
+        command = remove.call_args.args[0]
+        self.assertEqual(
+            command.args,
+            [
+                "docker",
+                "network",
+                "rm",
+                "openleash-plugin-runtime",
+                "openleash-smoke-42_default",
+            ],
+        )
 
 
 class RunnerArgumentTests(unittest.TestCase):
