@@ -1,0 +1,27 @@
+# OpenLeash release 2026-08-02 status
+
+## Published and verified
+
+- `client-api` `v0.36.37` (`89ea682f48784c2d888103560babb8204bb04ab6`)
+  - `ghcr.io/open-leash/client-api:0.36.37`
+  - digest: `sha256:05533ce54b77d6fd223d2f2a85132f55dca80f6dab899a05427a623defe16f95`
+  - Linux amd64/arm64, provenance and SBOM published, anonymous pull verified, and zero HIGH/CRITICAL Trivy findings.
+  - The immutable image passed live Individual Open Source and Private Cloud API health checks against Postgres.
+- `dashboard-web` `v0.1.9` (`3000f18feaca1894175508c5f714c4e95f5c37ab`)
+  - `ghcr.io/open-leash/dashboard-web:0.1.9`
+  - digest: `sha256:c95828ba87e3f0bacc165085288810356878dd648e82eb725b3c1e2c42bf1783`
+  - Linux amd64/arm64, provenance and SBOM published, anonymous pull verified, and zero HIGH/CRITICAL Trivy findings.
+  - The immutable image passed a live HTTP smoke test against the released Private Cloud API image.
+- Source tags were published for `main-web` `v0.1.43`, `cloud-client-api` `v0.1.10`, `cloud-dashboard-api` `v0.1.5`, and `cloud-dashboard-web` `v0.1.4` after their release gates passed.
+
+## Prepared but not promoted
+
+- `desktop-client` `v0.36.52` is tagged and its GitHub release remains a draft. The macOS and Windows release jobs stopped before artifact publication because the repositories do not have the required signing/notarization secrets. No unsigned artifact was substituted and no stable update record was changed.
+- `main-web` `v0.1.43` is not deployed because its new installer links require the signed desktop `v0.36.52` assets first. The existing live installer remains available.
+- The OpenLeash Cloud wrapper source releases are not deployed. The available Google Cloud account has no configured production database URL, and the `openleash-497305` project has no enabled Cloud Run service. Production migration, immutable Artifact Registry publication, and Cloud Run rollout therefore cannot be performed safely from this environment. The existing `api.openleash.com/health` and hosted dashboard continue to return HTTP 200.
+
+## Rollback
+
+- Public self-hosted operators can retain the previous pinned image digests; the new images are immutable and were not published as `latest`.
+- No production database migration or hosted Cloud Run revision was applied in this release attempt, so no hosted rollback action is required.
+- Keep the desktop release in draft until signed assets pass notarization, checksums, packaged ABI checks, and update-feed verification.
