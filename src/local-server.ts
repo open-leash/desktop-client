@@ -753,6 +753,7 @@ export class LocalOpenLeashServer {
           agentKind?: string;
           agentId?: string;
           sessionId?: string;
+          projectPath?: string;
           requestBody?: Record<string, unknown>;
         };
         if (!body.requestBody || typeof body.requestBody !== "object" || Array.isArray(body.requestBody)) {
@@ -775,6 +776,7 @@ export class LocalOpenLeashServer {
           agentKind: String(body.agentKind ?? "unknown"),
           agentId: body.agentId ? String(body.agentId) : undefined,
           sessionId: String(body.sessionId ?? "proxy"),
+          projectPath: body.projectPath ? String(body.projectPath) : undefined,
           organizationId: this.store.remoteOrganization ?? this.store.installIdentity ?? "local",
           userId: this.store.remoteUser ?? "local-user",
           requestBody: body.requestBody,

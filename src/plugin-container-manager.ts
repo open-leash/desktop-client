@@ -122,6 +122,7 @@ export async function transformViaLocalPluginContainers(input: {
   provider: string;
   agentKind: string;
   agentId?: string;
+  projectPath?: string;
   sessionId: string;
   organizationId: string;
   userId: string;
@@ -131,7 +132,7 @@ export async function transformViaLocalPluginContainers(input: {
   const appliedPluginIds: string[] = [];
   const runs: Array<Record<string, unknown>> = [];
   const scopedPlugins = input.plugins
-    .map((plugin) => pluginForAgent(plugin, input.agentKind, input.agentId))
+    .map((plugin) => resolvePluginForScope(plugin, input.agentKind, input.agentId, input.projectPath))
     .filter((plugin) =>
       plugin.settings.enabled &&
       plugin.events.includes("provider.request.beforeSend") &&
@@ -161,6 +162,7 @@ export async function transformViaLocalPluginContainers(input: {
         agentKind: input.agentKind,
         agentId: input.agentId,
         sessionId: input.sessionId,
+        projectPath: input.projectPath,
       },
       settings: settingsContext(plugin.settings),
       config: plugin.settings.config,
@@ -362,7 +364,7 @@ export function isDesiredEdgeContainer(plugin: PluginCatalogItem) {
   );
 }
 
-function pluginForAgent(plugin: PluginCatalogItem, agentKind: string, agentId?: string): PluginCatalogItem {
+export function resolvePluginForScope(plugin: PluginCatalogItem, agentKind: string, agentId?: string, projectPath?: string): PluginCatalogItem {
   let enabled = plugin.settings.enabled;
   let config = { ...plugin.settings.config };
   const effectiveProfileIds: string[] = [];
@@ -374,8 +376,11 @@ function pluginForAgent(plugin: PluginCatalogItem, agentKind: string, agentId?: 
     for (const profile of [...profiles].sort((a, b) => (a.priority ?? 0) - (b.priority ?? 0) || a.id.localeCompare(b.id))) {
       if (profile.agentKinds.length > 0 && !profile.agentKinds.includes(agentKind)) continue;
       if ((profile.agentIds?.length ?? 0) > 0 && (!agentId || !profile.agentIds!.includes(agentId))) continue;
+      if ((profile.projectPaths?.length ?? 0) > 0 && !profile.projectPaths!.some((root) => projectPathMatches(root, projectPath))) continue;
       if (allowEnabledOverride && typeof profile.enabled === "boolean") enabled = profile.enabled;
+      const previousRules = plugin.id === "openleash.rules-enforcer" && Array.isArray(config.rules) ? config.rules : undefined;
       config = { ...config, ...profile.config };
+      if (previousRules && Array.isArray(profile.config.rules)) config.rules = [...previousRules, ...profile.config.rules];
       effectiveProfileIds.push(`${scope}:${profile.id}`);
     }
   };
@@ -385,6 +390,21 @@ function pluginForAgent(plugin: PluginCatalogItem, agentKind: string, agentId?: 
     ...plugin,
     settings: { ...plugin.settings, enabled, config, effectiveProfileIds },
   };
+}
+
+function projectPathMatches(profilePath: string, eventPath?: string) {
+  const normalize = (value: string) => {
+    const slashed = value.trim().replace(/\\/g, "/");
+    const uncPrefix = slashed.startsWith("//") ? "//" : "";
+    const normalized = uncPrefix + slashed.slice(uncPrefix.length).replace(/\/{2,}/g, "/");
+    return normalized === "/" ? normalized : normalized.replace(/\/+$/, "");
+  };
+  const root = normalize(profilePath);
+  const project = normalize(eventPath ?? "");
+  const windowsPath = /^(?:[a-z]:\/|\/\/)/i;
+  const comparableRoot = windowsPath.test(root) ? root.toLowerCase() : root;
+  const comparableProject = windowsPath.test(project) ? project.toLowerCase() : project;
+  return Boolean(root && project && (comparableProject === comparableRoot || (comparableRoot !== "/" && comparableProject.startsWith(`${comparableRoot}/`))));
 }
 
 function settingsContext(settings: PluginCatalogItem["settings"]) {

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { containerRunArgs, isDesiredEdgeContainer, transformViaLocalPluginContainers } from "./plugin-container-manager";
+import { containerRunArgs, isDesiredEdgeContainer, resolvePluginForScope, transformViaLocalPluginContainers } from "./plugin-container-manager";
 import type { PluginCatalogItem } from "./plugin-catalog";
 
 test("container plan is loopback-only, constrained, and digest-pinned when supplied", () => {
@@ -99,6 +99,97 @@ test("an organization agent profile starts one shared plugin container even when
     },
   } as PluginCatalogItem;
   assert.equal(isDesiredEdgeContainer(plugin), true);
+});
+
+test("project profiles apply to a selected project and nested working directories", () => {
+  const plugin = {
+    id: "openleash.rules-enforcer",
+    name: "rules-enforcer",
+    description: "test",
+    version: "1.0.0",
+    publisher: "openleash",
+    runtime: "container",
+    execution: {
+      type: "container",
+      placement: "edge",
+      protocol: "openleash-container-plugin.v1",
+      image: "openleash/rules-enforcer:1.0.0",
+    },
+    entrypoint: "container",
+    events: ["provider.request.beforeSend"],
+    permissions: ["provider-request:read"],
+    effects: ["observe"],
+    settings: {
+      enabled: true,
+      config: { rules: [] },
+      profiles: [{
+        id: "project",
+        name: "Project rules",
+        agentKinds: [],
+        projectPaths: ["/Users/max/Code/OpenLeash"],
+        config: { rules: [{ text: "Ask before migrations", action: "ask" }] },
+      }],
+    },
+  } as PluginCatalogItem;
+  assert.deepEqual(
+    resolvePluginForScope(plugin, "codex", undefined, "/Users/max/Code/OpenLeash/apps/client-api").settings.config,
+    { rules: [{ text: "Ask before migrations", action: "ask" }] },
+  );
+  assert.deepEqual(
+    resolvePluginForScope(plugin, "codex", undefined, "/Users/max/Code/Other").settings.config,
+    { rules: [] },
+  );
+});
+
+test("project profiles match Windows paths without case sensitivity", () => {
+  const plugin = {
+    id: "openleash.rules-enforcer",
+    name: "rules-enforcer",
+    description: "test",
+    version: "1.0.0",
+    publisher: "openleash",
+    runtime: "container",
+    execution: { type: "container", placement: "edge", protocol: "openleash-container-plugin.v1", image: "openleash/rules-enforcer:1.0.0" },
+    entrypoint: "container",
+    events: ["provider.request.beforeSend"],
+    permissions: ["provider-request:read"],
+    effects: ["observe"],
+    settings: {
+      enabled: true,
+      config: { rules: [] },
+      profiles: [{ id: "project", name: "Project rules", agentKinds: [], projectPaths: ["C:/Code/OpenLeash"], config: { strict: true } }],
+    },
+  } as PluginCatalogItem;
+  assert.equal(resolvePluginForScope(plugin, "codex", undefined, "c:\\code\\openleash\\apps").settings.config.strict, true);
+});
+
+test("rules-enforcer accumulates base, project, and agent rules", () => {
+  const plugin = {
+    id: "openleash.rules-enforcer",
+    name: "rules-enforcer",
+    description: "test",
+    version: "1.0.0",
+    publisher: "openleash",
+    runtime: "container",
+    execution: { type: "container", placement: "edge", protocol: "openleash-container-plugin.v1", image: "openleash/rules-enforcer:1.0.0" },
+    entrypoint: "container",
+    events: ["provider.request.beforeSend"],
+    permissions: ["provider-request:read"],
+    effects: ["observe"],
+    settings: {
+      enabled: true,
+      config: { rules: [{ text: "Global", action: "ask" }] },
+      profiles: [
+        { id: "project", name: "Project", agentKinds: [], projectPaths: ["/repo"], config: { rules: [{ text: "Project", action: "block" }] } },
+        { id: "agent", name: "Agent", agentKinds: ["codex"], config: { rules: [{ text: "Agent", action: "ask" }] } },
+      ],
+    },
+  } as PluginCatalogItem;
+  assert.deepEqual(resolvePluginForScope(plugin, "codex", undefined, "/repo/apps").settings.config.rules, [
+    { text: "Global", action: "ask" },
+    { text: "Agent", action: "ask" },
+    { text: "Project", action: "block" },
+  ]);
 });
 
 test("desktop transform invokes only plugins subscribed to provider requests", async () => {

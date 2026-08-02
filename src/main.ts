@@ -1375,6 +1375,7 @@ ipcMain.handle(
         name: string;
         agentKinds: string[];
         agentIds?: string[];
+        projectPaths?: string[];
         enabled?: boolean;
         config: Record<string, unknown>;
         priority?: number;
