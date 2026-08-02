@@ -121,6 +121,8 @@ export type PluginSettingProfile = {
     agentKinds: AgentKind[];
     /** Stable enrolled-agent identifiers. Empty means any instance of a matching kind. */
     agentIds?: string[];
+    /** Normalized project roots. Empty means every project; descendants match their root. */
+    projectPaths?: string[];
     enabled?: boolean;
     config: Record<string, unknown>;
     priority?: number;
