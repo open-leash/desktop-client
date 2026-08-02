@@ -1016,6 +1016,7 @@ async fn evaluate(
     let prompt = latest_prompt(body).unwrap_or_default();
     let (event_name, tool) = request_event(body);
     let session = provider_session_id(body).unwrap_or_else(|| "proxy".to_owned());
+    let project_path = provider_project_path(body);
     let occurred_at = body
         .get("openleash_occurred_at")
         .and_then(Value::as_str)
@@ -1027,7 +1028,7 @@ async fn evaluate(
       "correlationId": session,
       "request": { "computer": {"hostname":"local-proxy","platform":std::env::consts::OS},
         "agent":{"kind":agent_kind,"displayName":agent_display_name(agent_kind)},
-        "event":{"eventName":event_name,"agentKind":agent_kind,"sessionId":session,"prompt":prompt,"tool":tool,"transcript":transcript,
+        "event":{"eventName":event_name,"agentKind":agent_kind,"sessionId":session,"projectPath":project_path,"prompt":prompt,"tool":tool,"transcript":transcript,
           "raw":{"proxyPath":path,"containerPluginApplied":applied_plugin_ids,"containerPluginRuns":container_plugin_runs,
             "backgroundControl":background_control_request},"occurredAt":occurred_at}}
     });
@@ -1052,6 +1053,7 @@ async fn transform_request(
     agent_kind: &str,
 ) -> Result<TransformDecision, reqwest::Error> {
     let session_id = provider_session_id(body).unwrap_or_else(|| "proxy".to_owned());
+    let project_path = provider_project_path(body);
     app.client
         .post(format!(
             "{}/v1/plugin-runtime/transform",
@@ -1062,6 +1064,7 @@ async fn transform_request(
             "provider": provider(path, body),
             "agentKind": agent_kind,
             "sessionId": session_id,
+            "projectPath": project_path,
             "requestBody": body,
         }))
         .send()
@@ -1093,6 +1096,30 @@ fn provider_session_id(body: &Value) -> Option<String> {
                 .map(str::to_owned)
         })
         .or_else(|| (!metadata.trim().is_empty()).then(|| metadata.to_owned()))
+}
+
+fn provider_project_path(body: &Value) -> Option<String> {
+    let direct = body
+        .get("project_path")
+        .or_else(|| body.get("projectPath"))
+        .or_else(|| body.get("cwd"))
+        .or_else(|| body.get("workspace"))
+        .and_then(Value::as_str);
+    if let Some(value) = direct.filter(|value| !value.trim().is_empty()) {
+        return Some(value.to_owned());
+    }
+    body.get("metadata")
+        .and_then(Value::as_object)
+        .and_then(|metadata| {
+            metadata
+                .get("project_path")
+                .or_else(|| metadata.get("projectPath"))
+                .or_else(|| metadata.get("cwd"))
+                .or_else(|| metadata.get("workspace"))
+        })
+        .and_then(Value::as_str)
+        .filter(|value| !value.trim().is_empty())
+        .map(str::to_owned)
 }
 
 fn request_event(body: &Value) -> (&'static str, Option<Value>) {
@@ -1593,6 +1620,18 @@ mod tests {
     fn extracts_claude_session_from_metadata_json() {
         let value = json!({"metadata":{"user_id":"{\"device_id\":\"device\",\"session_id\":\"session-123\"}"}});
         assert_eq!(provider_session_id(&value).as_deref(), Some("session-123"));
+    }
+    #[test]
+    fn extracts_project_path_from_provider_context() {
+        assert_eq!(
+            provider_project_path(&json!({"metadata":{"cwd":"/Users/max/Code/OpenLeash"}}))
+                .as_deref(),
+            Some("/Users/max/Code/OpenLeash"),
+        );
+        assert_eq!(
+            provider_project_path(&json!({"projectPath":"/workspace/service"})).as_deref(),
+            Some("/workspace/service"),
+        );
     }
     #[test]
     fn transform_response_can_pause_monitoring_for_one_request_session() {
