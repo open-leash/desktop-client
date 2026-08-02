@@ -512,31 +512,42 @@ def run_snapshot_gate(args: argparse.Namespace, items: list[ReleaseItem]) -> Non
     snapshot_clients = selected_snapshot_clients(items)
     if not snapshot_clients or args.skip_snapshots:
         return
-    ensure_snapshot_dependencies(snapshot_clients, dry_run=args.dry_run)
+    started_postgres = ensure_snapshot_dependencies(snapshot_clients, dry_run=args.dry_run)
     snapshot_args = ("python3", "snaptshot.py", *snapshot_clients)
     if args.allow_snapshot_failures:
         snapshot_args = (*snapshot_args, "--continue-on-error")
-    run_release_command(ReleaseCommand("schema-snapshots", snapshot_args), dry_run=args.dry_run)
+    try:
+        run_release_command(ReleaseCommand("schema-snapshots", snapshot_args), dry_run=args.dry_run)
+    finally:
+        if started_postgres:
+            # The reference Compose file uses a stable container name. Remove the
+            # snapshot service before upgrade fixtures create their isolated
+            # Compose project, while deliberately retaining the Postgres volume.
+            run_release_command(
+                ReleaseCommand("stop-snapshot-postgres", ("docker", "compose", "rm", "-s", "-f", "postgres")),
+                dry_run=args.dry_run,
+            )
 
 
-def ensure_snapshot_dependencies(snapshot_clients: list[str], dry_run: bool) -> None:
+def ensure_snapshot_dependencies(snapshot_clients: list[str], dry_run: bool) -> bool:
     postgres_clients = [client for client in snapshot_clients if CLIENTS.get(client) and CLIENTS[client].engine == "postgres"]
     if not postgres_clients or env_tool("PG_DUMP") or shutil.which("pg_dump"):
-        return
+        return False
 
     targets = [client_target(CLIENTS[client]) or "" for client in postgres_clients]
     if not all(is_local_postgres_target(target) for target in targets):
         print("[release:schema-snapshots] pg_dump is missing; non-local Postgres targets still need PostgreSQL client tools or PG_DUMP.")
-        return
+        return False
 
     if not shutil.which("docker"):
         print("[release:schema-snapshots] pg_dump is missing and Docker is unavailable; snapshots will fail unless PG_DUMP is set.")
-        return
+        return False
 
     if not dry_run:
         run_release_command(ReleaseCommand("postgres-for-snapshots", ("docker", "compose", "up", "-d", "--wait", "postgres")), dry_run=False)
     else:
         run_release_command(ReleaseCommand("postgres-for-snapshots", ("docker", "compose", "up", "-d", "--wait", "postgres")), dry_run=True)
+    return True
 
 
 def env_tool(name: str) -> str | None:
