@@ -12,16 +12,16 @@
   - digest: `sha256:c95828ba87e3f0bacc165085288810356878dd648e82eb725b3c1e2c42bf1783`
   - Linux amd64/arm64, provenance and SBOM published, anonymous pull verified, and zero HIGH/CRITICAL Trivy findings.
   - The immutable image passed a live HTTP smoke test against the released Private Cloud API image.
-- Source tags were published for `main-web` `v0.1.43`, `cloud-client-api` `v0.1.10`, `cloud-dashboard-api` `v0.1.5`, and `cloud-dashboard-web` `v0.1.4` after their release gates passed.
+- Managed production builds and deployments completed successfully for `cloud-client-api` `v0.1.10`, `cloud-dashboard-api` `v0.1.5`, and `cloud-dashboard-web` `v0.1.4`. `api.openleash.com/health` and `dashboard.openleash.com` return HTTP 200, and an unauthenticated hook smoke request is rejected with HTTP 401.
+- `main-web` `v0.1.44` was built and deployed after `v0.1.43` briefly pointed the installer at the unsigned desktop draft. The live installer is restored to signed desktop `v0.36.49`; its public release API, installer helper, arm64 DMG, checksum asset, and ranged DMG download were verified.
 
 ## Prepared but not promoted
 
 - `desktop-client` `v0.36.52` is tagged and its GitHub release remains a draft. The macOS and Windows release jobs stopped before artifact publication because the repositories do not have the required signing/notarization secrets. No unsigned artifact was substituted and no stable update record was changed.
-- `main-web` `v0.1.43` is not deployed because its new installer links require the signed desktop `v0.36.52` assets first. The existing live installer remains available.
-- The OpenLeash Cloud wrapper source releases are not deployed. The available Google Cloud account has no configured production database URL, and the `openleash-497305` project has no enabled Cloud Run service. Production migration, immutable Artifact Registry publication, and Cloud Run rollout therefore cannot be performed safely from this environment. The existing `api.openleash.com/health` and hosted dashboard continue to return HTTP 200.
+- Production is managed by Cloud Build in project `cloud-497307`, while the available local Google Cloud account has no access to that project and no approved production database URL. The successful managed build/deploy checks and live endpoint checks are recorded, but the Artifact Registry digests and production migration ledger could not be independently inspected from this environment. No manual migration was attempted against an unverified database target.
 
 ## Rollback
 
 - Public self-hosted operators can retain the previous pinned image digests; the new images are immutable and were not published as `latest`.
-- No production database migration or hosted Cloud Run revision was applied in this release attempt, so no hosted rollback action is required.
+- If hosted health regresses, roll each managed service back to its previous successful Cloud Run revision through the production project before changing database state.
 - Keep the desktop release in draft until signed assets pass notarization, checksums, packaged ABI checks, and update-feed verification.
