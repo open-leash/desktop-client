@@ -49,6 +49,7 @@
     "test:flows:public": "node scripts/check-user-flows.mjs --scope public",
     "test:upgrade": "node scripts/test-postgres-upgrades.mjs && npm rebuild better-sqlite3 && npx tsx scripts/test-desktop-upgrades.mjs",
     "test:local-proxy": "node scripts/test-local-proxy.mjs",
+    "test:runner": "python3 -m unittest scripts/test_run_openleash.py",
     "docker:build": "node scripts/docker-images.mjs --no-latest",
     "docker:publish": "node scripts/docker-images.mjs --push --no-latest",
     "release:runtime-image": "node scripts/publish-runtime-image.mjs",

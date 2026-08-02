@@ -15,7 +15,7 @@ import urllib.request
 import webbrowser
 from dataclasses import dataclass, field, replace
 from pathlib import Path
-from typing import Iterable
+from typing import Callable, Iterable
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -210,6 +210,11 @@ def main() -> int:
     parser.add_argument("--load-plugins", action="store_true", help="Load plugin manifests from the plugins folder into the plugin catalog database.")
     parser.add_argument("--plugins-dir", default=str(DEFAULT_PLUGINS_DIR), help="Plugin folder to import when --load-plugins is set.")
     parser.add_argument("--yes", action="store_true", help="Skip the final confirmation prompt.")
+    parser.add_argument(
+        "--restart-docker-desktop-on-stale-volume",
+        action="store_true",
+        help="Allow clean-slate to restart Docker Desktop when its metadata references a missing container. This temporarily stops every Docker container.",
+    )
     parser.add_argument("--dry-run", action="store_true", help="Print the resolved mode and commands without changing local state or starting services.")
     parser.add_argument("--view-flow", action="store_true", help="Start or open the local flow-viewer web app.")
     parser.add_argument("--no-open-flow-viewer", action="store_true", help="Do not automatically open the flow viewer for Individual Open Source runs.")
@@ -229,11 +234,18 @@ def main() -> int:
 
     if args.cleanup_local:
         print_replay_command(None, "cleanup", args.dev_auth, cleanup_only=True)
+        if args.dry_run:
+            print_cleanup_dry_run()
+            return 0
         if not args.yes:
             print("This permanently deletes the local OpenLeash Postgres database and all local OpenLeash client state.")
             if not confirm("Clean everything local to OpenLeash?", default=False):
                 cancel()
-        cleanup_local_openleash()
+        try:
+            cleanup_local_openleash_for_args(args)
+        except RuntimeError as exc:
+            print(f"[openleash] error: {exc}", file=sys.stderr)
+            return 1
         return 0
 
     if args.load_plugins and not args.mode:
@@ -252,7 +264,14 @@ def main() -> int:
         questionnaire = choose_run_questionnaire()
         if questionnaire.cleanup_only:
             print_replay_command(None, "cleanup", questionnaire.dev_auth, cleanup_only=True)
-            cleanup_local_openleash()
+            if args.dry_run:
+                print_cleanup_dry_run()
+                return 0
+            try:
+                cleanup_local_openleash_for_args(args)
+            except RuntimeError as exc:
+                print(f"[openleash] error: {exc}", file=sys.stderr)
+                return 1
             return 0
         if questionnaire.mode_key is None:
             print("[openleash] no mode selected", file=sys.stderr)
@@ -270,7 +289,10 @@ def main() -> int:
         selected_dev_auth = questionnaire.dev_auth
 
     if choice.cleanup_only:
-        cleanup_local_openleash()
+        if args.dry_run:
+            print_cleanup_dry_run()
+            return 0
+        cleanup_local_openleash_for_args(args)
         return 0
     if choice.mode is None:
         print("[openleash] no mode selected", file=sys.stderr)
@@ -318,7 +340,7 @@ def main() -> int:
 
     try:
         if choice.clean_slate:
-            cleanup_local_openleash()
+            cleanup_local_openleash_for_args(args)
         stop_existing_dev_stack(mode)
         if mode.needs_db:
             run_step(Command("postgres", [*DEV_COMPOSE, "up", "-d", "--wait", "postgres"]))
@@ -439,7 +461,7 @@ def run_desktop_only(args: argparse.Namespace) -> int:
         return 0
 
     if args.clean_slate:
-        cleanup_local_openleash()
+        cleanup_local_openleash_for_args(args)
     run_optional_step(Command("stop-desktop-app", ["pkill", "-TERM", "-f", "/OpenLeash.app/"]))
     terminate_listeners_on_port(9317)
     run_step(Command("desktop-build", ["npm", "run", "build", "-w", "@openleash/desktop-client"]))
@@ -1401,7 +1423,28 @@ def prepare_event_plugin_containers() -> None:
         ]))
 
 
-def cleanup_local_openleash() -> None:
+def cleanup_local_openleash_for_args(args: argparse.Namespace) -> None:
+    cleanup_local_openleash(
+        allow_docker_desktop_restart=bool(
+            getattr(args, "restart_docker_desktop_on_stale_volume", False)
+        ),
+        prompt_for_docker_desktop_restart=(
+            not bool(getattr(args, "yes", False)) and sys.stdin.isatty()
+        ),
+    )
+
+
+def print_cleanup_dry_run() -> None:
+    print("\nMode: Delete local OpenLeash")
+    print("Dry run: would restore agent and proxy configuration, stop OpenLeash services, remove OpenLeash containers and volumes, and delete local OpenLeash state.")
+    print("[openleash] dry run complete; no services or local data were changed.")
+
+
+def cleanup_local_openleash(
+    *,
+    allow_docker_desktop_restart: bool = False,
+    prompt_for_docker_desktop_restart: bool = False,
+) -> None:
     print("\nMode: Delete local OpenLeash")
     print("This stops every local OpenLeash service, restores agent proxy configuration, removes OpenLeash containers and Postgres volumes, and deletes client state, settings, hooks, logs, and installed app copies.")
 
@@ -1427,6 +1470,7 @@ def cleanup_local_openleash() -> None:
             "openleash-local-proxy",
             "openleash-individual-postgres",
             "openleash-individual-client-api",
+            *[f"openleash-dev-plugin-{slug}" for _, slug, _, _ in EVENT_PLUGIN_SPECS],
         ]),
         Command("remove-local-proxy-dev-image", ["docker", "image", "rm", "openleash-local-proxy:dev"]),
     ]
@@ -1438,7 +1482,15 @@ def cleanup_local_openleash() -> None:
         "openleash-individual_openleash-individual-postgres",
         "openleash-private-cloud_openleash-postgres",
     ]:
-        remove_docker_volume_if_present(volume_name)
+        remove_docker_volume_if_present(
+            volume_name,
+            recover_stale_reference=lambda name, container_ids: recover_stale_docker_volume_reference(
+                name,
+                container_ids,
+                allow_restart=allow_docker_desktop_restart,
+                prompt_for_restart=prompt_for_docker_desktop_restart,
+            ),
+        )
 
     cleanup_ports = [4317, 9317, 9318, 9319, 9320, 9321, 9301, 9302, 9305, 9338, 9340]
     cleanup_ports.extend(spec[3] for spec in EVENT_PLUGIN_SPECS)
@@ -1462,13 +1514,20 @@ def cleanup_local_openleash() -> None:
 
 def run_optional_step(command: Command) -> None:
     print(f"[openleash:{command.name}] {format_command_with_env(command)}")
+    if command.cwd != ROOT and not command.cwd.exists():
+        print(f"[openleash:{command.name}] skipped; working directory does not exist: {command.cwd}")
+        return
     try:
         subprocess.run(command.args, cwd=command.cwd, env=merged_env(command.env), check=False, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     except FileNotFoundError:
         print(f"[openleash:{command.name}] skipped; command not found")
 
 
-def remove_docker_volume_if_present(volume_name: str) -> None:
+def remove_docker_volume_if_present(
+    volume_name: str,
+    *,
+    recover_stale_reference: Callable[[str, list[str]], bool] | None = None,
+) -> None:
     """Remove an OpenLeash database volume or fail a requested clean slate.
 
     Docker Compose can leave an unnamed/orphaned container attached to a named
@@ -1485,27 +1544,120 @@ def remove_docker_volume_if_present(volume_name: str) -> None:
         return
 
     print(f"[openleash:remove-openleash-postgres-volume-{volume_name}] docker volume rm {volume_name}")
-    attached = subprocess.run(
+    attached_result = subprocess.run(
         ["docker", "ps", "-aq", "--filter", f"volume={volume_name}"],
-        capture_output=True,
-        text=True,
-        check=True,
-    ).stdout.split()
-    for container_id in attached:
-        subprocess.run(["docker", "rm", "-f", container_id], check=False)
-
-    removed = subprocess.run(
-        ["docker", "volume", "rm", volume_name],
         capture_output=True,
         text=True,
         check=False,
     )
+    if attached_result.returncode != 0:
+        detail = (attached_result.stderr or attached_result.stdout).strip()
+        raise RuntimeError(
+            f"Cannot inspect containers attached to Docker volume {volume_name!r}. "
+            f"{detail or 'Docker Desktop is unavailable.'}"
+        )
+    attached = attached_result.stdout.split()
+    stale_container_ids: list[str] = []
+    for container_id in attached:
+        removal = subprocess.run(
+            ["docker", "rm", "-f", container_id],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        removal_detail = (removal.stderr or removal.stdout).strip().lower()
+        if removal.returncode == 0 and "no such container" not in removal_detail:
+            continue
+        exists = subprocess.run(
+            ["docker", "container", "inspect", container_id],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            check=False,
+        )
+        if exists.returncode != 0:
+            stale_container_ids.append(container_id)
+
+    removed = subprocess.run(
+        ["docker", "volume", "rm", "-f", volume_name],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if (
+        removed.returncode != 0
+        and stale_container_ids
+        and recover_stale_reference is not None
+        and recover_stale_reference(volume_name, stale_container_ids)
+    ):
+        removed = subprocess.run(
+            ["docker", "volume", "rm", "-f", volume_name],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
     if removed.returncode != 0:
         detail = (removed.stderr or removed.stdout).strip()
+        stale_detail = ""
+        if stale_container_ids:
+            stale_detail = (
+                " Docker Desktop has a stale reference to missing container(s) "
+                f"{', '.join(stale_container_ids)}. Run clean interactively and approve the "
+                "Docker Desktop restart, or pass --restart-docker-desktop-on-stale-volume."
+            )
         raise RuntimeError(
             f"Cannot complete clean-slate: Docker volume {volume_name!r} is still in use. "
-            f"{detail or 'Restart Docker Desktop and retry.'}"
+            f"{detail or 'Restart Docker Desktop and retry.'}{stale_detail}"
         )
+
+
+def recover_stale_docker_volume_reference(
+    volume_name: str,
+    container_ids: list[str],
+    *,
+    allow_restart: bool,
+    prompt_for_restart: bool,
+) -> bool:
+    running = subprocess.run(
+        ["docker", "ps", "--format", "{{.Names}}"],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    running_names = [name for name in running.stdout.splitlines() if name.strip()]
+    print(
+        f"[openleash] Docker Desktop reports missing container(s) {', '.join(container_ids)} "
+        f"still attached to {volume_name!r}."
+    )
+    if running_names:
+        preview = ", ".join(running_names[:8])
+        suffix = f" and {len(running_names) - 8} more" if len(running_names) > 8 else ""
+        print(
+            "[openleash] Restarting Docker Desktop temporarily stops all running containers: "
+            f"{preview}{suffix}."
+        )
+    should_restart = allow_restart
+    if not should_restart and prompt_for_restart:
+        should_restart = confirm(
+            "Restart Docker Desktop to clear its stale OpenLeash volume metadata?",
+            default=False,
+        )
+    if not should_restart:
+        return False
+
+    print("[openleash:restart-docker-desktop] docker desktop restart --timeout 120")
+    restarted = subprocess.run(
+        ["docker", "desktop", "restart", "--timeout", "120"],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if restarted.returncode != 0:
+        detail = (restarted.stderr or restarted.stdout).strip()
+        raise RuntimeError(
+            "Docker Desktop could not be restarted to clear stale volume metadata. "
+            f"{detail or 'Restart Docker Desktop manually and retry.'}"
+        )
+    return True
 
 
 def stop_existing_dev_stack(mode: Mode) -> None:
