@@ -26,6 +26,7 @@ extraResources:
   - from: scripts/install-openleash-personal.sh
     to: install-openleash-personal.sh
 mac:
+  identity: Developer ID Application
   icon: build/openleash.icns
   category: public.app-category.developer-tools
   target:
