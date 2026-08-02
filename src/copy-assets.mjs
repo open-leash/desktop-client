@@ -46,6 +46,7 @@ for (const [name, icon] of Object.entries(iconMap)) {
 
 await downloadIcon("openai", "https://cdn.jsdelivr.net/npm/simple-icons@latest/icons/openai.svg");
 await downloadIcon("opencode", "https://opencode.ai/favicon.svg");
+await downloadBinaryIcon("vscode", "https://raw.githubusercontent.com/microsoft/vscode/main/resources/linux/code.png", "png");
 
 function simpleIconSvg(icon) {
   return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path fill="#${icon.hex ?? "101318"}" d="${icon.path}"/></svg>`;
@@ -58,6 +59,16 @@ async function downloadIcon(name, url) {
     const body = await response.text();
     if (!body.includes("<svg")) return;
     await fs.writeFile(path.join("dist", "agent-icons", `${name}.svg`), body);
+  } catch {
+    // The UI falls back to initials if an icon cannot be fetched during packaging.
+  }
+}
+
+async function downloadBinaryIcon(name, url, extension) {
+  try {
+    const response = await fetch(url);
+    if (!response.ok) return;
+    await fs.writeFile(path.join("dist", "agent-icons", `${name}.${extension}`), Buffer.from(await response.arrayBuffer()));
   } catch {
     // The UI falls back to initials if an icon cannot be fetched during packaging.
   }

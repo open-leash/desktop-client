@@ -149,6 +149,24 @@ try {
   assert.equal(linkedInAction.command, "social-linkedin", "LinkedIn card did not request the fixed OpenLeash LinkedIn destination");
 
   send({ type: "show", payload: {
+    kind: "install_success",
+    agentName: "OpenLeash",
+    title: "Installation complete",
+    project: "ready",
+    restartTargets: [
+      { id: "application:vscode", application: "Visual Studio Code", icon: "agent-icons/vscode.png", agentNames: ["OpenAI Codex"], projects: [{ name: "OL2", path: "/Users/max/Code/OL2" }] },
+      { id: "application:cursor", application: "Cursor", icon: "agent-icons/cursor.svg", agentNames: ["Cursor"], projects: [{ name: "Website", path: "/Users/max/Code/Website" }] },
+    ],
+  } });
+  await inspectAfter(350);
+  send({ type: "advanceInstallSuccess" });
+  const restartAgents = await inspectAfter(350);
+  assert.equal(restartAgents.layout.restartAgentsVisible, true, "running-agent restart step did not appear after installation confirmation");
+  assert.equal(restartAgents.layout.restartTargetCount, 2, "running-agent restart step did not show every detected application");
+  assert.equal(restartAgents.layout.restartSelectedCount, 2, "running-agent restart targets were not selected by default");
+  assert.equal(restartAgents.layout.restartButtonVisible, true, "running-agent restart step did not offer a restart button");
+
+  send({ type: "show", payload: {
     kind: "activity",
     agentName: "OpenLeash",
     title: "3 agents working",

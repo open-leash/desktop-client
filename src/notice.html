@@ -668,6 +668,33 @@
         font-size: 11.5px;
         line-height: 1.45;
       }
+      .restart-agents h2 { margin: 0; font-size: 17px; letter-spacing: -.02em; }
+      .restart-agents > p { margin: 6px 0 11px; color: var(--muted); font-size: 11px; line-height: 1.45; }
+      .restart-target-list { display: grid; max-height: 292px; overflow: auto; gap: 7px; padding-right: 2px; }
+      .restart-target {
+        display: grid;
+        grid-template-columns: 18px 36px minmax(0, 1fr);
+        align-items: center;
+        gap: 10px;
+        padding: 10px 11px;
+        border: 1px solid var(--line);
+        border-radius: 14px;
+        background: var(--panel);
+        cursor: pointer;
+        transition: border-color 150ms ease, background 150ms ease;
+      }
+      .restart-target:hover { border-color: rgba(88,216,255,.3); background: var(--panel-hover); }
+      .restart-target:has(input:checked) { border-color: rgba(85,231,167,.36); background: rgba(24,57,44,.42); }
+      .restart-target input { margin: 0; accent-color: var(--green); }
+      .restart-target-icon { width: 36px; height: 36px; display: grid; place-items: center; overflow: hidden; border: 1px solid rgba(255,255,255,.1); border-radius: 10px; background: rgba(255,255,255,.055); }
+      .restart-target-icon img { width: 22px; height: 22px; object-fit: contain; }
+      .restart-target-copy { min-width: 0; }
+      .restart-target-name { display: block; color: var(--ink); font-size: 12px; font-weight: 680; }
+      .restart-target-agent { display: block; margin-top: 2px; color: var(--soft-ink); font-size: 10px; }
+      .restart-target-projects { display: block; overflow: hidden; margin-top: 3px; color: var(--muted); font-size: 9.5px; line-height: 1.35; text-overflow: ellipsis; white-space: nowrap; }
+      .restart-target-projects code { color: #aeb2b7; font: 9px/1.35 ui-monospace, "SFMono-Regular", Consolas, monospace; user-select: text; }
+      .restart-warning { margin: 9px 1px 0 !important; color: var(--amber) !important; font-size: 9.5px !important; }
+      .restart-error { margin-top: 9px; padding: 8px 10px; border: 1px solid rgba(255,107,100,.22); border-radius: 10px; color: #ffd4d1; background: rgba(122,39,37,.35); font-size: 9.5px; line-height: 1.4; }
       .social-follow {
         padding: 20px 6px 5px;
         text-align: center;
@@ -880,6 +907,13 @@
           <h2>OpenLeash installed</h2>
           <p>Your agents are connected. OpenLeash will appear here when something needs your attention.</p>
         </div>
+        <div class="restart-agents" id="restartAgents" hidden>
+          <h2>Restart running agents</h2>
+          <p>These apps started before OpenLeash was installed. Restart the selected ones so the new hooks and proxy settings take effect.</p>
+          <div class="restart-target-list" id="restartTargetList"></div>
+          <p class="restart-warning">Your editor may ask you to save unsaved work before it restarts.</p>
+          <div class="restart-error" id="restartError" hidden></div>
+        </div>
         <div class="social-follow" id="socialFollow" hidden>
           <h2>Help us improve</h2>
           <p>Follow us on X and LinkedIn for product updates, tips, and new releases.</p>
@@ -932,7 +966,7 @@
       let installAnimation;
       const $ = (id) => document.getElementById(id);
       const island = $("island"), cap = $("cap"), glyph = $("glyph"), status = $("status"), eyebrow = $("eyebrow"), title = $("title"), count = $("count"), capAgents = $("capAgents"), capMetric = $("capMetric"), notchRail = $("notchRail"), notchAgents = $("notchAgents"), notchMetric = $("notchMetric"), compactProgress = $("compactProgress"), compactProgressFill = $("compactProgressFill");
-      const installSuccess = $("installSuccess"), installFireworks = $("installFireworks"), socialFollow = $("socialFollow"), activityPanel = $("activityPanel"), attentionPanel = $("attentionPanel"), sessionSectionLabel = $("sessionSectionLabel"), sessionList = $("sessionList"), activityDetail = $("activityDetail"), ambientContributions = $("ambientContributions"), summary = $("summary"), purpose = $("purpose"), evidenceBlock = $("evidenceBlock"), evidence = $("evidence"), chips = $("chips"), questions = $("questions"), plan = $("plan");
+      const installSuccess = $("installSuccess"), installFireworks = $("installFireworks"), restartAgents = $("restartAgents"), restartTargetList = $("restartTargetList"), restartError = $("restartError"), socialFollow = $("socialFollow"), activityPanel = $("activityPanel"), attentionPanel = $("attentionPanel"), sessionSectionLabel = $("sessionSectionLabel"), sessionList = $("sessionList"), activityDetail = $("activityDetail"), ambientContributions = $("ambientContributions"), summary = $("summary"), purpose = $("purpose"), evidenceBlock = $("evidenceBlock"), evidence = $("evidence"), chips = $("chips"), questions = $("questions"), plan = $("plan");
       const guidance = $("guidance"), rememberRow = $("rememberRow"), remember = $("remember"), actions = $("actions"), hint = $("hint"), islandMenu = $("islandMenu"), menuToggle = $("menuToggle");
       const previewParams = new URLSearchParams(location.search);
       const previewPlatform = previewParams.get("preview") ? previewParams.get("platform") : null;
@@ -958,13 +992,14 @@
         resolve: (id, resolution, resolutionGuidance = "", rememberForMs = 0, response) => nativeHandler.postMessage({ type: "action", action: "resolve", id, resolution, guidance: resolutionGuidance, rememberForMs, response }),
         dismissNotice: () => nativeHandler.postMessage({ type: "action", action: "dismiss" }),
         jumpToAgent: (payload) => nativeHandler.postMessage({ type: "action", action: "jump", payload }),
+        restartAgentTargets: (payload) => { nativeHandler.postMessage({ type: "action", action: "restart-agent-targets", payload }); return Promise.resolve({ ok: true }); },
         setSessionMonitoring: (payload) => nativeHandler.postMessage({ type: "action", action: "session-monitoring", payload }),
         pluginIslandAction: (payload) => nativeHandler.postMessage({ type: "action", action: "plugin-action", payload }),
         islandCommand: (command) => nativeHandler.postMessage({ type: "action", action: "island-command", command }),
         setNoticePointerInside: () => {},
         onNotice: () => {},
       } : {
-        resizeNotice: () => {}, resolve: () => {}, dismissNotice: () => {}, jumpToAgent: () => {}, setSessionMonitoring: () => {}, pluginIslandAction: () => {}, islandCommand: () => {}, setNoticePointerInside: () => {}, onNotice: () => {},
+        resizeNotice: () => {}, resolve: () => {}, dismissNotice: () => {}, jumpToAgent: () => {}, restartAgentTargets: () => Promise.resolve({ ok: true }), setSessionMonitoring: () => {}, pluginIslandAction: () => {}, islandCommand: () => {}, setNoticePointerInside: () => {}, onNotice: () => {},
       });
       const scheduleVisualUpdate = (callback) => nativeHandler ? callback() : requestAnimationFrame(callback);
 
@@ -1063,7 +1098,7 @@
       }
       function reset() {
         clearTimeout(expandTimer);
-        installAnimation?.destroy(); installAnimation = undefined; installFireworks.innerHTML = ""; installSuccess.hidden = true; socialFollow.hidden = true;
+        installAnimation?.destroy(); installAnimation = undefined; installFireworks.innerHTML = ""; installSuccess.hidden = true; restartAgents.hidden = true; restartTargetList.innerHTML = ""; restartError.hidden = true; restartError.textContent = ""; socialFollow.hidden = true;
         activityPanel.hidden = true; attentionPanel.hidden = true; attentionPanel.innerHTML = ""; sessionSectionLabel.hidden = false; sessionList.innerHTML = ""; activityDetail.hidden = true; activityDetail.innerHTML = ""; ambientContributions.innerHTML = "";
         notchAgents.innerHTML = ""; notchMetric.innerHTML = ""; capAgents.innerHTML = ""; capMetric.hidden = true; capMetric.textContent = "";
         compactProgress.hidden = true; compactProgress.className = "compact-progress"; compactProgressFill.style.width = "0"; compactProgress.removeAttribute("aria-valuenow"); compactProgress.removeAttribute("aria-valuemax"); compactProgress.removeAttribute("aria-label");
@@ -1227,6 +1262,10 @@
           contentClearsNotch: compactNotch || !document.body.classList.contains("has-display-notch") || (copyRect?.top ?? 0) >= safeTop,
           fireworksRendered: Boolean(installFireworks.querySelector("svg")),
           socialFollowVisible: !socialFollow.hidden,
+          restartAgentsVisible: !restartAgents.hidden,
+          restartTargetCount: restartTargetList.querySelectorAll(".restart-target").length,
+          restartSelectedCount: restartTargetList.querySelectorAll('input[type="checkbox"]:checked').length,
+          restartButtonVisible: Boolean(actions.querySelector('[data-action="restart-agents"]')),
           socialCardCount: socialFollow.querySelectorAll("[data-social]").length,
           socialLogoCount: socialFollow.querySelectorAll(".social-logo svg").length,
           installNextVisible: Boolean(actions.querySelector('[data-action="install-next"]')),
@@ -1392,9 +1431,64 @@
         }
       }
 
+      function renderRestartAgents() {
+        const targets = Array.isArray(current?.restartTargets) ? current.restartTargets : [];
+        if (targets.length === 0) return renderSocialFollow();
+        installAnimation?.destroy(); installAnimation = undefined; installFireworks.innerHTML = "";
+        installSuccess.hidden = true;
+        restartAgents.hidden = false;
+        title.textContent = "Restart to finish setup";
+        restartTargetList.innerHTML = "";
+        targets.forEach((target) => {
+          const row = document.createElement("label"); row.className = "restart-target";
+          const input = document.createElement("input"); input.type = "checkbox"; input.checked = true; input.value = target.id;
+          const icon = document.createElement("span"); icon.className = "restart-target-icon";
+          if (target.icon) {
+            const image = document.createElement("img"); image.src = target.icon; image.alt = "";
+            image.addEventListener("error", () => { image.remove(); icon.textContent = initials(target.application); }, { once: true });
+            icon.appendChild(image);
+          }
+          else icon.textContent = initials(target.application);
+          const copy = document.createElement("span"); copy.className = "restart-target-copy";
+          const name = document.createElement("span"); name.className = "restart-target-name"; name.textContent = target.application;
+          const agents = document.createElement("span"); agents.className = "restart-target-agent"; agents.textContent = (target.agentNames || []).join(" · ") || "Running agent";
+          copy.append(name, agents);
+          if (target.projects?.length) {
+            const projects = document.createElement("span"); projects.className = "restart-target-projects";
+            target.projects.slice(0, 3).forEach((project, index) => {
+              if (index) projects.append(document.createTextNode(" · "));
+              const value = document.createElement(project.path ? "code" : "span");
+              value.textContent = project.path || project.name;
+              value.title = project.path || project.name;
+              projects.appendChild(value);
+            });
+            if (target.projects.length > 3) projects.append(document.createTextNode(` · +${target.projects.length - 3} more`));
+            copy.appendChild(projects);
+          }
+          row.append(input, icon, copy); restartTargetList.appendChild(row);
+        });
+        const syncRestartButton = () => {
+          const selected = restartTargetList.querySelectorAll('input[type="checkbox"]:checked').length;
+          const total = restartTargetList.querySelectorAll('input[type="checkbox"]').length;
+          const submit = actions.querySelector('[data-action="restart-agents"]');
+          if (submit) submit.disabled = selected === 0;
+          hint.textContent = selected === total
+            ? "All detected running agent apps are selected"
+            : `${selected} of ${total} running agent apps selected`;
+        };
+        restartTargetList.onchange = syncRestartButton;
+        actions.className = "actions";
+        actions.innerHTML = "";
+        actions.append(button("Not now", "secondary", "restart-skip"), button("Restart selected", "primary", "restart-agents"));
+        syncRestartButton();
+        setExpanded(true);
+        resize();
+      }
+
       function renderSocialFollow() {
         installAnimation?.destroy(); installAnimation = undefined; installFireworks.innerHTML = "";
         installSuccess.hidden = true;
+        restartAgents.hidden = true;
         socialFollow.hidden = false;
         title.textContent = "Help us improve";
         actions.innerHTML = "";
@@ -1654,7 +1748,7 @@
         if (!target) return;
         bridge.islandCommand(target.dataset.social === "linkedin" ? "social-linkedin" : "social-x");
       });
-      actions.addEventListener("click", (event) => {
+      actions.addEventListener("click", async (event) => {
         const target = event.target.closest("button"); if (!target || !current || target.disabled) return;
         const action = target.dataset.action;
         if (action === "show-history") {
@@ -1664,6 +1758,30 @@
           return;
         }
         if (action === "install-next") {
+          if (Array.isArray(current.restartTargets) && current.restartTargets.length > 0) renderRestartAgents();
+          else renderSocialFollow();
+          return;
+        }
+        if (action === "restart-skip") {
+          renderSocialFollow();
+          return;
+        }
+        if (action === "restart-agents") {
+          const targetIds = [...restartTargetList.querySelectorAll('input[type="checkbox"]:checked')].map((input) => input.value);
+          actions.querySelectorAll("button").forEach((item) => item.disabled = true);
+          target.textContent = "Restarting…";
+          restartError.hidden = true;
+          let result;
+          try { result = await bridge.restartAgentTargets({ targetIds }); }
+          catch (error) { result = { ok: false, errors: [error?.message || "The selected apps could not restart."] }; }
+          if (result?.ok === false) {
+            restartError.textContent = (result.errors || []).join(" ") || "One or more apps could not restart.";
+            restartError.hidden = false;
+            target.textContent = "Try again";
+            actions.querySelectorAll("button").forEach((item) => item.disabled = false);
+            resize();
+            return;
+          }
           renderSocialFollow();
           return;
         }
@@ -1704,6 +1822,10 @@
           plan: { kind: "plan_review", id: "preview", agentName: "OpenAI Codex", title: "Codex has a plan", summary: "Review the proposed changes before work begins.", project: "desktop-client", time: "now", interaction: { type: "plan", markdown: "1. Add the native top-edge panel\n2. Share the renderer with Windows\n3. Verify expansion, focus, and dismissal\n4. Package and run upgrade tests" } },
           completed: { kind: "completed", agentName: "Claude Code", agentKind: "claude", title: "Claude finished", summary: "Authentication middleware updated and all tests pass.", project: "openleash", time: "now", canJump: true },
           installed: { kind: "install_success", agentName: "OpenLeash", agentIcon: "openleash-icon.png", title: "Installation complete", summary: "OpenLeash installed" },
+          restart: { kind: "install_success", agentName: "OpenLeash", agentIcon: "openleash-icon.png", title: "Installation complete", summary: "OpenLeash installed", restartTargets: [
+            { id: "application:vscode", application: "Visual Studio Code", icon: "agent-icons/vscode.png", agentNames: ["OpenAI Codex"], projects: [{ name: "OL2", path: "/Users/max/Code/OL2" }, { name: "FileMesh (All)", path: "/Users/max/Code/FileMesh (All)" }] },
+            { id: "application:cursor", application: "Cursor", icon: "agent-icons/cursor.svg", agentNames: ["Cursor"], projects: [{ name: "Website", path: "/Users/max/Code/Website" }] },
+          ] },
           unified: { kind: "activity", agentName: "OpenLeash", agentIcon: "openleash-icon.png", title: "1 approval waiting", project: "Claude Code needs your attention", pendingCount: 1, autoExpand: true, attention: { kind: "ask", id: "preview", agentKind: "claude-code", agentName: "Claude Code", agentIcon: "agent-icons/claude.svg", visualState: "waiting", title: "Outside sandbox", summary: "Claude needs network access to compile the release binary.", evidence: "$ cargo build --release --target aarch64-apple-darwin", project: "api-server", pluginName: "blast-radius", supportsGuidance: true, interaction: { type: "approval" } }, sessions: [
             { id: "claude", agentKind: "claude-code", agentName: "Claude Code", agentIcon: "agent-icons/claude.svg", visualState: "waiting", project: "api-server", title: "Compile release binary", summary: "Preparing the production artifact.", latestAction: "Waiting for approval", time: "now", eventCount: 8, canJump: true },
             { id: "codex", agentKind: "codex", agentName: "OpenAI Codex", agentIcon: "agent-icons/openai.svg", visualState: "running", project: "design-system", title: "Refresh design tokens", summary: "Updating shared components.", latestAction: "Editing files", time: "12s", eventCount: 12, canJump: true },

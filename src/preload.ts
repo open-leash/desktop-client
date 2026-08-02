@@ -36,6 +36,7 @@ contextBridge.exposeInMainWorld("openleash", {
   resizeNotice: (size: number | { width?: number; height?: number; interactiveBounds?: { x?: number; y?: number; width?: number; height?: number } }) => ipcRenderer.invoke("openleash:resize-notice", size),
   setNoticePointerInside: (inside: boolean) => ipcRenderer.invoke("openleash:set-notice-pointer-inside", inside),
   jumpToAgent: (payload: unknown) => ipcRenderer.invoke("openleash:jump-to-agent", payload),
+  restartAgentTargets: (payload: unknown) => ipcRenderer.invoke("openleash:restart-agent-targets", payload),
   setSessionMonitoring: (payload: unknown) => ipcRenderer.invoke("openleash:set-session-monitoring", payload),
   pluginIslandAction: (payload: unknown) => ipcRenderer.invoke("openleash:plugin-island-action", payload),
   islandCommand: (command: string) => ipcRenderer.invoke("openleash:island-command", command),

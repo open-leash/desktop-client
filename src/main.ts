@@ -87,6 +87,11 @@ import {
   shouldAutoExpandAttention,
   type AgentSessionFocusTarget,
 } from "./agent-session-focus";
+import {
+  detectRunningAgentRestartTargets,
+  restartRunningAgentTargets,
+  type RunningAgentRestartTarget,
+} from "./agent-restart";
 import { clampNoticeWindowSize, isPointInNoticeBounds, type NoticeWindowSize } from "./notice-window";
 import {
   activityPresentationKey,
@@ -1839,6 +1844,7 @@ ipcMain.handle(
       agentName: "OpenLeash",
       title: "Installation complete",
       summary: "OpenLeash installed",
+      restartTargets: detectRunningAgentRestartTargets(selectedAgents),
     });
     return { ok: true, ...setupState };
   },
@@ -2234,6 +2240,12 @@ ipcMain.handle("openleash:set-notice-pointer-inside", (event, inside: unknown) =
 });
 ipcMain.handle("openleash:jump-to-agent", async (_event, payload: AgentSessionFocusTarget & { session?: AgentSessionFocusTarget }) => {
   return openAgentApplication(payload?.session ?? payload);
+});
+ipcMain.handle("openleash:restart-agent-targets", async (_event, payload: unknown) => {
+  const targetIds = payload && typeof payload === "object" && Array.isArray((payload as { targetIds?: unknown[] }).targetIds)
+    ? (payload as { targetIds: unknown[] }).targetIds.map(String)
+    : [];
+  return restartRunningAgentTargets(targetIds, [...enforcedAgentKinds]);
 });
 ipcMain.handle("openleash:set-session-monitoring", async (_event, payload: unknown) => {
   return setSessionMonitoring(payload);
@@ -5694,6 +5706,7 @@ type DecisionNotice =
       agentName: string;
       title: string;
       summary: string;
+      restartTargets?: RunningAgentRestartTarget[];
     }
   | {
       kind: "sample";
@@ -5884,6 +5897,14 @@ function handleNativeIslandMessage(line: string, host: NativeIslandHost) {
       ? message.payload as AgentSessionFocusTarget & { session?: AgentSessionFocusTarget }
       : undefined;
     void openAgentApplication(payload?.session ?? payload);
+    return;
+  }
+  if (message.action === "restart-agent-targets") {
+    const payload = message.payload && typeof message.payload === "object"
+      ? message.payload as { targetIds?: unknown[] }
+      : undefined;
+    const targetIds = Array.isArray(payload?.targetIds) ? payload.targetIds.map(String) : [];
+    void restartRunningAgentTargets(targetIds, [...enforcedAgentKinds]);
     return;
   }
   if (message.action === "session-monitoring") {
@@ -6138,6 +6159,7 @@ function formatNotice(notice: DecisionNotice) {
     agentIcon: noticeAgentIconFor(notice.agentName),
     title: notice.title,
     summary: notice.summary,
+    restartTargets: notice.restartTargets ?? [],
     time: "ready",
   };
 }
