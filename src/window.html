@@ -276,6 +276,148 @@
         border-radius: 999px;
         background: linear-gradient(90deg, var(--accent), var(--accent-2));
       }
+      .setupInstallScreen {
+        min-height: calc(100vh - 120px);
+        display: grid;
+        place-items: center;
+        padding: 36px 0;
+      }
+      .setupInstallCard {
+        width: min(820px, 100%);
+        display: grid;
+        justify-items: center;
+        gap: 24px;
+        padding: 54px 58px 48px;
+        border: 1.5px solid var(--line);
+        border-radius: 34px;
+        background:
+          radial-gradient(circle at 50% 0%, rgba(107, 86, 255, .16), transparent 42%),
+          linear-gradient(145deg, #fff 0%, #fbf9f2 100%);
+        box-shadow: 0 30px 80px rgba(39, 34, 66, .12);
+        text-align: center;
+        overflow: hidden;
+      }
+      .setupInstallMark {
+        width: 66px;
+        height: 66px;
+        display: grid;
+        place-items: center;
+        border-radius: 22px;
+        background: linear-gradient(145deg, var(--accent), var(--accent-2));
+        color: #fff;
+        box-shadow: 0 14px 28px rgba(102, 76, 255, .24);
+      }
+      .setupInstallMark.complete {
+        background: linear-gradient(145deg, #16a36a, #55dca0);
+      }
+      .setupInstallMark.error {
+        background: linear-gradient(145deg, #d6465d, #ff7a86);
+      }
+      .setupInstallMark svg { width: 34px; height: 34px; }
+      .setupInstallCopy { display: grid; gap: 10px; max-width: 620px; }
+      .setupInstallCopy h1 { font-size: clamp(34px, 5vw, 52px); }
+      .setupInstallCopy p { font-size: 17px; }
+      .setupInstallAgents {
+        width: 100%;
+        display: flex;
+        justify-content: center;
+        align-items: flex-start;
+        gap: 20px;
+        padding: 12px 0 4px;
+        flex-wrap: wrap;
+      }
+      .setupInstallAgent {
+        width: 76px;
+        display: grid;
+        justify-items: center;
+        gap: 9px;
+      }
+      .setupInstallAgentIcon {
+        position: relative;
+        width: 64px;
+        height: 64px;
+        display: grid;
+        place-items: center;
+        border: 1px solid rgba(216, 211, 199, .9);
+        border-radius: 20px;
+        background: #fff;
+        box-shadow: 0 10px 26px rgba(39, 34, 66, .08);
+        overflow: hidden;
+      }
+      .setupInstallAgentIcon img {
+        position: absolute;
+        width: 36px;
+        height: 36px;
+        object-fit: contain;
+      }
+      .setupInstallAgentIcon .gray {
+        filter: grayscale(1);
+        opacity: .32;
+      }
+      .setupInstallAgentIcon .color {
+        clip-path: inset(0 var(--unfilled, 100%) 0 0);
+        transition: clip-path .5s cubic-bezier(.22, .8, .3, 1);
+      }
+      .setupInstallAgent small {
+        width: 100%;
+        color: var(--muted);
+        font-size: 11px;
+        font-weight: 800;
+        line-height: 1.2;
+      }
+      .setupInstallMeter { width: min(650px, 100%); display: grid; gap: 12px; }
+      .setupInstallMeterTrack {
+        height: 14px;
+        padding: 3px;
+        border-radius: 999px;
+        background: rgba(216, 211, 199, .52);
+        overflow: hidden;
+      }
+      .setupInstallMeterFill {
+        height: 100%;
+        border-radius: inherit;
+        background: linear-gradient(90deg, #5d4cff, #b34fff, #51dca0);
+        box-shadow: 0 0 18px rgba(107, 86, 255, .35);
+        transition: width .5s cubic-bezier(.22, .8, .3, 1);
+      }
+      .setupInstallMeterMeta {
+        display: flex;
+        justify-content: space-between;
+        gap: 16px;
+        color: var(--ink-2);
+        font-size: 13px;
+        font-weight: 850;
+      }
+      .setupInstallStages {
+        width: min(650px, 100%);
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 8px;
+      }
+      .setupInstallStage {
+        padding: 8px 6px;
+        border-radius: 999px;
+        background: var(--soft);
+        color: var(--muted);
+        font-size: 11px;
+        font-weight: 850;
+      }
+      .setupInstallStage.done { background: var(--green-soft); color: #08774d; }
+      .setupInstallStage.active { background: #eeeaff; color: var(--accent); }
+      .setupInstallError {
+        width: min(650px, 100%);
+        padding: 14px 16px;
+        border-radius: 16px;
+        background: #fff0f2;
+        color: #a82139;
+        font-weight: 750;
+        line-height: 1.45;
+      }
+      @media (max-width: 760px) {
+        .setupInstallCard { padding: 38px 22px 34px; border-radius: 26px; }
+        .setupInstallAgents { gap: 12px; }
+        .setupInstallStages { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      }
       .localBackendProgress {
         display: grid;
         gap: 10px;
@@ -2678,6 +2820,8 @@
       let setupRemoteProvider = "google";
       let setupRemoteKeySaved = false;
       let setupFinishing = false;
+      let setupInstallState = "idle";
+      let setupInstallProgress = { percent: 0, stage: "prepare", title: "Preparing installation", detail: "Checking your selections..." };
       let setupSkipDashboardOpenAfterInstall = false;
       let setupDockerStatus;
       let setupDockerBusy = false;
@@ -2736,7 +2880,7 @@
         const setupConnection = mergeSetupConnectionDraft(
           { clientMode: setupClientMode, remoteApiUrl: setupRemoteApiUrl },
           state,
-          isSetupLocked(),
+          isSetupSurfaceActive(),
           setupConnectionTouched
         );
         setupClientMode = setupConnection.clientMode;
@@ -2749,14 +2893,14 @@
         }
         initializePluginSetupState();
         updateModeFoot();
-        document.body.classList.toggle("setup-locked", isSetupLocked());
+        document.body.classList.toggle("setup-locked", isSetupSurfaceActive());
         document.body.classList.toggle("intro-active", isIntroLocked());
         if (isIntroLocked()) {
           if (!introPlaying) renderIntro();
           return;
         }
         introPlaying = false;
-        if (isSetupLocked()) return renderSetup();
+        if (isSetupSurfaceActive()) return renderSetup();
         importedRules = undefined;
         renderView();
         autosizeRuleTextareas();
@@ -2806,6 +2950,10 @@
         return !state.setupComplete || state.mode === "setup";
       }
 
+      function isSetupSurfaceActive() {
+        return isSetupLocked() || setupFinishing || setupInstallState === "complete" || setupInstallState === "failed";
+      }
+
       function isIntroLocked() {
         return !state.introSeen;
       }
@@ -2837,7 +2985,123 @@
         else renderView();
       }
 
+      /* setup-install-progress:start */
+      function setupAgentFill(percent, index, total) {
+        if (total <= 0) return 100;
+        return Math.max(0, Math.min(100, (Math.max(0, Math.min(100, percent)) / 100 * total - index) * 100));
+      }
+      /* setup-install-progress:end */
+
+      function selectedSetupAgentCatalog() {
+        const catalog = [
+          { kind: "claude-code", displayName: "Claude Code", icon: "claude.png" },
+          { kind: "github-copilot", displayName: "GitHub Copilot", icon: "githubcopilot.svg" },
+          { kind: "gemini", displayName: "Gemini CLI", icon: "googlegemini.svg" },
+          { kind: "opencode", displayName: "OpenCode", icon: "opencode.png" },
+          { kind: "codex", displayName: "OpenAI Codex", icon: "codex.png" },
+          { kind: "cline", displayName: "Cline", icon: "cline.png" },
+          { kind: "cursor", displayName: "Cursor", icon: "cursor.png" },
+          { kind: "windsurf", displayName: "Windsurf", icon: "windsurf.svg" }
+        ];
+        const selected = selectedAgents || new Set();
+        return catalog.filter((agent) => selected.has(agent.kind));
+      }
+
+      function setupInstallMark(status) {
+        if (status === "complete") {
+          return `<div class="setupInstallMark complete"><svg viewBox="0 0 32 32" fill="none" aria-hidden="true"><path d="m8 16 5 5L24 10" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"/></svg></div>`;
+        }
+        if (status === "failed") {
+          return `<div class="setupInstallMark error"><svg viewBox="0 0 32 32" fill="none" aria-hidden="true"><path d="M16 9v8m0 5h.01" stroke="currentColor" stroke-width="3.2" stroke-linecap="round"/><circle cx="16" cy="16" r="11" stroke="currentColor" stroke-width="2.5"/></svg></div>`;
+        }
+        return `<div class="setupInstallMark"><svg viewBox="0 0 34 34" fill="none" aria-hidden="true"><path d="M8 8c0 4.4 3.6 8 8 8s8-3.6 8-8" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"/><path d="M8 17c0 4.4 3.6 8 8 8s8-3.6 8-8" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" opacity=".55"/><circle cx="26" cy="8" r="3" fill="currentColor"/></svg></div>`;
+      }
+
+      function setupInstallStageClass(percent, threshold, nextThreshold, status) {
+        if (status === "complete" || percent >= nextThreshold) return "done";
+        if (percent >= threshold && status !== "failed") return "active";
+        return "";
+      }
+
+      function renderSetupInstallation() {
+        stopWelcomeAgentAnimation();
+        const status = setupInstallState === "complete" ? "complete" : setupInstallState === "failed" ? "failed" : "installing";
+        const percent = status === "complete" ? 100 : Math.max(2, Math.min(99, Number(setupInstallProgress.percent || 0)));
+        const agents = selectedSetupAgentCatalog();
+        const title = status === "complete" ? "OpenLeash is installed" : status === "failed" ? "Installation needs attention" : "Installing OpenLeash";
+        const detail = status === "complete"
+          ? "Your selected agents are protected. Continue to OpenLeash to see them working."
+          : status === "failed"
+            ? "Nothing is hidden. Review the issue below, then retry or adjust your setup."
+            : setupInstallProgress.detail || "Applying protection to this Mac...";
+        root.innerHTML = `
+          <section class="setupInstallScreen">
+            <div class="setupInstallCard">
+              ${setupInstallMark(status)}
+              <div class="setupInstallCopy">
+                <h1>${escapeHtml(title)}</h1>
+                <p>${escapeHtml(detail)}</p>
+              </div>
+              ${agents.length ? `
+                <div class="setupInstallAgents" aria-label="Selected agents">
+                  ${agents.map((agent, index) => {
+                    const fill = status === "complete" ? 100 : setupAgentFill(percent, index, agents.length);
+                    const src = `agents/${escapeHtml(agentIconFile(agent.icon))}`;
+                    return `
+                      <div class="setupInstallAgent">
+                        <span class="setupInstallAgentIcon" style="--unfilled:${100 - fill}%">
+                          <img class="gray" src="${src}" alt="">
+                          <img class="color" src="${src}" alt="">
+                        </span>
+                        <small>${escapeHtml(agent.displayName)}</small>
+                      </div>
+                    `;
+                  }).join("")}
+                </div>
+              ` : ""}
+              <div class="setupInstallMeter">
+                <div class="setupInstallMeterTrack"><div class="setupInstallMeterFill" style="width:${percent}%"></div></div>
+                <div class="setupInstallMeterMeta">
+                  <span>${escapeHtml(status === "complete" ? "Protection active" : status === "failed" ? "Installation paused" : setupInstallProgress.title || "Installing")}</span>
+                  <span>${status === "failed" ? "—" : `${Math.round(percent)}%`}</span>
+                </div>
+              </div>
+              <div class="setupInstallStages" aria-label="Installation stages">
+                <span class="setupInstallStage ${setupInstallStageClass(percent, 0, 20, status)}">Prepare</span>
+                <span class="setupInstallStage ${setupInstallStageClass(percent, 20, 45, status)}">Connect</span>
+                <span class="setupInstallStage ${setupInstallStageClass(percent, 45, 78, status)}">Protect agents</span>
+                <span class="setupInstallStage ${setupInstallStageClass(percent, 78, 101, status)}">Verify</span>
+              </div>
+              ${status === "failed" ? `<div class="setupInstallError">${escapeHtml(setupFinishError || "Setup could not be completed.")}</div>` : ""}
+              ${status === "complete" ? `<div class="actions"><button class="primary" id="finishInstallContinue">Continue</button></div>` : ""}
+              ${status === "failed" ? `<div class="actions"><button class="secondary" id="reviewInstall">Review setup</button><button class="primary" id="retryInstall">Try again</button></div>` : ""}
+            </div>
+          </section>
+        `;
+        const continueButton = document.getElementById("finishInstallContinue");
+        if (continueButton) continueButton.onclick = () => {
+          setupInstallState = "idle";
+          view = "overview";
+          render(state);
+        };
+        const reviewButton = document.getElementById("reviewInstall");
+        if (reviewButton) reviewButton.onclick = () => {
+          setupInstallState = "idle";
+          renderSetup();
+          scrollSetupTop();
+        };
+        const retryButton = document.getElementById("retryInstall");
+        if (retryButton) retryButton.onclick = () => {
+          setupInstallState = "idle";
+          void finishSetup();
+        };
+      }
+
       function renderSetup() {
+        if (setupFinishing || setupInstallState === "complete" || setupInstallState === "failed") {
+          renderSetupInstallation();
+          return;
+        }
         enforceAudienceMode();
         const personal = setupClientMode === "personal";
         const cloud = setupClientMode === "cloud";
@@ -3226,21 +3490,6 @@
         if (setupFinishing) return;
         rememberSetupInputs();
         setupFinishError = "";
-        if (setupAudience === "individual" && setupClientMode === "custom") {
-          setupRemoteApiUrl = "http://127.0.0.1:9318";
-          if (!setupDockerStatus?.apiReachable) {
-            setupRemoteNotice = "Starting local OpenLeash...";
-            renderSetup();
-            await startSelfHostedRuntime();
-          }
-          if (!setupDockerStatus?.apiReachable) {
-            setupFinishing = false;
-            setupFinishError = setupDockerStatus?.status || "Start the local OpenLeash backend before finishing setup.";
-            setupRemoteNotice = "";
-            renderSetup();
-            return;
-          }
-        }
         if (setupClientMode === "cloud" && setupAudience === "organization" && isPersonalEmail(setupRemoteAuth?.userEmail)) {
           setupRemoteError = "Use your company Google Workspace or Microsoft 365 account, not a personal email address.";
           setupRemoteAuth = undefined;
@@ -3249,19 +3498,39 @@
           return;
         }
         setupFinishing = true;
+        setupInstallState = "installing";
+        setupInstallProgress = { percent: 4, stage: "prepare", title: "Preparing installation", detail: "Checking your connection and selected protection..." };
         setupFinishError = "";
-        setupRemoteNotice = setupRemoteAuth ? "Installing OpenLeash on this Mac..." : setupRemoteNotice;
+        renderSetup();
+        if (setupAudience === "individual" && setupClientMode === "custom") {
+          setupRemoteApiUrl = "http://127.0.0.1:9318";
+          if (!setupDockerStatus?.apiReachable) {
+            setupInstallProgress = { percent: 8, stage: "connect", title: "Starting your local backend", detail: "Starting OpenLeash API and Postgres with Docker..." };
+            renderSetup();
+            await startSelfHostedRuntime();
+          }
+          if (!setupDockerStatus?.apiReachable) {
+            setupFinishing = false;
+            setupInstallState = "failed";
+            setupFinishError = setupDockerStatus?.status || "Start the local OpenLeash backend before finishing setup.";
+            setupRemoteNotice = "";
+            renderSetup();
+            return;
+          }
+        }
+        setupInstallProgress = { percent: 12, stage: "prepare", title: "Saving plugin choices", detail: "Applying the plugins and settings you selected..." };
         renderSetup();
         const agents = [...(selectedAgents || new Set())];
         const pluginSave = await saveSelectedPluginSettings();
         if (!pluginSave.ok) {
           setupFinishing = false;
+          setupInstallState = "failed";
           setupFinishError = pluginSave.error || "Could not save plugin settings.";
           setupRemoteNotice = "";
           renderSetup();
           return;
         }
-        setupRemoteNotice = "Installing OpenLeash on this Mac...";
+        setupInstallProgress = { percent: 16, stage: "prepare", title: "Preparing this Mac", detail: "Connecting OpenLeash to the selected agents..." };
         renderSetup();
         const rules = (state.rules || []).map((rule) => ({
           ...rule,
@@ -3282,13 +3551,16 @@
         }).catch((error) => ({ ok: false, error: error?.message || "Setup could not be completed." }));
         if (result && result.ok === false) {
           setupFinishing = false;
+          setupInstallState = "failed";
           setupFinishError = result.error || "Setup could not be completed.";
           renderSetup();
         } else if (result?.ok) {
           setupFinishing = false;
+          setupInstallState = "complete";
+          setupInstallProgress = { percent: 100, stage: "complete", title: "Protection active", detail: "OpenLeash is ready." };
           state = { ...state, ...result, setupComplete: true, mode: result.mode || "settings" };
           view = "overview";
-          render(result);
+          renderSetup();
         }
       }
 
@@ -7008,6 +7280,16 @@
         ]).has(domain);
       }
 
+      window.openleash.onSetupProgress?.((payload) => {
+        if (!setupFinishing || !payload || typeof payload !== "object") return;
+        setupInstallProgress = {
+          percent: Math.max(0, Math.min(100, Number(payload.percent || 0))),
+          stage: String(payload.stage || "prepare"),
+          title: String(payload.title || "Installing OpenLeash"),
+          detail: String(payload.detail || "Applying protection to this Mac...")
+        };
+        renderSetup();
+      });
       window.openleash.onUpdate(render);
       window.openleash.onAuth((payload) => {
         if (payload?.ok) {

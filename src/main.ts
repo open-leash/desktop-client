@@ -1602,7 +1602,7 @@ ipcMain.handle("openleash:open-local-config", async () => {
 ipcMain.handle(
   "openleash:setup",
   async (
-    _event,
+    event,
     payload: {
       agents?: string[];
       policies?: Array<{
@@ -1625,6 +1625,22 @@ ipcMain.handle(
       skipDashboardOpen?: boolean;
     },
   ) => {
+    const sendSetupProgress = (progress: {
+      percent: number;
+      stage: "prepare" | "connect" | "agents" | "verify" | "complete";
+      title: string;
+      detail: string;
+    }) => {
+      if (!event.sender.isDestroyed()) {
+        event.sender.send("openleash:setup-progress", progress);
+      }
+    };
+    sendSetupProgress({
+      percent: 18,
+      stage: "connect",
+      title: "Connecting OpenLeash",
+      detail: "Validating your account and backend connection...",
+    });
     const clientMode = payload.clientMode === "custom" ? "custom" : "cloud";
     const audience =
       payload.audience === "organization" ? "organization" : "individual";
@@ -1659,6 +1675,12 @@ ipcMain.handle(
       desktopAuthSession?.userName ||
       desktopAuthSession?.userEmail;
     if (desktopAuthSession?.token && remoteToken === desktopAuthSession.token) {
+      sendSetupProgress({
+        percent: 24,
+        stage: "connect",
+        title: "Enrolling this Mac",
+        detail: "Creating a protected identity for this installation...",
+      });
       await refreshLocalProtections(true);
       const enrollment = await enrollDesktopEndpoint(
         remoteApiUrl,
@@ -1672,6 +1694,12 @@ ipcMain.handle(
         enrollment.user?.email ||
         enrolledRemoteUser;
     }
+    sendSetupProgress({
+      percent: 32,
+      stage: "connect",
+      title: "Saving your protection policy",
+      detail: "Applying your account, rules, and connection settings...",
+    });
     const basePolicies = Array.isArray(payload.policies)
       ? normalizePolicies(payload.policies, localServer.policies, true)
       : localServer.policies;
@@ -1705,7 +1733,22 @@ ipcMain.handle(
       ),
     ];
     const agentSetupErrors: string[] = [];
-    for (const agentKind of selectedAgents) {
+    for (const [agentIndex, agentKind] of selectedAgents.entries()) {
+      const agentDisplayName =
+        localProtections.find((agent) => agent.kind === agentKind)?.displayName ||
+        agentKind
+          .split("-")
+          .map((part) => part ? `${part[0].toUpperCase()}${part.slice(1)}` : "")
+          .join(" ");
+      const agentProgress = selectedAgents.length
+        ? 42 + Math.round((agentIndex / selectedAgents.length) * 28)
+        : 70;
+      sendSetupProgress({
+        percent: agentProgress,
+        stage: "agents",
+        title: `Protecting ${agentDisplayName}`,
+        detail: `Installing monitoring ${agentIndex + 1} of ${selectedAgents.length}...`,
+      });
       try {
         const installed = await installAgentProtection(
           agentKind,
@@ -1722,6 +1765,12 @@ ipcMain.handle(
         );
       }
     }
+    sendSetupProgress({
+      percent: 72,
+      stage: "agents",
+      title: "Connecting full-conversation protection",
+      detail: "Configuring the local proxy for your selected agents...",
+    });
     let proxyInstallError: string | undefined;
     try {
       proxyStatus = await installProxyForMonitoredAgents(selectedAgents);
@@ -1729,6 +1778,12 @@ ipcMain.handle(
       proxyInstallError = `Agent hooks are active, but the full-conversation proxy needs attention: ${error instanceof Error ? error.message : "unknown error"}`;
       proxyStatus = await localProxyStatus();
     }
+    sendSetupProgress({
+      percent: 80,
+      stage: "verify",
+      title: "Verifying agent protection",
+      detail: "Confirming every selected agent is monitored...",
+    });
     await refreshLocalProtections(true);
     const protectedByKind = new Map(
       localProtections.map((agent) => [agent.kind, agent]),
@@ -1750,9 +1805,18 @@ ipcMain.handle(
       }
     }
     const desiredAgentKinds = new Set(selectedAgents);
-    for (const protection of localProtections.filter(
+    const monitoredProtections = localProtections.filter(
       (agent) => agent.installed && agent.supportsInstall,
-    )) {
+    );
+    for (const [protectionIndex, protection] of monitoredProtections.entries()) {
+      sendSetupProgress({
+        percent: monitoredProtections.length
+          ? 86 + Math.round((protectionIndex / monitoredProtections.length) * 8)
+          : 92,
+        stage: "verify",
+        title: "Saving monitoring preferences",
+        detail: `Confirming ${protection.displayName}...`,
+      });
       const saved = await saveRemoteAgentMonitoring(
         remoteApiUrl,
         remoteToken,
@@ -1777,6 +1841,12 @@ ipcMain.handle(
         ].join(" ")}`,
       };
     }
+    sendSetupProgress({
+      percent: 96,
+      stage: "verify",
+      title: "Finishing installation",
+      detail: "Starting protection and preparing your OpenLeash workspace...",
+    });
     app.setLoginItemSettings({
       openAtLogin: true,
       openAsHidden: true,
@@ -1846,6 +1916,12 @@ ipcMain.handle(
       title: "Installation complete",
       summary: "OpenLeash installed",
       restartTargets: detectRunningAgentRestartTargets(selectedAgents),
+    });
+    sendSetupProgress({
+      percent: 100,
+      stage: "complete",
+      title: "Protection active",
+      detail: "OpenLeash is installed and ready.",
     });
     return { ok: true, ...setupState };
   },

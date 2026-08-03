@@ -48,5 +48,8 @@ contextBridge.exposeInMainWorld("openleash", {
   },
   onAuth: (callback: (payload: unknown) => void) => {
     ipcRenderer.on("openleash:auth", (_event, payload) => callback(payload));
+  },
+  onSetupProgress: (callback: (payload: unknown) => void) => {
+    ipcRenderer.on("openleash:setup-progress", (_event, payload) => callback(payload));
   }
 });
