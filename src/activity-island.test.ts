@@ -11,6 +11,7 @@ import {
   recoverSuspendedAgentSessions,
   contributionsForSession,
   islandDisplayTargets,
+  latestTokenSaverSavings,
   mergeImmediateAgentActivity,
   prioritizeAgentSessions,
   shouldPresentActivityIsland,
@@ -23,6 +24,27 @@ test("plugin presentation always uses canonical slugs", () => {
   assert.equal(canonicalPluginSlug("openleash.prompt-compression"), "token-saver");
   assert.equal(canonicalPluginSlug("token-compression"), "token-saver");
   assert.equal(canonicalPluginSlug("openleash.core"), "openleash-core");
+});
+
+test("only shows Token Saver after it publishes a real savings metric", () => {
+  const base = {
+    pluginId: "openleash.prompt-compression",
+    key: "token-savings",
+    updatedAt: "2026-08-03T10:00:00.000Z",
+  };
+
+  assert.equal(latestTokenSaverSavings([]), undefined);
+  assert.equal(latestTokenSaverSavings([
+    { ...base, value: "Unavailable" },
+  ]), undefined);
+  assert.deepEqual(latestTokenSaverSavings([
+    { ...base, value: "9% saved" },
+    { ...base, value: "14% saved", updatedAt: "2026-08-03T10:01:00.000Z" },
+  ]), {
+    ...base,
+    value: "14% saved",
+    updatedAt: "2026-08-03T10:01:00.000Z",
+  });
 });
 
 test("supports always-on, activity-only, and notification-only Island visibility", () => {

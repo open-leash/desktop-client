@@ -73,6 +73,7 @@ import {
   applyCompletedAgentSessions,
   contributionsForSession,
   islandDisplayTargets,
+  latestTokenSaverSavings,
   mergeImmediateAgentActivity,
   mergeRecoveredAgentSessions,
   prioritizeAgentSessions,
@@ -6091,22 +6092,7 @@ function formatNotice(notice: DecisionNotice) {
     const sourceSessionIds = rankedSessions.flatMap((session) => session.sourceSessionIds);
     const ambient = ambientIslandContributions(decorated, sourceSessionIds)
       .filter((item) => item.pluginId !== "openleash.prompt-compression");
-    const tokenSaverContribution = decorated
-      .filter((item) => item.pluginId === "openleash.prompt-compression" && item.value)
-      .sort((left, right) => Date.parse(right.updatedAt) - Date.parse(left.updatedAt))[0];
-    const tokenSaverPlugin = latestPlugins.find((plugin) => plugin.id === "openleash.prompt-compression");
-    const tokenSaver = tokenSaverContribution ?? (
-      tokenSaverPlugin?.settings?.enabled && tokenSaverPlugin.settings.runtimeAvailable === false
-        ? {
-            pluginId: "openleash.prompt-compression",
-            pluginName: "token-saver",
-            pluginIcon: "✂️",
-            value: "Unavailable",
-            detail: tokenSaverPlugin.settings.runtimeError ?? "token-saver is unavailable.",
-            tone: "danger",
-          }
-        : undefined
-    );
+    const tokenSaver = latestTokenSaverSavings(decorated);
     const activeSessionCount = notice.sessions.filter((session) => session.visualState !== "completed").length;
     const presentation = activityIslandPresentationSummary({
       sessionCount: notice.sessions.length,

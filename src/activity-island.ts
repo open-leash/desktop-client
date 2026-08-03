@@ -325,6 +325,26 @@ export function ambientIslandContributions(
   });
 }
 
+type TokenSaverContributionLike = {
+  pluginId: string;
+  key: string;
+  value?: unknown;
+  updatedAt: string;
+};
+
+export function latestTokenSaverSavings<T extends TokenSaverContributionLike>(
+  contributions: T[],
+) {
+  return contributions
+    .filter((contribution) =>
+      contribution.pluginId === "openleash.prompt-compression" &&
+      contribution.key === "token-savings" &&
+      typeof contribution.value === "string" &&
+      /^\d+(?:\.\d+)?% saved$/i.test(contribution.value.trim())
+    )
+    .sort((left, right) => Date.parse(right.updatedAt) - Date.parse(left.updatedAt))[0];
+}
+
 function dedupeSessions(sessions: ActiveAgentSession[]) {
   const deduped: ActiveAgentSession[] = [];
   for (const session of sessions) {
