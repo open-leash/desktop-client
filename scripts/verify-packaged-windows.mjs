@@ -31,7 +31,9 @@ for (const required of [executable, nativeModule, packagedApp, ...expectedDistAs
   if (!fs.existsSync(required)) throw new Error(`Missing packaged file: ${required}`);
 }
 
-const packagedFiles = new Set(listPackage(packagedApp));
+const packagedFiles = new Set(
+  listPackage(packagedApp).map((entry) => entry.replaceAll("\\", "/")),
+);
 for (const required of [
   "/dist/main.js",
   "/dist/notice.html",
