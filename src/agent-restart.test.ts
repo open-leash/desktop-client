@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import path from "node:path";
 import test from "node:test";
 import {
   groupRunningAgentProcesses,
@@ -28,12 +29,13 @@ test("groups Codex extension processes under one VS Code restart target", () => 
 });
 
 test("keeps standalone terminal agents separate with their project path", () => {
+  const projectPath = path.resolve("Project");
   const processes = parseRestartProcessTree(`
   200 1 /Applications/Terminal.app/Contents/MacOS/Terminal
   210 200 /bin/zsh
   220 210 /opt/homebrew/bin/claude
   `);
-  processes.find((item) => item.pid === 220)!.cwd = "/Users/max/Code/Project";
+  processes.find((item) => item.pid === 220)!.cwd = projectPath;
   assert.deepEqual(groupRunningAgentProcesses(processes, ["claude-code"]), [{
     id: "terminal:claude-code:220",
     application: "Claude Code terminal",
@@ -42,7 +44,7 @@ test("keeps standalone terminal agents separate with their project path", () => 
     agentKinds: ["claude-code"],
     agentNames: ["Claude Code"],
     processIds: [220],
-    projects: [{ name: "Project", path: "/Users/max/Code/Project" }],
+    projects: [{ name: "Project", path: projectPath }],
   }]);
 });
 
