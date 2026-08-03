@@ -37,23 +37,6 @@ jobs:
         with:
           node-version: "22"
 
-      - name: Require production signing and notarization credentials
-        shell: bash
-        env:
-          CSC_LINK: ${{ secrets.MAC_CSC_LINK }}
-          CSC_KEY_PASSWORD: ${{ secrets.MAC_CSC_KEY_PASSWORD }}
-          APPLE_API_KEY: ${{ secrets.APPLE_API_KEY }}
-          APPLE_API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
-          APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
-        run: |
-          set -euo pipefail
-          for name in CSC_LINK CSC_KEY_PASSWORD APPLE_API_KEY APPLE_API_KEY_ID APPLE_API_ISSUER; do
-            if [[ -z "${!name:-}" ]]; then
-              echo "Required release credential $name is not configured." >&2
-              exit 1
-            fi
-          done
-
       - name: Create release workspace
         shell: bash
         run: |
@@ -79,35 +62,34 @@ jobs:
           npm run test -w @openleash/desktop-client
           npm run build -w @openleash/desktop-client
 
-      - name: Build, sign, and notarize DMG
+      - name: Build unsigned development DMG
         working-directory: apps/desktop-client
         shell: bash
         env:
-          CSC_LINK: ${{ secrets.MAC_CSC_LINK }}
-          CSC_KEY_PASSWORD: ${{ secrets.MAC_CSC_KEY_PASSWORD }}
-          APPLE_API_KEY: ${{ secrets.APPLE_API_KEY }}
-          APPLE_API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
-          APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
+          CSC_IDENTITY_AUTO_DISCOVERY: "false"
         run: |
           set -euo pipefail
           npx electron-rebuild -v 40.10.6 -w better-sqlite3 --force
           npx electron-builder --config electron-builder.mac.yml --mac --arm64 --publish never
 
-      - name: Verify signature, notarization ticket, and Gatekeeper
+      - name: Verify unsigned development package
         working-directory: apps/desktop-client
         shell: bash
         run: |
           set -euo pipefail
           app_path=$(find release/macos -type d -name 'OpenLeash.app' -print -quit)
           test -n "$app_path"
-          codesign --verify --deep --strict --verbose=2 "$app_path"
-          xcrun stapler validate "$app_path"
-          spctl --assess --type execute --verbose=2 "$app_path"
+          test -x "$app_path/Contents/MacOS/OpenLeash"
+          test -x "$app_path/Contents/Resources/app.asar.unpacked/dist/openleash-island"
 
       - name: Create checksums
         working-directory: apps/desktop-client/release/macos
         shell: bash
-        run: shasum -a 256 OpenLeash-*.dmg *.blockmap > SHA256SUMS-MACOS
+        run: |
+          set -euo pipefail
+          cp ../../scripts/install-openleash-personal.sh .
+          chmod +x install-openleash-personal.sh
+          shasum -a 256 OpenLeash-*.dmg *.blockmap latest-mac.yml install-openleash-personal.sh > SHA256SUMS
 
       - name: Upload workflow artifact
         uses: actions/upload-artifact@v7
@@ -117,7 +99,8 @@ jobs:
             apps/desktop-client/release/macos/*.dmg
             apps/desktop-client/release/macos/*.blockmap
             apps/desktop-client/release/macos/latest-mac.yml
-            apps/desktop-client/release/macos/SHA256SUMS-MACOS
+            apps/desktop-client/release/macos/install-openleash-personal.sh
+            apps/desktop-client/release/macos/SHA256SUMS
 
       - name: Attach immutable assets to GitHub release
         if: startsWith(github.ref, 'refs/tags/')
@@ -125,4 +108,4 @@ jobs:
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release upload "${{ github.ref_name }}" release/macos/*.dmg release/macos/*.blockmap release/macos/latest-mac.yml release/macos/SHA256SUMS-MACOS --clobber=false
+        run: gh release upload "${{ github.ref_name }}" release/macos/*.dmg release/macos/*.blockmap release/macos/latest-mac.yml release/macos/install-openleash-personal.sh release/macos/SHA256SUMS --clobber=false

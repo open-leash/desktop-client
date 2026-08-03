@@ -54,22 +54,11 @@ jobs:
           npm run test -w @openleash/desktop-client
           npm run build -w @openleash/desktop-client
 
-      - name: Require Windows signing certificate
-        shell: pwsh
-        env:
-          CSC_LINK: ${{ secrets.WINDOWS_CSC_LINK }}
-          CSC_KEY_PASSWORD: ${{ secrets.WINDOWS_CSC_KEY_PASSWORD }}
-        run: |
-          if (-not $env:CSC_LINK -or -not $env:CSC_KEY_PASSWORD) {
-            throw "WINDOWS_CSC_LINK and WINDOWS_CSC_KEY_PASSWORD are required for every Windows release artifact."
-          }
-
-      - name: Rebuild native dependency and package NSIS installer
+      - name: Rebuild native dependency and package unsigned NSIS installer
         working-directory: apps/desktop-client
         shell: pwsh
         env:
-          CSC_LINK: ${{ secrets.WINDOWS_CSC_LINK }}
-          CSC_KEY_PASSWORD: ${{ secrets.WINDOWS_CSC_KEY_PASSWORD }}
+          CSC_IDENTITY_AUTO_DISCOVERY: "false"
         run: |
           $PSNativeCommandUseErrorActionPreference = $true
           npx electron-rebuild -v 40.10.6 -w better-sqlite3 --force
