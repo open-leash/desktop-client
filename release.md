@@ -428,11 +428,11 @@ dismissal before packaging. The packaged macOS gate must also confirm that the
 helper is present outside ASAR and executable.
 
 Windows releases are built and native-ABI-tested on a Windows GitHub runner.
-Tagged public Windows builds require `WINDOWS_CSC_LINK` and
-`WINDOWS_CSC_KEY_PASSWORD`; an unsigned installer must not silently replace a
-signed stable channel. The update feed is keyed by platform and architecture,
-and publication verifies the installer bytes against the release checksum
-before enabling either platform.
+During the current development distribution phase they are intentionally
+unsigned and do not require signing secrets. Release notes must disclose that
+state, and publication verifies installer bytes against the immutable release
+checksum before enabling either platform. Mandatory platform signing can be
+restored when production certificates are provisioned.
 
 Release `0.36.11` is published for macOS arm64 at the immutable GitHub tag and
 is active in the stable update feed. Its public `install.sh` path downloads the
@@ -511,7 +511,7 @@ The pipeline automatically increments the iOS build number and Android version c
 - Packaged-artifact startup and native-module verification.
 - Current and previous compatible API tests.
 - Install-over-existing-version tests on supported operating systems.
-- Signing and notarization verification.
+- Signing and notarization verification when production credentials are enabled; otherwise explicit unsigned-release labeling and checksum verification.
 - Update-manifest signature and checksum verification.
 - Canary publication before stable rollout.
 

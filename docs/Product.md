@@ -176,6 +176,6 @@ Dashboard/CISO routes may expose organization-wide data only after dashboard-ses
 
 - `client-api`: publish versioned Docker images and release notes for Individual Open Source and Private Cloud; run migrations safely against user/customer Postgres.
 - `dashboard-api` and `dashboard-web`: publish versioned artifacts for Private Cloud and public-cloud wrappers.
-- `desktop-client`: bump version, test API compatibility, publish signed desktop artifacts, and update public download links.
+- `desktop-client`: bump version, test API compatibility, publish checksum-verified desktop artifacts, and update public download links. During the current development distribution phase, signing and notarization credentials are intentionally not required: releases remain unsigned, say so explicitly in their notes, and rely on immutable GitHub assets plus published SHA-256 checksums. Re-enable mandatory platform signing only when the required production credentials are actually provisioned.
 - `mobile-client`: bump app/build versions, sign release builds, and publish through the app stores.
 - Cloud wrappers: release through OpenLeash-operated cloud pipelines with API versioning and backward compatibility for older clients.

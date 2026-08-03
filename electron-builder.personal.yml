@@ -3,7 +3,7 @@ productName: OpenLeash
 copyright: Copyright © 2026 OpenLeash
 electronVersion: 40.10.6
 npmRebuild: false
-forceCodeSigning: true
+forceCodeSigning: false
 extraMetadata:
   main: apps/desktop-client/dist/main.js
 directories:
@@ -27,7 +27,7 @@ extraResources:
   - from: scripts/install-openleash-personal.sh
     to: install-openleash-personal.sh
 mac:
-  identity: Developer ID Application
+  identity: null
   icon: apps/desktop-client/build/openleash.icns
   category: public.app-category.developer-tools
   target:
@@ -35,7 +35,7 @@ mac:
       arch:
         - arm64
   hardenedRuntime: true
-  notarize: true
+  notarize: false
   entitlements: apps/desktop-client/build/entitlements.mac.plist
   entitlementsInherit: apps/desktop-client/build/entitlements.mac.inherit.plist
 win:
