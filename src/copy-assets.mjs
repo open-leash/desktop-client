@@ -92,17 +92,35 @@ async function copyIntroVideo() {
 
 async function copyWelcomeAgentIcons() {
   const candidates = [
+    path.join("src", "agents"),
     path.join("..", "main-web", "public", "agents"),
-    path.join("..", "..", "assets", "agents"),
-    path.join("src", "agents")
+    path.join("..", "..", "assets", "agents")
   ];
   for (const candidate of candidates) {
     try {
       await fs.rm(path.join("dist", "agents"), { recursive: true, force: true });
       await fs.cp(candidate, path.join("dist", "agents"), { recursive: true });
+      await assertWelcomeAgentIcons();
       return;
     } catch {
       // Try the next common asset location/name.
     }
   }
+  throw new Error("Desktop agent icons are missing; setup cannot be packaged without src/agents.");
+}
+
+async function assertWelcomeAgentIcons() {
+  const required = [
+    "antigravity.png",
+    "chatgpt.png",
+    "claude.png",
+    "cline.png",
+    "codex.png",
+    "cursor.png",
+    "githubcopilot.svg",
+    "googlegemini.svg",
+    "opencode.png",
+    "windsurf.svg"
+  ];
+  await Promise.all(required.map((file) => fs.access(path.join("dist", "agents", file))));
 }
