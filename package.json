@@ -1,7 +1,7 @@
 {
   "name": "openleash",
   "private": true,
-  "version": "0.36.53",
+  "version": "0.36.54",
   "description": "OpenLeash protects local AI coding agents with hook-based policy enforcement and CISO-grade visibility.",
   "author": "OpenLeash",
   "workspaces": [
