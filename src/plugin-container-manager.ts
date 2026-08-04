@@ -475,10 +475,10 @@ async function reconcileOne(plugin: PluginCatalogItem): Promise<PluginContainerS
         return { pluginId: plugin.id, containerName: name, image, running: hadPrevious, healthy: hadPrevious, endpoint, error: connected.stderr.trim() || "could not connect plugin to the runtime network" };
       }
     }
-    const healthy = await managedContainerHealth(plugin, name, endpoint);
-    if (!healthy) {
+    const verification = await managedContainerHealth(plugin, name, endpoint);
+    if (!verification.ok) {
       restoreRollback(name, backupName, hadPrevious);
-      return { pluginId: plugin.id, containerName: name, image, running: hadPrevious, healthy: hadPrevious, endpoint, error: "plugin update failed health check; previous version restored" };
+      return { pluginId: plugin.id, containerName: name, image, running: hadPrevious, healthy: hadPrevious, endpoint, error: `${verification.error || "plugin verification failed"}; previous version restored` };
     }
     if (hadPrevious) docker(["rm", "-f", backupName]);
     return { pluginId: plugin.id, containerName: name, image, running: true, healthy: true, endpoint };
@@ -489,12 +489,114 @@ async function reconcileOne(plugin: PluginCatalogItem): Promise<PluginContainerS
       docker(["network", "connect", ISOLATED_PLUGIN_NETWORK, name]);
     }
   }
-  const healthy = await managedContainerHealth(plugin, name, endpoint);
-  return { pluginId: plugin.id, containerName: name, image, running: true, healthy, endpoint, ...(healthy ? {} : { error: "plugin did not become healthy" }) };
+  const verification = await managedContainerHealth(plugin, name, endpoint);
+  return { pluginId: plugin.id, containerName: name, image, running: true, healthy: verification.ok, endpoint, ...(verification.ok ? {} : { error: verification.error || "plugin verification failed" }) };
 }
 
-function managedContainerHealth(plugin: PluginCatalogItem, _name: string, _endpoint: string) {
-  return waitForHealth(pluginEndpoint(plugin, plugin.execution?.healthPath ?? "/healthz"), plugin.id);
+async function managedContainerHealth(plugin: PluginCatalogItem, _name: string, _endpoint: string) {
+  const healthy = await waitForHealth(
+    pluginEndpoint(plugin, plugin.execution?.healthPath ?? "/healthz"),
+    plugin.id,
+  );
+  if (!healthy) return { ok: false, error: "plugin did not become healthy" };
+  try {
+    await verifyLocalPluginProtocol(plugin);
+    return { ok: true };
+  } catch (error) {
+    return {
+      ok: false,
+      error: `plugin signed protocol verification failed: ${error instanceof Error ? error.message : String(error)}`,
+    };
+  }
+}
+
+async function verifyLocalPluginProtocol(plugin: PluginCatalogItem) {
+  const execution = plugin.execution!;
+  const requestId = crypto.randomUUID();
+  const probeConfig = { ...plugin.settings.config, enabled: false, rules: [] };
+  const base = {
+    protocol: PROTOCOL,
+    requestId,
+    plugin: {
+      id: plugin.id,
+      version: plugin.settings.installedVersion ?? plugin.version,
+    },
+    tenant: {
+      organizationId: "openleash-runtime-verification",
+      userId: "openleash-runtime-verification",
+    },
+    settings: settingsContext({ ...plugin.settings, config: probeConfig }),
+    config: probeConfig,
+  };
+  const eventPath = execution.eventPath;
+  const transformPath = execution.transformPath;
+  const envelope = eventPath
+    ? {
+        ...base,
+        round: 0,
+        event: "openleash.runtime.verify",
+        input: {
+          verification: true,
+          prompt: "OpenLeash runtime verification probe.",
+          policies: [],
+          request: {
+            computer: { hostname: "openleash-verification", platform: "runtime" },
+            agent: { kind: "codex", displayName: "OpenLeash verification" },
+            event: {
+              eventName: "UserPromptSubmit",
+              agentKind: "codex",
+              sessionId: "openleash-runtime-verification",
+              prompt: "OpenLeash runtime verification probe.",
+              raw: { openleashRuntimeVerification: true },
+            },
+          },
+        },
+        capabilityResults: {},
+      }
+    : transformPath
+      ? {
+          ...base,
+          event: "provider.request.beforeSend",
+          context: {
+            provider: "openleash-verification",
+            agentKind: "codex",
+            sessionId: "openleash-runtime-verification",
+          },
+          payload: {
+            model: "openleash-verification",
+            messages: [{ role: "user", content: "OpenLeash runtime verification probe." }],
+          },
+        }
+      : undefined;
+  if (!envelope) throw new Error("plugin exposes no signed event or transform endpoint");
+  const body = JSON.stringify(envelope);
+  const timestamp = String(Date.now());
+  const signature = crypto
+    .createHmac("sha256", resolvePluginRuntimeSecret())
+    .update(`${timestamp}.${body}`)
+    .digest("hex");
+  const result = await invokePluginHttp(
+    plugin,
+    eventPath ?? transformPath!,
+    body,
+    {
+      "content-type": "application/json",
+      "x-openleash-plugin-protocol": PROTOCOL,
+      "x-openleash-plugin-id": plugin.id,
+      "x-openleash-plugin-version": base.plugin.version,
+      "x-openleash-timestamp": timestamp,
+      "x-openleash-signature": `sha256=${signature}`,
+    },
+  ) as { protocol?: string; requestId?: string; status?: string };
+  if (result.protocol !== PROTOCOL || result.requestId !== requestId) {
+    throw new Error("plugin returned an incompatible or uncorrelated response");
+  }
+  const statuses = eventPath
+    ? new Set(["completed", "capability_required"])
+    : new Set(["unchanged", "modified", "skipped"]);
+  if (!result.status || !statuses.has(result.status)) {
+    throw new Error("plugin returned an invalid verification status");
+  }
 }
 
 async function preflightContainer(plugin: PluginCatalogItem): Promise<{ ok: true } | { ok: false; error: string }> {

@@ -58,6 +58,9 @@ test("desktop setup reports real installation stages to the renderer", () => {
   assert.match(setupHandler, /Enrolling this Mac/);
   assert.match(setupHandler, /Protecting \$\{agentDisplayName\}/);
   assert.match(setupHandler, /Verifying agent protection/);
+  assert.match(setupHandler, /Verifying plugin containers/);
+  assert.match(setupHandler, /reconcilePluginContainers/);
+  assert.match(setupHandler, /verifyRemotePluginRuntimes/);
   assert.match(setupHandler, /percent: 100/);
   assert.match(preload, /onSetupProgress/);
 });

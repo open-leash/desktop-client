@@ -1832,11 +1832,46 @@ ipcMain.handle(
     if (proxyInstallError && selectedAgents.some(isAutomaticProxyAgent)) {
       agentSetupErrors.push(proxyInstallError);
     }
+    sendSetupProgress({
+      percent: 94,
+      stage: "verify",
+      title: "Verifying plugin containers",
+      detail: "Checking health, authentication, and protocol responses for every enabled plugin...",
+    });
+    latestPlugins = await fetchRemotePluginCatalog(
+      remoteApiUrl,
+      remoteToken,
+      latestPlugins,
+    );
+    let failedLocalPluginContainers = 0;
+    const localPluginStatuses = await reconcilePluginContainers(
+      latestPlugins,
+      (progress) => {
+        if (progress.phase === "failed") failedLocalPluginContainers += 1;
+        presentPluginInstallProgress(progress, failedLocalPluginContainers);
+      },
+    );
+    localServer.syncPluginRuntimeStatuses(localPluginStatuses);
+    pluginContainerFingerprint = pluginFingerprint(latestPlugins);
+    for (const status of localPluginStatuses.filter((item) => !item.healthy)) {
+      agentSetupErrors.push(
+        `${status.pluginId}: local container verification failed (${status.error || "not healthy"})`,
+      );
+    }
+    const remotePluginVerification = await verifyRemotePluginRuntimes(
+      remoteApiUrl,
+      remoteToken,
+    );
+    if (!remotePluginVerification.ok) {
+      agentSetupErrors.push(
+        `managed plugin runtime verification failed (${remotePluginVerification.error || "unknown error"})`,
+      );
+    }
     if (agentSetupErrors.length > 0) {
       localServer.markSetupIncomplete();
       return {
         ok: false,
-        error: `OpenLeash could not finish agent monitoring. ${[
+        error: `OpenLeash could not finish installation. ${[
           ...new Set(agentSetupErrors),
         ].join(" ")}`,
       };
@@ -1871,13 +1906,6 @@ ipcMain.handle(
         .join(" ");
     }
     startProtectionIntegrityGuard();
-    if (localServer.remoteApiUrl && localServer.effectiveToken) {
-      latestPlugins = await fetchRemotePluginCatalog(
-        localServer.remoteApiUrl,
-        localServer.effectiveToken,
-        latestPlugins,
-      );
-    }
     refreshMenu();
     const setupState = {
       apiUrl,
@@ -2791,6 +2819,60 @@ async function fetchRemotePluginCatalog(
     return plugins;
   } catch {
     return fallback;
+  }
+}
+
+type RemotePluginRuntimeVerification = {
+  ok: boolean;
+  plugins?: Array<{
+    pluginId: string;
+    healthy: boolean;
+    protocolVerified: boolean;
+    checks: string[];
+    error?: string;
+  }>;
+  error?: string;
+};
+
+async function verifyRemotePluginRuntimes(
+  remoteApiUrl: string,
+  remoteToken: string,
+): Promise<RemotePluginRuntimeVerification> {
+  try {
+    const response = await fetch(
+      new URL("/v1/plugin-runtime/verify", remoteApiUrl),
+      {
+        method: "POST",
+        headers: {
+          authorization: `Bearer ${remoteToken}`,
+          ...apiVersionHeaders("tenantPluginsRead"),
+        },
+        signal: AbortSignal.timeout(
+          Number(
+            process.env.OPENLEASH_DESKTOP_PLUGIN_VERIFY_TIMEOUT_MS ?? 180000,
+          ),
+        ),
+      },
+    );
+    const body = await response.json().catch(() => ({})) as RemotePluginRuntimeVerification;
+    if (!response.ok || body.ok !== true) {
+      const failed = (body.plugins ?? [])
+        .filter((plugin) => !plugin.protocolVerified)
+        .map((plugin) => `${plugin.pluginId}: ${plugin.error || "verification failed"}`);
+      return {
+        ok: false,
+        plugins: body.plugins,
+        error: failed.join("; ") || body.error || `backend returned HTTP ${response.status}`,
+      };
+    }
+    return body;
+  } catch (error) {
+    return {
+      ok: false,
+      error: error instanceof Error
+        ? error.message
+        : "Could not reach the managed plugin runtime.",
+    };
   }
 }
 
