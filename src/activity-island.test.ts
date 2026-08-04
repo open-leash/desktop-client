@@ -277,6 +277,28 @@ test("does not show a Codex title-generation session without event details", () 
   assert.deepEqual(sessions, []);
 });
 
+test("does not show a Codex title-generation session with a blank event prompt", () => {
+  const now = Date.parse("2026-08-04T06:24:26.000Z");
+  const titlePrompt = "You are a helpful assistant. You will be presented with a user prompt, and your job is to provide a short title for a task that will be created from that prompt. Generate a concise UI title. Fill the structured title field with plain text.";
+  const sessions = activeAgentSessions([{
+    kind: "codex",
+    display_name: "OpenAI Codex",
+    activity_at: new Date(now - 1_000).toISOString(),
+    sessions: [{
+      id: "codex-title-generation-blank-event",
+      title: titlePrompt,
+      last_activity_at: new Date(now - 1_000).toISOString(),
+      events: [{
+        event_name: "UserPromptSubmit",
+        prompt: "",
+        created_at: new Date(now - 1_000).toISOString(),
+      }],
+    }],
+  }], now);
+
+  assert.deepEqual(sessions, []);
+});
+
 test("hides Claude control prompts and keeps the latest real user request", () => {
   const now = Date.parse("2026-07-20T10:00:00.000Z");
   const [session] = activeAgentSessions([{

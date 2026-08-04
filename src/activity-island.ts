@@ -199,10 +199,10 @@ export function activeAgentSessions(
       const sourceEvents = session.events ?? [];
       if (sourceEvents.length === 0 && isBackgroundTitlePrompt(session.title)) return [];
       const visibleEvents = sourceEvents.filter((event) =>
-        !isBackgroundTitlePrompt(event.prompt ?? session.title) &&
+        !isBackgroundTitlePrompt(event.prompt || session.title) &&
         !isClaudeStatusPrompt(agent, {
           ...event,
-          prompt: event.prompt ?? session.title,
+          prompt: event.prompt || session.title,
         })
       );
       if (sourceEvents.length > 0 && visibleEvents.length === 0) return [];
