@@ -135,6 +135,7 @@ Individual Open Source BYOK clarification: the user enters their own LLM provide
 
 ## Plugin And Policy Contract
 
+- Desktop installation is complete only after every enabled edge/either plugin container is reconciled locally and every enabled server/either plugin runtime is verified by the managed `client-api`. Verification must check the health identity and protocol plus a signed, correlated container-protocol round-trip; a process-level health check alone is insufficient because it cannot detect missing endpoint routing or mismatched runtime secrets. Any failed plugin keeps setup incomplete and is reported by plugin ID with an actionable diagnostic.
 - Plugin functionality is rendered from backend-owned plugin manifests, category metadata, settings schemas, and outcome records.
 - Do not create separate hardcoded first-party pages for plugin features such as DLP or compression.
 - Organization policy may make plugins mandatory, lock settings, or provide defaults.

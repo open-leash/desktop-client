@@ -11,6 +11,7 @@ This is the canonical onboarding and routing contract. Product/package terms com
 - `dashboard-web` can render personal/employee client views, but org-admin/CISO areas require dashboard roles.
 - Individual Open Source runs the real `client-api` and Postgres locally. It must not use SQLite, a desktop-only backend, or a partial duplicate backend.
 - Desktop app updates use the OpenLeash public update feed by default. Backend/container updates are separate.
+- Desktop installation does not finish until every enabled local plugin container and managed backend plugin runtime passes both health and signed protocol verification. A missing endpoint, bad runtime secret, unhealthy container, or incompatible response leaves setup incomplete with a per-plugin error.
 
 ## 1. Solo Dev - Public Cloud
 
@@ -45,7 +46,8 @@ Flow:
 5. User enters their own LLM provider key.
 6. Desktop uses the local `client-api`, usually `http://127.0.0.1:9318`.
 7. Agent hooks are installed against the local `client-api`.
-8. User manages plugins, provider settings, approvals, outcomes, and local backend updates from desktop and/or CLI. Enabled container plugins run through the same versioned container API, either beside the desktop edge for provider traffic or beside the local backend for direct hooks.
+8. Installer verifies every enabled desktop-edge and local-backend plugin container through a signed protocol round-trip.
+9. User manages plugins, provider settings, approvals, outcomes, and local backend updates from desktop and/or CLI. Enabled container plugins run through the same versioned container API, either beside the desktop edge for provider traffic or beside the local backend for direct hooks.
 
 Rules:
 
