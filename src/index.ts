@@ -82,8 +82,9 @@ export type PluginEffect =
   | "notify"
   | "inventory";
 
-/** Plugins are always isolated OCI containers. */
-export type PluginRuntime = "container";
+/** Built-in Features run in the trusted client-api process. `container` is
+ * retained only so older serialized manifests can be rejected cleanly. */
+export type PluginRuntime = "builtin" | "container";
 
 export type PluginContainerPlacement = "edge" | "server" | "either";
 
@@ -122,6 +123,17 @@ export type PluginContainerExecution = {
   };
 };
 
+export type PluginInProcessExecution = {
+  type: "in-process";
+  /** Stable key resolved from the closed first-party handler registry. */
+  handler: string;
+  failureMode?: "open" | "closed";
+};
+
+export type PluginExecution =
+  | PluginInProcessExecution
+  | PluginContainerExecution;
+
 export type PluginOrdering = {
   before?: string[];
   after?: string[];
@@ -144,8 +156,8 @@ export type OpenLeashPluginManifest = {
   version: string;
   publisher: "openleash" | string;
   runtime: PluginRuntime;
-  execution?: PluginContainerExecution;
-  /** `cloud-only` plugins are never executed by Individual Open Source or Private Cloud runtimes. */
+  execution?: PluginExecution;
+  /** `cloud-only` Features are never executed by Personal Open Source. */
   executionEnvironment?: "any" | "cloud-only";
   entrypoint: string;
   events: PipelineEvent[];
@@ -241,34 +253,15 @@ export type PluginSettingState = {
   updatedAt?: string;
 };
 
-export function firstPartyEventContainer(
+export function firstPartyFeature(
   slug: string,
-  version: string,
-  options: Partial<PluginContainerExecution> = {},
-): PluginContainerExecution {
-  const edgePorts: Record<string, number> = {
-    "blast-radius": 9351,
-    "sensitive-access": 9352,
-    "data-leakage-prevention": 9353,
-    "rules-enforcer": 9354,
-    "mcp-scanner": 9355,
-    "code-scanner": 9356,
-    "skill-scanner": 9357,
-    "siem-exporter": 9358,
-  };
+  _version: string,
+  options: Partial<PluginInProcessExecution> = {},
+): PluginInProcessExecution {
   return {
-    type: "container",
-    placement: "either",
-    protocol: "openleash-container-plugin.v1",
-    image: `ghcr.io/open-leash/plugin-${slug}:${version}`,
-    healthPath: "/healthz",
-    eventPath: "/v1/events",
-    edgePort: edgePorts[slug],
-    timeoutMs: 30_000,
+    type: "in-process",
+    handler: slug,
     failureMode: "closed",
-    isolation: "shared-trusted",
-    resources: { memoryMb: 256, cpuShares: 256 },
-    storage: { persistent: true },
     ...options,
   };
 }
@@ -282,26 +275,14 @@ export const FIRST_PARTY_PLUGIN_MANIFESTS = [
     repositoryUrl: "https://github.com/open-leash/plugin-token-saver",
     version: "1.1.3",
     publisher: "openleash",
-    runtime: "container",
+    runtime: "builtin",
     execution: {
-      type: "container",
-      placement: "either",
-      protocol: "openleash-container-plugin.v1",
-      image: "ghcr.io/open-leash/plugin-token-saver:1.1.3",
-      digest: "sha256:a4b393aaea6867516c800e0c8381e03a451750a497d76870725dc8d3eaf1ffd3",
-      healthPath: "/healthz",
-      eventPath: "/v1/events",
-      transformPath: "/v1/transform",
-      toolExecutePath: "/v1/tools/execute",
-      edgePort: 9331,
-      timeoutMs: 30000,
+      type: "in-process",
+      handler: "token-saver",
       failureMode: "open",
-      isolation: "shared-trusted",
-      resources: { memoryMb: 1024, cpuShares: 1024 },
-      storage: { persistent: true, volumeName: "openleash-token-saver-data" }
     },
-    entrypoint: "container",
-    events: ["provider.request.beforeSend", "plugin.tool.execute"],
+    entrypoint: "client-api",
+    events: ["prompt.beforeSubmit", "provider.request.beforeSend", "plugin.tool.execute"],
     permissions: ["event:read", "prompt:read", "prompt:write", "provider-request:read", "provider-request:write", "local-model:run", "audit:write", "log:write", "usage:write", "island:publish"],
     effects: ["transform", "observe"],
     ordering: { priority: 100, before: ["openleash.dlp"] },
@@ -338,11 +319,9 @@ export const FIRST_PARTY_PLUGIN_MANIFESTS = [
     repositoryUrl: "https://github.com/open-leash/plugin-skill-scanner",
     version: "1.0.2",
     publisher: "openleash",
-    runtime: "container",
-    execution: firstPartyEventContainer("skill-scanner", "1.0.2", {
-      digest: "sha256:746f546c26ba5c0ecacbf559f231186f65b8133de1cd5ae4bb0a4c2e6ad740af",
-    }),
-    entrypoint: "container",
+    runtime: "builtin",
+    execution: firstPartyFeature("skill-scanner", "1.0.2"),
+    entrypoint: "client-api",
     events: ["openleash.startup", "agent.detected", "skill.detected", "skill.changed"],
     permissions: ["event:read", "filesystem:read", "decision:write", "model:invoke", "audit:write", "log:write", "signal:write", "notification:send"],
     effects: ["observe", "ask", "inventory"],
@@ -361,11 +340,9 @@ export const FIRST_PARTY_PLUGIN_MANIFESTS = [
     repositoryUrl: "https://github.com/open-leash/plugin-data-leakage-prevention",
     version: "1.0.0",
     publisher: "openleash",
-    runtime: "container",
-    execution: firstPartyEventContainer("data-leakage-prevention", "1.0.0", {
-      digest: "sha256:df368f0dec7df9022e5f8204730e44660ae8eb56f733a49afd528f8911e25dbe",
-    }),
-    entrypoint: "container",
+    runtime: "builtin",
+    execution: firstPartyFeature("data-leakage-prevention", "1.0.0"),
+    entrypoint: "client-api",
     events: ["prompt.beforeSubmit"],
     permissions: ["event:read", "prompt:read", "prompt:write", "decision:write", "model:invoke", "audit:write", "signal:write"],
     effects: ["transform", "deny", "observe"],
@@ -398,11 +375,9 @@ export const FIRST_PARTY_PLUGIN_MANIFESTS = [
     repositoryUrl: "https://github.com/open-leash/plugin-sensitive-access",
     version: "1.0.0",
     publisher: "openleash",
-    runtime: "container",
-    execution: firstPartyEventContainer("sensitive-access", "1.0.0", {
-      digest: "sha256:ca0b01b5f001a624733a0e1417625225806b1f02b73249babf064e24241e75ce",
-    }),
-    entrypoint: "container",
+    runtime: "builtin",
+    execution: firstPartyFeature("sensitive-access", "1.0.0"),
+    entrypoint: "client-api",
     events: ["prompt.beforeSubmit", "agent.response", "tool.beforeUse", "tool.afterUse"],
     permissions: ["event:read", "prompt:read", "tool:read", "model:invoke", "decision:write", "audit:write", "log:write", "signal:write"],
     effects: ["observe", "ask", "deny"],
@@ -433,11 +408,9 @@ export const FIRST_PARTY_PLUGIN_MANIFESTS = [
     repositoryUrl: "https://github.com/open-leash/plugin-blast-radius",
     version: "1.0.3",
     publisher: "openleash",
-    runtime: "container",
-    execution: firstPartyEventContainer("blast-radius", "1.0.3", {
-      digest: "sha256:1c3f8e3063d84d6a1344491c2c2be5635d70f13cbee62362913b03e502b8b10f",
-    }),
-    entrypoint: "container",
+    runtime: "builtin",
+    execution: firstPartyFeature("blast-radius", "1.0.3"),
+    entrypoint: "client-api",
     events: ["prompt.beforeSubmit", "tool.beforeUse"],
     permissions: ["event:read", "prompt:read", "tool:read", "decision:write", "audit:write", "log:write", "signal:write", "island:publish"],
     effects: ["observe", "ask", "deny"],
@@ -468,11 +441,9 @@ export const FIRST_PARTY_PLUGIN_MANIFESTS = [
     repositoryUrl: "https://github.com/open-leash/plugin-rules-enforcer",
     version: "1.0.0",
     publisher: "openleash",
-    runtime: "container",
-    execution: firstPartyEventContainer("rules-enforcer", "1.0.0", {
-      digest: "sha256:b39fc2580e02d46b20672341278080b57c40e9e8869136c01cb10c98ade9f7f1",
-    }),
-    entrypoint: "container",
+    runtime: "builtin",
+    execution: firstPartyFeature("rules-enforcer", "1.0.0"),
+    entrypoint: "client-api",
     events: ["prompt.beforeSubmit", "agent.response", "tool.beforeUse", "tool.afterUse"],
     permissions: ["event:read", "prompt:read", "tool:read", "decision:write", "model:invoke", "audit:write", "log:write", "signal:write", "usage:write", "notification:send"],
     effects: ["observe", "ask", "deny"],
@@ -509,11 +480,9 @@ export const FIRST_PARTY_PLUGIN_MANIFESTS = [
     repositoryUrl: "https://github.com/open-leash/plugin-mcp-scanner",
     version: "1.0.0",
     publisher: "openleash",
-    runtime: "container",
-    execution: firstPartyEventContainer("mcp-scanner", "1.0.0", {
-      digest: "sha256:34d1568441f4b1ba5b5a067cb6ef2c85a8879eaa9581c3f4fac9271ff3200a27",
-    }),
-    entrypoint: "container",
+    runtime: "builtin",
+    execution: firstPartyFeature("mcp-scanner", "1.0.0"),
+    entrypoint: "client-api",
     events: ["tool.beforeUse", "tool.afterUse"],
     permissions: ["event:read", "tool:read", "audit:write", "signal:write"],
     effects: ["observe", "inventory"],
@@ -532,12 +501,11 @@ export const FIRST_PARTY_PLUGIN_MANIFESTS = [
     repositoryUrl: "https://github.com/open-leash/plugin-siem-exporter",
     version: "1.0.0",
     publisher: "openleash",
-    runtime: "container",
-    execution: firstPartyEventContainer("siem-exporter", "1.0.0", {
-      digest: "sha256:7d41e5ca00d06ec65e75d9db3f8060ee875c2959afcea1537dc514a424048ba4",
+    runtime: "builtin",
+    execution: firstPartyFeature("siem-exporter", "1.0.0", {
       failureMode: "open",
     }),
-    entrypoint: "container",
+    entrypoint: "client-api",
     events: ["prompt.beforeSubmit", "agent.response", "tool.beforeUse", "tool.afterUse", "session.started", "session.ended", "skill.detected", "skill.changed", "skill.removed", "log.emitted"],
     permissions: ["event:read", "prompt:read", "tool:read", "network:access", "audit:write", "log:write"],
     effects: ["observe", "notify"],
@@ -956,13 +924,10 @@ export type OpenLeashClientPluginView = {
   description?: string;
   category: OpenLeashPluginCategoryId;
   installed: boolean;
-  author?: string;
   iconText?: string;
-  downloadCount?: number;
   configSchema?: PluginSettingSchema;
   defaultConfig?: Record<string, unknown>;
   settings?: PluginSettingState;
-  organizationPolicy?: PluginCatalogItem["organizationPolicy"];
   outcomeCount: number;
   latestOutcome?: OpenLeashOutcomeRecord;
 };
@@ -1034,13 +999,10 @@ export function buildOpenLeashClientViewModel({
         description: plugin.marketplace?.shortDescription || plugin.description,
         category: pluginCategoryId(plugin),
         installed: true,
-        author: plugin.marketplace?.developerName || plugin.publisher,
         iconText: plugin.marketplace?.iconText,
-        downloadCount: plugin.marketplace?.downloadCount,
         configSchema: plugin.configSchema,
         defaultConfig: plugin.defaultConfig,
         settings: plugin.settings,
-        organizationPolicy: plugin.organizationPolicy,
         outcomeCount: pluginOutcomes.length,
         latestOutcome: pluginOutcomes[0]
       };
@@ -1593,34 +1555,7 @@ export function apiContractFor(functionName: OpenLeashApiFunction) {
   };
 }
 
-export type OpenLeashEdition = "managed-cloud" | "managed-self-hosted";
-
 export type OpenLeashClientMode = "community" | "cloud" | "enterprise";
-
-export type BillingMode =
-  | "none"
-  | "external";
-
-export type DeploymentMode =
-  | "openleash-cloud"
-  | "self-hosted-private";
-
-export type DataStoreMode =
-  | "postgres";
-
-export type EditionCapabilities = {
-  edition: OpenLeashEdition;
-  deploymentMode: DeploymentMode;
-  billingMode: BillingMode;
-  dashboard: "ciso-dashboard";
-  endUserControls: "tray-and-approvals-only";
-  rulesManagedBy: "admin-dashboard";
-  identity: "sso-oauth";
-  modelKey: "byok-tenant" | "managed";
-  dataStore: DataStoreMode;
-  mdmDeployment: boolean;
-  automaticUpdates: boolean;
-};
 
 const MCP_TOOL_PATTERNS = [
   /^mcp__([A-Za-z0-9_.-]+)__(.+)$/i,
@@ -1720,36 +1655,3 @@ function mcpToolCallFromRaw(raw: unknown): Pick<McpToolCall, "serverName" | "too
     fullToolName: parseMcpToolName(toolName)?.fullToolName ?? `mcp__${normalizeMcpServerName(serverName)}__${toolName}`
   };
 }
-
-export const EDITION_CAPABILITIES: Record<OpenLeashEdition, EditionCapabilities[]> = {
-  "managed-cloud": [
-    {
-      edition: "managed-cloud",
-      deploymentMode: "openleash-cloud",
-      billingMode: "external",
-      dashboard: "ciso-dashboard",
-      endUserControls: "tray-and-approvals-only",
-      rulesManagedBy: "admin-dashboard",
-      identity: "sso-oauth",
-      modelKey: "byok-tenant",
-      dataStore: "postgres",
-      mdmDeployment: true,
-      automaticUpdates: true
-    }
-  ],
-  "managed-self-hosted": [
-    {
-      edition: "managed-self-hosted",
-      deploymentMode: "self-hosted-private",
-      billingMode: "none",
-      dashboard: "ciso-dashboard",
-      endUserControls: "tray-and-approvals-only",
-      rulesManagedBy: "admin-dashboard",
-      identity: "sso-oauth",
-      modelKey: "byok-tenant",
-      dataStore: "postgres",
-      mdmDeployment: true,
-      automaticUpdates: true
-    }
-  ]
-};
