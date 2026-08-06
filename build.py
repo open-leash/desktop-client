@@ -25,7 +25,7 @@ class Step:
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Build OpenLeash release artifacts and deployment targets.")
+    parser = argparse.ArgumentParser(description="Build Leash release artifacts and deployment targets.")
     parser.add_argument("--full", action="store_true", help="Build every local release target, Docker image, and desktop distributable when supported.")
     parser.add_argument("--changed", action="store_true", help="Build changed targets only when git metadata is available; otherwise build all code targets.")
     parser.add_argument("--clean", action="store_true", help="Remove common build outputs before building.")
@@ -56,22 +56,10 @@ def main() -> int:
         steps.extend([
             Step("typecheck", ["npm", "run", "typecheck"]),
             Step("public-workspaces", ["npm", "run", "build"]),
-            Step("cloud-client-api", ["npm", "run", "build", "--prefix", "apps/cloud-client-api"]),
-            Step("cloud-dashboard-api", ["npm", "run", "build", "--prefix", "apps/cloud-dashboard-api"]),
-            Step("cloud-dashboard-web", ["npm", "run", "build", "--prefix", "apps/cloud-dashboard-web"]),
         ])
 
-    if should_build(targets, "identity"):
-        steps.append(Step("identity-loader", ["dotnet", "build", "IdentityLoader/IdentityLoader/IdentityLoader.csproj", "-c", "Release"]))
-
     if docker:
-        # Token Saver is pinned by tag and immutable digest in Compose. Docker
-        # cannot use a digest-qualified reference as a local build tag, so build
-        # only the source-built API services here; plugin images have their own
-        # explicit release/build gates below.
-        # dashboard-api intentionally uses the same client-api image with a
-        # different API surface, so building that Dockerfile once validates
-        # both Compose services and avoids concurrent writes to one build graph.
+        # Features execute inside client-api, so only service images are built.
         steps.append(Step("docker-compose-images", ["docker", "compose", "build", "client-api"]))
         for name, target in docker_targets().items():
             steps.append(Step(f"docker-{name}", ["docker", "build", "-f", target["dockerfile"], "-t", f"openleash/{name}:local", target["context"]]))
@@ -95,7 +83,7 @@ def main() -> int:
     for step in steps:
         run(step, args.dry_run)
 
-    print("\nOpenLeash build passed.")
+    print("\nLeash build passed.")
     return 0
 
 
@@ -118,8 +106,6 @@ def changed_targets() -> set[str]:
     for file in files:
         if file.startswith(("apps/", "packages/", "scripts/", "package", "tsconfig", "infra/")):
             targets.add("node")
-        if file.startswith("IdentityLoader/"):
-            targets.add("identity")
         if file.startswith(("docker-compose", "apps/")) and file.endswith("Dockerfile"):
             targets.add("docker")
     return targets or {"all"}
@@ -128,11 +114,7 @@ def changed_targets() -> set[str]:
 def docker_targets() -> dict[str, dict[str, str]]:
     return {
         "client-api": {"dockerfile": "apps/client-api/Dockerfile", "context": "apps/client-api"},
-        "cloud-client-api": {"dockerfile": "apps/cloud-client-api/Dockerfile", "context": "apps/cloud-client-api"},
-        "cloud-dashboard-api": {"dockerfile": "apps/cloud-dashboard-api/Dockerfile", "context": "apps/cloud-dashboard-api"},
-        "cloud-dashboard-web": {"dockerfile": "apps/cloud-dashboard-web/Dockerfile", "context": "apps/cloud-dashboard-web"},
         "docs-web": {"dockerfile": "apps/docs-web/Dockerfile", "context": "apps/docs-web"},
-        "identity-loader": {"dockerfile": "IdentityLoader/IdentityLoader/Dockerfile", "context": "IdentityLoader/IdentityLoader"},
     }
 
 
@@ -155,8 +137,6 @@ for pattern in [
     'apps/*/.next',
     'packages/*/dist',
     'release/personal',
-    'IdentityLoader/IdentityLoader/bin',
-    'IdentityLoader/IdentityLoader/obj',
 ]:
     for path in pathlib.Path('.').glob(pattern):
         shutil.rmtree(path, ignore_errors=True)

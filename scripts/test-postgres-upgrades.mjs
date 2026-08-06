@@ -132,13 +132,10 @@ async function runFixture(fixture) {
   });
 
   await verifyMigratedDatabase(fixture.name, databaseUrl);
-  await run("npm", ["run", "db:create-org", "--", "--name", "Upgrade Private", "--slug", "upgrade-private", "--mode", "private"], {
+  await run("npx", ["tsx", "apps/client-api/src/bootstrap-personal.ts", "--name", "Personal Upgrade", "--slug", "personal-upgrade", "--mode", "private"], {
     DATABASE_URL: databaseUrl
   });
-  await run("npm", ["run", "db:create-org", "--", "--name", "Upgrade Cloud", "--slug", "upgrade-cloud", "--mode", "cloud"], {
-    DATABASE_URL: databaseUrl
-  });
-  await verifyMultiTenantData(databaseUrl);
+  await verifyPersonalCompatibilityData(databaseUrl);
   console.log(`[postgres-upgrade] ${fixture.name} ok`);
 }
 
@@ -181,13 +178,11 @@ async function verifyMigratedDatabase(label, databaseUrl) {
   }
 }
 
-async function verifyMultiTenantData(databaseUrl) {
+async function verifyPersonalCompatibilityData(databaseUrl) {
   const pool = new Pool({ connectionString: databaseUrl });
   try {
-    const privateMode = await scalar(pool, "select deployment_mode from organizations where slug = 'upgrade-private'");
-    const cloudMode = await scalar(pool, "select deployment_mode from organizations where slug = 'upgrade-cloud'");
-    assert(privateMode === "private", "upgrade-private should be private");
-    assert(cloudMode === "cloud", "upgrade-cloud should be cloud");
+    const compatibilityMode = await scalar(pool, "select deployment_mode from organizations where slug = 'personal-upgrade'");
+    assert(compatibilityMode === "private", "personal bootstrap should use the compatibility local mode");
   } finally {
     await pool.end();
   }

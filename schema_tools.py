@@ -40,27 +40,6 @@ CLIENTS: dict[str, ClientConfig] = {
         default=DEFAULT_DATABASE_URL,
         desired_schema=POSTGRES_SCHEMA,
     ),
-    "cloud-client-api": ClientConfig(
-        name="cloud-client-api",
-        engine="postgres",
-        env_var="CLOUD_CLIENT_API_DATABASE_URL",
-        default=DEFAULT_DATABASE_URL,
-        desired_schema=POSTGRES_SCHEMA,
-    ),
-    "dashboard-api": ClientConfig(
-        name="dashboard-api",
-        engine="postgres",
-        env_var="DASHBOARD_API_DATABASE_URL",
-        default=DEFAULT_DATABASE_URL,
-        desired_schema=POSTGRES_SCHEMA,
-    ),
-    "cloud-dashboard-api": ClientConfig(
-        name="cloud-dashboard-api",
-        engine="postgres",
-        env_var="CLOUD_DASHBOARD_API_DATABASE_URL",
-        default=DEFAULT_DATABASE_URL,
-        desired_schema=POSTGRES_SCHEMA,
-    ),
     "desktop-client": ClientConfig(
         name="desktop-client",
         engine="sqlite",

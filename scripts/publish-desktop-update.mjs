@@ -20,8 +20,8 @@ if (!releaseResponse.ok) throw new Error(`GitHub release lookup returned ${relea
 const release = await releaseResponse.json();
 if (release.tag_name !== `v${version}` || release.draft || release.prerelease) throw new Error("release is not a published stable tag");
 const asset = (name) => release.assets.find((candidate) => candidate.name === name);
-const dmgName = `OpenLeash-${version}-arm64.dmg`;
-const windowsName = `OpenLeash-${version}-x64-Setup.exe`;
+const dmgName = `Leash-${version}-arm64.dmg`;
+const windowsName = `Leash-${version}-x64-Setup.exe`;
 const dmg = asset(dmgName);
 const windowsInstaller = asset(windowsName);
 const checksums = asset("SHA256SUMS");

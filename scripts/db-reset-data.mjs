@@ -8,7 +8,7 @@ const includePolicies = Boolean(args.includePolicies || args.all);
 const yes = Boolean(args.yes || args.force);
 
 if (!yes) {
-  console.error(`This will remove OpenLeash tenant/runtime data from the local database.
+  console.error(`This will remove Leash tenant/runtime data from the local database.
 
 Run with:
   npm run db:reset-data -- --yes

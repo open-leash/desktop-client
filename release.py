@@ -20,31 +20,16 @@ from schema_tools import CLIENTS, client_target, env_value
 ROOT = Path(__file__).resolve().parent
 APP_REPOS = [
     ROOT / "apps" / "client-api",
-    ROOT / "apps" / "dashboard-api",
-    ROOT / "apps" / "dashboard-web",
     ROOT / "apps" / "desktop-client",
     ROOT / "apps" / "docs-web",
     ROOT / "apps" / "flow-viewer",
+    ROOT / "apps" / "local-proxy",
     ROOT / "apps" / "main-web",
     ROOT / "apps" / "mobile-client",
-    ROOT / "apps" / "provider-mgmt-sync",
+    ROOT / "packages" / "shared",
 ]
-PRIVATE_REPOS = [
-    ROOT / "apps" / "cloud-client-api",
-    ROOT / "apps" / "cloud-dashboard-api",
-    ROOT / "apps" / "cloud-dashboard-web",
-]
-PLUGIN_REPOS = [
-    ROOT / "plugins" / "plugin-token-saver",
-    ROOT / "plugins" / "plugin-blast-radius",
-    ROOT / "plugins" / "plugin-sensitive-access",
-    ROOT / "plugins" / "plugin-data-leakage-prevention",
-    ROOT / "plugins" / "plugin-rules-enforcer",
-    ROOT / "plugins" / "plugin-mcp-scanner",
-    ROOT / "plugins" / "plugin-code-scanner",
-    ROOT / "plugins" / "plugin-skill-scanner",
-    ROOT / "plugins" / "plugin-siem-exporter",
-]
+PRIVATE_REPOS: list[Path] = []
+PLUGIN_REPOS: list[Path] = []
 POSTGRES_MIGRATIONS = ROOT / "infra" / "postgres" / "migrations"
 CLIENT_API_POSTGRES_SCHEMA = ROOT / "apps" / "client-api" / "infra" / "postgres" / "schema.sql"
 CLIENT_API_POSTGRES_MIGRATIONS = ROOT / "apps" / "client-api" / "infra" / "postgres" / "migrations"
@@ -53,17 +38,11 @@ RELEASE_NOTES = ROOT / "release-notes"
 
 APP_TO_SNAPSHOT = {
     "apps/client-api": ["client-api"],
-    "apps/dashboard-api": ["dashboard-api"],
     "apps/desktop-client": ["desktop-client"],
     "apps/mobile-client": [],
-    "apps/cloud-client-api": ["cloud-client-api"],
-    "apps/cloud-dashboard-api": ["cloud-dashboard-api"],
 }
 POSTGRES_APPS = {
     "apps/client-api",
-    "apps/dashboard-api",
-    "apps/cloud-client-api",
-    "apps/cloud-dashboard-api",
 }
 PRODUCTION_MOBILE_API_URL = os.environ.get("OPENLEASH_RELEASE_MOBILE_API_URL", "https://api.openleash.com")
 DEFAULT_DESKTOP_DOWNLOAD_HOST = os.environ.get("OPENLEASH_DESKTOP_DOWNLOAD_HOST", "github").lower()
@@ -129,32 +108,13 @@ APP_PROFILES = {
         builds=(("npm", "run", "build", "-w", "@openleash/client-api"),),
         postgres=True,
     ),
-    "apps/dashboard-api": AppProfile(
-        "Dashboard API",
-        "Same Postgres schema as client-api",
-        (
-            "Snapshots dashboard-api Postgres target.",
-            "Runs Postgres upgrade fixtures once for the shared API schema.",
-            "Builds dashboard API wrapper through client-api.",
-        ),
-        tests=(("npm", "run", "typecheck", "-w", "@openleash/dashboard-api"),),
-        builds=(("npm", "run", "build", "-w", "@openleash/dashboard-api"),),
-        postgres=True,
-    ),
-    "apps/dashboard-web": AppProfile(
-        "Dashboard Web",
-        "No direct DB; uses dashboard-api",
-        ("Typechecks and builds dashboard web.",),
-        tests=(("npm", "run", "typecheck", "-w", "@openleash/dashboard-web"),),
-        builds=(("npm", "run", "build", "-w", "@openleash/dashboard-web"),),
-    ),
     "apps/desktop-client": AppProfile(
         "Desktop Client",
         "Backend-required desktop client; local storage is cache/setup state only",
         (
             "Runs desktop local cache upgrade fixtures.",
             "Builds desktop client.",
-            "Builds macOS personal distributable on macOS.",
+            "Builds the native desktop distributable locally; tagged releases build macOS and Windows on native GitHub runners.",
         ),
         tests=(("npm", "run", "typecheck", "-w", "@openleash/desktop-client"),),
         builds=(("npm", "run", "build", "-w", "@openleash/desktop-client"),),
@@ -173,6 +133,12 @@ APP_PROFILES = {
         ("Tests the standalone trace server and static viewer.",),
         tests=(("npm", "test", "--prefix", "apps/flow-viewer"),),
     ),
+    "apps/local-proxy": AppProfile(
+        "Local Proxy",
+        "No database",
+        ("Runs the Rust proxy test suite; tagged container releases are multi-architecture.",),
+        tests=(("cargo", "test", "--manifest-path", "apps/local-proxy/Cargo.toml"),),
+    ),
     "apps/main-web": AppProfile(
         "Main Web",
         "No DB",
@@ -185,88 +151,23 @@ APP_PROFILES = {
         "No durable local DB schema yet; uses secure storage/cache and client-api",
         (
             "Runs Flutter analyze/test.",
-            "Builds production Android App Bundle with OpenLeash Cloud API.",
+            "Builds production Android App Bundle with the Leash Cloud API.",
             "Builds production iOS IPA when signing/export setup is available.",
         ),
         mobile=True,
     ),
-    "apps/provider-mgmt-sync": AppProfile(
-        "Provider Management Sync",
-        "No product DB migration owned here",
-        ("Typechecks and builds provider sync.",),
-        tests=(("npm", "run", "typecheck", "-w", "@openleash/provider-mgmt-sync"),),
-        builds=(("npm", "run", "build", "-w", "@openleash/provider-mgmt-sync"),),
+    "packages/shared": AppProfile(
+        "Shared Contracts",
+        "No database",
+        ("Typechecks and builds the stable Feature and API contracts.",),
+        tests=(("npm", "run", "typecheck", "-w", "@openleash/shared"),),
+        builds=(("npm", "run", "build", "-w", "@openleash/shared"),),
     ),
-    "apps/cloud-client-api": AppProfile(
-        "Cloud Client API",
-        "OpenLeash Cloud Postgres via deployment migration job",
-        (
-            "Snapshots cloud-client-api Postgres target.",
-            "Runs Postgres upgrade fixtures once for the shared API schema.",
-            "Builds private cloud wrapper.",
-        ),
-        tests=(("npm", "run", "typecheck", "--prefix", "apps/cloud-client-api"),),
-        builds=(("npm", "run", "build", "--prefix", "apps/cloud-client-api"),),
-        postgres=True,
-    ),
-    "apps/cloud-dashboard-api": AppProfile(
-        "Cloud Dashboard API",
-        "OpenLeash Cloud Postgres via deployment migration job",
-        (
-            "Snapshots cloud-dashboard-api Postgres target.",
-            "Runs Postgres upgrade fixtures once for the shared API schema.",
-            "Builds private cloud wrapper.",
-        ),
-        tests=(("npm", "run", "typecheck", "--prefix", "apps/cloud-dashboard-api"),),
-        builds=(("npm", "run", "build", "--prefix", "apps/cloud-dashboard-api"),),
-        postgres=True,
-    ),
-    "apps/cloud-dashboard-web": AppProfile(
-        "Cloud Dashboard Web",
-        "No direct DB; uses cloud-dashboard-api",
-        ("Typechecks and builds cloud dashboard web.",),
-        tests=(("npm", "run", "typecheck", "--prefix", "apps/cloud-dashboard-web"),),
-        builds=(("npm", "run", "build", "--prefix", "apps/cloud-dashboard-web"),),
-    ),
-    "plugins/plugin-token-saver": AppProfile(
-        "Token Saver Plugin",
-        "Plugin-scoped persistent CCR cache; no OpenLeash product database access",
-        (
-            "Validates the container protocol and immutable production digest.",
-            "Builds the TypeScript fallback and Headroom OCI image.",
-            "Publishes by version and digest; never replaces an existing tag.",
-        ),
-        tests=(("npm", "run", "typecheck", "--prefix", "plugins/plugin-token-saver"),),
-        builds=(("npm", "run", "build", "--prefix", "plugins/plugin-token-saver"),),
-    ),
-    **{
-        f"plugins/plugin-{slug}": AppProfile(
-            f"{slug.replace('-', ' ').title()} Plugin",
-            "Isolated OCI worker; no direct OpenLeash product database access",
-            (
-                "Validates the generic container-event protocol.",
-                "Builds a digest-pinned, versioned OCI image.",
-                "Publishes independently from client-api and desktop releases.",
-            ),
-            tests=(("npm", "run", "typecheck", "--prefix", f"plugins/plugin-{slug}"),),
-            builds=(("npm", "run", "build", "--prefix", f"plugins/plugin-{slug}"),),
-        )
-        for slug in (
-            "blast-radius",
-            "sensitive-access",
-            "data-leakage-prevention",
-            "rules-enforcer",
-            "mcp-scanner",
-            "code-scanner",
-            "skill-scanner",
-            "siem-exporter",
-        )
-    },
 }
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Interactive/app-aware OpenLeash release conductor.")
+    parser = argparse.ArgumentParser(description="Interactive/app-aware Leash release conductor.")
     parser.add_argument("--version", help="Use this version for every selected app.")
     parser.add_argument("--app", action="append", default=[], help="Select app and optional version, e.g. desktop-client=0.36.0. Repeatable.")
     parser.add_argument("--all-changed", action="store_true", help="Release all changed app repos without prompting.")
@@ -274,7 +175,6 @@ def main() -> int:
     parser.add_argument("--ship", action="store_true", help="Commit, tag, and push selected app repos after gates pass.")
     parser.add_argument("--commit", action="store_true", help="Commit and tag selected app repos without pushing.")
     parser.add_argument("--push", action="store_true", help="Push commits and tags after committing.")
-    parser.add_argument("--include-cloud", action="store_true", help="Include local private cloud wrapper repos.")
     parser.add_argument("--skip-snapshots", action="store_true", help="Skip schema snapshots.")
     parser.add_argument("--allow-snapshot-failures", action="store_true", help="Continue even if a selected snapshot target fails.")
     parser.add_argument("--skip-tests", action="store_true", help="Skip upgrade tests.")
@@ -284,7 +184,6 @@ def main() -> int:
     parser.add_argument("--skip-desktop-dist", action="store_true", help="Do not build desktop distributable artifacts.")
     parser.add_argument("--desktop-download-host", choices=("github", "gcs"), default=DEFAULT_DESKTOP_DOWNLOAD_HOST, help="Public desktop artifact host used when updating main-web download links.")
     parser.add_argument("--mobile-api-url", default=PRODUCTION_MOBILE_API_URL, help="Production API URL baked into release mobile builds.")
-    parser.add_argument("--token-saver-digest", default=os.environ.get("OPENLEASH_TOKEN_SAVER_DIGEST", ""), help="Published immutable GHCR digest for a Token Saver release.")
     parser.add_argument("--full-build", action="store_true", help="Also run full build.py after app-specific builds.")
     parser.add_argument("--skip-migration-sync", action="store_true", help="Do not auto-create a schema-sync Postgres migration.")
     parser.add_argument("--dry-run", action="store_true", help="Print actions without changing files, committing, tagging, or pushing.")
@@ -292,7 +191,7 @@ def main() -> int:
 
     do_commit = args.commit or args.ship or args.push
     do_push = args.push or args.ship
-    repos = discover_repos(include_cloud=args.include_cloud)
+    repos = discover_repos()
     states = [repo_state(repo) for repo in repos]
     changed = [state for state in states if state.changed]
 
@@ -348,15 +247,13 @@ def main() -> int:
         print("Committed/tagged selected app repos. Push later from each repo with: git push origin HEAD --tags")
     else:
         print("No git ship requested. Add --ship when you want commit/tag/push.")
-    print("Production/on-prem DB deploy command: npm run db:migrate:backup")
+    print("Production Leash service DB deploy command: npm run db:migrate:backup")
     print("Release is not complete yet: finish every applicable row in release.md -> Mandatory Release Definition Of Done.")
     return 0
 
 
-def discover_repos(include_cloud: bool) -> list[Path]:
+def discover_repos() -> list[Path]:
     candidates = [*APP_REPOS, *PLUGIN_REPOS]
-    if include_cloud:
-        candidates.extend(PRIVATE_REPOS)
     if (ROOT / ".git").exists():
         candidates.insert(0, ROOT)
     return [path for path in candidates if (path / ".git").exists()]
@@ -436,18 +333,21 @@ def parse_app_args(values: list[str]) -> dict[str, str | None]:
 
 def normalize_app_name(value: str) -> str:
     value = value.strip().strip("/")
-    if value in {"token-saver", "plugin-token-saver"}:
-        return "plugins/plugin-token-saver"
+    if value in {"shared", "packages/shared"}:
+        return "packages/shared"
     return value.removeprefix("apps/")
 
 
 def suggested_next_version(state: RepoState) -> str:
     pubspec = state.path / "pubspec.yaml"
     package_json = state.path / "package.json"
+    cargo_toml = state.path / "Cargo.toml"
     if pubspec.exists():
         return next_patch_version(read_pubspec_version(pubspec))
     if package_json.exists():
         return next_patch_version(read_package_version(package_json))
+    if cargo_toml.exists():
+        return next_patch_version(read_cargo_version(cargo_toml))
     return next_patch_version(read_package_version(ROOT / "package.json"))
 
 
@@ -477,10 +377,13 @@ def print_release_plan(items: list[ReleaseItem], do_commit: bool, do_push: bool,
 def current_version_label(state: RepoState) -> str:
     pubspec = state.path / "pubspec.yaml"
     package_json = state.path / "package.json"
+    cargo_toml = state.path / "Cargo.toml"
     if pubspec.exists():
         return read_pubspec_version(pubspec)
     if package_json.exists():
         return read_package_version(package_json)
+    if cargo_toml.exists():
+        return read_cargo_version(cargo_toml)
     return "unknown"
 
 
@@ -565,20 +468,7 @@ def run_product_preparers(args: argparse.Namespace, items: list[ReleaseItem]) ->
         run_release_command(
             ReleaseCommand(
                 "desktop-main-web-download-links",
-                ("node", "scripts/prepare-desktop-release.mjs", "--version", desktop.version, "--download-host", args.desktop_download_host, "--links-only"),
-            ),
-            dry_run=args.dry_run,
-        )
-    token_saver = next((item for item in items if item.state.name == "plugins/plugin-token-saver"), None)
-    if token_saver:
-        run_release_command(
-            ReleaseCommand(
-                "token-saver-release-manifest",
-                (
-                    "node", "scripts/prepare-token-saver-release.mjs",
-                    "--version", token_saver.version,
-                    "--digest", args.token_saver_digest,
-                ),
+                ("node", "scripts/prepare-desktop-release.mjs", "--version", desktop.version, "--download-host", args.desktop_download_host, "--links-only", "--include-windows"),
             ),
             dry_run=args.dry_run,
         )
@@ -595,13 +485,6 @@ def test_commands_for(items: list[ReleaseItem], args: argparse.Namespace) -> lis
         ))
         commands.append(ReleaseCommand("native-rebuild-for-node", ("npm", "rebuild", "better-sqlite3")))
         commands.append(ReleaseCommand("desktop-local-cache-upgrade-fixtures", ("npx", "tsx", "scripts/test-desktop-upgrades.mjs")))
-    if any(item.state.name.startswith("plugins/plugin-") for item in items):
-        commands.append(ReleaseCommand(
-            "container-plugin-production-contract",
-            ("npm", "run", "test:container-plugins"),
-            env={"OPENLEASH_RELEASE_MODE": "production"},
-        ))
-
     for item in items:
         profile = profile_for(item)
         for index, command in enumerate(profile.tests, start=1):
@@ -618,36 +501,14 @@ def build_commands_for(items: list[ReleaseItem], args: argparse.Namespace) -> li
         for index, command in enumerate(profile.builds, start=1):
             commands.append(ReleaseCommand(f"{item.app_id}-build-{index}", command))
         if profile.desktop_dist and not args.skip_desktop_dist:
-            commands.append(ReleaseCommand(
-                "plugin-gateway-oci-image",
-                (
-                    "docker", "build",
-                    "--file", "plugins/container-runtime/Dockerfile.gateway",
-                    "--tag", "ghcr.io/open-leash/plugin-gateway:1.0.0",
-                    ".",
-                ),
-            ))
-            commands.append(ReleaseCommand("desktop-distributable", ("npm", "run", "dist:personal")))
-            commands.append(ReleaseCommand("desktop-packaged-native-abi", ("node", "scripts/verify-packaged-desktop.mjs")))
+            if sys.platform == "darwin":
+                commands.append(ReleaseCommand("desktop-macos-distributable", ("npm", "run", "dist:personal")))
+                commands.append(ReleaseCommand("desktop-packaged-native-abi", ("node", "scripts/verify-packaged-desktop.mjs")))
+            elif sys.platform.startswith("win"):
+                commands.append(ReleaseCommand("desktop-windows-distributable", ("npm", "run", "dist:windows")))
             commands.append(ReleaseCommand("native-rebuild-after-desktop-dist", ("npm", "rebuild", "better-sqlite3")))
         if profile.mobile:
             commands.extend(mobile_build_commands(args))
-        if item.state.name == "plugins/plugin-token-saver":
-            commands.append(ReleaseCommand(
-                "token-saver-oci-image",
-                ("docker", "build", "--tag", f"ghcr.io/open-leash/plugin-token-saver:{item.version}", "plugins/plugin-token-saver"),
-            ))
-        elif item.state.name.startswith("plugins/plugin-"):
-            slug = item.state.name.removeprefix("plugins/plugin-")
-            commands.append(ReleaseCommand(
-                f"{slug}-oci-image",
-                (
-                    "docker", "build",
-                    "--file", f"plugins/plugin-{slug}/Dockerfile",
-                    "--tag", f"ghcr.io/open-leash/plugin-{slug}:{item.version}",
-                    ".",
-                ),
-            ))
     return commands
 
 
@@ -749,7 +610,7 @@ def ensure_postgres_schema_sync_migration(items: list[ReleaseItem], dry_run: boo
     version_label = "_".join(f"{item.app_id}_{item.version.replace('.', '_')}" for item in items if item.state.name in POSTGRES_APPS)
     target = POSTGRES_MIGRATIONS / f"{next_migration_number():04d}_{slugify(version_label or 'schema_sync')}.sql"
     header = "\n".join([
-        "-- OpenLeash schema sync migration",
+        "-- Leash schema sync migration",
         f"-- canonical_schema_sha256: {schema_hash}",
         "-- Generated by release.py from infra/postgres/schema.sql.",
         "-- Review if this includes destructive statements or data backfills.",
@@ -804,10 +665,13 @@ def bump_versions(items: list[ReleaseItem], dry_run: bool) -> None:
     for item in items:
         package_json = item.state.path / "package.json"
         pubspec = item.state.path / "pubspec.yaml"
+        cargo_toml = item.state.path / "Cargo.toml"
         if package_json.exists():
             bump_package_json(package_json, item.version, dry_run)
         if pubspec.exists():
             bump_pubspec(pubspec, item.version, dry_run)
+        if cargo_toml.exists():
+            bump_cargo_toml(cargo_toml, item.version, dry_run)
         if item.state.name == "apps/desktop-client":
             bump_package_json(ROOT / "package.json", item.version, dry_run)
         bump_package_lock(item, dry_run)
@@ -822,6 +686,19 @@ def bump_package_json(file: Path, version: str, dry_run: bool) -> None:
         return
     data["version"] = version
     file.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
+    print(f"[release:version] set {file.relative_to(ROOT)} to {version}")
+
+
+def bump_cargo_toml(file: Path, version: str, dry_run: bool) -> None:
+    text = file.read_text(encoding="utf-8")
+    replacement = f'version = "{version}"'
+    if dry_run:
+        print(f"[release:version] would set {file.relative_to(ROOT)} to {version}")
+        return
+    updated, count = re.subn(r'^version\s*=\s*"[^"]+"\s*$', replacement, text, count=1, flags=re.MULTILINE)
+    if count != 1:
+        raise SystemExit(f"Could not update Cargo version in {file}")
+    file.write_text(updated, encoding="utf-8")
     print(f"[release:version] set {file.relative_to(ROOT)} to {version}")
 
 
@@ -866,7 +743,7 @@ def write_release_notes(items: list[ReleaseItem], states: list[RepoState], dry_r
     label = release_label(items)
     path = RELEASE_NOTES / f"{label}.md"
     lines = [
-        f"# OpenLeash {label}",
+        f"# Leash {label}",
         "",
         f"Generated: {datetime.now(timezone.utc).isoformat()}",
         "",
@@ -891,7 +768,7 @@ def write_release_notes(items: list[ReleaseItem], states: list[RepoState], dry_r
         "- Postgres migrations ship from `infra/postgres/migrations/` and are applied through `schema_migrations`.",
         "- Desktop local cache/setup storage migrates on app startup; product authority stays in the backend.",
         "- Mobile has no durable local SQLite migration runner until a committed local schema exists.",
-        "- Production/on-prem deploys should run `npm run db:migrate:backup` before starting APIs.",
+        "- Production Leash service deploys should run `npm run db:migrate:backup` before starting the API.",
         "",
         "## Rollback",
         "",
@@ -999,6 +876,14 @@ def prompt_version(question: str, default: str) -> str:
 
 def read_package_version(file: Path) -> str:
     return json.loads(file.read_text(encoding="utf-8"))["version"]
+
+
+def read_cargo_version(file: Path) -> str:
+    text = file.read_text(encoding="utf-8")
+    match = re.search(r'^version\s*=\s*"([^"]+)"\s*$', text, flags=re.MULTILINE)
+    if not match:
+        raise SystemExit(f"Could not read Cargo version from {file}")
+    return match.group(1)
 
 
 def read_pubspec_version(file: Path) -> str:

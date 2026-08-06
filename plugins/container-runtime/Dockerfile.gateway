@@ -1,7 +1,0 @@
-FROM node:22-alpine@sha256:1b2479dd35a99687d6638f5976fd235e26c5b37e8122f786fcd5fe231d63de5b
-WORKDIR /app
-COPY plugins/container-runtime/gateway.mjs /app/gateway.mjs
-USER node
-EXPOSE 8080
-HEALTHCHECK --interval=10s --timeout=3s --retries=3 CMD node -e "fetch('http://127.0.0.1:8080',{headers:{'x-openleash-plugin-id':'__health__'}}).then(r=>{if(r.status!==404)process.exit(1)}).catch(()=>process.exit(1))"
-CMD ["node", "/app/gateway.mjs"]

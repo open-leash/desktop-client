@@ -9,7 +9,7 @@ from schema_tools import add_client_arguments, selected_clients, snapshot_client
 
 def main() -> int:
     parser = argparse.ArgumentParser(
-        description="Snapshot OpenLeash client database schemas into snapshots/[client]/[date].snap."
+        description="Snapshot Leash client database schemas into snapshots/[client]/[date].snap."
     )
     add_client_arguments(parser)
     parser.add_argument(

@@ -1,10 +1,10 @@
 # Local Proxy Parity Contract
 
-This document records the audit against `other-apps/headroom-main/crates/headroom-proxy`. “Parity” means matching the transport invariant where it applies to OpenLeash; Headroom-specific compression algorithms are intentionally replaced by OpenLeash’s capability-aware plugin processor.
+This document records the audit against `other-apps/headroom-main/crates/headroom-proxy`. “Parity” means matching the transport invariant where it applies to Leash; Headroom-specific compression algorithms are intentionally replaced by Leash’s capability-aware plugin processor.
 
 ## README proxy feature decomposition
 
-The Headroom README mixes library, MCP, memory, learning, compression, and proxy product features. Only these proxy concerns belong in OpenLeash’s proxy parity contract:
+The Headroom README mixes library, MCP, memory, learning, compression, and proxy product features. Only these proxy concerns belong in Leash’s proxy parity contract:
 
 - drop-in local HTTP gateway and agent-specific base-URL wrapping;
 - Anthropic Messages, OpenAI Chat Completions, OpenAI Responses, Conversations passthrough, SSE, and WebSocket transport;
@@ -14,9 +14,9 @@ The Headroom README mixes library, MCP, memory, learning, compression, and proxy
 - correct provider/agent attribution and normalized pipeline delivery;
 - reversible agent setup and a persistent cross-platform runtime.
 
-Headroom’s compressors, CCR retrieval cache, cache-key/tool-schema stabilization, output shaping, memory, MCP tools, and learning system are product algorithms rather than reverse-proxy transport behavior. OpenLeash routes transformations through its plugin pipeline instead of silently copying those policies into the transport.
+Headroom’s compressors, CCR retrieval cache, cache-key/tool-schema stabilization, output shaping, memory, MCP tools, and learning system are product algorithms rather than reverse-proxy transport behavior. Leash routes transformations through its plugin pipeline instead of silently copying those policies into the transport.
 
-| Concern                             | OpenLeash contract                                                                                                                                                                                                                                                             |
+| Concern                             | Leash contract                                                                                                                                                                                                                                                             |
 | ----------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | HTTP methods, status, query strings | Passed through verbatim; tested against a mock upstream.                                                                                                                                                                                                                       |
 | URL prefix joining                  | Preserves upstream path prefixes and query strings without duplicating `/v1`; unit tested.                                                                                                                                                                                     |
@@ -29,7 +29,7 @@ Headroom’s compressors, CCR retrieval cache, cache-key/tool-schema stabilizati
 | Headers                             | Drops standard hop-by-hop headers, headers named by `Connection`, `Host`, `Content-Length`, and internal `x-openleash-*`; filters both directions.                                                                                                                             |
 | Request IDs                         | Preserves caller `x-request-id` or creates one, forwards it upstream, and returns it downstream.                                                                                                                                                                               |
 | Corporate proxies                   | `OPENLEASH_CORPORATE_PROXY` uses the HTTP client’s standard HTTP/HTTPS proxy support.                                                                                                                                                                                          |
-| Failure behavior                    | OpenLeash policy evaluation fails closed by default; explicit fail-open is an operator choice. Upstream errors/status codes pass through.                                                                                                                                      |
+| Failure behavior                    | Leash policy evaluation fails closed by default; explicit fail-open is an operator choice. Upstream errors/status codes pass through.                                                                                                                                      |
 | Timeouts                            | Independent configurable connect, upstream, and synchronous evaluation timeouts. A gate timeout fails closed by default without releasing provider bytes.                                                                                                                      |
 | Shutdown                            | Handles Ctrl-C and SIGTERM and drains Axum gracefully.                                                                                                                                                                                                                         |
 | Health                              | Process health and separate upstream reachability endpoints.                                                                                                                                                                                                                   |
@@ -42,9 +42,9 @@ Headroom’s compressors, CCR retrieval cache, cache-key/tool-schema stabilizati
 
 ## Deliberate product differences
 
-Headroom’s live-zone compressor, auth-mode compression policy, tool/schema sorting, prompt-cache-key synthesis, cache drift detector, and compression metrics implement Headroom’s compression product. OpenLeash must not run a second hidden compression policy in the proxy. OpenLeash invokes the configured DLP/token-saver plugins synchronously through `client-api`; unchanged requests retain byte equality.
+Headroom’s live-zone compressor, auth-mode compression policy, tool/schema sorting, prompt-cache-key synthesis, cache drift detector, and compression metrics implement Headroom’s compression product. Leash must not run a second hidden compression policy in the proxy. Leash invokes the configured DLP/token-saver plugins synchronously through `client-api`; unchanged requests retain byte equality.
 
-Headroom’s native AWS Bedrock SigV4/EventStream and Vertex ADC credential acquisition are provider credential adapters, not generic reverse-proxy behavior. OpenLeash currently configures Claude Code through the Anthropic HTTP protocol and Codex through the OpenAI Responses protocol. Vertex bearer-auth publisher routes can be forwarded with `OPENLEASH_VERTEX_UPSTREAM`. Native Bedrock interception must not be presented as supported until OpenLeash adds an explicit AWS credential/signing adapter and a desktop agent configuration that can safely select it.
+Headroom’s native AWS Bedrock SigV4/EventStream and Vertex ADC credential acquisition are provider credential adapters, not generic reverse-proxy behavior. Leash currently configures Claude Code through the Anthropic HTTP protocol and Codex through the OpenAI Responses protocol. Vertex bearer-auth publisher routes can be forwarded with `OPENLEASH_VERTEX_UPSTREAM`. Native Bedrock interception must not be presented as supported until Leash adds an explicit AWS credential/signing adapter and a desktop agent configuration that can safely select it.
 
 The parity contract is guarded by Rust unit tests, `scripts/test-local-proxy.mjs`, Docker builds, Clippy with warnings denied, and the repository product/deployment smoke suites.
 

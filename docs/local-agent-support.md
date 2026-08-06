@@ -1,6 +1,6 @@
 # Adding Local Agent Support
 
-OpenLeash keeps local agent support in one registry:
+Leash keeps local agent support in one registry:
 
 `apps/desktop-client/src/agent-registry.ts`
 
@@ -15,7 +15,7 @@ Current protectable agents:
 - GitHub Copilot: user-level hooks in `~/.copilot/hooks/openleash.json`, or `$COPILOT_HOME/hooks/openleash.json` when `COPILOT_HOME` is set
 - Cursor: hook file in `~/.cursor/hooks.json`
 - Gemini CLI: hook entries in `~/.gemini/settings.json`
-- OpenCode: OpenLeash plugin in `~/.config/opencode/plugins/openleash.js`
+- OpenCode: Leash plugin in `~/.config/opencode/plugins/openleash.js`
 - OpenClaw: managed internal hook in `~/.openclaw/hooks/openleash/`
 - NanoClaw: Claude-compatible command hooks in `~/.nanoclaw/settings.json`
 
@@ -25,13 +25,13 @@ Current detection-only agents include Cline, Continue, and Windsurf. They appear
 
 Hooks and proxying are independent controls and may be enabled together. The desktop settings and `openleash proxy` CLI manage the Dockerized Rust proxy on `127.0.0.1:9320`.
 
-Desktop setup treats monitoring as one lifecycle. For every selected agent it installs the native API hooks, starts the local proxy, and applies a reversible proxy adapter when that agent exposes a safe automatic base-URL configuration. Turning monitoring off restores that agent's pre-OpenLeash proxy configuration and removes its hooks; turning it back on reinstalls both. Removing desktop settings or running a full local cleanup restores all managed agent files before removing the proxy container.
+Desktop setup treats monitoring as one lifecycle. For every selected agent it installs the native API hooks, starts the local proxy, and applies a reversible proxy adapter when that agent exposes a safe automatic base-URL configuration. Turning monitoring off restores that agent's pre-Leash proxy configuration and removes its hooks; turning it back on reinstalls both. Removing desktop settings or running a full local cleanup restores all managed agent files before removing the proxy container.
 
 - Claude CLI and the Claude Code VS Code extension are configured through `ANTHROPIC_BASE_URL` in their shared `~/.claude/settings.json`.
-- Codex CLI and the Codex VS Code extension are configured with an OpenLeash Responses API provider in their shared `~/.codex/config.toml`.
+- Codex CLI and the Codex VS Code extension are configured with an Leash Responses API provider in their shared `~/.codex/config.toml`.
 - NanoClaw uses its Claude-compatible `~/.nanoclaw/settings.json` base URL.
 - OpenCode CLI/desktop uses the documented Anthropic and OpenAI `provider.*.options.baseURL` keys in `~/.config/opencode/opencode.json`. An existing JSONC file is never destructively rewritten; the UI reports the exact manual keys instead.
-- Every automatic adapter creates a byte-for-byte backup before changing configuration and restores it during uninstall. Reinstall first runs that restoration and then writes a fresh adapter, so an older OpenLeash block can never become the new backup. If backup metadata is missing, cleanup removes only exact OpenLeash-managed URLs/blocks and preserves unrelated user configuration.
+- Every automatic adapter creates a byte-for-byte backup before changing configuration and restores it during uninstall. Reinstall first runs that restoration and then writes a fresh adapter, so an older Leash block can never become the new backup. If backup metadata is missing, cleanup removes only exact Leash-managed URLs/blocks and preserves unrelated user configuration.
 - The desktop watchdog repairs managed proxy configuration while the proxy is enabled.
 - Existing organization proxy infrastructure is supported through the `--corporate-proxy` CLI option.
 - Development runs build `openleash-local-proxy:dev` before starting the desktop. `python3 run.py --cleanup-local` runs proxy uninstall first, removes the proxy container, stops `flow-viewer` and its port 9340 listener, and then removes hooks and the remaining local stack.
@@ -52,16 +52,16 @@ Each automatically configured surface uses an `/agent/:kind` proxy prefix. The p
 | GitHub Copilot CLI / VS Code | Not persisted: Copilot provider routing is launch-environment scoped                                                    | Copilot hooks           |
 | OpenClaw                     | Requires an OpenClaw runtime plugin because resolved provider URLs live in memory                                       | OpenClaw hook pack      |
 
-“Guided” and “runtime plugin” are intentional capability boundaries, not guessed config writes. OpenLeash does not modify undocumented settings merely to make a proxy toggle appear automatic.
+“Guided” and “runtime plugin” are intentional capability boundaries, not guessed config writes. Leash does not modify undocumented settings merely to make a proxy toggle appear automatic.
 
 GitHub Copilot notes:
 
 - Copilot CLI loads user-level hooks from `~/.copilot/hooks/*.json` on macOS/Linux, `%USERPROFILE%\.copilot\hooks\*.json` on Windows, or `$COPILOT_HOME/hooks/*.json` when `COPILOT_HOME` is set.
 - Copilot cloud agent only loads repository-level `.github/hooks/*.json` from the default branch. User-level hooks are local CLI only.
-- OpenLeash uses PascalCase events such as `PreToolUse` so Copilot applies the Claude-compatible matcher semantics documented by GitHub.
-- In Copilot cloud agent, `ask` decisions are treated as `deny` because no user is available in the sandbox. OpenLeash org policy should use `block` for cloud Copilot enforcement and `ask` only where a client can answer.
+- Leash uses PascalCase events such as `PreToolUse` so Copilot applies the Claude-compatible matcher semantics documented by GitHub.
+- In Copilot cloud agent, `ask` decisions are treated as `deny` because no user is available in the sandbox. Leash org policy should use `block` for cloud Copilot enforcement and `ask` only where a client can answer.
 
-The desktop client is not a standalone policy engine. Installed hooks call OpenLeash Cloud or a customer-hosted Private Cloud backend directly. The desktop local API remains available for setup, tray state, OAuth callbacks, local development, local cache, and legacy/dev relay behavior. If the managed backend is unavailable, protected hooks fail closed.
+The desktop client is not a standalone policy engine. Installed hooks call Leash Cloud, or the local `client-api` when the user chose Personal Open Source. The desktop local API remains available for setup, tray state, OAuth callbacks, local development, local cache, and compatibility relay behavior. If the configured backend is unavailable, protected hooks fail closed.
 
 To add a new agent, add an `AgentDefinition` with:
 
@@ -102,9 +102,9 @@ Agents without an `install` function can still be detected, but the setup wizard
 }
 ```
 
-Detection should be conservative: only report `protected: true` when the installed local config clearly points to OpenLeash-owned HTTP hook endpoints or the legacy OpenLeash hook runtime.
+Detection should be conservative: only report `protected: true` when the installed local config clearly points to Leash-owned HTTP hook endpoints or the legacy Leash hook runtime.
 
-Installers should preserve existing user config, add only OpenLeash-owned entries, and avoid deleting unrelated settings.
+Installers should preserve existing user config, add only Leash-owned entries, and avoid deleting unrelated settings.
 
 For agents with Claude-style hooks, use the HTTP endpoint command shape:
 

@@ -45,14 +45,14 @@ if (!dryRun) {
   }
 }
 
-console.log(`${dryRun ? "Would prepare" : "Prepared"} OpenLeash desktop release ${nextVersion}.`);
+console.log(`${dryRun ? "Would prepare" : "Prepared"} Leash desktop release ${nextVersion}.`);
 if (linksOnly) {
   console.log("Mode: links only");
 }
 console.log(`Website download label: v${shortVersion}`);
 console.log(`Download host: ${downloadHost}`);
-console.log(`Mac asset: OpenLeash-${nextVersion}-arm64.dmg`);
-console.log(`Windows asset: ${includeWindows ? `OpenLeash-${nextVersion}-x64-Setup.exe` : "gated until --include-windows and signing credentials are available"}`);
+console.log(`Mac asset: Leash-${nextVersion}-arm64.dmg`);
+console.log(`Windows asset: ${includeWindows ? `Leash-${nextVersion}-x64-Setup.exe` : "gated until --include-windows and signing credentials are available"}`);
 
 function valueAfter(flag) {
   const index = process.argv.indexOf(flag);
@@ -86,7 +86,9 @@ function rewriteMainWebDownloads(version, label) {
   const { macUrl, windowsUrl } = desktopDownloadUrls(version);
 
   replaceInFile(mainWebSitePath, [
-    [/<small>v\d+\.\d+<\/small>/, `<small>v${label}</small>`]
+    [/Download for Mac <small>v[^<]+<\/small>/, `Download for Mac <small>v${label}</small>`],
+    [/Download for Windows <small>v[^<]+<\/small>/, `Download for Windows <small>v${label}</small>`],
+    [/const WINDOWS_DOWNLOAD_URL = .*?;\n/, `const WINDOWS_DOWNLOAD_URL = process.env.NEXT_PUBLIC_WINDOWS_DOWNLOAD_URL || "${windowsUrl}";\n`]
   ]);
 
   replaceInFile(accountClientPath, [
@@ -95,7 +97,7 @@ function rewriteMainWebDownloads(version, label) {
 
   if (includeWindows) {
     replaceInFile(accountClientPath, [
-      [/const windowsDownloadUrl = ".*?";/, `const windowsDownloadUrl = "${windowsUrl}";`]
+      [/const windowsDownloadUrl = .*?;\n/, `const windowsDownloadUrl = process.env.NEXT_PUBLIC_WINDOWS_DOWNLOAD_URL ?? "${windowsUrl}";\n`]
     ]);
   }
 
@@ -124,16 +126,16 @@ function desktopDownloadUrls(version) {
     const bucket = process.env.OPENLEASH_DESKTOP_GCS_BUCKET ?? "openleash-downloads-cloud-497307";
     const baseUrl = `https://storage.googleapis.com/${bucket}/desktop/${version}`;
     return {
-      macUrl: `${baseUrl}/OpenLeash-${version}-arm64.dmg`,
-      windowsUrl: `${baseUrl}/OpenLeash-${version}-x64-Setup.exe`
+      macUrl: `${baseUrl}/Leash-${version}-arm64.dmg`,
+      windowsUrl: `${baseUrl}/Leash-${version}-x64-Setup.exe`
     };
   }
 
   const repo = process.env.OPENLEASH_DESKTOP_GITHUB_REPO ?? "open-leash/desktop-client";
   const baseUrl = `https://github.com/${repo}/releases/download/v${version}`;
   return {
-    macUrl: `${baseUrl}/OpenLeash-${version}-arm64.dmg`,
-    windowsUrl: `${baseUrl}/OpenLeash-${version}-x64-Setup.exe`
+    macUrl: `${baseUrl}/Leash-${version}-arm64.dmg`,
+    windowsUrl: `${baseUrl}/Leash-${version}-x64-Setup.exe`
   };
 }
 

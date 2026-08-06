@@ -1,6 +1,6 @@
-# OpenLeash Local Development Ports
+# Leash Local Development Ports
 
-OpenLeash local development uses fixed 9000-range ports. Do not assign random ports in local runners or package defaults.
+Leash local development uses fixed 9000-range ports. Do not assign random ports in local runners or package defaults.
 
 | Service | Port | URL |
 | --- | ---: | --- |

@@ -577,7 +577,7 @@ try {
     (await fetch(`http://127.0.0.1:${proxyPort}/healthz/upstream`)).status,
     200,
   );
-  console.log("OpenLeash local proxy integration tests passed");
+  console.log("Leash local proxy integration tests passed");
 } finally {
   proxy.kill("SIGTERM");
   api.close();

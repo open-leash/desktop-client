@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-APP_NAME="OpenLeash"
+APP_NAME="Leash"
 INSTALL_DIR="/Applications"
 DMG_SOURCE=""
 RULES_FILE=""
@@ -13,48 +13,44 @@ UNINSTALL=0
 API_URL=""
 USER_TOKEN=""
 CLIENT_MODE=""
-TENANT_URL=""
-ENROLL=0
 INSTALL_HOOKS=0
 AGENTS=""
 INDIVIDUAL_OPEN_SOURCE=0
 OPENLEASH_BACKEND_DIR="${OPENLEASH_BACKEND_DIR:-$HOME/.openleash/individual-open-source}"
 OPENLEASH_IMAGE_REGISTRY="${OPENLEASH_IMAGE_REGISTRY:-ghcr.io/open-leash}"
-OPENLEASH_VERSION="${OPENLEASH_VERSION:-0.36.41@sha256:d3b96fa6aafc28e9ffd44c8626cb9b22bb0f6ec45ea0eee6261d0bc100ade1e6}"
+OPENLEASH_VERSION="${OPENLEASH_VERSION:-0.37.0@sha256:caa0f268c62e5cf2cf29076877a8b6ca3caf00ddedc8c5229e10df8c929661db}"
 
 usage() {
   cat <<'EOF'
-OpenLeash personal installer
+Leash personal installer
 
 Usage:
   install-openleash-personal.sh [options]
 
 Options:
-  --dmg <path-or-url>       DMG to install. Defaults to a nearby OpenLeash DMG.
+  --dmg <path-or-url>       DMG to install. Defaults to a nearby Leash DMG.
   --target <directory>      Install directory. Defaults to /Applications.
   --rules <json>            Import rules after installation.
   --replace-rules           Replace existing rules when importing JSON.
-  --api-url <url>           API endpoint for OpenLeash Client. Defaults to the app default.
-  --token <token>           User or deployment token for MDM/scripted installs.
-  --tenant <host>           Tenant dashboard/API host for deployment enrollment.
-  --mode <mode>             individual-open-source, community, cloud, custom, or enterprise.
-  --open-source             Install local Individual Open Source backend with Docker.
+  --api-url <url>           Personal Leash API endpoint. Defaults to Leash Cloud.
+  --token <token>           Personal user token for scripted installs.
+  --mode <mode>             personal, cloud, custom, or individual-open-source.
+  --open-source             Install the local Personal Open Source backend.
   --backend-dir <path>      Local backend directory. Defaults to ~/.openleash/individual-open-source.
   --image-registry <host>   Docker image registry. Defaults to ghcr.io/open-leash.
   --version <tag[@digest]>  Docker image version for the local backend. Defaults to this release's verified digest.
-  --enroll                  Exchange the deployment token with the tenant before configuring.
   --install-hooks           Install supported local agent hooks after setup.
   --agents <list>           Comma-separated agent ids for hook installation.
-  --keep-settings           Keep existing local OpenLeash setup and history.
-  --uninstall               Remove OpenLeash, its local state, hooks, proxy configuration, and local backend.
-  --no-launch               Install only; do not start OpenLeash.
+  --keep-settings           Keep existing local Leash setup and history.
+  --uninstall               Remove Leash, its local state, hooks, proxy configuration, and local backend.
+  --no-launch               Install only; do not start Leash.
   --quiet                   Reduce installer output.
   --help                    Show this help.
 
 Examples:
   ./install-openleash-personal.sh
   ./install-openleash-personal.sh --rules company-rules.json --replace-rules
-  ./install-openleash-personal.sh --dmg https://example.com/OpenLeash.dmg --quiet
+  ./install-openleash-personal.sh --dmg https://example.com/Leash.dmg --quiet
 EOF
 }
 
@@ -63,7 +59,7 @@ log() {
 }
 
 die() {
-  printf 'OpenLeash install failed: %s\n' "$*" >&2
+  printf 'Leash install failed: %s\n' "$*" >&2
   exit 1
 }
 
@@ -93,10 +89,6 @@ while [[ $# -gt 0 ]]; do
       USER_TOKEN="${2:-}"
       shift 2
       ;;
-    --tenant|--tenant-url)
-      TENANT_URL="${2:-}"
-      shift 2
-      ;;
     --mode)
       CLIENT_MODE="${2:-}"
       if [[ "$CLIENT_MODE" == "individual-open-source" || "$CLIENT_MODE" == "open-source" ]]; then
@@ -120,10 +112,6 @@ while [[ $# -gt 0 ]]; do
     --version)
       OPENLEASH_VERSION="${2:-}"
       shift 2
-      ;;
-    --enroll)
-      ENROLL=1
-      shift
       ;;
     --install-hooks)
       INSTALL_HOOKS=1
@@ -173,8 +161,8 @@ trap cleanup EXIT
 resolve_dmg() {
   if [[ -n "$DMG_SOURCE" ]]; then
     if [[ "$DMG_SOURCE" =~ ^https?:// ]]; then
-      local downloaded="$TMP_DIR/OpenLeash.dmg"
-      log "Downloading OpenLeash DMG..."
+      local downloaded="$TMP_DIR/Leash.dmg"
+      log "Downloading Leash DMG..."
       curl -fL "$DMG_SOURCE" -o "$downloaded"
       printf '%s\n' "$downloaded"
       return
@@ -185,8 +173,8 @@ resolve_dmg() {
   fi
 
   local nearby
-  nearby="$(find "$SCRIPT_DIR" "$SCRIPT_DIR/.." "$PWD" "$PWD/release/personal" -maxdepth 2 -name 'OpenLeash*.dmg' -type f 2>/dev/null | head -n 1 || true)"
-  [[ -n "$nearby" ]] || die "No OpenLeash DMG found. Pass --dmg <path-or-url>."
+  nearby="$(find "$SCRIPT_DIR" "$SCRIPT_DIR/.." "$PWD" "$PWD/release/personal" -maxdepth 2 -name 'Leash*.dmg' -type f 2>/dev/null | head -n 1 || true)"
+  [[ -n "$nearby" ]] || die "No Leash DMG found. Pass --dmg <path-or-url>."
   printf '%s\n' "$nearby"
 }
 
@@ -214,21 +202,38 @@ copy_app() {
 }
 
 stop_openleash() {
-  if pgrep -f "/OpenLeash.app/" >/dev/null 2>&1; then
-    log "Stopping existing OpenLeash..."
-    pkill -TERM -f "/OpenLeash.app/" || true
+  if pgrep -f "/Leash.app/" >/dev/null 2>&1; then
+    log "Stopping existing Leash..."
+    pkill -TERM -f "/Leash.app/" || true
     sleep 1
-    pkill -KILL -f "/OpenLeash.app/" || true
+    pkill -KILL -f "/Leash.app/" || true
   fi
+}
+
+remove_retired_feature_containers() {
+  command -v docker >/dev/null 2>&1 || return
+  log "Removing retired containerized Feature runtimes..."
+  docker rm -f \
+    openleash-plugin-gateway \
+    openleash-plugin-dlp \
+    openleash-plugin-sensitive-access \
+    openleash-plugin-rules-enforcer \
+    openleash-plugin-mcp-scanner \
+    openleash-plugin-code-scanner \
+    openleash-plugin-skill-scanner \
+    openleash-plugin-siem-exporter \
+    openleash-plugin-token-saver \
+    openleash-plugin-blast-radius \
+    >/dev/null 2>&1 || true
 }
 
 cleanup_existing_integrations() {
   local target_app="$1"
   local executable="$target_app/Contents/MacOS/$APP_NAME"
-  [[ -x "$executable" ]] || die "Installed OpenLeash executable was not found for integration cleanup."
-  log "Removing existing OpenLeash hooks and proxy configuration..."
+  [[ -x "$executable" ]] || die "Installed Leash executable was not found for integration cleanup."
+  log "Removing existing Leash hooks and proxy configuration..."
   if ! env -u ELECTRON_RUN_AS_NODE "$executable" --cleanup-integrations >/dev/null; then
-    die "Could not remove the previous OpenLeash agent integrations. Agent configuration was not replaced."
+    die "Could not remove the previous Leash agent integrations. Agent configuration was not replaced."
   fi
 }
 
@@ -239,7 +244,7 @@ uninstall_openleash() {
   if [[ -x "$executable" ]]; then
     cleanup_existing_integrations "$target_app"
   else
-    die "OpenLeash.app is required to safely restore agent configuration before uninstalling. Reinstall it, then rerun with --uninstall."
+    die "Leash.app is required to safely restore agent configuration before uninstalling. Reinstall it, then rerun with --uninstall."
   fi
 
   if [[ -f "$OPENLEASH_BACKEND_DIR/docker-compose.yml" ]]; then
@@ -247,16 +252,18 @@ uninstall_openleash() {
     compose="$(docker_compose_cmd)"
     (cd "$OPENLEASH_BACKEND_DIR" && $compose down -v --remove-orphans)
   fi
+  remove_retired_feature_containers
 
-  log "Removing OpenLeash application and local state..."
+  log "Removing Leash application and local state..."
   if [[ -w "$INSTALL_DIR" ]]; then rm -rf "$target_app"; else sudo rm -rf "$target_app"; fi
   rm -rf \
     "$HOME/.openleash" \
     "$HOME/Library/Application Support/OpenLeash" \
+    "$HOME/Library/Application Support/Leash" \
     "$HOME/Library/Logs/OpenLeash" \
     "$HOME/Library/Saved Application State/com.openleash.personal.savedState"
   rm -f /tmp/openleash-launch.log /tmp/openleash-startup.log
-  log "OpenLeash uninstalled. Agent hooks and proxy configuration were restored."
+  log "Leash uninstalled. Agent hooks and proxy configuration were restored."
 }
 
 reset_settings() {
@@ -264,7 +271,7 @@ reset_settings() {
     return
   fi
   local support_dir="$HOME/Library/Application Support/OpenLeash"
-  log "Removing old OpenLeash settings..."
+  log "Removing old Leash settings..."
   rm -rf "$support_dir"
 }
 
@@ -302,7 +309,6 @@ OPENLEASH_RELEASE_ADMIN_TOKEN=$(random_secret)
 OPENLEASH_MODEL_KEY_ENCRYPTION_KEY=$(random_secret)
 OPENLEASH_PROVIDER_USAGE_ENCRYPTION_KEY=$(random_secret)
 OPENLEASH_SECRET_KEY=$(random_secret)
-OPENLEASH_PLUGIN_RUNTIME_SECRET=$(random_secret)
 OPENLEASH_DEV_TOKEN=
 OPENLEASH_ALLOW_PROD_DEV_TOKEN_SEED=1
 OPENLEASH_DEV_ORG_SLUG=individual-open-source
@@ -316,9 +322,6 @@ EOF
       sed -i.bak "s/^OPENLEASH_VERSION=.*/OPENLEASH_VERSION=$OPENLEASH_VERSION/" "$OPENLEASH_BACKEND_DIR/.env" && rm -f "$OPENLEASH_BACKEND_DIR/.env.bak"
     else
       printf 'OPENLEASH_VERSION=%s\n' "$OPENLEASH_VERSION" >> "$OPENLEASH_BACKEND_DIR/.env"
-    fi
-    if ! grep -q '^OPENLEASH_PLUGIN_RUNTIME_SECRET=' "$OPENLEASH_BACKEND_DIR/.env"; then
-      printf 'OPENLEASH_PLUGIN_RUNTIME_SECRET=%s\n' "$(random_secret)" >> "$OPENLEASH_BACKEND_DIR/.env"
     fi
   fi
 
@@ -342,7 +345,7 @@ services:
       retries: 20
 
   migrate:
-    image: ${OPENLEASH_IMAGE_REGISTRY:-ghcr.io/open-leash}/client-api:${OPENLEASH_VERSION:-0.36.41@sha256:d3b96fa6aafc28e9ffd44c8626cb9b22bb0f6ec45ea0eee6261d0bc100ade1e6}
+    image: ${OPENLEASH_IMAGE_REGISTRY:-ghcr.io/open-leash}/client-api:${OPENLEASH_VERSION:-0.37.0@sha256:caa0f268c62e5cf2cf29076877a8b6ca3caf00ddedc8c5229e10df8c929661db}
     profiles: ["setup"]
     environment:
       DATABASE_URL: postgres://${OPENLEASH_POSTGRES_USER:-openleash}:${OPENLEASH_POSTGRES_PASSWORD:-openleash}@postgres:5432/${OPENLEASH_POSTGRES_DB:-openleash}
@@ -357,17 +360,17 @@ services:
         condition: service_healthy
 
   seed:
-    image: ${OPENLEASH_IMAGE_REGISTRY:-ghcr.io/open-leash}/client-api:${OPENLEASH_VERSION:-0.36.41@sha256:d3b96fa6aafc28e9ffd44c8626cb9b22bb0f6ec45ea0eee6261d0bc100ade1e6}
+    image: ${OPENLEASH_IMAGE_REGISTRY:-ghcr.io/open-leash}/client-api:${OPENLEASH_VERSION:-0.37.0@sha256:caa0f268c62e5cf2cf29076877a8b6ca3caf00ddedc8c5229e10df8c929661db}
     profiles: ["setup"]
     environment:
       DATABASE_URL: postgres://${OPENLEASH_POSTGRES_USER:-openleash}:${OPENLEASH_POSTGRES_PASSWORD:-openleash}@postgres:5432/${OPENLEASH_POSTGRES_DB:-openleash}
-    command: ["node", "apps/client-api/dist/create-organization.js", "--name", "Individual Open Source", "--slug", "individual-open-source", "--mode", "private"]
+    command: ["node", "apps/client-api/dist/bootstrap-personal.js", "--name", "Individual Open Source", "--slug", "individual-open-source", "--mode", "private"]
     depends_on:
       postgres:
         condition: service_healthy
 
   client-api:
-    image: ${OPENLEASH_IMAGE_REGISTRY:-ghcr.io/open-leash}/client-api:${OPENLEASH_VERSION:-0.36.41@sha256:d3b96fa6aafc28e9ffd44c8626cb9b22bb0f6ec45ea0eee6261d0bc100ade1e6}
+    image: ${OPENLEASH_IMAGE_REGISTRY:-ghcr.io/open-leash}/client-api:${OPENLEASH_VERSION:-0.37.0@sha256:caa0f268c62e5cf2cf29076877a8b6ca3caf00ddedc8c5229e10df8c929661db}
     container_name: openleash-individual-client-api
     environment:
       DATABASE_URL: postgres://${OPENLEASH_POSTGRES_USER:-openleash}:${OPENLEASH_POSTGRES_PASSWORD:-openleash}@postgres:5432/${OPENLEASH_POSTGRES_DB:-openleash}
@@ -382,15 +385,11 @@ services:
       OPENLEASH_MODEL_KEY_ENCRYPTION_KEY: ${OPENLEASH_MODEL_KEY_ENCRYPTION_KEY:-openleash-local-model-key-change-me}
       OPENLEASH_PROVIDER_USAGE_ENCRYPTION_KEY: ${OPENLEASH_PROVIDER_USAGE_ENCRYPTION_KEY:-openleash-local-provider-key-change-me}
       OPENLEASH_SECRET_KEY: ${OPENLEASH_SECRET_KEY:-openleash-local-secret-change-me}
-      OPENLEASH_PLUGIN_ENDPOINTS: '{"openleash.prompt-compression":"http://host.docker.internal:9349","openleash.blast-radius":"http://host.docker.internal:9349","openleash.sensitive-access":"http://host.docker.internal:9349","openleash.dlp":"http://host.docker.internal:9349","openleash.rules-enforcer":"http://host.docker.internal:9349","openleash.mcp-scanner":"http://host.docker.internal:9349","openleash.code-scanner":"http://host.docker.internal:9349","openleash.skill-scanner":"http://host.docker.internal:9349","openleash.siem-exporter":"http://host.docker.internal:9349"}'
-      OPENLEASH_PLUGIN_RUNTIME_SECRET: ${OPENLEASH_PLUGIN_RUNTIME_SECRET:?set OPENLEASH_PLUGIN_RUNTIME_SECRET in .env}
     ports:
       - "127.0.0.1:${OPENLEASH_CLIENT_API_PORT:-9318}:9318"
     depends_on:
       postgres:
         condition: service_healthy
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
 
 volumes:
   openleash-individual-postgres:
@@ -403,7 +402,7 @@ install_individual_open_source_backend() {
   local compose
   compose="$(docker_compose_cmd)"
   write_individual_open_source_runtime
-  log "Starting OpenLeash Individual Open Source backend in $OPENLEASH_BACKEND_DIR..."
+  log "Starting Leash Personal Open Source backend in $OPENLEASH_BACKEND_DIR..."
   (cd "$OPENLEASH_BACKEND_DIR" && $compose --profile setup pull)
   (cd "$OPENLEASH_BACKEND_DIR" && $compose up -d postgres)
   (cd "$OPENLEASH_BACKEND_DIR" && $compose --profile setup run --rm migrate)
@@ -419,8 +418,8 @@ install_individual_open_source_backend() {
     sleep 2
   done
   if [[ "$ready" -ne 1 ]]; then
-    (cd "$OPENLEASH_BACKEND_DIR" && $compose logs --tail=100 client-api token-saver) >&2 || true
-    die "OpenLeash Individual Open Source backend did not become healthy within 180 seconds."
+    (cd "$OPENLEASH_BACKEND_DIR" && $compose logs --tail=100 client-api) >&2 || true
+    die "Leash Personal Open Source backend did not become healthy within 180 seconds."
   fi
   CLIENT_MODE="custom"
 }
@@ -434,6 +433,7 @@ DMG_PATH="$(resolve_dmg)"
 [[ -z "$RULES_FILE" || -f "$RULES_FILE" ]] || die "Rules JSON not found: $RULES_FILE"
 
 stop_openleash
+remove_retired_feature_containers
 
 MOUNT_POINT="$TMP_DIR/mount"
 mkdir -p "$MOUNT_POINT"
@@ -462,9 +462,7 @@ if [[ "$NO_LAUNCH" -eq 0 ]]; then
   fi
   if [[ -n "$API_URL" ]]; then args+=(--api-url "$API_URL"); fi
   if [[ -n "$USER_TOKEN" ]]; then args+=(--token "$USER_TOKEN"); fi
-  if [[ -n "$TENANT_URL" ]]; then args+=(--tenant "$TENANT_URL"); fi
   if [[ -n "$CLIENT_MODE" ]]; then args+=(--mode "$CLIENT_MODE"); fi
-  if [[ "$ENROLL" -eq 1 || ( -n "$TENANT_URL" && -n "$USER_TOKEN" ) ]]; then args+=(--enroll); fi
   if [[ "$INSTALL_HOOKS" -eq 1 ]]; then args+=(--install-hooks); fi
   if [[ -n "$AGENTS" ]]; then args+=(--agents "$AGENTS"); fi
   log "Starting $APP_NAME..."
@@ -484,4 +482,4 @@ if [[ "$NO_LAUNCH" -eq 0 ]]; then
   fi
 fi
 
-log "OpenLeash installed."
+log "Leash installed."

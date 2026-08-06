@@ -1,17 +1,42 @@
 #!/usr/bin/env node
 import assert from "node:assert/strict";
+import fs from "node:fs";
 import http from "node:http";
+import os from "node:os";
+import path from "node:path";
 import { spawn, spawnSync } from "node:child_process";
 
 const base = 19520 + Math.floor(Math.random() * 100);
 const [apiPort, upstreamPort, proxyPort] = [base, base + 1, base + 2];
 const events = [];
 const upstreamRequests = [];
+const claudeConfigDir = fs.mkdtempSync(path.join(os.tmpdir(), "leash-claude-smoke-"));
+const openCodeStateDir = fs.mkdtempSync(path.join(os.tmpdir(), "leash-opencode-smoke-"));
+for (const directory of ["config", "cache", "data", "state"]) {
+  fs.mkdirSync(path.join(openCodeStateDir, directory), { recursive: true });
+}
+const requestedAgents = new Set(
+  (process.env.LEASH_TEST_AGENTS ?? "claude,codex,opencode")
+    .split(",")
+    .map((value) => value.trim())
+    .filter(Boolean),
+);
+const agentTimeoutMs = Number(process.env.LEASH_AGENT_TIMEOUT_MS ?? 30000);
 
 const api = http.createServer(async (req, res) => {
   const body = JSON.parse((await read(req)).toString() || "{}");
-  events.push(body);
   res.setHeader("content-type", "application/json");
+  if (req.url?.includes("/v1/plugin-runtime/transform")) {
+    return res.end(
+      JSON.stringify({
+        requestBody: body.requestBody,
+        appliedPluginIds: [],
+        runs: [],
+        monitoringPaused: false,
+      }),
+    );
+  }
+  events.push(body);
   res.end(
     JSON.stringify({
       decision: "allow",
@@ -25,6 +50,10 @@ const api = http.createServer(async (req, res) => {
 const upstream = http.createServer(async (req, res) => {
   const body = JSON.parse((await read(req)).toString() || "{}");
   upstreamRequests.push({ url: req.url, body });
+  if (req.url.includes("/api/hello")) {
+    res.setHeader("content-type", "application/json");
+    return res.end(JSON.stringify({ message: "hello" }));
+  }
   if (req.url.includes("/messages")) return anthropicReply(res, body);
   if (req.url.includes("/responses")) return responsesReply(res, body);
   res.setHeader("content-type", "application/json");
@@ -64,26 +93,30 @@ const proxy = spawn(
 const results = [];
 try {
   await waitForHealth();
-  if (exists("claude"))
+  if (requestedAgents.has("claude") && exists("claude"))
     results.push(
       await run(
         "claude",
         [
           "-p",
           "Use the Bash tool once, then reply exactly PROXY_OK",
-          "--bare",
           "--model",
-          "claude-test",
+          "claude-sonnet-4-6",
+          "--bare",
           "--dangerously-skip-permissions",
           "--no-session-persistence",
         ],
         {
           ANTHROPIC_BASE_URL: `http://127.0.0.1:${proxyPort}/agent/claude-code`,
-          ANTHROPIC_API_KEY: "test-key",
+          // Claude's documented gateway credential bypasses Console-key
+          // validation and is sent only to the local mock upstream above.
+          ANTHROPIC_AUTH_TOKEN: "leash-local-smoke-token",
+          CLAUDE_CONFIG_DIR: claudeConfigDir,
+          DISABLE_AUTOUPDATER: "1",
         },
       ),
     );
-  if (exists("codex"))
+  if (requestedAgents.has("codex") && exists("codex"))
     results.push(
       await run(
         "codex",
@@ -96,12 +129,12 @@ try {
           "-c",
           'model_provider="openleash-smoke"',
           "-c",
-          `model_providers.openleash-smoke={name="OpenLeash smoke",base_url="http://127.0.0.1:${proxyPort}/agent/codex/v1",wire_api="responses",env_key="OPENAI_API_KEY"}`,
+          `model_providers.openleash-smoke={name="Leash smoke",base_url="http://127.0.0.1:${proxyPort}/agent/codex/v1",wire_api="responses",env_key="OPENAI_API_KEY"}`,
         ],
         { OPENAI_API_KEY: "test-key" },
       ),
     );
-  if (exists("opencode"))
+  if (requestedAgents.has("opencode") && exists("opencode"))
     results.push(
       await run(
         "opencode",
@@ -122,6 +155,10 @@ try {
               },
             },
           }),
+          OPENCODE_CONFIG_DIR: path.join(openCodeStateDir, "config"),
+          XDG_CACHE_HOME: path.join(openCodeStateDir, "cache"),
+          XDG_DATA_HOME: path.join(openCodeStateDir, "data"),
+          XDG_STATE_HOME: path.join(openCodeStateDir, "state"),
         },
       ),
     );
@@ -129,11 +166,11 @@ try {
   for (const result of results) {
     assert.ok(
       result.intercepted,
-      `${result.agent} did not send a model request through OpenLeash: ${result.stderr}`,
+      `${result.agent} did not send a model request through Leash (exit ${result.exitCode}, normalized events ${events.length}, upstream requests ${upstreamRequests.length}). stdout: ${result.output} stderr: ${result.stderr}`,
     );
   }
   const launched = new Set(results.map((result) => result.agent));
-  await waitFor(
+  const responseObserved = await waitFor(
     () =>
       [...launched].every((agent) => {
         const kind = agent === "claude" ? "claude-code" : agent;
@@ -144,6 +181,10 @@ try {
         );
       }),
     3000,
+  ).then(() => true, () => false);
+  assert.ok(
+    responseObserved,
+    `Response normalization missing. results=${JSON.stringify(results.map(({ agent, exitCode, output, stderr }) => ({ agent, exitCode, output, stderr })))} events=${JSON.stringify(events.map((event) => ({ agent: event.request?.agent?.kind, name: event.request?.event?.eventName, raw: event.request?.event?.raw })))} upstream=${JSON.stringify(upstreamRequests.map((request) => ({ url: request.url, body: request.body })))}`,
   );
   if (launched.has("claude"))
     assert.ok(
@@ -219,6 +260,8 @@ try {
   upstream.closeAllConnections();
   api.close();
   upstream.close();
+  fs.rmSync(claudeConfigDir, { recursive: true, force: true });
+  fs.rmSync(openCodeStateDir, { recursive: true, force: true });
 }
 
 async function run(agent, args, extraEnv) {
@@ -239,7 +282,7 @@ async function run(agent, args, extraEnv) {
       timer = setTimeout(() => {
         child.kill("SIGTERM");
         resolve(124);
-      }, 30000);
+      }, agentTimeoutMs);
     }),
   ]);
   clearTimeout(timer);
@@ -268,7 +311,7 @@ function anthropicReply(res, body) {
     const input = /bash/i.test(name)
       ? {
           command: "printf OPENLEASH_TOOL_OK",
-          description: "OpenLeash proxy smoke test",
+          description: "Leash proxy smoke test",
         }
       : {};
     if (!stream) {

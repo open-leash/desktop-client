@@ -1,71 +1,9 @@
-# Data Model
+# Leash data model
 
-## Desktop Local Cache
+Postgres is the durable backend for Leash Cloud and Personal Open Source. The desktop SQLite database is only local cache and setup state; it is not a supported standalone backend.
 
-Desktop may cache endpoint-local state for UX and hook relay operation:
+The public product stores personal users, computers, agent runtimes, conversation events, evaluations, approvals, Feature settings, outcomes, mobile devices, update releases, and flow/audit records.
 
-- setup state
-- selected agents
-- backend-managed rules snapshot
-- pending approval snapshot
-- highlighted action snapshot
-- update state
+Some table and column names retain organization or plugin terminology for migration compatibility. Public API behavior is personal-only, and new code must not add dashboard sessions, organization administration, identity-provider configuration, marketplace submissions, publisher metadata, ratings, or download analytics.
 
-The cache is not the source of truth for policy, evaluation, plugins, approvals, audit, or account state. Desktop clients require OpenLeash Cloud or a customer-hosted Private Cloud backend.
-
-Older JSON stores can be migrated into local cache storage on first launch.
-
-## OpenLeash Cloud
-
-Cloud uses OpenLeash-managed Postgres.
-
-Core tables:
-
-- organizations
-- users
-- identity providers
-- computers
-- agent runtimes
-- policies
-- policy results
-- conversation events
-- evaluations
-- deployment tokens
-- installer versions
-- update channels
-
-## Private Cloud
-
-Private Cloud uses the same schema as OpenLeash Cloud, but the customer operates Postgres.
-
-Private Cloud deployments must support:
-
-- customer-owned domain
-- customer-owned Postgres
-- SSO/OAuth
-- tenant-scoped model keys
-- update feed override
-- retention policy
-
-## Rule Ownership
-
-OpenLeash Cloud and Private Cloud:
-
-- admins own rules
-- employees cannot change rules locally
-- endpoints receive signed or tenant-authenticated policy bundles
-
-## Identity
-
-OpenLeash Cloud and Private Cloud support:
-
-- Okta
-- Google Workspace
-- Microsoft Entra ID
-- Generic OpenID Connect
-
-Implementation target:
-
-- OIDC/OAuth Authorization Code flow for dashboard and mobile sign-in
-- SCIM, Identity Loader, or directory connectors for roster and group sync
-- SAML through a customer IdP bridge when needed
+Features share the client API process and database provider interfaces. They receive bounded capability inputs rather than direct database credentials.

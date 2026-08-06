@@ -25,7 +25,7 @@ services:
       DATABASE_URL: postgres://openleash:openleash@postgres:5432/openleash
       OPENLEASH_API_PORT: 9318
       OPENLEASH_API_SURFACE: client
-      OPENLEASH_DEPLOYMENT_MODE: ${OPENLEASH_DEPLOYMENT_MODE:-community}
+      OPENLEASH_DEPLOYMENT_MODE: ${OPENLEASH_DEPLOYMENT_MODE:-individual-open-source}
       OPENLEASH_GOOGLE_CLIENT_ID: ${OPENLEASH_GOOGLE_CLIENT_ID:-}
       OPENLEASH_GOOGLE_CLIENT_SECRET: ${OPENLEASH_GOOGLE_CLIENT_SECRET:-}
       OPENLEASH_RELEASE_ADMIN_TOKEN: ${OPENLEASH_RELEASE_ADMIN_TOKEN:-}
@@ -33,53 +33,8 @@ services:
       OPENLEASH_LATEST_DMG_URL: ${OPENLEASH_LATEST_DMG_URL:-}
       OPENLEASH_LATEST_SHA256: ${OPENLEASH_LATEST_SHA256:-}
       OPENLEASH_LATEST_NOTES_URL: ${OPENLEASH_LATEST_NOTES_URL:-}
-      OPENLEASH_PLUGIN_ENDPOINTS: '{"openleash.prompt-compression":"http://token-saver:8080"}'
-      OPENLEASH_PLUGIN_RUNTIME_SECRET: ${OPENLEASH_PLUGIN_RUNTIME_SECRET:-openleash-local-plugin-secret}
     ports:
       - "9318:9318"
-    depends_on:
-      postgres:
-        condition: service_healthy
-    networks:
-      - default
-      - plugin-runtime
-
-  token-saver:
-    build:
-      context: plugins/plugin-token-saver
-    image: ghcr.io/open-leash/plugin-token-saver:1.1.3@sha256:a4b393aaea6867516c800e0c8381e03a451750a497d76870725dc8d3eaf1ffd3
-    environment:
-      OPENLEASH_PLUGIN_RUNTIME_SECRET: ${OPENLEASH_PLUGIN_RUNTIME_SECRET:-openleash-local-plugin-secret}
-    volumes:
-      - openleash-token-saver:/data
-    read_only: true
-    tmpfs:
-      - /tmp:size=128m,noexec,nosuid
-    cap_drop:
-      - ALL
-    security_opt:
-      - no-new-privileges:true
-    healthcheck:
-      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8080/healthz', timeout=2)"]
-      interval: 10s
-      timeout: 3s
-      retries: 12
-    networks:
-      - plugin-runtime
-
-  dashboard-api:
-    build:
-      context: apps/client-api
-    container_name: openleash-dashboard-api
-    environment:
-      DATABASE_URL: postgres://openleash:openleash@postgres:5432/openleash
-      OPENLEASH_API_PORT: 9319
-      OPENLEASH_API_SURFACE: dashboard
-      OPENLEASH_DEPLOYMENT_MODE: ${OPENLEASH_DEPLOYMENT_MODE:-community}
-      OPENLEASH_GOOGLE_CLIENT_ID: ${OPENLEASH_GOOGLE_CLIENT_ID:-}
-      OPENLEASH_GOOGLE_CLIENT_SECRET: ${OPENLEASH_GOOGLE_CLIENT_SECRET:-}
-    ports:
-      - "9319:9319"
     depends_on:
       postgres:
         condition: service_healthy
@@ -103,9 +58,3 @@ services:
 volumes:
   openleash-postgres:
     name: ${OPENLEASH_POSTGRES_VOLUME:-ol2_openleash-postgres}
-  openleash-token-saver:
-    name: ol2_openleash-token-saver
-
-networks:
-  plugin-runtime:
-    internal: true

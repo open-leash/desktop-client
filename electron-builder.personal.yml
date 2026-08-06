@@ -1,7 +1,8 @@
 appId: com.openleash.personal
-productName: OpenLeash
-copyright: Copyright © 2026 OpenLeash
-electronVersion: 40.10.6
+productName: Leash
+artifactName: Leash-${version}-${arch}.${ext}
+copyright: Copyright © 2026 Leash
+electronVersion: 43.3.0
 npmRebuild: false
 forceCodeSigning: false
 extraMetadata:
@@ -45,11 +46,12 @@ win:
       arch:
         - x64
 nsis:
+  artifactName: Leash-${version}-${arch}-Setup.${ext}
   oneClick: false
   perMachine: false
   allowToChangeInstallationDirectory: true
 dmg:
-  title: OpenLeash
+  title: Leash
   contents:
     - x: 130
       y: 220

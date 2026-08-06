@@ -1,4 +1,4 @@
-name: openleash-individual
+name: leash-personal
 
 services:
   postgres:
@@ -26,7 +26,7 @@ services:
       OPENLEASH_DEV_TOKEN: ${OPENLEASH_DEV_TOKEN:-}
       OPENLEASH_ALLOW_PROD_DEV_TOKEN_SEED: ${OPENLEASH_ALLOW_PROD_DEV_TOKEN_SEED:-1}
       OPENLEASH_DEV_ORG_SLUG: individual-open-source
-      OPENLEASH_DEV_ORG_NAME: Individual Open Source
+      OPENLEASH_DEV_ORG_NAME: Personal Open Source
       OPENLEASH_DEPLOYMENT_MODE: individual-open-source
     command: ["node", "apps/client-api/dist/migrate.js", "--apply"]
     depends_on:
@@ -38,7 +38,7 @@ services:
     profiles: ["setup"]
     environment:
       DATABASE_URL: postgres://${OPENLEASH_POSTGRES_USER:-openleash}:${OPENLEASH_POSTGRES_PASSWORD:-openleash}@postgres:5432/${OPENLEASH_POSTGRES_DB:-openleash}
-    command: ["node", "apps/client-api/dist/create-organization.js", "--name", "Individual Open Source", "--slug", "individual-open-source", "--mode", "private"]
+    command: ["node", "apps/client-api/dist/bootstrap-personal.js", "--name", "Personal Open Source", "--slug", "individual-open-source", "--mode", "private"]
     depends_on:
       postgres:
         condition: service_healthy
@@ -52,22 +52,18 @@ services:
       OPENLEASH_API_SURFACE: client
       OPENLEASH_DEPLOYMENT_MODE: individual-open-source
       OPENLEASH_DEV_ORG_SLUG: individual-open-source
-      OPENLEASH_DEV_ORG_NAME: Individual Open Source
+      OPENLEASH_DEV_ORG_NAME: Personal Open Source
       OPENLEASH_DEV_TOKEN: ${OPENLEASH_DEV_TOKEN:-}
       OPENLEASH_ALLOW_PROD_DEV_TOKEN_SEED: ${OPENLEASH_ALLOW_PROD_DEV_TOKEN_SEED:-1}
       OPENLEASH_RELEASE_ADMIN_TOKEN: ${OPENLEASH_RELEASE_ADMIN_TOKEN:-local-release-admin-token}
       OPENLEASH_MODEL_KEY_ENCRYPTION_KEY: ${OPENLEASH_MODEL_KEY_ENCRYPTION_KEY:-openleash-local-model-key-change-me}
       OPENLEASH_PROVIDER_USAGE_ENCRYPTION_KEY: ${OPENLEASH_PROVIDER_USAGE_ENCRYPTION_KEY:-openleash-local-provider-key-change-me}
       OPENLEASH_SECRET_KEY: ${OPENLEASH_SECRET_KEY:-openleash-local-secret-change-me}
-      OPENLEASH_PLUGIN_ENDPOINTS: '{"openleash.prompt-compression":"http://host.docker.internal:9349","openleash.blast-radius":"http://host.docker.internal:9349","openleash.sensitive-access":"http://host.docker.internal:9349","openleash.dlp":"http://host.docker.internal:9349","openleash.rules-enforcer":"http://host.docker.internal:9349","openleash.mcp-scanner":"http://host.docker.internal:9349","openleash.code-scanner":"http://host.docker.internal:9349","openleash.skill-scanner":"http://host.docker.internal:9349","openleash.siem-exporter":"http://host.docker.internal:9349"}'
-      OPENLEASH_PLUGIN_RUNTIME_SECRET: ${OPENLEASH_PLUGIN_RUNTIME_SECRET:?set OPENLEASH_PLUGIN_RUNTIME_SECRET in .env}
     ports:
       - "${OPENLEASH_CLIENT_API_PORT:-9318}:9318"
     depends_on:
       postgres:
         condition: service_healthy
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
 
 
 volumes:

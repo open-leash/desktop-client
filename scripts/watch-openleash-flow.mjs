@@ -10,7 +10,7 @@ const full = process.argv.includes("--full");
 let offset = 0;
 let remainder = "";
 
-console.log(`OpenLeash flow viewer: ${file}`);
+console.log(`Leash flow viewer: ${file}`);
 console.log("Waiting for agent traffic. Ctrl+C stops the viewer.\n");
 
 setInterval(() => {

@@ -20,7 +20,7 @@ class Step:
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="OpenLeash release and upgrade test harness.")
+    parser = argparse.ArgumentParser(description="Leash release and upgrade test harness.")
     parser.add_argument("--upgrade", action="store_true", help="Run database/local-storage upgrade fixtures.")
     parser.add_argument("--full", action="store_true", help="Run the fullest local test gate: upgrade fixtures, smoke tests, flow checks, and mode dry-runs.")
     args = parser.parse_args()
@@ -41,15 +41,14 @@ def main() -> int:
             Step("deployment-readiness", ["node", "scripts/check-deployment-readiness.mjs"]),
             Step("product-smoke", ["npm", "run", "smoke:product"]),
             Step("user-flows", ["npm", "run", "test:flows"]),
-            Step("private-cloud-dry-run", ["python3", "run.py", "--mode", "private-cloud", "--dry-run", "--yes"]),
+            Step("personal-open-source-dry-run", ["python3", "run.py", "--mode", "individual-open-source", "--dry-run", "--yes"]),
             Step("public-cloud-dry-run", ["python3", "run.py", "--mode", "public-cloud", "--dry-run", "--yes"]),
-            Step("desktop-public-cloud-dry-run", ["python3", "run.py", "--desktop-only", "--api-url", "https://api.openleash.com", "--dry-run", "--yes"]),
         ])
 
     for step in steps:
         run(step)
 
-    print("\nOpenLeash test harness passed.")
+    print("\nLeash test harness passed.")
     return 0
 
 

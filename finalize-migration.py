@@ -9,7 +9,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent
 RUNTIME_POSTGRES_DIR = ROOT / "infra" / "postgres" / "migrations"
-POSTGRES_CLIENTS = {"client-api", "dashboard-api", "cloud-client-api", "cloud-dashboard-api"}
+POSTGRES_CLIENTS = {"client-api"}
 
 
 def main() -> int:

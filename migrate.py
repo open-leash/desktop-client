@@ -27,7 +27,7 @@ class Step:
 def main() -> int:
     DOTENV.update(load_env_file(ROOT / ".env"))
     parser = argparse.ArgumentParser(
-        description="Run OpenLeash database migrations against local dev, GCP, or an explicit DATABASE_URL."
+        description="Run Leash database migrations against local dev, GCP, or an explicit DATABASE_URL."
     )
     parser.add_argument("--target", choices=["local", "gcp", "custom"], help="Database target. Defaults to interactive mode.")
     parser.add_argument("--database-url", help="Explicit Postgres connection string. Implies --target custom when no target is set.")
@@ -73,7 +73,7 @@ def main() -> int:
 
 
 def choose_migration_questionnaire(args: argparse.Namespace) -> argparse.Namespace:
-    print("OpenLeash migrations")
+    print("Leash migrations")
     print("Use this to inspect or update local dev, GCP Cloud SQL, or any explicit Postgres database.")
     print("Status is read-only. Apply is explicit.\n")
 

@@ -9,8 +9,8 @@ const require = createRequire(import.meta.url);
 const { extractFile } = require("@electron/asar");
 
 const root = process.cwd();
-const app = path.join(root, "release/personal/mac-arm64/OpenLeash.app");
-const executable = path.join(app, "Contents/MacOS/OpenLeash");
+const app = path.join(root, "release/personal/mac-arm64/Leash.app");
+const executable = path.join(app, "Contents/MacOS/Leash");
 const packagedApp = path.join(app, "Contents/Resources/app.asar");
 const nativeModule = path.join(
   app,

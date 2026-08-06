@@ -7,9 +7,19 @@ import { spawnSync } from "node:child_process";
 
 const org = process.argv[2] ?? "open-leash";
 const requestedApps = new Set(process.argv.slice(3));
+const publicApps = new Set([
+  "client-api",
+  "desktop-client",
+  "docs-web",
+  "flow-viewer",
+  "main-web",
+  "mobile-client",
+  "provider-puller"
+]);
 const appsDir = path.resolve("apps");
 const apps = fs.readdirSync(appsDir)
   .filter((entry) => fs.statSync(path.join(appsDir, entry)).isDirectory())
+  .filter((entry) => publicApps.has(entry))
   .filter((entry) => requestedApps.size === 0 || requestedApps.has(entry))
   .sort();
 
@@ -72,7 +82,7 @@ for (const appName of apps) {
   run("git", ["add", "."], { cwd: temp });
   if (gitHasChanges(temp)) {
     run("git", [
-      "-c", "user.name=OpenLeash Initializer",
+      "-c", "user.name=Leash Initializer",
       "-c", "user.email=hello@openleash.com",
       "commit",
       "-m",
@@ -103,19 +113,15 @@ console.log("\nAll app repos pushed.");
 
 function descriptionFor(appName) {
   const descriptions = {
-    "client-api": "Client-facing OpenLeash API for hooks, evaluation, enrollment, mobile, and updates.",
-    "dashboard-api": "Dashboard/admin API surface for OpenLeash.",
-    "dashboard-web": "OpenLeash dashboard web app for policies, identity, deployment, and audit.",
-    "desktop-client": "OpenLeash desktop client, local API, tray app, and hook installer.",
-    "flow-viewer": "Local observability UI for OpenLeash agent-event pipeline traces.",
-    "docs-web": "OpenLeash documentation site.",
-    "main-web": "OpenLeash product website.",
-    "mobile-client": "OpenLeash iOS/Android approval companion.",
-    "cloud-client-api": "Private OpenLeash Cloud wrapper over the public client API.",
-    "cloud-dashboard-api": "Private OpenLeash Cloud wrapper over the public dashboard API.",
-    "cloud-dashboard-web": "Private OpenLeash Cloud wrapper over the public dashboard web app."
+    "client-api": "Personal Leash API for hooks, evaluation, mobile, and updates.",
+    "desktop-client": "Leash desktop client, tray app, local edge, and agent hook installer.",
+    "flow-viewer": "Local observability UI for Leash agent-event traces.",
+    "docs-web": "Leash documentation site.",
+    "main-web": "Leash product website.",
+    "mobile-client": "Leash iOS/Android approval companion.",
+    "provider-puller": "Leash provider event synchronization worker."
   };
-  return descriptions[appName] ?? `OpenLeash ${appName}`;
+  return descriptions[appName] ?? `Leash ${appName}`;
 }
 
 function run(command, args, options = {}) {
