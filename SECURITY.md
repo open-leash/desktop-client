@@ -24,4 +24,4 @@ paths, and policy evidence.
   be protected by authenticated ingress and transport encryption.
 
 Flow Viewer is not an enforcement boundary. Security decisions remain in the
-OpenLeash `client-api`, desktop edge, and plugin pipeline.
+Leash `client-api`, desktop edge, and plugin pipeline.

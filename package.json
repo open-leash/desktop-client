@@ -1,9 +1,9 @@
 {
   "name": "@openleash/flow-viewer",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": false,
   "type": "module",
-  "description": "Local observability UI for OpenLeash agent-event pipeline traces.",
+  "description": "Local observability UI for Leash agent-event pipeline traces.",
   "license": "MIT",
   "repository": {
     "type": "git",
