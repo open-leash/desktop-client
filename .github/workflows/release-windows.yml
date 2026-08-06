@@ -91,4 +91,4 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release upload "${{ github.ref_name }}" release/windows/*.exe release/windows/*.blockmap release/windows/latest.yml release/windows/SHA256SUMS-WINDOWS --clobber=false
+          gh release upload "${{ github.ref_name }}" release/windows/*.exe release/windows/*.blockmap release/windows/latest.yml release/windows/SHA256SUMS-WINDOWS --clobber
