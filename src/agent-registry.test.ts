@@ -49,7 +49,7 @@ test("Codex monitoring recognizes the OpenLeash-managed local proxy", () => {
     'model_provider = "openleash"',
     "",
     "[model_providers.openleash]",
-    'name = "OpenLeash local proxy"',
+    'name = "Leash local proxy"',
     'base_url = "http://127.0.0.1:9320/agent/codex/v1"',
     'wire_api = "responses"',
   ].join("\n");

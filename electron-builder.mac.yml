@@ -1,7 +1,7 @@
 appId: com.openleash.personal
-productName: OpenLeash
-copyright: Copyright © 2026 OpenLeash
-electronVersion: 40.10.6
+productName: Leash
+copyright: Copyright © 2026 Leash
+electronVersion: 43.3.0
 forceCodeSigning: false
 extraMetadata:
   main: dist/main.js
@@ -37,9 +37,9 @@ mac:
   notarize: false
   entitlements: build/entitlements.mac.plist
   entitlementsInherit: build/entitlements.mac.inherit.plist
-  artifactName: OpenLeash-${version}-${arch}.${ext}
+  artifactName: Leash-${version}-${arch}.${ext}
 dmg:
-  title: OpenLeash
+  title: Leash
   contents:
     - x: 130
       y: 220

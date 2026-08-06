@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>OpenLeash</title>
+    <title>Leash</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet" />
@@ -2789,10 +2789,10 @@
       <aside>
         <div class="brand">
           <img src="openleash-icon.png" alt="" />
-          OpenLeash
+          Leash
         </div>
         <nav id="sideNav"></nav>
-        <div class="foot" id="modeFoot">Personal mode runs fully on this Mac. Rules, history, approvals, and OpenLeash activity stay local.</div>
+        <div class="foot" id="modeFoot">Personal mode runs fully on this Mac. Rules, history, approvals, and Leash activity stay local.</div>
       </aside>
       <main id="root"></main>
     </div>
@@ -2917,25 +2917,20 @@
       /* plugin-detail-edit-refresh:end */
 
       function modeLabel() {
-        if (state.clientMode === "cloud") return "OpenLeash Cloud";
-        if (state.clientMode === "custom" && isLocalOpenSourceApi(state.remoteApiUrl)) return "Individual Open Source";
-        if (state.clientMode === "custom") return "Private Cloud";
-        return "Local only";
+        if (state.clientMode === "cloud") return "Leash Cloud";
+        if (state.clientMode === "custom") return "Personal Open Source";
+        return "Personal";
       }
 
       function modeFootnote() {
-        if (state.clientMode === "cloud") {
-          const tenant = state.remoteOrganization || "organization tenant";
-          return `OpenLeash Cloud organization mode. Rules and approvals sync with ${tenant}. Local hooks still call this Mac first.`;
-        }
+        if (state.clientMode === "cloud") return "Leash Cloud syncs your personal rules, approvals, and activity across your devices.";
         if (state.clientMode === "custom") {
           if (isLocalOpenSourceApi(state.remoteApiUrl)) {
-            return "Individual Open Source mode. The desktop talks to your local Dockerized OpenLeash API and keeps client updates on the OpenLeash update feed.";
+            return "Personal Open Source uses your local Leash API and Postgres while client updates continue through the public Leash update feed.";
           }
-          const tenant = state.remoteOrganization || state.remoteApiUrl || "your private cloud";
-          return `Private Cloud mode. Rules and approvals sync with ${tenant}. Local hooks still call this Mac first.`;
+          return "Personal Open Source uses the API endpoint configured on this computer.";
         }
-        return "Personal mode runs fully on this Mac. Rules, history, approvals, and OpenLeash activity stay local.";
+          return "Personal mode protects the agents on this computer.";
       }
 
       function updateModeFoot() {
@@ -3028,9 +3023,9 @@
         const status = setupInstallState === "complete" ? "complete" : setupInstallState === "failed" ? "failed" : "installing";
         const percent = status === "complete" ? 100 : Math.max(2, Math.min(99, Number(setupInstallProgress.percent || 0)));
         const agents = selectedSetupAgentCatalog();
-        const title = status === "complete" ? "OpenLeash is installed" : status === "failed" ? "Installation needs attention" : "Installing OpenLeash";
+        const title = status === "complete" ? "Leash is installed" : status === "failed" ? "Installation needs attention" : "Installing Leash";
         const detail = status === "complete"
-          ? "Your selected agents are protected. Continue to OpenLeash to see them working."
+          ? "Your selected agents are protected. Continue to Leash to see them working."
           : status === "failed"
             ? "Nothing is hidden. Review the issue below, then retry or adjust your setup."
             : setupInstallProgress.detail || "Applying protection to this Mac...";
@@ -3103,48 +3098,23 @@
           return;
         }
         enforceAudienceMode();
-        const personal = setupClientMode === "personal";
         const cloud = setupClientMode === "cloud";
-        const individualCloud = setupAudience === "individual" && cloud;
-        const individualOpenSource = setupAudience === "individual" && setupClientMode === "custom";
-        const orgCloud = setupAudience === "organization" && cloud;
+        const individualOpenSource = setupClientMode === "custom";
+        const orgCloud = false;
         initializePluginSetupState();
         const pluginSteps = [
-          { title: "Plugins", subtitle: "Choose plugins to add during setup." }
+          { title: "Features", subtitle: "Choose the built-in Features Leash should enable." }
         ];
         const steps = individualOpenSource
           ? [
-              { title: "Account", subtitle: "Tell us who is setting this up." },
-              { title: "Connect", subtitle: "Pick how OpenLeash runs." },
+              { title: "Connect", subtitle: "Pick how Leash runs." },
               { title: "Local backend", subtitle: "Start your open-source backend." },
               { title: "Agents", subtitle: "Choose agents to manage." },
               ...pluginSteps
             ]
-          : individualCloud
-            ? [
-                { title: "Account", subtitle: "Tell us who is setting this up." },
-                { title: "Connect", subtitle: "Pick how OpenLeash runs." },
-                { title: "Sign in", subtitle: "Sign in to OpenLeash Cloud." },
-                { title: "Agents", subtitle: "Choose agents to manage." },
-                ...pluginSteps
-              ]
-          : cloud
-            ? [
-                { title: "Account", subtitle: "Tell us who is setting this up." },
-                { title: "Connect", subtitle: "Pick how OpenLeash runs." },
-                ...(orgCloud ? [
-                  { title: "Sign in", subtitle: "Continue onboarding in the dashboard." }
-                ] : [
-                  { title: "Sign in", subtitle: "Sign in to OpenLeash Cloud." },
-                  { title: "Agents", subtitle: "Choose agents to manage." },
-                  ...pluginSteps
-                ])
-              ]
           : [
-              { title: "Account", subtitle: "Tell us who is setting this up." },
-              { title: "Connect", subtitle: "Pick how OpenLeash runs." },
-              { title: "API", subtitle: "Add your company API." },
-              { title: "Sign in", subtitle: "Sign in with your company." },
+              { title: "Connect", subtitle: "Pick how Leash runs." },
+              { title: "Sign in", subtitle: "Sign in to Leash Cloud." },
               { title: "Agents", subtitle: "Choose agents to manage." },
               ...pluginSteps
             ];
@@ -3171,7 +3141,7 @@
               </div>
               <div class="welcomeCopy">
                 <div class="welcomeKicker">Control your agents</div>
-                <h1>OpenLeash</h1>
+                <h1>Leash</h1>
                 <p>Understand and control AI agents wherever they run.</p>
               </div>
               <div class="welcomeTiles">
@@ -3181,7 +3151,7 @@
               </div>
               <div class="welcomeActions">
                 <button class="primary" id="setupNext">Next</button>
-                <span class="welcomeFootnote">Works with OpenLeash Cloud, Private Cloud, or an open-source local backend.</span>
+                <span class="welcomeFootnote">Use Leash Cloud or your own personal open-source backend.</span>
               </div>
             </section>
           `;
@@ -3193,7 +3163,7 @@
         root.innerHTML = `
           <div class="head">
             <div>
-              <h1>Set up OpenLeash</h1>
+              <h1>Set up Leash</h1>
               ${setupGreeting() ? `<div class="setupGreeting">${escapeHtml(setupGreeting())}</div>` : ""}
               <p>${escapeHtml(current.subtitle)}</p>
             </div>
@@ -3208,23 +3178,20 @@
           <div class="setupStack">
             ${currentId === "account" ? `
               <section class="setupSection">
-                <h2>Who is OpenLeash for?</h2>
-                <p>This shapes the setup options you see next.</p>
+                <h2>Personal Leash</h2>
+                <p>Leash protects your own AI agents.</p>
                 <div class="cardList">
-                  ${audienceChoice("individual", "Individual", "Use OpenLeash Cloud for your own AI agents.")}
-                  ${audienceChoice("organization", "Organization", "Set up OpenLeash for a company or team.")}
+                  ${audienceChoice("individual", "Personal", "Use Leash for your own AI agents.")}
                 </div>
               </section>
             ` : ""}
             ${currentId === "connect" ? `
               <section class="setupSection">
                 <h2>Connection</h2>
-                <p>${setupAudience === "organization" ? "Pick how your organization runs OpenLeash." : "Pick how OpenLeash runs for you."}</p>
+                <p>Pick how Leash runs for you.</p>
                 <div class="cardList">
-                  ${connectionChoice("cloud", "OpenLeash Cloud", setupAudience === "organization" ? "Use the OpenLeash-hosted API and dashboard." : "Use the OpenLeash-hosted account and sync.", "cloud")}
-                  ${setupAudience === "organization"
-                    ? connectionChoice("custom", "Private Cloud", "Use your private OpenLeash deployment.", "dns")
-                    : connectionChoice("custom", "Open Source Local", "Run the open-source API and database on this computer.", "devices")}
+                  ${connectionChoice("cloud", "Leash Cloud", "Use your Leash-hosted personal account and sync.", "cloud")}
+                  ${connectionChoice("custom", "Personal Open Source", "Run the open-source API and database on this computer.", "devices")}
                 </div>
               </section>
             ` : ""}
@@ -3232,11 +3199,11 @@
               <section class="setupSection">
                 <h2>Local backend</h2>
                 <div class="card">
-                  <strong>OpenLeash API and Database</strong>
+                  <strong>Leash API and Database</strong>
                   <p>Starting the open-source backend and persistent database with Docker.</p>
                   <div class="localBackendProgress">
                     <div class="localBackendProgressBar"><div class="localBackendProgressFill ${setupDockerStatus?.apiReachable ? "ready" : setupDockerBusy ? "busy" : ""}"></div></div>
-                    <div class="localBackendStatus">${escapeHtml(setupDockerStatus?.apiReachable ? "Setup finished. Local OpenLeash is ready." : setupDockerBusy ? "Starting local OpenLeash..." : setupDockerStatus?.status || "Preparing Docker runtime...")}</div>
+                    <div class="localBackendStatus">${escapeHtml(setupDockerStatus?.apiReachable ? "Setup finished. Local Leash is ready." : setupDockerBusy ? "Starting local Leash..." : setupDockerStatus?.status || "Preparing local services...")}</div>
                   </div>
                   ${!setupDockerBusy && !setupDockerStatus?.apiReachable && setupDockerStatus?.status ? `<div class="actions left" style="margin-top:16px"><button class="primary" id="startLocalBackend">Retry</button><button class="secondary" id="checkDockerStatus">Check Docker</button></div>` : ""}
                   <div class="notice" style="margin-top:12px">${escapeHtml(setupDockerStatus?.apiReachable ? "You can continue." : setupDockerStatus?.status || "Your data is stored in a local Docker volume.")}</div>
@@ -3249,7 +3216,7 @@
                 <h2>API configuration</h2>
                 <div class="card">
                   <strong>Managed API</strong>
-                  <p>Your OpenLeash Cloud or Private Cloud endpoint.</p>
+                  <p>Your personal Leash API endpoint.</p>
                   <div class="fieldRow" style="margin-top:14px">
                     <strong>API URL</strong>
                     <input id="remoteApiUrl" value="${escapeHtml(setupRemoteApiUrl === (state.cloudApiUrl || "https://api.openleash.com") ? "" : setupRemoteApiUrl)}" placeholder="https://openleash.your-company.com">
@@ -3271,8 +3238,8 @@
                       <span class="tag good">Connected</span>
                     </div>
                   ` : `
-                    <strong>${setupClientMode === "cloud" ? (setupAudience === "organization" ? (state.cloudDevAuth ? "Use local dev sign-in" : "Continue with work identity") : "Continue with Google or GitHub") : "Sign in with your company"}</strong>
-                    <p>${setupClientMode === "cloud" ? (setupAudience === "organization" ? (state.cloudDevAuth ? `This local run will use ${escapeHtml(state.cloudDevAuthEmail || "mobile.user@openleash.com")} and will not open a real Google or Microsoft account picker.` : "Use Google Workspace or Microsoft 365. OpenLeash will detect or create your company workspace from your work email domain.") : "Create or access your personal OpenLeash Cloud account here.") : "Your API chooses the identity provider."}</p>
+                    <strong>${setupClientMode === "cloud" ? "Continue with Google or GitHub" : "Connect to your personal API"}</strong>
+                    <p>${setupClientMode === "cloud" ? "Create or access your personal Leash Cloud account here." : "Personal Open Source is bootstrapped locally without a cloud sign-in."}</p>
                     <div class="actions left" style="margin-top:16px">
                       ${orgCloud && state.cloudDevAuth ? `
                         <button class="googleSignIn" id="orgCloudGoogle" ${setupRemoteBusy ? "disabled" : ""}>
@@ -3301,10 +3268,9 @@
                             <path fill="#FBBC05" d="M3.96 10.71a5.41 5.41 0 0 1 0-3.42V4.96H.94a9 9 0 0 0 0 8.08l3.02-2.33z"/>
                             <path fill="#EA4335" d="M9 3.58c1.32 0 2.5.45 3.44 1.35l2.58-2.58C13.46.9 11.43 0 9 0A9 9 0 0 0 .94 4.96l3.02 2.33C4.67 5.16 6.66 3.58 9 3.58z"/>
                           </svg>
-                          <span>${setupRemoteBusy && setupRemoteProvider === "google" ? "Opening..." : setupAudience === "organization" ? "Google Workspace" : "Sign in with Google"}</span>
+                          <span>${setupRemoteBusy && setupRemoteProvider === "google" ? "Opening..." : "Sign in with Google"}</span>
                         </button>
                         ${setupAudience === "individual" ? `<button class="googleSignIn" id="remoteSignInGithub" ${setupRemoteBusy ? "disabled" : ""}><svg viewBox="0 0 24 24" aria-hidden="true"><path fill="#24292f" d="M12 2a10 10 0 0 0-3.16 19.49c.5.09.68-.22.68-.48v-1.68c-2.78.6-3.37-1.34-3.37-1.34-.45-1.16-1.1-1.47-1.1-1.47-.9-.62.07-.61.07-.61 1 .07 1.53 1.03 1.53 1.03.89 1.52 2.34 1.08 2.91.82.09-.64.35-1.08.63-1.33-2.22-.25-4.55-1.11-4.55-4.94 0-1.09.39-1.98 1.03-2.68-.1-.25-.45-1.27.1-2.65 0 0 .84-.27 2.75 1.02A9.6 9.6 0 0 1 12 5.85c.85 0 1.71.11 2.51.34 1.9-1.29 2.74-1.02 2.74-1.02.55 1.38.2 2.4.1 2.65.64.7 1.03 1.59 1.03 2.68 0 3.84-2.34 4.69-4.57 4.93.36.31.68.92.68 1.85V21c0 .26.18.57.69.48A10 10 0 0 0 12 2z"/></svg><span>${setupRemoteBusy && setupRemoteProvider === "github" ? "Opening..." : "Sign in with GitHub"}</span></button>` : ""}
-                        ${setupAudience === "organization" ? `<button class="googleSignIn" id="remoteSignInMicrosoft" ${setupRemoteBusy ? "disabled" : ""}><span style="font-weight:900;color:#2563eb">M</span><span>${setupRemoteBusy && setupRemoteProvider === "azure_ad" ? "Opening..." : "Microsoft 365"}</span></button>` : ""}
                       ` : `<button class="primary" id="remoteSignIn" ${setupRemoteBusy ? "disabled" : ""}>${setupRemoteBusy ? "Opening..." : "Sign in"}</button>`}
                     </div>
                   `}
@@ -3320,13 +3286,13 @@
                 ${agentCards({ selectable: true })}
               </section>
             ` : ""}
-            ${currentId === "plugins" ? `
+            ${currentId === "features" ? `
               <section class="setupSection">
                 <div class="setupSectionHead">
-                  <h2>Plugins</h2>
-                  ${isDevelopmentDesktopRenderer() ? `<button type="button" class="secondary" id="addAllDevelopmentPlugins">Add all plugins</button>` : ""}
+                  <h2>Features</h2>
+                  ${isDevelopmentDesktopRenderer() ? `<button type="button" class="secondary" id="addAllDevelopmentPlugins">Enable all Features</button>` : ""}
                 </div>
-                <p>Search the OpenLeash plugin catalog and add reviewed plugins that should run on this device. Changes apply when you finish setup.</p>
+                <p>Choose from the first-party Features included with Leash. They run in the API without separate containers.</p>
                 ${setupPluginInstallCards()}
               </section>
             ` : ""}
@@ -3364,7 +3330,7 @@
               await startSelfHostedRuntime();
             }
             if (!setupDockerStatus?.apiReachable) {
-              setupRemoteError = setupDockerStatus?.status || "Start the local OpenLeash backend before continuing.";
+              setupRemoteError = setupDockerStatus?.status || "Start the local Leash backend before continuing.";
               return renderSetup();
             }
             setupRemoteError = "";
@@ -3410,10 +3376,6 @@
         if (signInGithub) signInGithub.onclick = () => startRemoteSignIn("github");
         const signInMicrosoft = document.getElementById("remoteSignInMicrosoft");
         if (signInMicrosoft) signInMicrosoft.onclick = () => startRemoteSignIn("azure_ad");
-        const orgCloudGoogle = document.getElementById("orgCloudGoogle");
-        if (orgCloudGoogle) orgCloudGoogle.onclick = () => startOrgCloudOnboarding("google");
-        const orgCloudMicrosoft = document.getElementById("orgCloudMicrosoft");
-        if (orgCloudMicrosoft) orgCloudMicrosoft.onclick = () => startOrgCloudOnboarding("microsoft");
         const startLocalBackend = document.getElementById("startLocalBackend");
         if (startLocalBackend) startLocalBackend.onclick = () => startSelfHostedRuntime();
         const checkLocalBackend = document.getElementById("checkDockerStatus");
@@ -3424,27 +3386,6 @@
           setupDockerAutoStarted = true;
           window.setTimeout(() => startSelfHostedRuntime(), 80);
         }
-      }
-
-      async function startOrgCloudOnboarding(provider) {
-        rememberSetupInputs();
-        setupRemoteProvider = provider;
-        setupRemoteBusy = true;
-        setupRemoteError = "";
-        setupRemoteNotice = "";
-        renderSetup();
-        const result = await window.openleash.startOrgCloudOnboarding({ provider });
-        setupRemoteBusy = false;
-        if (!result?.ok) {
-          setupRemoteError = result?.error || "Could not open OpenLeash Cloud sign-in.";
-        } else {
-          setupRemoteNotice = state.cloudDevAuth
-            ? `Using local dev sign-in as ${state.cloudDevAuthEmail || "mobile.user@openleash.com"}.`
-            : provider === "microsoft"
-            ? "Continue with your Microsoft 365 account in the browser."
-            : "Continue with your Google Workspace account in the browser.";
-        }
-        renderSetup();
       }
 
       function rememberSetupInputs() {
@@ -3505,14 +3446,14 @@
         if (setupAudience === "individual" && setupClientMode === "custom") {
           setupRemoteApiUrl = "http://127.0.0.1:9318";
           if (!setupDockerStatus?.apiReachable) {
-            setupInstallProgress = { percent: 8, stage: "connect", title: "Starting your local backend", detail: "Starting OpenLeash API and Postgres with Docker..." };
+            setupInstallProgress = { percent: 8, stage: "connect", title: "Starting your local backend", detail: "Starting Leash API and Postgres with Docker..." };
             renderSetup();
             await startSelfHostedRuntime();
           }
           if (!setupDockerStatus?.apiReachable) {
             setupFinishing = false;
             setupInstallState = "failed";
-            setupFinishError = setupDockerStatus?.status || "Start the local OpenLeash backend before finishing setup.";
+            setupFinishError = setupDockerStatus?.status || "Start the local Leash backend before finishing setup.";
             setupRemoteNotice = "";
             renderSetup();
             return;
@@ -3530,7 +3471,7 @@
           renderSetup();
           return;
         }
-        setupInstallProgress = { percent: 16, stage: "prepare", title: "Preparing this Mac", detail: "Connecting OpenLeash to the selected agents..." };
+        setupInstallProgress = { percent: 16, stage: "prepare", title: "Preparing this Mac", detail: "Connecting Leash to the selected agents..." };
         renderSetup();
         const rules = (state.rules || []).map((rule) => ({
           ...rule,
@@ -3557,7 +3498,7 @@
         } else if (result?.ok) {
           setupFinishing = false;
           setupInstallState = "complete";
-          setupInstallProgress = { percent: 100, stage: "complete", title: "Protection active", detail: "OpenLeash is ready." };
+          setupInstallProgress = { percent: 100, stage: "complete", title: "Protection active", detail: "Leash is ready." };
           state = { ...state, ...result, setupComplete: true, mode: result.mode || "settings" };
           view = "overview";
           renderSetup();
@@ -3732,7 +3673,7 @@
       }
 
       function enforceAudienceMode() {
-        if (setupAudience === "organization" && setupClientMode === "personal") setupClientMode = "cloud";
+        setupAudience = "individual";
         if (setupClientMode === "personal") setupClientMode = "cloud";
       }
 
@@ -3802,10 +3743,10 @@
           organizationSlug: setupOrganizationSlug
         }).catch((error) => ({
           ok: false,
-          error: error?.message || "Could not reach that OpenLeash API."
+          error: error?.message || "Could not reach that Leash API."
         }));
         if (!result?.ok) {
-          setupRemoteError = result?.error || "Could not reach that OpenLeash API.";
+          setupRemoteError = result?.error || "Could not reach that Leash API.";
           return false;
         }
         setupRemoteBootstrap = result;
@@ -3894,7 +3835,7 @@
             id: policy.id,
             name: policy.name,
             category: categoryForManagedRule(policy),
-            description: policy.description || policy.natural_language_rule || "Managed OpenLeash rule.",
+            description: policy.description || policy.natural_language_rule || "Managed Leash rule.",
             enabled: Boolean(policy.enabled || policy.locked),
             locked: Boolean(policy.locked),
             managedByOrganization: Boolean(policy.managedByOrganization || policy.managed_by_organization)
@@ -4035,7 +3976,7 @@
           <div class="navSection">
             <button type="button" data-view="plugin-marketplace" class="${view === "plugin-marketplace" ? "active" : ""}">
               ${categoryIcon("all")}
-              <span class="navLabel">Add plugins</span>
+              <span class="navLabel">All Features</span>
               <span class="navCount">${escapeHtml(String(availablePlugins().length))}</span>
             </button>
           </div>
@@ -4071,7 +4012,7 @@
       function pluginStatusLabel(plugin) {
         if (plugin?.settings?.runtimeAvailable === false) return "unavailable";
         if (plugin?.organizationPolicy?.mandatory) return "required";
-        return pluginInstalled(plugin) ? "installed" : "available";
+        return pluginInstalled(plugin) ? "enabled" : "disabled";
       }
 
       function clientPluginCategories() {
@@ -4102,17 +4043,14 @@
           slug: pluginView?.packageId || pluginView?.id || "",
           name: pluginView?.displayName || pluginView?.packageId || pluginView?.id || "plugin",
           description: pluginView?.description || "",
-          publisher: pluginView?.author || "Unknown",
+          publisher: "openleash",
           settings: pluginView?.settings || { enabled: Boolean(pluginView?.installed), config: {} },
-          organizationPolicy: pluginView?.organizationPolicy,
           defaultConfig: pluginView?.defaultConfig,
           configSchema: pluginView?.configSchema,
           marketplace: {
             slug: pluginView?.packageId || pluginView?.id || "",
             shortDescription: pluginView?.description || "",
-            developerName: pluginView?.author || "Unknown",
             iconText: pluginView?.iconText,
-            downloadCount: pluginView?.downloadCount || 0,
             category: pluginView?.category
           }
         };
@@ -4240,15 +4178,14 @@
           .sort((left, right) => (debugSort === "oldest" ? 1 : -1) * (new Date(left.createdAt || 0).getTime() - new Date(right.createdAt || 0).getTime()));
         root.innerHTML = `
           <div class="head">
-            <div><h1>Log</h1><p>Plugin run records and local event metadata from this Mac.</p></div>
+            <div><h1>Log</h1><p>Feature run records and local event metadata from this computer.</p></div>
             <div class="headActions">
               ${modeTag()}
-              <button class="secondary" id="openDebugDashboard">Open dashboard log</button>
             </div>
           </div>
           <div class="debugTools">
             <input id="debugSearch" value="${escapeHtml(debugSearch)}" placeholder="Search logs, prompts, output, sessions...">
-            <select id="debugPluginFilter"><option value="all">All plugins</option>${plugins.map((value) => `<option value="${escapeHtml(value)}" ${debugPluginFilter === value ? "selected" : ""}>${escapeHtml(value)}</option>`).join("")}</select>
+            <select id="debugPluginFilter"><option value="all">All Features</option>${plugins.map((value) => `<option value="${escapeHtml(value)}" ${debugPluginFilter === value ? "selected" : ""}>${escapeHtml(value)}</option>`).join("")}</select>
             <select id="debugEventFilter"><option value="all">All events</option>${events.map((value) => `<option value="${escapeHtml(value)}" ${debugEventFilter === value ? "selected" : ""}>${escapeHtml(value)}</option>`).join("")}</select>
             <select id="debugLevelFilter"><option value="all">All levels</option>${levels.map((value) => `<option value="${escapeHtml(value)}" ${debugLevelFilter === value ? "selected" : ""}>${escapeHtml(value)}</option>`).join("")}</select>
             <select id="debugSort"><option value="newest" ${debugSort === "newest" ? "selected" : ""}>Newest first</option><option value="oldest" ${debugSort === "oldest" ? "selected" : ""}>Oldest first</option></select>
@@ -4258,7 +4195,7 @@
               <details class="debugRow" data-debug-row="${escapeHtml(row.id)}" ${openDebugRowIds.has(row.id) ? "open" : ""}>
                 <summary>
                   <span class="debugLevel ${escapeHtml(row.level)}">${escapeHtml(row.level)}</span>
-                  <span class="debugColumn debugPluginColumn"><small>Plugin</small><strong>${escapeHtml(row.pluginId)}</strong></span>
+                  <span class="debugColumn debugPluginColumn"><small>Feature</small><strong>${escapeHtml(row.pluginId)}</strong></span>
                   <span class="debugColumn debugEventColumn"><small>Event</small><strong>${escapeHtml(row.eventName)}</strong></span>
                   <span class="debugColumn debugTimeColumn" title="${escapeHtml(exactTimestamp(row.createdAt))}"><small>Timestamp</small><strong>${escapeHtml(humanTimestamp(row.createdAt))}</strong></span>
                   <span class="debugColumn debugSummaryColumn"><small>Summary</small><strong>${escapeHtml(row.summary)}</strong></span>
@@ -4266,7 +4203,7 @@
                 </summary>
                 <div class="debugDetail">
                   <div class="debugMeta">
-                    <div class="kv"><small>Plugin</small><strong>${escapeHtml(row.pluginId)}</strong></div>
+                    <div class="kv"><small>Feature</small><strong>${escapeHtml(row.pluginId)}</strong></div>
                     <div class="kv"><small>Level</small><strong>${escapeHtml(row.level)}</strong></div>
                     <div class="kv"><small>Agent</small><strong>${escapeHtml(row.agentName || "Unknown")}</strong></div>
                     <div class="kv"><small>Session</small><strong>${escapeHtml(row.sessionId || "Unknown")}</strong></div>
@@ -4281,7 +4218,7 @@
                   <div class="debugPre">${escapeHtml(JSON.stringify(row.raw, null, 2))}</div>
                 </div>
               </details>
-            `).join("") || `<div class="empty">No local plugin debug records yet. The full server-side plugin log stream is available in the dashboard.</div>`}
+            `).join("") || `<div class="empty">No local Feature debug records yet.</div>`}
           </div>
         `;
         const search = document.getElementById("debugSearch");
@@ -4303,11 +4240,6 @@
             else openDebugRowIds.delete(id);
           };
         });
-        const openDebug = document.getElementById("openDebugDashboard");
-        if (openDebug) openDebug.onclick = async () => {
-          const result = await window.openleash.openDebugDashboard();
-          if (!result?.ok) alert(result?.error || "Could not open dashboard debug.");
-        };
       }
 
       function localPluginDebugRows() {
@@ -4542,12 +4474,12 @@
             <div>
               <button id="backSkills" class="secondary">Back</button>
               <h1>${escapeHtml(selected?.skill_name || "Skill")}</h1>
-              <p>${escapeHtml(selected?.purpose_summary || "Skill content scanned by OpenLeash.")}</p>
+              <p>${escapeHtml(selected?.purpose_summary || "Skill content scanned by Leash.")}</p>
             </div>
             ${selected ? `<span class="tag ${selected.status === "suspicious" ? "bad" : "good"}">${escapeHtml(selected.status === "suspicious" ? "review" : "scanned")}</span>` : modeTag()}
           </div>
           <div class="card skillDetailPanel">
-            ${selected ? renderSkillDetail(selected) : `<p>Skill details appear here after OpenLeash detects local agent skills.</p>`}
+            ${selected ? renderSkillDetail(selected) : `<p>Skill details appear here after Leash detects local agent skills.</p>`}
           </div>
         `;
         restoreSkillDocScroll();
@@ -4791,7 +4723,7 @@
       function agentDetails(agent, source) {
         const quote = highlightQuote(source);
         const details = [];
-        if (quote && quote !== "Action captured by OpenLeash") {
+        if (quote && quote !== "Action captured by Leash") {
           details.push({ label: source.event_name === "UserPromptSubmit" ? "Prompt" : "Details", value: truncate(quote, 150) });
         }
         const latest = Array.isArray(agent.recent_activity)
@@ -4815,7 +4747,7 @@
         if ((decision === "allow" || decision === "allowed") && /^allowed\b/i.test(value)) {
           return value.replace(/^allowed\s*[·:-]?\s*/i, "");
         }
-        return value || "Action captured by OpenLeash.";
+        return value || "Action captured by Leash.";
       }
 
       function visibleHistoryItems() {
@@ -4923,7 +4855,7 @@
         const payload = item.payload || {};
         const toolInput = payload.tool?.input;
         const command = typeof toolInput === "object" && toolInput ? (toolInput.command || toolInput.file_path || toolInput.path || toolInput.url) : toolInput;
-        return truncate(String(evidence || command || payload.prompt || item.summary || "Action captured by OpenLeash"), 140);
+        return truncate(String(evidence || command || payload.prompt || item.summary || "Action captured by Leash"), 140);
       }
 
       function filePathForEvent(item) {
@@ -5029,7 +4961,7 @@
           content: message.content || ""
         }));
         return {
-          product: "OpenLeash",
+          product: "Leash",
           exported_at: new Date().toISOString(),
           event: {
             id: item.id,
@@ -5061,7 +4993,7 @@
       async function shareEvent(item) {
         const data = sharePayloadForEvent(item);
         const text = eventJson(item);
-        const title = `OpenLeash event - ${data.event.agent}`;
+        const title = `Leash event - ${data.event.agent}`;
         if (navigator.share && (!navigator.canShare || navigator.canShare({ title, text }))) {
           try {
             await navigator.share({ title, text });
@@ -5100,7 +5032,7 @@
       function renderRules() {
         root.innerHTML = `
           <div class="head">
-            <div><h1>Rules</h1><p>Choose which local safety rules OpenLeash enforces.</p></div>
+            <div><h1>Rules</h1><p>Choose which local safety rules Leash enforces.</p></div>
           </div>
           <div class="grid">${importRulesPanel({ setup: false })}</div>
           <div class="grid ruleGroups">${ruleCards(state.rules, { grouped: true, managed: state.clientMode !== "personal" })}</div>
@@ -5283,7 +5215,7 @@
         const events = session.events || [];
         root.innerHTML = `
           <div class="head">
-            <div><h1>${escapeHtml(session.title || "Agent session")}</h1><p>${escapeHtml(session.summary || "Session captured by OpenLeash.")}</p></div>
+            <div><h1>${escapeHtml(session.title || "Agent session")}</h1><p>${escapeHtml(session.summary || "Session captured by Leash.")}</p></div>
             <button class="secondary" id="backAgents">Back</button>
           </div>
           <div class="sessionHero card">
@@ -5346,7 +5278,7 @@
                 <label class="toggleRow"><input data-proxy-agent="claude-code" type="checkbox" ${(state.proxyStatus?.configuredAgents || []).includes("claude-code") ? "checked" : ""} ${state.proxyStatus?.running ? "" : "disabled"}><span>Proxy</span></label>
               </div>
               <div class="fieldRow">
-                <div><strong>OpenAI Codex</strong><p>Adds a reversible OpenLeash Responses API provider.</p></div>
+                <div><strong>OpenAI Codex</strong><p>Adds a reversible Leash Responses API provider.</p></div>
                 <label class="toggleRow"><input data-proxy-agent="codex" type="checkbox" ${(state.proxyStatus?.configuredAgents || []).includes("codex") ? "checked" : ""} ${state.proxyStatus?.running ? "" : "disabled"}><span>Proxy</span></label>
               </div>
               <div class="fieldRow">
@@ -5358,11 +5290,11 @@
                 <label class="toggleRow"><input data-proxy-agent="nanoclaw" type="checkbox" ${(state.proxyStatus?.configuredAgents || []).includes("nanoclaw") ? "checked" : ""} ${state.proxyStatus?.running ? "" : "disabled"}><span>Proxy</span></label>
               </div>
               <div class="fieldRow">
-                <div><strong>Cursor and Cline</strong><p>Their provider URLs live in editor-managed settings. OpenLeash provides the local endpoint without modifying extension-private state: OpenAI ${escapeHtml("http://127.0.0.1:9320/v1")} · Anthropic ${escapeHtml("http://127.0.0.1:9320")}.</p></div>
+                <div><strong>Cursor and Cline</strong><p>Their provider URLs live in editor-managed settings. Leash provides the local endpoint without modifying extension-private state: OpenAI ${escapeHtml("http://127.0.0.1:9320/v1")} · Anthropic ${escapeHtml("http://127.0.0.1:9320")}.</p></div>
                 <span class="tag">Manual UI</span>
               </div>
               <div class="fieldRow">
-                <div><strong>Copilot and OpenClaw</strong><p>Protected by their OpenLeash hooks. Full provider routing requires a launch environment or runtime gateway plugin.</p></div>
+                <div><strong>Copilot and OpenClaw</strong><p>Protected by their Leash hooks. Full provider routing requires a launch environment or runtime gateway plugin.</p></div>
                 <span class="tag">Hooks</span>
               </div>
               <div class="actions">
@@ -5398,7 +5330,7 @@
             <div class="card dangerZone">
               <div class="dangerGrid">
                 <div>
-                  <strong>Reset OpenLeash</strong>
+                  <strong>Reset Leash</strong>
                   <p>This restarts the desktop app after it finishes.</p>
                 </div>
                 <div class="dangerRow">
@@ -5492,7 +5424,7 @@
         };
         document.getElementById("deleteDataAndSettings").onclick = async () => {
           const result = await window.openleash.deleteDataAndSettings();
-          if (result?.restarting) document.getElementById("settingsMessage").textContent = "Deleting data and settings and restarting OpenLeash...";
+          if (result?.restarting) document.getElementById("settingsMessage").textContent = "Deleting data and settings and restarting Leash...";
         };
       }
 
@@ -5636,14 +5568,8 @@
         return pluginSetupConfigs[pluginId];
       }
 
-      function pluginPopularity(plugin) {
-        return Number(plugin.marketplace?.installCount || plugin.marketplace?.downloadCount || plugin.marketplace?.weeklyDownloadCount || 0);
-      }
-
       function comparePluginPopularity(left, right) {
-        return pluginPopularity(right) - pluginPopularity(left)
-          || Number(left.marketplace?.featuredRank ?? left.featuredRank ?? 9999) - Number(right.marketplace?.featuredRank ?? right.featuredRank ?? 9999)
-          || pluginPackageName(left).localeCompare(pluginPackageName(right));
+        return pluginPackageName(left).localeCompare(pluginPackageName(right));
       }
 
       function setupPluginInstallCards() {
@@ -5656,7 +5582,7 @@
         const plugins = query
           ? categoryFiltered.filter((plugin) => pluginSearchText(plugin).includes(query))
           : categoryFiltered;
-        if (allPlugins.length === 0) return `<div class="card empty">No plugin catalog has been received yet.</div>`;
+        if (allPlugins.length === 0) return `<div class="card empty">No built-in Features were received from the API.</div>`;
         const categories = pluginCategorySummary(allPlugins);
         return `
           <div class="pluginCategoryFilters">
@@ -5668,16 +5594,13 @@
             `).join("")}
           </div>
           <div class="pluginMarketplaceTools">
-            <input id="pluginMarketplaceSearch" value="${escapeHtml(setupPluginSearch)}" placeholder="Search plugins, categories, developers, tags...">
-            ${canAddLocalPluginFolder() ? `<button type="button" class="secondary" data-add-local-plugin-folder>Add/reload local folder</button>` : ""}
+            <input id="pluginMarketplaceSearch" value="${escapeHtml(setupPluginSearch)}" placeholder="Search Features and categories...">
             <span>${plugins.length} of ${categoryFiltered.length} shown</span>
           </div>
           <div class="cardList">
             ${plugins.map((plugin) => {
               const checked = selectedPlugins?.has(plugin.id) ?? Boolean(plugin.organizationPolicy?.mandatory || plugin.settings?.enabled === true);
               const mandatory = Boolean(plugin.organizationPolicy?.mandatory);
-              const developer = plugin.marketplace?.developerName || (plugin.publisher === "openleash" ? "OpenLeash" : plugin.publisher || "Unknown");
-              const downloadCount = Number(plugin.marketplace?.downloadCount || 0);
               const expanded = expandedSetupPlugins.has(plugin.id);
               const category = pluginCategory(plugin);
               const categoryClass = pluginCategoryClass(category);
@@ -5689,8 +5612,6 @@
                     <small>${escapeHtml(pluginName(plugin))}</small>
                     <span>${escapeHtml(plugin.marketplace?.shortDescription || pluginValueLine(plugin))}</span>
                     <span class="pluginStats">
-                      <span class="pluginMetaPill">${metaIcon("author")} ${escapeHtml(developer)}</span>
-                      <span class="pluginMetaPill">${metaIcon("downloads")} ${escapeHtml(compactNumber(downloadCount))} downloads</span>
                       <span class="pluginCategoryTag ${categoryClass}">${categoryIcon(category)} ${escapeHtml(category)}</span>
                     </span>
                     ${expanded ? `
@@ -5702,16 +5623,16 @@
                   </span>
                   <span class="pluginChoice">
                     <label>
-                      <input data-plugin-install="${escapeHtml(plugin.id)}" aria-label="Install ${escapeHtml(pluginName(plugin))}" title="${escapeHtml(plugin.settings?.runtimeError || "")}" type="checkbox" ${checked ? "checked" : ""} ${mandatory || plugin.settings?.runtimeAvailable === false ? "disabled" : ""}>
+                      <input data-plugin-install="${escapeHtml(plugin.id)}" aria-label="Enable ${escapeHtml(pluginName(plugin))}" title="${escapeHtml(plugin.settings?.runtimeError || "")}" type="checkbox" ${checked ? "checked" : ""} ${mandatory || plugin.settings?.runtimeAvailable === false ? "disabled" : ""}>
                       <span class="pluginAction" aria-hidden="true">
                         <span class="pluginActionIcon">${checked ? "-" : "+"}</span>
-                        <span class="pluginActionText">${plugin.settings?.runtimeAvailable === false ? "Unavailable" : mandatory ? "Required" : checked ? "Remove" : "Add"}</span>
+                        <span class="pluginActionText">${plugin.settings?.runtimeAvailable === false ? "Unavailable" : mandatory ? "Required" : checked ? "Disable" : "Enable"}</span>
                       </span>
                     </label>
                   </span>
                 </article>
               `;
-            }).join("") || `<div class="card empty">No plugins match this filter.</div>`}
+            }).join("") || `<div class="card empty">No Features match this filter.</div>`}
           </div>
         `;
       }
@@ -5723,7 +5644,6 @@
           plugin.name,
           plugin.description,
           pluginCategory(plugin),
-          plugin.marketplace?.developerName,
           plugin.marketplace?.shortDescription,
           plugin.marketplace?.longDescription,
           ...(plugin.marketplace?.tags || []),
@@ -5787,7 +5707,7 @@
 
       function setupPluginSettingsCards() {
         const plugins = (state.plugins || []).filter((plugin) => selectedPlugins?.has(plugin.id));
-        if (plugins.length === 0) return `<div class="card empty">No plugins selected. OpenLeash will finish setup without adding pipeline plugins.</div>`;
+        if (plugins.length === 0) return `<div class="card empty">No Features selected. Leash will finish setup with core monitoring only.</div>`;
         return `
           <div class="pluginSettingsGrid">
             ${plugins.sort(comparePluginPopularity).map((plugin) => setupPluginSettingsCard(plugin)).join("")}
@@ -5804,7 +5724,7 @@
                 <strong>${escapeHtml(pluginName(plugin))}</strong>
                 <p>${escapeHtml(pluginValueLine(plugin))}</p>
               </div>
-              <span class="tag good">OpenLeash</span>
+              <span class="tag good">Leash</span>
             </div>
             <div class="pluginSettingFields">
               ${pluginSettingsFields(plugin, config)}
@@ -6049,8 +5969,7 @@
       }
 
       function canAddLocalPluginFolder() {
-        const url = String(setupRemoteApiUrl || state.remoteApiUrl || "");
-        return setupClientMode === "custom" || state.clientMode === "custom" || /https?:\/\/(127\.0\.0\.1|localhost|\[::1\])(?::|\/)/i.test(url);
+        return false;
       }
 
       function bindPluginSettingInputs() {
@@ -6137,10 +6056,10 @@
           ? categories.flatMap((item) => item.plugins || [])
           : (categories.find((item) => item.id === category)?.plugins || []);
         const filtered = (state.viewModel?.pluginCategories ? viewPlugins.map(clientPluginCatalogItem) : viewPlugins).filter(Boolean);
-        const title = category === "all" ? "Plugins" : (categories.find((item) => item.id === category)?.label || categoryLabel(category));
+        const title = category === "all" ? "Features" : (categories.find((item) => item.id === category)?.label || categoryLabel(category));
         root.innerHTML = `
           <div class="head">
-            <div><h1>${escapeHtml(title)}</h1><p>Installed plugins and the outcomes they report to OpenLeash.</p></div>
+            <div><h1>${escapeHtml(title)}</h1><p>Enabled built-in Features and the outcomes they report to Leash.</p></div>
             ${modeTag()}
           </div>
           <div class="grid">
@@ -6158,15 +6077,13 @@
                     <p>${escapeHtml(plugin.marketplace?.shortDescription || plugin.description || "")}</p>
                     <span class="pluginOutcomeMeta">
                       <span class="pluginCategoryTag ${categoryClass}">${categoryIcon(categoryLabel)} ${escapeHtml(categoryLabel)}</span>
-                      <span class="pluginMetaPill">${metaIcon("author")} ${escapeHtml(plugin.publisher === "openleash" ? "OpenLeash" : plugin.publisher || "Unknown")}</span>
-                      <span class="pluginMetaPill">${metaIcon("downloads")} ${escapeHtml(compactNumber(Number(plugin.marketplace?.downloadCount || 0)))} downloads</span>
                     </span>
                   </div>
                   <span class="tag ${pluginInstalled(plugin) ? "good" : ""}">${escapeHtml(pluginStatusLabel(plugin))}</span>
                 </div>
                 <div class="eventMeta" style="margin-top:14px">
                   <span>${escapeHtml(String(outcomes.length))} outcomes</span>
-                  <span>${escapeHtml(pluginEvents(plugin).slice(0, 2).join(", ") || "plugin events")}</span>
+                  <span>${escapeHtml(pluginEvents(plugin).slice(0, 2).join(", ") || "Feature events")}</span>
                   ${latest ? `<span>${escapeHtml(formatTime(latest.occurredAt || latest.createdAt))}</span>` : ""}
                 </div>
                 ${latest ? `
@@ -6176,7 +6093,7 @@
                   </div>
                 ` : `<div class="empty" style="margin-top:12px">No outcomes reported yet.</div>`}
               </article>
-            `}).join("") || `<div class="card empty">No installed plugins in this category.</div>`}
+            `}).join("") || `<div class="card empty">No enabled Features in this category.</div>`}
           </div>
         `;
         bindPluginPageControls();
@@ -6191,7 +6108,7 @@
         const categories = pluginCategorySummary(allPlugins);
         root.innerHTML = `
           <div class="head">
-            <div><h1>Add plugins</h1><p>Search the plugin marketplace and add pipeline plugins to this account.</p></div>
+            <div><h1>Built-in Features</h1><p>Enable first-party capabilities included with this Leash release.</p></div>
             ${modeTag()}
           </div>
           <div class="card">
@@ -6204,13 +6121,11 @@
               `).join("")}
             </div>
             <div class="pluginMarketplaceTools">
-              <input id="pluginMarketplaceSearch" value="${escapeHtml(setupPluginSearch)}" placeholder="Search plugins, categories, developers, tags...">
-              ${canAddLocalPluginFolder() ? `<button type="button" class="secondary" data-add-local-plugin-folder>Add/reload local folder</button>` : ""}
+              <input id="pluginMarketplaceSearch" value="${escapeHtml(setupPluginSearch)}" placeholder="Search Features and categories...">
               <span>${plugins.length} of ${categoryFiltered.length} shown</span>
             </div>
             <div class="cardList">
               ${plugins.map((plugin) => {
-                const developer = plugin.marketplace?.developerName || (plugin.publisher === "openleash" ? "OpenLeash" : plugin.publisher || "Unknown");
                 const categoryLabel = pluginCategory(plugin);
                 const categoryClass = pluginCategoryClass(categoryLabel);
                 return `
@@ -6221,18 +6136,17 @@
                       <small>${escapeHtml(pluginName(plugin))}</small>
                       <span>${escapeHtml(plugin.marketplace?.shortDescription || pluginValueLine(plugin))}</span>
                       <span class="pluginStats">
-                        <span class="pluginMetaPill">${metaIcon("author")} ${escapeHtml(developer)}</span>
                         <span class="pluginCategoryTag ${categoryClass}">${categoryIcon(categoryLabel)} ${escapeHtml(categoryLabel)}</span>
                       </span>
                       ${plugin.settings?.runtimeError ? `<small>${escapeHtml(plugin.settings.runtimeError)}</small>` : ""}
                     </span>
                     <button type="button" class="pluginAction" data-install-marketplace-plugin="${escapeHtml(plugin.id)}" title="${escapeHtml(plugin.settings?.runtimeError || "")}" ${plugin.settings?.runtimeAvailable === false ? "disabled" : ""}>
                       <span class="pluginActionIcon">+</span>
-                      <span class="pluginActionText">${plugin.settings?.runtimeAvailable === false ? "Unavailable" : "Install"}</span>
+                      <span class="pluginActionText">${plugin.settings?.runtimeAvailable === false ? "Unavailable" : "Enable"}</span>
                     </button>
                   </article>
                 `;
-              }).join("") || `<div class="card empty">${allPlugins.length === 0 ? "All available plugins are installed." : "No plugins match this search."}</div>`}
+              }).join("") || `<div class="card empty">${allPlugins.length === 0 ? "All built-in Features are enabled." : "No Features match this search."}</div>`}
             </div>
           </div>
         `;
@@ -6260,8 +6174,8 @@
         const categoryLabel = pluginCategory(plugin);
         const categoryClass = pluginCategoryClass(categoryLabel);
         const installed = pluginInstalled(plugin);
-        const mandatory = Boolean(plugin.organizationPolicy?.mandatory);
-        const locked = Boolean(plugin.organizationPolicy?.configLocked);
+        const mandatory = false;
+        const locked = false;
         const blocked = outcomes.filter((outcome) => String(outcome.decision || outcome.status || "").toLowerCase().includes("block")).length;
         const needsReview = outcomes.filter((outcome) => String(outcome.status || "").toLowerCase().includes("review")).length;
         root.innerHTML = `
@@ -6276,12 +6190,12 @@
             </div>
             <div class="actions">
               <span class="pluginCategoryTag ${categoryClass}">${categoryIcon(categoryLabel)} ${escapeHtml(categoryLabel)}</span>
-              <button id="togglePluginInstall" class="${installed ? "secondary" : "primary"}" title="${escapeHtml(plugin.settings?.runtimeError || "")}" ${mandatory || plugin.settings?.runtimeAvailable === false ? "disabled" : ""}>${escapeHtml(plugin.settings?.runtimeAvailable === false ? "Unavailable here" : mandatory ? "Required by org" : installed ? "Remove" : "Add")}</button>
+              <button id="togglePluginInstall" class="${installed ? "secondary" : "primary"}" title="${escapeHtml(plugin.settings?.runtimeError || "")}" ${plugin.settings?.runtimeAvailable === false ? "disabled" : ""}>${escapeHtml(plugin.settings?.runtimeAvailable === false ? "Unavailable here" : installed ? "Disable" : "Enable")}</button>
             </div>
           </div>
           <div id="pluginDetailPageStatus" class="detailSettingStatus">${escapeHtml(plugin.settings?.runtimeError || "")}</div>
           <div class="eventMeta" style="margin-top:12px">
-            <span class="pluginMetaPill">${metaIcon("author")} ${escapeHtml(plugin.publisher === "openleash" ? "OpenLeash" : plugin.publisher || "Unknown")}</span>
+            <span class="pluginMetaPill">Built into Leash</span>
             <span>v${escapeHtml(plugin.version || "0.0.0")}</span>
             <span>${escapeHtml(pluginStatusLabel(plugin))}</span>
           </div>
@@ -6296,7 +6210,7 @@
               <div class="fieldRow">
                 <div>
                   <strong>Insights</strong>
-                  <p>Signals and trends reported by this plugin for this account.</p>
+                  <p>Signals and trends reported by this Feature for your account.</p>
                 </div>
                 <span class="tag good">${escapeHtml(String(outcomes.length))}</span>
               </div>
@@ -6314,7 +6228,7 @@
               <div class="fieldRow">
                 <div>
                   <strong>Outcomes</strong>
-                  <p>Events this plugin has reported for your account.</p>
+                  <p>Events this Feature has reported for your account.</p>
                 </div>
                 <span class="tag good">${escapeHtml(String(outcomes.length))}</span>
               </div>
@@ -6328,7 +6242,7 @@
               <div class="pluginDetailHeader">
                 <div>
                   <strong>Settings</strong>
-                  <p>${locked ? "Managed by your organization." : installed ? "Config applied to this user." : "Install this plugin before editing settings."}</p>
+                  <p>${installed ? "Configuration applied to your account." : "Enable this Feature before editing settings."}</p>
                 </div>
                 <span class="tag ${locked ? "" : "good"}">${escapeHtml(locked ? "locked" : "editable")}</span>
               </div>
@@ -6357,21 +6271,21 @@
         const toggleInstall = document.getElementById("togglePluginInstall");
         if (toggleInstall && !mandatory) {
           toggleInstall.onclick = async () => {
-            if (installed && !confirm(`Remove ${pluginPackageName(plugin)} from this account?`)) return;
+            if (installed && !confirm(`Disable ${pluginPackageName(plugin)} for this account?`)) return;
             toggleInstall.disabled = true;
-            toggleInstall.textContent = installed ? "Removing..." : "Adding...";
+            toggleInstall.textContent = installed ? "Disabling..." : "Enabling...";
             const result = await window.openleash.savePluginSettings({
               pluginId: plugin.id,
               enabled: !installed,
               config: effectivePluginConfig(plugin),
               orderingPriority: plugin.settings?.orderingPriority ?? plugin.ordering?.priority ?? null,
               marketplace: plugin.marketplace || null
-            }).catch((error) => ({ ok: false, error: error?.message || "Could not update plugin." }));
+            }).catch((error) => ({ ok: false, error: error?.message || "Could not update Feature." }));
             if (!result?.ok) {
               const status = document.getElementById("pluginDetailSaveStatus") || document.getElementById("pluginDetailPageStatus");
-              if (status) status.textContent = result?.error || "Could not update plugin.";
+              if (status) status.textContent = result?.error || "Could not update Feature.";
               toggleInstall.disabled = false;
-              toggleInstall.textContent = installed ? "Remove" : "Add";
+              toggleInstall.textContent = installed ? "Disable" : "Enable";
               return;
             }
             state.plugins = (state.plugins || []).map((item) => item.id === plugin.id
@@ -6399,7 +6313,7 @@
             <div>
               <button id="backPluginDetailFromImport" class="secondary">Back</button>
               <h1>Import instruction rules</h1>
-              <p>Select the rules OpenLeash should enforce from scanned agent instruction files.</p>
+              <p>Select the rules Leash should enforce from scanned agent instruction files.</p>
             </div>
             <span class="tag good">${escapeHtml(String(selectedCount))} selected</span>
           </div>
@@ -6605,7 +6519,7 @@
             </div>
             <div class="fieldRow" style="margin-top:12px">
               ${projectScoped ? `
-                <label><strong>Detected projects</strong><select class="detailSettingInput" data-profile-project-paths multiple size="${Math.max(3, Math.min(6, projects.length || 3))}" ${disabled ? "disabled" : ""}>${projects.map((project) => `<option value="${escapeHtml(project.path)}" ${(profile.projectPaths || []).map(normalizeProjectScopePath).includes(project.path) ? "selected" : ""}>${escapeHtml(project.name)} — ${escapeHtml(project.path)}</option>`).join("")}</select><small>${projects.length ? "Select one or more projects OpenLeash has seen." : "No projects detected yet; add a path below."}</small></label>
+                <label><strong>Detected projects</strong><select class="detailSettingInput" data-profile-project-paths multiple size="${Math.max(3, Math.min(6, projects.length || 3))}" ${disabled ? "disabled" : ""}>${projects.map((project) => `<option value="${escapeHtml(project.path)}" ${(profile.projectPaths || []).map(normalizeProjectScopePath).includes(project.path) ? "selected" : ""}>${escapeHtml(project.name)} — ${escapeHtml(project.path)}</option>`).join("")}</select><small>${projects.length ? "Select one or more projects Leash has seen." : "No projects detected yet; add a path below."}</small></label>
                 <label><strong>Add project paths manually</strong><textarea class="detailSettingInput" data-profile-manual-project-paths placeholder="/Users/you/Code/my-project" ${disabled ? "disabled" : ""}>${escapeHtml(manualPaths.join("\n"))}</textarea><small>One project root per line. Work inside subfolders also matches.</small></label>
               ` : `
                 <label><strong>Agent types</strong><select class="detailSettingInput" data-profile-agent-kinds multiple size="5" ${disabled ? "disabled" : ""}>${profileAgentKinds.map((kind) => `<option value="${kind}" ${(profile.agentKinds || []).includes(kind) ? "selected" : ""}>${escapeHtml(settingLabel(kind))}</option>`).join("")}</select><small>No selection means every agent type.</small></label>
@@ -7107,7 +7021,7 @@
         if (other.length > 0) {
           groups.push({
             title: "Custom rules",
-            description: "Rules imported locally or added by your OpenLeash administrator.",
+            description: "Rules imported locally or added by your Leash administrator.",
             ids: other.map((rule) => rule.id),
             first: groups.length === 0,
             rules: other
@@ -7285,7 +7199,7 @@
         setupInstallProgress = {
           percent: Math.max(0, Math.min(100, Number(payload.percent || 0))),
           stage: String(payload.stage || "prepare"),
-          title: String(payload.title || "Installing OpenLeash"),
+          title: String(payload.title || "Installing Leash"),
           detail: String(payload.detail || "Applying protection to this Mac...")
         };
         renderSetup();
@@ -7310,7 +7224,7 @@
           void loadManagedRules().then(() => {
             if (shouldAutoFinishAfterRemoteAuth()) {
               setupSkipDashboardOpenAfterInstall = true;
-              setupRemoteNotice = "Installing OpenLeash on this Mac...";
+              setupRemoteNotice = "Installing Leash on this Mac...";
               renderSetup();
               void finishSetup();
               return;

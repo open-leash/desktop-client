@@ -43,7 +43,6 @@ import {
   OPENLEASH_DESKTOP_GOOGLE_REDIRECT_URI,
   OPENLEASH_DESKTOP_MICROSOFT_REDIRECT_URI,
   OPENLEASH_PUBLIC_CLOUD_API_URL,
-  OPENLEASH_PUBLIC_CLOUD_DASHBOARD_URL,
 } from "./public-config";
 import type { PluginCatalogItem } from "./plugin-catalog";
 import { canonicalPluginSlug } from "./plugin-slug";
@@ -60,10 +59,6 @@ import {
   uninstallLocalProxy,
   type LocalProxyStatus,
 } from "./proxy-manager";
-import {
-  reconcilePluginContainers,
-  type PluginContainerProgress,
-} from "./plugin-container-manager";
 import { pendingIntentKey as stablePendingIntentKey } from "./intent-dedupe";
 import {
   activeAgentSessions,
@@ -109,7 +104,7 @@ import {
   ruleCandidatesFromMarkdown,
 } from "./instruction-rules";
 
-const APP_DISPLAY_NAME = app.isPackaged ? "OpenLeash" : "OpenLeash (Dev)";
+const APP_DISPLAY_NAME = app.isPackaged ? "Leash" : "Leash (Dev)";
 let proxyStatus: LocalProxyStatus = {
   dockerAvailable: false,
   containerInstalled: false,
@@ -128,8 +123,7 @@ function pluginFingerprint(plugins: PluginCatalogItem[]) {
     plugin.settings?.enabled,
     plugin.settings?.installedVersion,
     plugin.settings?.config,
-    plugin.execution?.image,
-    plugin.execution?.digest,
+    plugin.execution?.type === "in-process" ? plugin.execution.handler : undefined,
   ]));
 }
 
@@ -347,11 +341,6 @@ const apiUrl = OPENLEASH_DESKTOP_API_URL;
 const cloudApiUrl =
   process.env.OPENLEASH_CLOUD_API_URL ??
   (app.isPackaged ? OPENLEASH_PUBLIC_CLOUD_API_URL : localDevCloudApiUrl);
-const publicPluginCatalogApiUrl =
-  process.env.OPENLEASH_PUBLIC_PLUGIN_CATALOG_API_URL ?? cloudApiUrl;
-const cloudDashboardUrl =
-  process.env.OPENLEASH_CLOUD_DASHBOARD_URL ??
-  OPENLEASH_PUBLIC_CLOUD_DASHBOARD_URL;
 const cloudDevAuth = process.env.OPENLEASH_MOBILE_DEV_AUTH === "1";
 const cloudDevAuthEmail =
   process.env.OPENLEASH_MOBILE_DEV_EMAIL ?? "mobile.user@openleash.com";
@@ -408,8 +397,6 @@ let latestViewModel: OpenLeashClientViewModel | undefined;
 let monitoringManagedByOrganization = false;
 let latestAttentionEvents: AttentionEvent[] = [];
 let latestIslandContributions: PluginIslandContribution[] = [];
-let pluginInstallContribution: PluginIslandContribution | undefined;
-let pluginInstallContributionTimer: NodeJS.Timeout | undefined;
 const seenAttentionEventIds = new Set<string>();
 const soundedActionableNoticeKeys = new Set<string>();
 const desktopStartedAt = Date.now();
@@ -443,15 +430,15 @@ function remoteApiError(
     )
   ) {
     if (localDevApi && !app.isPackaged) {
-      return `OpenLeash Cloud client API is not running at ${remoteApiUrl}. Start the local OpenLeash Cloud dev stack, then try again.`;
+      return `Leash Cloud client API is not running at ${remoteApiUrl}. Start the local Leash Cloud dev stack, then try again.`;
     }
     if (localDevApi) {
-      return "OpenLeash Cloud is temporarily unreachable. Check your connection and try again.";
+      return "Leash Cloud is temporarily unreachable. Check your connection and try again.";
     }
     if (remoteApiUrl === OPENLEASH_PUBLIC_CLOUD_API_URL) {
-      return `Could not reach OpenLeash Cloud at ${remoteApiUrl}. Check your connection and try again.`;
+      return `Could not reach Leash Cloud at ${remoteApiUrl}. Check your connection and try again.`;
     }
-    return `Could not reach OpenLeash at ${remoteApiUrl}. Check the API URL and network, then try again.`;
+    return `Could not reach Leash at ${remoteApiUrl}. Check the API URL and network, then try again.`;
   }
   return raw || fallback;
 }
@@ -726,7 +713,7 @@ function syncInstallIdentity() {
 }
 
 startupLog(`main loaded argv=${process.argv.join(" ")}`);
-app.setName("OpenLeash");
+app.setName("Leash");
 app.setAsDefaultProtocolClient("openleash");
 app.setAboutPanelOptions({ applicationName: APP_DISPLAY_NAME });
 
@@ -762,7 +749,7 @@ if (singleInstanceLock) app
     if (process.argv.includes("--cleanup-integrations")) {
       const cleanup = await cleanupDesktopIntegrations();
       if (!cleanup.ok) {
-        console.error(`OpenLeash integration cleanup failed: ${cleanup.errors.join("; ")}`);
+        console.error(`Leash integration cleanup failed: ${cleanup.errors.join("; ")}`);
       }
       app.exit(cleanup.ok ? 0 : 1);
       return;
@@ -818,13 +805,7 @@ if (singleInstanceLock) app
       await installLeashCli();
       startupLog("client integration config refreshed");
     }
-    const startupPluginStatuses = await reconcilePluginContainers(localServer.plugins);
-    localServer.syncPluginRuntimeStatuses(startupPluginStatuses);
     pluginContainerFingerprint = pluginFingerprint(localServer.plugins);
-    const unhealthyStartupPlugins = startupPluginStatuses.filter((status) => !status.healthy);
-    if (unhealthyStartupPlugins.length > 0) {
-      startupLog(`plugin containers unhealthy at startup: ${unhealthyStartupPlugins.map((status) => `${status.pluginId}: ${status.error}`).join(", ")}`);
-    }
     await migrateLocalDevCloudTarget();
     const cliResult = handleCliRuleImport();
     if (cliResult && cliResult.exitAfter) {
@@ -1004,7 +985,7 @@ ipcMain.handle(
         error: remoteApiError(
           error,
           remoteApiUrl,
-          "Could not reach that OpenLeash API.",
+          "Could not reach that Leash API.",
         ),
       };
     }
@@ -1058,57 +1039,6 @@ ipcMain.handle(
     }
   },
 );
-ipcMain.handle(
-  "openleash:start-org-cloud-onboarding",
-  async (_event, payload: { provider?: "google" | "microsoft" }) => {
-    try {
-      keepDockIconForSetup();
-      const provider =
-        payload.provider === "microsoft" ? "microsoft" : "google";
-      const dashboardUrl = new URL(
-        cloudDashboardUrl.replace(/\/$/, "") || "http://localhost:9300",
-      );
-      dashboardUrl.pathname = "/auth/cloud/start";
-      dashboardUrl.searchParams.set("provider", provider);
-      dashboardUrl.searchParams.set("desktop", "1");
-      await openTrustedExternalUrl(dashboardUrl.toString());
-      keepDockIconForSetup();
-      return { ok: true };
-    } catch (error) {
-      return {
-        ok: false,
-        error:
-          error instanceof Error
-            ? error.message
-            : "Could not open OpenLeash Cloud sign-in.",
-      };
-    }
-  },
-);
-
-ipcMain.handle("openleash:open-debug-dashboard", async () => {
-  try {
-    const dashboardUrl = new URL(
-      cloudDashboardUrl.replace(/\/$/, "") || "http://localhost:9300",
-    );
-    const slug = localServer?.remoteOrganization;
-    dashboardUrl.pathname =
-      slug && !dashboardUrl.pathname.includes(slug)
-        ? `/${encodeURIComponent(slug)}/log`
-        : "/log";
-    await openTrustedExternalUrl(dashboardUrl.toString());
-    return { ok: true };
-  } catch (error) {
-    return {
-      ok: false,
-      error:
-        error instanceof Error
-          ? error.message
-          : "Could not open Log in the dashboard.",
-    };
-  }
-});
-
 async function fetchMobileBootstrap(
   remoteApiUrl: string,
   organizationSlug?: string,
@@ -1243,7 +1173,7 @@ async function enrollDesktopEndpoint(
         error:
           body.error ||
           body.message ||
-          "Could not enroll this Mac with OpenLeash.",
+          "Could not enroll this computer with Leash.",
       };
     }
     return { ok: true, token: body.token, user: body.user };
@@ -1253,7 +1183,7 @@ async function enrollDesktopEndpoint(
       error: remoteApiError(
         error,
         remoteApiUrl,
-        "Could not enroll this Mac with OpenLeash.",
+        "Could not enroll this computer with Leash.",
       ),
     };
   }
@@ -1362,7 +1292,7 @@ ipcMain.handle(
     if (!response.ok)
       return {
         ok: false,
-        error: body.error || "Could not load managed OpenLeash state.",
+        error: body.error || "Could not load managed Leash state.",
       };
     return { ok: true, ...body };
   },
@@ -1433,86 +1363,10 @@ ipcMain.handle(
   },
 );
 ipcMain.handle("openleash:import-local-plugin-folder", async () => {
-  const remoteApiUrl = normalizeRemoteApiUrl(
-    localServer.remoteApiUrl || cloudApiUrl,
-  );
-  if (!isLocalApiUrl(remoteApiUrl)) {
-    return {
-      ok: false,
-      error:
-        "Local plugin folders can only be added to a local OpenLeash backend.",
-    };
-  }
-  const token = localServer.effectiveToken;
-  if (!token) return { ok: false, error: "Local backend auth is not ready." };
-  const selected = window
-    ? await dialog.showOpenDialog(window, {
-        title: "Add local OpenLeash plugin",
-        buttonLabel: "Add plugin",
-        properties: ["openDirectory"],
-      })
-    : await dialog.showOpenDialog({
-        title: "Add local OpenLeash plugin",
-        buttonLabel: "Add plugin",
-        properties: ["openDirectory"],
-      });
-  if (selected.canceled || !selected.filePaths[0])
-    return { ok: false, canceled: true };
-  try {
-    const marketplace = await readLocalPluginFolderListing(
-      selected.filePaths[0],
-    );
-    const response = await fetch(
-      new URL(
-        `/v1/plugins/${encodeURIComponent(String(marketplace.id))}/settings`,
-        remoteApiUrl,
-      ),
-      {
-        method: "POST",
-        headers: {
-          "content-type": "application/json",
-          authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          enabled: true,
-          config: marketplace.defaultConfig ?? {},
-          orderingPriority:
-            typeof marketplace.ordering?.priority === "number"
-              ? marketplace.ordering.priority
-              : undefined,
-          marketplace,
-        }),
-      },
-    );
-    const body = await response.json().catch(() => ({}));
-    if (!response.ok)
-      return { ok: false, error: body.error || "Could not add local plugin." };
-    latestPlugins = await fetchRemotePluginCatalog(
-      remoteApiUrl,
-      token,
-      latestPlugins,
-    );
-    const runtimeStatuses = await reconcilePluginContainers(latestPlugins);
-    const runtimeStatus = runtimeStatuses.find(
-      (status) => status.pluginId === marketplace.id,
-    );
-    window?.webContents.send("openleash:update", { plugins: latestPlugins });
-    return {
-      ok: true,
-      pluginId: marketplace.id,
-      plugin: marketplace,
-      settings: body.settings,
-      runtimeStatus,
-    };
-  } catch (error) {
-    return {
-      ok: false,
-      error:
-        error instanceof Error
-          ? error.message
-          : "Could not add local plugin folder.",
-    };
-  }
+  return {
+    ok: false,
+    error: "Leash Features are built into client-api. Add new first-party handlers in the backend source tree.",
+  };
 });
 ipcMain.handle("openleash:docker-status", async () => {
   selfHostedRuntime = await checkSelfHostedRuntime();
@@ -1639,12 +1493,11 @@ ipcMain.handle(
     sendSetupProgress({
       percent: 18,
       stage: "connect",
-      title: "Connecting OpenLeash",
+      title: "Connecting Leash",
       detail: "Validating your account and backend connection...",
     });
     const clientMode = payload.clientMode === "custom" ? "custom" : "cloud";
-    const audience =
-      payload.audience === "organization" ? "organization" : "individual";
+    const audience = "individual" as const;
     const apiKey = String(payload.apiKey ?? "").trim();
     let remoteToken = payload.remoteToken || desktopAuthSession?.token;
     const remoteApiUrl = normalizeRemoteApiUrl(
@@ -1658,19 +1511,7 @@ ipcMain.handle(
       remoteToken = localServer.token;
     }
     if (!remoteToken)
-      return { ok: false, error: "Sign in before installing OpenLeash." };
-  // Guard invariant: clientMode === "cloud" && audience === "organization"; solo users never open the dashboard.
-  if (
-    clientMode === "cloud" &&
-      audience === "organization" &&
-      isPersonalEmailDomain(payload.remoteUser || desktopAuthSession?.userEmail)
-    ) {
-      return {
-        ok: false,
-        error:
-          "Use your company Google Workspace or Microsoft 365 account, not a personal email address.",
-      };
-    }
+      return { ok: false, error: "Sign in before installing Leash." };
     let enrolledRemoteUser =
       payload.remoteUser ||
       desktopAuthSession?.userName ||
@@ -1836,43 +1677,29 @@ ipcMain.handle(
     sendSetupProgress({
       percent: 94,
       stage: "verify",
-      title: "Verifying plugin containers",
-      detail: "Checking health, authentication, and protocol responses for every enabled plugin...",
+      title: "Verifying built-in Features",
+      detail: "Checking the API registry and handler for every enabled Feature...",
     });
     latestPlugins = await fetchRemotePluginCatalog(
       remoteApiUrl,
       remoteToken,
       latestPlugins,
     );
-    let failedLocalPluginContainers = 0;
-    const localPluginStatuses = await reconcilePluginContainers(
-      latestPlugins,
-      (progress) => {
-        if (progress.phase === "failed") failedLocalPluginContainers += 1;
-        presentPluginInstallProgress(progress, failedLocalPluginContainers);
-      },
-    );
-    localServer.syncPluginRuntimeStatuses(localPluginStatuses);
     pluginContainerFingerprint = pluginFingerprint(latestPlugins);
-    for (const status of localPluginStatuses.filter((item) => !item.healthy)) {
-      agentSetupErrors.push(
-        `${status.pluginId}: local container verification failed (${status.error || "not healthy"})`,
-      );
-    }
     const remotePluginVerification = await verifyRemotePluginRuntimes(
       remoteApiUrl,
       remoteToken,
     );
     if (!remotePluginVerification.ok) {
       agentSetupErrors.push(
-        `managed plugin runtime verification failed (${remotePluginVerification.error || "unknown error"})`,
+        `Feature runtime verification failed (${remotePluginVerification.error || "unknown error"})`,
       );
     }
     if (agentSetupErrors.length > 0) {
       localServer.markSetupIncomplete();
       return {
         ok: false,
-        error: `OpenLeash could not finish installation. ${[
+        error: `Leash could not finish installation. ${[
           ...new Set(agentSetupErrors),
         ].join(" ")}`,
       };
@@ -1881,31 +1708,14 @@ ipcMain.handle(
       percent: 96,
       stage: "verify",
       title: "Finishing installation",
-      detail: "Starting protection and preparing your OpenLeash workspace...",
+      detail: "Starting protection and preparing your Leash workspace...",
     });
     app.setLoginItemSettings({
       openAtLogin: true,
       openAsHidden: true,
       name: APP_DISPLAY_NAME,
     });
-    let desktopMessage: string | undefined = proxyInstallError;
-    if (
-      clientMode === "cloud" &&
-      audience === "organization" &&
-      !payload.skipDashboardOpen
-    ) {
-      const dashboardUrl = new URL(
-        cloudDashboardUrl.replace(/\/$/, "") || "http://localhost:9300",
-      );
-      dashboardUrl.pathname = "/onboarding";
-      await openTrustedExternalUrl(dashboardUrl.toString());
-      desktopMessage = [
-        "Complete the onboarding of your org in the browser.",
-        proxyInstallError,
-      ]
-        .filter(Boolean)
-        .join(" ");
-    }
+    const desktopMessage: string | undefined = proxyInstallError;
     startProtectionIntegrityGuard();
     refreshMenu();
     const setupState = {
@@ -1941,16 +1751,16 @@ ipcMain.handle(
     window?.webContents.send("openleash:update", setupState);
     showDecisionNotice({
       kind: "install_success",
-      agentName: "OpenLeash",
+      agentName: "Leash",
       title: "Installation complete",
-      summary: "OpenLeash installed",
+      summary: "Leash installed",
       restartTargets: detectRunningAgentRestartTargets(selectedAgents),
     });
     sendSetupProgress({
       percent: 100,
       stage: "complete",
       title: "Protection active",
-      detail: "OpenLeash is installed and ready.",
+      detail: "Leash is installed and ready.",
     });
     return { ok: true, ...setupState };
   },
@@ -2073,7 +1883,7 @@ ipcMain.handle("openleash:delete-data", async () => {
     defaultId: 1,
     cancelId: 1,
     title: "Delete local data?",
-    message: "Delete OpenLeash local activity data?",
+    message: "Delete Leash local activity data?",
     detail:
       "This clears local history, approvals, and recorded agent activity on this Mac. Your setup, rules, and API key stay in place.",
   };
@@ -2091,10 +1901,10 @@ ipcMain.handle("openleash:delete-settings", async () => {
     buttons: ["Delete settings and restart", "Cancel"],
     defaultId: 1,
     cancelId: 1,
-    title: "Delete OpenLeash settings?",
-    message: "Delete OpenLeash settings?",
+    title: "Delete Leash settings?",
+    message: "Delete Leash settings?",
     detail:
-      "This clears setup, selected agents, rules, provider choice, and saved API key on this Mac. OpenLeash will restart into the setup wizard.",
+      "This clears setup, selected agents, rules, provider choice, and saved API key on this Mac. Leash will restart into the setup wizard.",
   };
   const choice = window
     ? await dialog.showMessageBox(window, options)
@@ -2111,10 +1921,10 @@ ipcMain.handle("openleash:delete-data-and-settings", async () => {
     buttons: ["Delete data and settings", "Cancel"],
     defaultId: 1,
     cancelId: 1,
-    title: "Delete OpenLeash data and settings?",
-    message: "Delete OpenLeash data and settings?",
+    title: "Delete Leash data and settings?",
+    message: "Delete Leash data and settings?",
     detail:
-      "This clears local history, approvals, recorded agent activity, setup, selected agents, rules, provider choice, and saved API key on this Mac. OpenLeash will restart into the setup wizard.",
+      "This clears local history, approvals, recorded agent activity, setup, selected agents, rules, provider choice, and saved API key on this Mac. Leash will restart into the setup wizard.",
   };
   const choice = window
     ? await dialog.showMessageBox(window, options)
@@ -2151,7 +1961,7 @@ ipcMain.handle(
     payload: { replace?: boolean; save?: boolean; currentRules?: Policy[] },
   ) => {
     const options: OpenDialogOptions = {
-      title: "Import OpenLeash rules",
+      title: "Import Leash rules",
       buttonLabel: "Import rules",
       properties: ["openFile"],
       filters: [
@@ -2456,20 +2266,7 @@ async function poll() {
     latestSessionMetrics = body.sessionMetrics ?? {};
     latestPlugins = body.plugins;
     localServer.syncPlugins(latestPlugins);
-    const nextPluginContainerFingerprint = pluginFingerprint(latestPlugins);
-    if (nextPluginContainerFingerprint !== pluginContainerFingerprint) {
-      let failedPluginContainers = 0;
-      const statuses = await reconcilePluginContainers(latestPlugins, (progress) => {
-        if (progress.phase === "failed") failedPluginContainers += 1;
-        presentPluginInstallProgress(progress, failedPluginContainers);
-      });
-      localServer.syncPluginRuntimeStatuses(statuses);
-      const failed = statuses.filter((status) => !status.healthy);
-      if (failed.length > 0) {
-        startupLog(`plugin containers unhealthy: ${failed.map((status) => `${status.pluginId}: ${status.error}`).join(", ")}`);
-      }
-      pluginContainerFingerprint = nextPluginContainerFingerprint;
-    }
+    pluginContainerFingerprint = pluginFingerprint(latestPlugins);
     latestOutcomes = body.outcomes ?? [];
     latestViewModel = body.viewModel ?? latestViewModel;
     if (typeof body.managedByOrganization === "boolean")
@@ -2812,12 +2609,7 @@ async function fetchRemotePluginCatalog(
     });
     if (!response.ok) return fallback;
     const body = (await response.json()) as { plugins?: PluginCatalogItem[] };
-    const plugins = (Array.isArray(body.plugins) ? body.plugins : fallback).map(
-      withDevelopmentPluginImage,
-    );
-    if (isLocalApiUrl(remoteApiUrl))
-      return await mergePublicCloudPluginCatalog(plugins);
-    return plugins;
+    return Array.isArray(body.plugins) ? body.plugins : fallback;
   } catch {
     return fallback;
   }
@@ -2898,7 +2690,7 @@ function withDevelopmentPluginImage(plugin: PluginCatalogItem): PluginCatalogIte
 async function mergePublicCloudPluginCatalog(plugins: PluginCatalogItem[]) {
   try {
     const response = await fetch(
-      new URL("/public/plugins", publicPluginCatalogApiUrl),
+      new URL("/public/plugins", cloudApiUrl),
       {
         headers: apiVersionHeaders("tenantPluginsRead"),
       },
@@ -2956,7 +2748,7 @@ function publicListingToPluginCatalogItem(
   const description =
     optionalText(listing.description) ||
     optionalText(listing.shortDescription) ||
-    "OpenLeash plugin.";
+    "Leash plugin.";
   const version = optionalText(listing.version) || "0.0.0";
   const publisher = optionalText(listing.publisher) || "openleash";
   const runtime = optionalText(listing.runtime);
@@ -3045,7 +2837,7 @@ async function readLocalPluginFolderListing(
   }
   if (runtime !== "container" || entrypoint !== "container" || !containerExecutionFromListing(manifest.execution)) {
     throw new Error(
-      "OpenLeash plugins must use the container runtime and provide execution.image, execution.protocol, and execution.eventPath.",
+      "Leash plugins must use the container runtime and provide execution.image, execution.protocol, and execution.eventPath.",
     );
   }
   const slug = slugifyLocalPlugin(optionalText(manifest.slug) || name || id);
@@ -3066,7 +2858,7 @@ async function readLocalPluginFolderListing(
     reviewStatus: "approved",
     developerName:
       optionalText(manifest.developerName) ||
-      (publisher === "openleash" ? "OpenLeash" : "Local"),
+      (publisher === "openleash" ? "Leash" : "Local"),
     shortDescription,
     longDescription: optionalText(manifest.longDescription) || description,
     heroTagline: optionalText(manifest.heroTagline) || shortDescription,
@@ -3371,7 +3163,7 @@ function mapRemoteMobileState(state: RemoteMobileState): {
     pending: (state.pendingApprovals ?? []).map((item) => ({
       id: item.id,
       question: item.question,
-      summary: item.summary ?? item.question ?? "OpenLeash approval needed.",
+      summary: item.summary ?? item.question ?? "Leash approval needed.",
       agent_name: item.agent_name ?? "AI agent",
       agent_kind: item.agent_kind ?? "unknown",
       hostname: item.hostname ?? "cloud",
@@ -3491,7 +3283,7 @@ async function syncRemoteDecision(
     },
   );
   if (!response.ok)
-    throw new Error(`OpenLeash could not resolve approval ${id}.`);
+    throw new Error(`Leash could not resolve approval ${id}.`);
 }
 
 function cleanResolutionGuidance(value?: string) {
@@ -3514,7 +3306,7 @@ function handleCliRuleImport() {
       args.includes("--replace-rules") || args.includes("--rules-replace");
     const policies = localServer.importPolicies(input, replace);
     console.log(
-      `OpenLeash imported ${policies.length} rule${policies.length === 1 ? "" : "s"} from ${importPath}.`,
+      `Leash imported ${policies.length} rule${policies.length === 1 ? "" : "s"} from ${importPath}.`,
     );
     return {
       ok: true,
@@ -3523,7 +3315,7 @@ function handleCliRuleImport() {
     };
   } catch (error) {
     console.error(
-      `OpenLeash rule import failed: ${error instanceof Error ? error.message : "unknown error"}`,
+      `Leash rule import failed: ${error instanceof Error ? error.message : "unknown error"}`,
     );
     return { ok: false, exitAfter: true };
   }
@@ -3570,7 +3362,7 @@ async function handleCliEnrollment() {
   const deploymentToken =
     readCliValue(args, "--token") ?? readCliValue(args, "--deployment-token");
   if (!tenant || !deploymentToken) {
-    console.error("OpenLeash enrollment requires --tenant and --token.");
+    console.error("Leash enrollment requires --tenant and --token.");
     return { ok: false, exitAfter: true };
   }
   const enrollmentApiUrl =
@@ -3596,7 +3388,7 @@ async function handleCliEnrollment() {
     const body = await response.json().catch(() => ({}));
     if (!response.ok || !body.token) {
       console.error(
-        `OpenLeash enrollment failed: ${body.error ?? response.statusText}`,
+        `Leash enrollment failed: ${body.error ?? response.statusText}`,
       );
       return { ok: false, exitAfter: true };
     }
@@ -3630,7 +3422,7 @@ async function handleCliEnrollment() {
       name: APP_DISPLAY_NAME,
     });
     console.log(
-      `OpenLeash Client enrolled ${os.hostname()} with ${body.tenantUrl ?? tenant}.`,
+      `Leash Client enrolled ${os.hostname()} with ${body.tenantUrl ?? tenant}.`,
     );
     return {
       ok: true,
@@ -3639,7 +3431,7 @@ async function handleCliEnrollment() {
     };
   } catch (error) {
     console.error(
-      `OpenLeash enrollment failed: ${error instanceof Error ? error.message : "unknown error"}`,
+      `Leash enrollment failed: ${error instanceof Error ? error.message : "unknown error"}`,
     );
     return { ok: false, exitAfter: true };
   }
@@ -3705,7 +3497,7 @@ async function handleCliClientConfig() {
       await unprotectAgentKind(agent);
     }
   }
-  console.log(`OpenLeash Client configured for ${clientApiUrl}.`);
+  console.log(`Leash Client configured for ${clientApiUrl}.`);
   return {
     ok: true,
     exitAfter:
@@ -3759,7 +3551,7 @@ async function checkForUpdates(options: {
           type: "info",
           message: "Automatic updates are disabled",
           detail:
-            "This OpenLeash install is configured for manual or private update distribution.",
+            "This Leash install is configured for manual or private update distribution.",
         });
       }
       return true;
@@ -3770,8 +3562,8 @@ async function checkForUpdates(options: {
       if (!options.silent && options.source !== "auto") {
         await dialog.showMessageBox({
           type: "info",
-          message: "OpenLeash is up to date",
-          detail: `You are running OpenLeash ${app.getVersion()}.`,
+          message: "Leash is up to date",
+          detail: `You are running Leash ${app.getVersion()}.`,
         });
       }
       return true;
@@ -3798,7 +3590,7 @@ async function checkForUpdates(options: {
       buttons,
       defaultId: 0,
       cancelId: 1,
-      message: `OpenLeash ${manifest.version} is available`,
+      message: `Leash ${manifest.version} is available`,
       detail:
         "A newer personal build is ready. Install it now, or keep working and update later.",
     } as const;
@@ -3828,7 +3620,7 @@ async function checkForUpdates(options: {
         detail: message,
       });
     }
-    console.error(`OpenLeash update check failed: ${message}`);
+    console.error(`Leash update check failed: ${message}`);
     return false;
   }
 }
@@ -3922,11 +3714,11 @@ async function installUpdate(manifest: UpdateManifest) {
   const extension = process.platform === "win32" ? "exe" : "dmg";
   const downloadPath = path.join(
     app.getPath("temp"),
-    `OpenLeash-${manifest.version}.${extension}`,
+    `Leash-${manifest.version}.${extension}`,
   );
   await dialog.showMessageBox({
     type: "info",
-    message: "OpenLeash will update now",
+    message: "Leash will update now",
     detail:
       "The app will close for a moment while the new version is installed. Your local settings and history will stay in place.",
   });
@@ -4316,7 +4108,7 @@ async function saveRemoteAgentMonitoring(
       };
     return { ok: true };
   } catch {
-    return { ok: false, error: "Could not reach the managed OpenLeash API." };
+    return { ok: false, error: "Could not reach the managed Leash API." };
   }
 }
 
@@ -4450,7 +4242,7 @@ function isAutomaticProxyAgent(kind: string) {
 
 async function installProxyForMonitoredAgents(agents: string[]) {
   const token = localServer.effectiveToken || desktopAuthSession?.token;
-  if (!token) throw new Error("OpenLeash backend token is unavailable.");
+  if (!token) throw new Error("Leash backend token is unavailable.");
   return installLocalProxy({
     clientApiUrl: apiUrl,
     token,
@@ -5504,7 +5296,7 @@ async function syncRemoteSessionMonitoring(input: {
   } catch {
     return {
       ok: false,
-      error: "Could not reach OpenLeash to change monitoring for this conversation.",
+      error: "Could not reach Leash to change monitoring for this conversation.",
     };
   }
 }
@@ -5641,58 +5433,9 @@ function syncActivityIsland(
 }
 
 function activeIslandContributions() {
-  return [
-    ...latestIslandContributions,
-    ...(pluginInstallContribution ? [pluginInstallContribution] : []),
-  ].filter((contribution) => Date.parse(contribution.expiresAt) > Date.now());
-}
-
-function presentPluginInstallProgress(
-  progress: PluginContainerProgress,
-  failedCount: number,
-) {
-  if (progress.total <= 0) return;
-  if (pluginInstallContributionTimer) {
-    clearTimeout(pluginInstallContributionTimer);
-    pluginInstallContributionTimer = undefined;
-  }
-  const plugin = latestPlugins.find((item) => item.id === progress.pluginId);
-  const pluginName = canonicalPluginSlug(plugin?.slug || plugin?.id || progress.pluginId);
-  const finished = progress.current >= progress.total && progress.phase !== "installing";
-  const now = new Date();
-  pluginInstallContribution = {
-    schemaVersion: "2026-07-20.plugin-island.v1",
-    id: "desktop:plugin-container-install",
-    pluginId: "openleash.plugin-installer",
-    kind: "status",
-    key: "plugin-container-install",
-    title: finished
-      ? failedCount > 0 ? "Plugin setup needs attention" : "Plugins ready"
-      : "Installing plugins",
-    detail: progress.phase === "installing"
-      ? `Starting the ${pluginName} container…`
-      : progress.phase === "failed"
-        ? `${pluginName}: ${progress.status?.error || "Container did not become healthy."}`
-        : `${pluginName} is ready.`,
-    tone: finished ? failedCount > 0 ? "danger" : "success" : progress.phase === "failed" ? "warning" : "info",
-    status: finished ? failedCount > 0 ? "failed" : "completed" : "running",
-    progress: {
-      current: progress.current,
-      total: progress.total,
-      label: `${progress.current} of ${progress.total}`,
-    },
-    updatedAt: now.toISOString(),
-    expiresAt: new Date(now.getTime() + 2 * 60_000).toISOString(),
-  };
-  syncActivityIsland(true, latestPending[0], true);
-  if (!finished) return;
-  const completedAt = pluginInstallContribution.updatedAt;
-  pluginInstallContributionTimer = setTimeout(() => {
-    if (pluginInstallContribution?.updatedAt !== completedAt) return;
-    pluginInstallContribution = undefined;
-    pluginInstallContributionTimer = undefined;
-    syncActivityIsland(true);
-  }, failedCount > 0 ? 10_000 : 3_500);
+  return latestIslandContributions.filter(
+    (contribution) => Date.parse(contribution.expiresAt) > Date.now(),
+  );
 }
 
 function currentActiveAgentSessions() {
@@ -6263,8 +6006,8 @@ function formatNotice(notice: DecisionNotice) {
     });
     return {
       kind: "activity",
-      agentName: "OpenLeash",
-      agentIcon: noticeAgentIconFor("OpenLeash"),
+      agentName: "Leash",
+      agentIcon: noticeAgentIconFor("Leash"),
       title: presentation.title,
       project: presentation.project,
       autoExpand: notice.autoExpand ?? Boolean(notice.pending),
@@ -6793,7 +6536,7 @@ async function checkSelfHostedRuntime() {
     dockerRunning,
     apiReachable,
     status: apiReachable
-      ? "OpenLeash API is reachable"
+      ? "Leash API is reachable"
       : dockerRunning
         ? "Docker is ready"
         : dockerInstalled
@@ -6819,7 +6562,7 @@ async function startSelfHostedRuntime() {
   ) {
     return {
       ...before,
-      status: "Using the local OpenLeash development backend.",
+      status: "Using the local Leash development backend.",
       log: `Backend: ${process.env.OPENLEASH_CLOUD_API_URL}`,
     };
   }
@@ -6837,7 +6580,7 @@ async function startSelfHostedRuntime() {
   if (!before.dockerRunning) {
     return {
       ...before,
-      status: "Start Docker Desktop, then click Start local OpenLeash again.",
+      status: "Start Docker Desktop, then click Start local Leash again.",
       log: before.log,
     };
   }
@@ -6885,7 +6628,7 @@ async function startSelfHostedRuntime() {
     dockerRunning: true,
     apiReachable,
     status: apiReachable
-      ? "Setup finished. Local OpenLeash is ready."
+      ? "Setup finished. Local Leash is ready."
       : "Containers started, but setup is not ready yet.",
     log: [
       `Runtime: ${runtimeDir}`,
@@ -6914,7 +6657,7 @@ function ensureIndividualOpenSourceRuntime(runtimeDir: string) {
       envPath,
       [
         "OPENLEASH_IMAGE_REGISTRY=ghcr.io/open-leash",
-        `OPENLEASH_VERSION=${process.env.OPENLEASH_BACKEND_VERSION || "0.36.41@sha256:d3b96fa6aafc28e9ffd44c8626cb9b22bb0f6ec45ea0eee6261d0bc100ade1e6"}`,
+        `OPENLEASH_VERSION=${process.env.OPENLEASH_BACKEND_VERSION || "0.37.0@sha256:caa0f268c62e5cf2cf29076877a8b6ca3caf00ddedc8c5229e10df8c929661db"}`,
         "OPENLEASH_POSTGRES_DB=openleash",
         "OPENLEASH_POSTGRES_USER=openleash",
         `OPENLEASH_POSTGRES_PASSWORD=${randomHexSecret()}`,
@@ -6992,7 +6735,7 @@ services:
       retries: 20
 
   migrate:
-    image: \${OPENLEASH_IMAGE_REGISTRY:-ghcr.io/open-leash}/client-api:\${OPENLEASH_VERSION:-0.36.41@sha256:d3b96fa6aafc28e9ffd44c8626cb9b22bb0f6ec45ea0eee6261d0bc100ade1e6}
+    image: \${OPENLEASH_IMAGE_REGISTRY:-ghcr.io/open-leash}/client-api:\${OPENLEASH_VERSION:-0.37.0@sha256:caa0f268c62e5cf2cf29076877a8b6ca3caf00ddedc8c5229e10df8c929661db}
     profiles: ["setup"]
     environment:
       DATABASE_URL: postgres://\${OPENLEASH_POSTGRES_USER:-openleash}:\${OPENLEASH_POSTGRES_PASSWORD:-openleash}@postgres:5432/\${OPENLEASH_POSTGRES_DB:-openleash}
@@ -7007,17 +6750,17 @@ services:
         condition: service_healthy
 
   seed:
-    image: \${OPENLEASH_IMAGE_REGISTRY:-ghcr.io/open-leash}/client-api:\${OPENLEASH_VERSION:-0.36.41@sha256:d3b96fa6aafc28e9ffd44c8626cb9b22bb0f6ec45ea0eee6261d0bc100ade1e6}
+    image: \${OPENLEASH_IMAGE_REGISTRY:-ghcr.io/open-leash}/client-api:\${OPENLEASH_VERSION:-0.37.0@sha256:caa0f268c62e5cf2cf29076877a8b6ca3caf00ddedc8c5229e10df8c929661db}
     profiles: ["setup"]
     environment:
       DATABASE_URL: postgres://\${OPENLEASH_POSTGRES_USER:-openleash}:\${OPENLEASH_POSTGRES_PASSWORD:-openleash}@postgres:5432/\${OPENLEASH_POSTGRES_DB:-openleash}
-    command: ["node", "apps/client-api/dist/create-organization.js", "--name", "Individual Open Source", "--slug", "individual-open-source", "--mode", "private"]
+    command: ["node", "apps/client-api/dist/bootstrap-personal.js", "--name", "Individual Open Source", "--slug", "individual-open-source", "--mode", "private"]
     depends_on:
       postgres:
         condition: service_healthy
 
   client-api:
-    image: \${OPENLEASH_IMAGE_REGISTRY:-ghcr.io/open-leash}/client-api:\${OPENLEASH_VERSION:-0.36.41@sha256:d3b96fa6aafc28e9ffd44c8626cb9b22bb0f6ec45ea0eee6261d0bc100ade1e6}
+    image: \${OPENLEASH_IMAGE_REGISTRY:-ghcr.io/open-leash}/client-api:\${OPENLEASH_VERSION:-0.37.0@sha256:caa0f268c62e5cf2cf29076877a8b6ca3caf00ddedc8c5229e10df8c929661db}
     container_name: openleash-individual-client-api
     environment:
       DATABASE_URL: postgres://\${OPENLEASH_POSTGRES_USER:-openleash}:\${OPENLEASH_POSTGRES_PASSWORD:-openleash}@postgres:5432/\${OPENLEASH_POSTGRES_DB:-openleash}
@@ -7246,7 +6989,7 @@ async function handleDesktopAuthCallback(rawUrl: string) {
       window?.webContents.send("openleash:auth", {
         ok: false,
         error:
-          body.message || body.error || "OpenLeash could not finish sign-in.",
+          body.message || body.error || "Leash could not finish sign-in.",
       });
       return;
     }
@@ -7288,7 +7031,7 @@ async function handleDesktopAuthCallback(rawUrl: string) {
   } catch (error) {
     window?.webContents.send("openleash:auth", {
       ok: false,
-      error: "OpenLeash could not process the sign-in callback.",
+      error: "Leash could not process the sign-in callback.",
     });
   }
 }
@@ -7317,7 +7060,7 @@ function agentProtectionSublabel(agent: LocalAgentProtection) {
     return agent.detail || "Protection not supported yet";
   if (!agent.protected) return agent.detail || "Ready to protect";
   return agent.approvalHandoff
-    ? "Protected · OpenLeash approvals primary"
+    ? "Protected · Leash approvals primary"
     : "Protected";
 }
 

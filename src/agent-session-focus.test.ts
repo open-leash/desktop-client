@@ -114,16 +114,16 @@ test("matches the exact Windows terminal project instead of any terminal", () =>
   const target = {
     agentKind: "claude-code",
     projectPath: "C:\\Users\\Max\\Code\\OpenLeash",
-    project: "OpenLeash",
+    project: "Leash",
   };
   assert.equal(matchesWindowsFrontmost({ processName: "WindowsTerminal", windowTitle: "Claude - OpenLeash" }, target), true);
   assert.equal(matchesWindowsFrontmost({ processName: "WindowsTerminal", windowTitle: "PowerShell - OtherProject" }, target), false);
 });
 
 test("requires the expected Windows IDE process as well as the project title", () => {
-  const target = { agentKind: "cursor", projectPath: "C:\\Code\\OpenLeash" };
-  assert.equal(matchesWindowsFrontmost({ processName: "Cursor", windowTitle: "OpenLeash - Cursor" }, target), true);
-  assert.equal(matchesWindowsFrontmost({ processName: "Code", windowTitle: "OpenLeash - Visual Studio Code" }, target), false);
+  const target = { agentKind: "cursor", projectPath: "C:\\Code\\Leash" };
+  assert.equal(matchesWindowsFrontmost({ processName: "Cursor", windowTitle: "Leash - Cursor" }, target), true);
+  assert.equal(matchesWindowsFrontmost({ processName: "Code", windowTitle: "Leash - Visual Studio Code" }, target), false);
 });
 
 test("Windows focus script safely quotes paths and can launch the exact project", () => {

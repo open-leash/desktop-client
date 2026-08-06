@@ -100,7 +100,7 @@ export function activityIslandPresentationSummary(input: {
     };
   }
   if (input.sessionCount === 0 && input.pluginUpdateCount === 0) {
-    return { title: "OpenLeash", project: "Watching your agents" };
+    return { title: "Leash", project: "Watching your agents" };
   }
   if (input.sessionCount === 0) {
     return {

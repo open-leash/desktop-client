@@ -87,7 +87,7 @@ test("passive token savings do not masquerade as a plugin update", () => {
     activeSessionCount: 0,
     pluginUpdateCount: 0,
   }), {
-    title: "OpenLeash",
+    title: "Leash",
     project: "Watching your agents",
   });
   assert.deepEqual(activityIslandPresentationSummary({
@@ -467,7 +467,7 @@ test("recovers the same live conversation after the computer wakes", () => {
     agentKind: "codex",
     agentName: "OpenAI Codex",
     projectPath: "/code/OpenLeash",
-    project: "OpenLeash",
+    project: "Leash",
     title: "Fix island positioning",
     summary: "Agent is working",
     latestAction: "Reviewing project files",
@@ -494,7 +494,7 @@ test("wake recovery neither duplicates a live session nor revives a completed on
     sourceSessionIds: ["codex-session"],
     agentKind: "codex",
     agentName: "OpenAI Codex",
-    project: "OpenLeash",
+    project: "Leash",
     title: "Fix island positioning",
     summary: "Agent is working",
     latestAction: "Updating files",

@@ -10,7 +10,7 @@ const { listPackage } = require("@electron/asar");
 
 const root = process.cwd();
 const unpacked = path.join(root, "release", "windows", "win-unpacked");
-const executable = path.join(unpacked, "OpenLeash.exe");
+const executable = path.join(unpacked, "Leash.exe");
 const nativeModule = path.join(
   unpacked,
   "resources",

@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>OpenLeash Island</title>
+    <title>Leash Island</title>
     <style>
       :root {
         color-scheme: dark;
@@ -874,12 +874,12 @@
         <span class="signal-wrap"><span class="signal" id="status"></span></span>
         <div class="cap-agents" id="capAgents" aria-label="Active agents"></div>
         <div class="cap-copy">
-          <div class="eyebrow" id="eyebrow">OpenLeash</div>
+          <div class="eyebrow" id="eyebrow">Leash</div>
           <div class="cap-title" id="title">Agent activity</div>
         </div>
         <span class="cap-metric" id="capMetric" hidden></span>
         <span class="queue-count" id="count" hidden></span>
-        <button class="icon-button menu-toggle" id="menuToggle" aria-label="Open OpenLeash menu" aria-expanded="false">
+        <button class="icon-button menu-toggle" id="menuToggle" aria-label="Open Leash menu" aria-expanded="false">
           <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor"><circle cx="3" cy="8" r="1.25"/><circle cx="8" cy="8" r="1.25"/><circle cx="13" cy="8" r="1.25"/></svg>
         </button>
         <button class="icon-button close" id="close" aria-label="Dismiss">
@@ -890,8 +890,8 @@
         </button>
       </header>
       <div class="island-menu" id="islandMenu" hidden>
-        <div class="menu-brand">OpenLeash controls</div>
-        <button class="menu-item" data-command="settings"><span class="menu-icon">S</span><span class="menu-copy"><span class="menu-label">Settings</span><span class="menu-detail">Configure OpenLeash</span></span><span class="menu-chevron">›</span></button>
+        <div class="menu-brand">Leash controls</div>
+        <button class="menu-item" data-command="settings"><span class="menu-icon">S</span><span class="menu-copy"><span class="menu-label">Settings</span><span class="menu-detail">Configure Leash</span></span><span class="menu-chevron">›</span></button>
         <div class="menu-separator"></div>
         <button class="menu-item" data-command="protection"><span class="menu-icon">✓</span><span class="menu-copy"><span class="menu-label">Agent protection</span><span class="menu-detail" id="menuProtection">Checking protection…</span></span><span class="menu-chevron">›</span></button>
         <button class="menu-item" data-command="proxy"><span class="menu-icon">P</span><span class="menu-copy"><span class="menu-label">Proxy</span><span class="menu-detail" id="menuProxy">Checking proxy…</span></span><span class="menu-chevron">›</span></button>
@@ -899,17 +899,17 @@
         <button class="menu-item" data-command="approvals"><span class="menu-icon">!</span><span class="menu-copy"><span class="menu-label">Approvals</span><span class="menu-detail" id="menuApprovals">No pending approvals</span></span><span class="menu-chevron">›</span></button>
         <div class="menu-separator"></div>
         <button class="menu-item" data-command="check-updates"><span class="menu-icon">↻</span><span class="menu-copy"><span class="menu-label">Check for updates</span></span></button>
-        <button class="menu-item dangerous" data-command="quit"><span class="menu-icon">×</span><span class="menu-copy"><span class="menu-label">Quit OpenLeash</span></span></button>
+        <button class="menu-item dangerous" data-command="quit"><span class="menu-icon">×</span><span class="menu-copy"><span class="menu-label">Quit Leash</span></span></button>
       </div>
       <section class="reveal" id="reveal" inert aria-hidden="true"><div class="reveal-clip"><div class="content">
         <div class="install-success" id="installSuccess" hidden>
           <div class="install-fireworks" id="installFireworks" aria-hidden="true"></div>
-          <h2>OpenLeash installed</h2>
-          <p>Your agents are connected. OpenLeash will appear here when something needs your attention.</p>
+          <h2>Leash installed</h2>
+          <p>Your agents are connected. Leash will appear here when something needs your attention.</p>
         </div>
         <div class="restart-agents" id="restartAgents" hidden>
           <h2>Restart running agents</h2>
-          <p>These apps started before OpenLeash was installed. Restart the selected ones so the new hooks and proxy settings take effect.</p>
+          <p>These apps started before Leash was installed. Restart the selected ones so the new hooks and proxy settings take effect.</p>
           <div class="restart-target-list" id="restartTargetList"></div>
           <p class="restart-warning">Your editor may ask you to save unsaved work before it restarts.</p>
           <div class="restart-error" id="restartError" hidden></div>
@@ -918,17 +918,17 @@
           <h2>Help us improve</h2>
           <p>Follow us on X and LinkedIn for product updates, tips, and new releases.</p>
           <div class="social-options">
-            <button type="button" class="social-card x" data-social="x" aria-label="Follow OpenLeash on X">
+            <button type="button" class="social-card x" data-social="x" aria-label="Follow Leash on X">
               <span class="social-logo" aria-hidden="true">
                 <svg viewBox="0 0 24 24"><path d="M14.234 10.162 22.977 0h-2.072l-7.591 8.824L7.251 0H.258l9.168 13.343L.258 24H2.33l8.016-9.318L16.749 24h6.993zm-2.837 3.299-.929-1.329L3.076 1.56h3.182l5.965 8.532.929 1.329 7.754 11.09h-3.182z"/></svg>
               </span>
               <span class="social-copy"><span class="social-name">X</span><span class="social-handle">@OpenLeashCom</span></span>
             </button>
-            <button type="button" class="social-card linkedin" data-social="linkedin" aria-label="Follow OpenLeash on LinkedIn">
+            <button type="button" class="social-card linkedin" data-social="linkedin" aria-label="Follow Leash on LinkedIn">
               <span class="social-logo" aria-hidden="true">
                 <svg viewBox="0 0 24 24"><path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.94v5.666H9.351V9h3.414v1.561h.047c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433A2.062 2.062 0 1 1 5.337 3.31a2.062 2.062 0 0 1 0 4.124zM7.119 20.452H3.555V9h3.564zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0z"/></svg>
               </span>
-              <span class="social-copy"><span class="social-name">LinkedIn</span><span class="social-handle">OpenLeash</span></span>
+              <span class="social-copy"><span class="social-name">LinkedIn</span><span class="social-handle">Leash</span></span>
             </button>
           </div>
         </div>
@@ -1055,7 +1055,7 @@
         const avatar = document.createElement("span");
         avatar.className = `agent-avatar ${agentVisualClass(agent)} ${state} ${className}`.trim();
         avatar.dataset.visualState = state;
-        avatar.title = state === "waiting" ? `${agent.agentName || "Agent"} needs attention` : state === "completed" ? `${agent.agentName || "Agent"} finished` : state === "idle" ? "OpenLeash is watching" : `${agent.agentName || "Agent"} working`;
+        avatar.title = state === "waiting" ? `${agent.agentName || "Agent"} needs attention` : state === "completed" ? `${agent.agentName || "Agent"} finished` : state === "idle" ? "Leash is watching" : `${agent.agentName || "Agent"} working`;
         const orbit = document.createElement("span"); orbit.className = "agent-avatar-orbit"; orbit.setAttribute("aria-hidden", "true");
         const core = document.createElement("span"); core.className = "agent-avatar-core";
         const visual = agentVisualClass(agent);
@@ -1199,7 +1199,7 @@
         currentKind = nextKind;
         status.className = `signal ${currentKind || "approval"}`;
         eyebrow.textContent = currentKind === "activity"
-          ? (payload.agentName || "OpenLeash")
+          ? (payload.agentName || "Leash")
           : `${payload.agentName || "Agent"} · ${payload.project || payload.time || "now"}`;
         title.textContent = payload.title || (currentKind === "question" ? `${payload.agentName} asks` : currentKind === "plan_review" ? `${payload.agentName} has a plan` : payload.id ? "Permission request" : "Agent activity");
         count.hidden = !(payload.pendingCount > 1); count.textContent = payload.pendingCount || "";
@@ -1511,7 +1511,7 @@
         sessionSectionLabel.hidden = false;
         if (sessions.length === 0) {
           const idle = document.createElement("div"); idle.className = "idle-island-state";
-          idle.textContent = attention?.id ? "No other agents are working right now." : "No agents are working right now. OpenLeash is watching.";
+          idle.textContent = attention?.id ? "No other agents are working right now." : "No agents are working right now. Leash is watching.";
           sessionList.appendChild(idle);
         }
         sessions.forEach((session, index) => {
@@ -1624,7 +1624,7 @@
           const duplicate = visibleAgents.some((agent) => agent.agentKind && session.agentKind && agent.agentKind === session.agentKind && agent.project === session.project);
           if (!duplicate) visibleAgents.push({ ...session, visualState: session.visualState || "processing" });
         }
-        if (visibleAgents.length === 0) visibleAgents.push({ agentKind: "openleash-idle", agentName: "OpenLeash", agentIcon: "openleash-icon.png", visualState: "idle" });
+        if (visibleAgents.length === 0) visibleAgents.push({ agentKind: "openleash-idle", agentName: "Leash", agentIcon: "openleash-icon.png", visualState: "idle" });
         visibleAgents.slice(0, 4).forEach((session) => {
           notchAgents.appendChild(animatedAgentIcon(session, "notch-agent", session.visualState));
           capAgents.appendChild(animatedAgentIcon(session, "cap-agent", session.visualState));
@@ -1821,16 +1821,16 @@
           question: { kind: "question", id: "preview", agentName: "Claude Code", title: "Claude asks", project: "openleash", time: "now", interaction: { type: "questions", questions: [{ question: "Which deployment target?", options: [{ label: "Production" }, { label: "Staging" }, { label: "Local only" }] }] } },
           plan: { kind: "plan_review", id: "preview", agentName: "OpenAI Codex", title: "Codex has a plan", summary: "Review the proposed changes before work begins.", project: "desktop-client", time: "now", interaction: { type: "plan", markdown: "1. Add the native top-edge panel\n2. Share the renderer with Windows\n3. Verify expansion, focus, and dismissal\n4. Package and run upgrade tests" } },
           completed: { kind: "completed", agentName: "Claude Code", agentKind: "claude", title: "Claude finished", summary: "Authentication middleware updated and all tests pass.", project: "openleash", time: "now", canJump: true },
-          installed: { kind: "install_success", agentName: "OpenLeash", agentIcon: "openleash-icon.png", title: "Installation complete", summary: "OpenLeash installed" },
-          restart: { kind: "install_success", agentName: "OpenLeash", agentIcon: "openleash-icon.png", title: "Installation complete", summary: "OpenLeash installed", restartTargets: [
+          installed: { kind: "install_success", agentName: "Leash", agentIcon: "openleash-icon.png", title: "Installation complete", summary: "Leash installed" },
+          restart: { kind: "install_success", agentName: "Leash", agentIcon: "openleash-icon.png", title: "Installation complete", summary: "Leash installed", restartTargets: [
             { id: "application:vscode", application: "Visual Studio Code", icon: "agent-icons/vscode.png", agentNames: ["OpenAI Codex"], projects: [{ name: "OL2", path: "/Users/max/Code/OL2" }, { name: "FileMesh (All)", path: "/Users/max/Code/FileMesh (All)" }] },
             { id: "application:cursor", application: "Cursor", icon: "agent-icons/cursor.svg", agentNames: ["Cursor"], projects: [{ name: "Website", path: "/Users/max/Code/Website" }] },
           ] },
-          unified: { kind: "activity", agentName: "OpenLeash", agentIcon: "openleash-icon.png", title: "1 approval waiting", project: "Claude Code needs your attention", pendingCount: 1, autoExpand: true, attention: { kind: "ask", id: "preview", agentKind: "claude-code", agentName: "Claude Code", agentIcon: "agent-icons/claude.svg", visualState: "waiting", title: "Outside sandbox", summary: "Claude needs network access to compile the release binary.", evidence: "$ cargo build --release --target aarch64-apple-darwin", project: "api-server", pluginName: "blast-radius", supportsGuidance: true, interaction: { type: "approval" } }, sessions: [
+          unified: { kind: "activity", agentName: "Leash", agentIcon: "openleash-icon.png", title: "1 approval waiting", project: "Claude Code needs your attention", pendingCount: 1, autoExpand: true, attention: { kind: "ask", id: "preview", agentKind: "claude-code", agentName: "Claude Code", agentIcon: "agent-icons/claude.svg", visualState: "waiting", title: "Outside sandbox", summary: "Claude needs network access to compile the release binary.", evidence: "$ cargo build --release --target aarch64-apple-darwin", project: "api-server", pluginName: "blast-radius", supportsGuidance: true, interaction: { type: "approval" } }, sessions: [
             { id: "claude", agentKind: "claude-code", agentName: "Claude Code", agentIcon: "agent-icons/claude.svg", visualState: "waiting", project: "api-server", title: "Compile release binary", summary: "Preparing the production artifact.", latestAction: "Waiting for approval", time: "now", eventCount: 8, canJump: true },
             { id: "codex", agentKind: "codex", agentName: "OpenAI Codex", agentIcon: "agent-icons/openai.svg", visualState: "running", project: "design-system", title: "Refresh design tokens", summary: "Updating shared components.", latestAction: "Editing files", time: "12s", eventCount: 12, canJump: true },
           ], contributions: [] },
-          activity: { kind: "activity", agentName: "OpenLeash", agentIcon: "openleash-icon.png", title: "3 agents working", project: "3 active sessions", sessions: [
+          activity: { kind: "activity", agentName: "Leash", agentIcon: "openleash-icon.png", title: "3 agents working", project: "3 active sessions", sessions: [
             { id: "claude", agentKind: "claude-code", agentName: "Claude Code", agentIcon: "agent-icons/claude.svg", visualState: "running", project: "client-api", title: "Correct approval attribution", summary: "Tracing policy ownership and notification labels.", latestAction: "Running tests", time: "now", eventCount: 8, canJump: true, events: [{ tool_name: "Bash", created_at: new Date().toISOString() }] },
             { id: "codex", sessionId: "codex-session", agentKind: "codex", agentName: "OpenAI Codex", agentIcon: "agent-icons/openai.svg", visualState: "processing", project: "desktop-client", title: "Build multi-agent activity island", summary: "Implementing the compact and expanded session experience.", latestAction: "Editing notice.html", time: "now", eventCount: 12, canJump: true, events: [{ tool_name: "Edit", created_at: new Date().toISOString() }], contributions: [{ pluginId: "openleash.blast-radius", pluginName: "blast-radius", pluginIcon: "💥", kind: "annotation", label: "Destructive filesystem operation", detail: "Recursive deletion affects this workspace.", value: "critical", tone: "danger", action: { id: "open", label: "Open session", type: "open-session" } }] },
             { id: "gemini", agentKind: "gemini", agentName: "Google Gemini CLI", agentIcon: "agent-icons/gemini.svg", visualState: "processing", project: "docs-web", title: "Review agent setup docs", summary: "Checking supported-agent instructions.", latestAction: "Reading documentation", time: "1m", eventCount: 4, canJump: false, events: [{ event_name: "PostToolUse", created_at: new Date(Date.now() - 60_000).toISOString() }] },

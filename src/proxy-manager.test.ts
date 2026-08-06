@@ -17,7 +17,7 @@ process.env.USERPROFILE = home;
 test("released desktop uses an immutable published proxy image", () => {
   assert.equal(
     DEFAULT_LOCAL_PROXY_IMAGE,
-    "ghcr.io/open-leash/local-proxy:0.36.4@sha256:5fa7abbaf281ff44fbbdcff1250ae300158e6884449652b0cf57c643d18dc8a2",
+    "ghcr.io/open-leash/local-proxy:0.37.0@sha256:e4b51dd59ac0b60d768ed76026d20a48d28f3b5538f3bb17d945d23767dc02da",
   );
   assert.doesNotMatch(DEFAULT_LOCAL_PROXY_IMAGE, /:latest$/);
 });
@@ -138,7 +138,7 @@ test("proxy cleanup removes stale managed values even when backup files are miss
       'model = "gpt-5"',
       "",
       "[model_providers.openleash]",
-      'name = "OpenLeash local proxy"',
+      'name = "Leash local proxy"',
       `base_url = "${LOCAL_PROXY_URL}/agent/codex/v1"`,
       'wire_api = "responses"',
       "",

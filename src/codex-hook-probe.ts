@@ -41,7 +41,7 @@ const messages = [
     params: {
       clientInfo: {
         name: "openleash-tray",
-        title: "OpenLeash Tray",
+        title: "Leash Tray",
         version: appVersion,
       },
       capabilities: { experimentalApi: true },

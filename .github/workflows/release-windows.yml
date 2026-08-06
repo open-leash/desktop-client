@@ -1,4 +1,4 @@
-name: Release Windows desktop
+name: Release Leash for Windows
 
 on:
   workflow_dispatch:
@@ -22,7 +22,7 @@ jobs:
         uses: actions/checkout@v7
         with:
           repository: open-leash/shared
-          ref: effe9afd1c616d52da9ea710283e9fbebbf4ce77
+          ref: v0.2.0
           path: packages/shared
 
       - name: Setup Node
@@ -61,7 +61,7 @@ jobs:
           CSC_IDENTITY_AUTO_DISCOVERY: "false"
         run: |
           $PSNativeCommandUseErrorActionPreference = $true
-          npx electron-rebuild -v 40.10.6 -w better-sqlite3 --force
+          npx electron-rebuild -v 43.3.0 -w better-sqlite3 --force
           npx electron-builder --config electron-builder.windows.yml --win --x64 --publish never
           node scripts/verify-packaged-windows.mjs
 
@@ -77,7 +77,7 @@ jobs:
       - name: Upload workflow artifact
         uses: actions/upload-artifact@v7
         with:
-          name: OpenLeash-Windows-x64-${{ github.ref_name }}
+          name: Leash-Windows-x64-${{ github.ref_name }}
           path: |
             apps/desktop-client/release/windows/*.exe
             apps/desktop-client/release/windows/*.blockmap

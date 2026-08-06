@@ -17,7 +17,6 @@ import {
   OPENLEASH_DESKTOP_MICROSOFT_REDIRECT_URI
 } from "./public-config";
 import { bundledPluginCatalog, type PluginCatalogItem } from "./plugin-catalog";
-import { executeViaLocalPluginContainer, transformViaLocalPluginContainers, type PluginContainerStatus } from "./plugin-container-manager";
 import {
   handledIntentKeysMatch,
   isReusableHandledIntent,
@@ -306,7 +305,7 @@ function desktopAuthReturnPage(callbackUrl: string) {
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Return to OpenLeash</title>
+    <title>Return to Leash</title>
     <style>
       body { margin: 0; min-height: 100vh; display: grid; place-items: center; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; color: #111827; background: #f8fafc; }
       main { max-width: 460px; padding: 32px; text-align: center; }
@@ -318,9 +317,9 @@ function desktopAuthReturnPage(callbackUrl: string) {
   </head>
   <body>
     <main>
-      <h1 id="title">Returning to OpenLeash</h1>
-      <p id="message">Your sign-in is complete. OpenLeash should continue automatically.</p>
-      <a href="${href}">Open OpenLeash</a>
+      <h1 id="title">Returning to Leash</h1>
+      <p id="message">Your sign-in is complete. Leash should continue automatically.</p>
+      <a href="${href}">Open Leash</a>
       <p style="margin-top:18px"><button id="closeButton" type="button">Close this tab</button></p>
     </main>
     <script>
@@ -332,7 +331,7 @@ function desktopAuthReturnPage(callbackUrl: string) {
       window.location.replace(callbackUrl);
       setTimeout(() => {
         title.textContent = "Sign-in complete";
-        message.textContent = "You can close this tab and return to OpenLeash.";
+        message.textContent = "You can close this tab and return to Leash.";
         window.close();
       }, 900);
     </script>
@@ -355,7 +354,7 @@ export class LocalOpenLeashServer {
   private legacyAuthServer?: http.Server;
   private db: Database.Database;
   private store!: Store;
-  private pluginRuntimeStatuses: PluginContainerStatus[] = [];
+  private pluginRuntimeStatuses: Array<{ pluginId: string; healthy: boolean; error?: string }> = [];
   private readonly sessionMonitoringPauses = new SessionMonitoringPauses();
 
   constructor(private readonly dir: string, private readonly options: LocalServerOptions = {}) {
@@ -616,7 +615,7 @@ export class LocalOpenLeashServer {
     this.writeStore();
   }
 
-  syncPluginRuntimeStatuses(statuses: PluginContainerStatus[]) {
+  syncPluginRuntimeStatuses(statuses: Array<{ pluginId: string; healthy: boolean; error?: string }>) {
     this.pluginRuntimeStatuses = statuses;
   }
 
@@ -770,20 +769,13 @@ export class LocalOpenLeashServer {
             monitoringPausedUntil: new Date(pause.expiresAt).toISOString(),
           });
         }
-        return json(res, await transformViaLocalPluginContainers({
-          plugins: this.store.plugins,
-          provider: String(body.provider ?? "unknown"),
-          agentKind: String(body.agentKind ?? "unknown"),
-          agentId: body.agentId ? String(body.agentId) : undefined,
-          sessionId: String(body.sessionId ?? "proxy"),
-          projectPath: body.projectPath ? String(body.projectPath) : undefined,
-          organizationId: this.store.remoteOrganization ?? this.store.installIdentity ?? "local",
-          userId: this.store.remoteUser ?? "local-user",
-          requestBody: body.requestBody,
-        }));
+        return json(res, await this.forwardRemoteFeatureRuntime(
+          "/v1/plugin-runtime/transform",
+          body,
+        ));
       }
       if (req.method === "GET" && req.url === "/personal/plugin-runtime") {
-        return json(res, { containers: this.pluginRuntimeStatuses });
+        return json(res, { features: this.pluginRuntimeStatuses, containers: [] });
       }
       if (req.method === "POST" && req.url === "/v1/plugin-runtime/tools/execute") {
         if (!this.isAuthorizedLocalClient(req)) return json(res, { error: "unauthorized" }, 401);
@@ -793,14 +785,10 @@ export class LocalOpenLeashServer {
         if (!body.tool || !body.arguments || typeof body.arguments !== "object" || Array.isArray(body.arguments)) {
           return json(res, { error: "tool and object arguments are required" }, 400);
         }
-        return json(res, await executeViaLocalPluginContainer({
-          plugin,
-          sessionId: String(body.sessionId ?? "proxy"),
-          organizationId: this.store.remoteOrganization ?? this.store.installIdentity ?? "local",
-          userId: this.store.remoteUser ?? "local-user",
-          tool: body.tool,
-          arguments: body.arguments,
-        }));
+        return json(res, await this.forwardRemoteFeatureRuntime(
+          "/v1/plugin-runtime/tools/execute",
+          body,
+        ));
       }
       if (req.method === "POST" && req.url === "/v1/agent-events") {
         const body = await readJson(req);
@@ -996,7 +984,7 @@ export class LocalOpenLeashServer {
   private async handlePromptTransformHook(agent: string, eventName: string, request: EvaluationRequest) {
     const prompt = request.event.prompt?.trim();
     if (!prompt) {
-      return nativeHookDecision(agent, eventName, { decision: "allow", summary: "OpenLeash approved this action." });
+      return nativeHookDecision(agent, eventName, { decision: "allow", summary: "Leash approved this action." });
     }
     const result = await transformPrompt({
       prompt,
@@ -1081,7 +1069,7 @@ export class LocalOpenLeashServer {
 
   private async forwardRemoteAgentEvent(body: unknown) {
     if (!this.store.remoteApiUrl || !this.store.remoteToken) {
-      throw new Error("OpenLeash backend is unavailable");
+      throw new Error("Leash backend is unavailable");
     }
     const response = await fetch(new URL("/v1/agent-events", this.store.remoteApiUrl.replace(/\/+$/, "")), {
       method: "POST",
@@ -1093,7 +1081,30 @@ export class LocalOpenLeashServer {
       signal: AbortSignal.timeout(120_000),
     });
     const result = await response.json().catch(() => ({ error: `HTTP ${response.status}` }));
-    if (!response.ok) throw new Error((result as { error?: string }).error ?? `OpenLeash backend returned HTTP ${response.status}`);
+    if (!response.ok) throw new Error((result as { error?: string }).error ?? `Leash backend returned HTTP ${response.status}`);
+    return result;
+  }
+
+  private async forwardRemoteFeatureRuntime(pathname: string, body: unknown) {
+    if (!this.store.remoteApiUrl || !this.store.remoteToken) {
+      throw new Error("Leash backend is unavailable");
+    }
+    const response = await fetch(
+      new URL(pathname, this.store.remoteApiUrl.replace(/\/+$/, "")),
+      {
+        method: "POST",
+        headers: {
+          authorization: `Bearer ${this.store.remoteToken}`,
+          "content-type": "application/json",
+        },
+        body: JSON.stringify(body),
+        signal: AbortSignal.timeout(120_000),
+      },
+    );
+    const result = await response.json().catch(() => ({ error: `HTTP ${response.status}` }));
+    if (!response.ok) {
+      throw new Error((result as { error?: string }).error ?? `Leash backend returned HTTP ${response.status}`);
+    }
     return result;
   }
 
@@ -1113,7 +1124,7 @@ export class LocalOpenLeashServer {
         return {
           ...decision,
           decision: item.resolution,
-          summary: item.resolution === "allow" ? "OpenLeash approved this action." : item.summary,
+          summary: item.resolution === "allow" ? "Leash approved this action." : item.summary,
           resolutionGuidance: item.resolution === "deny" ? item.resolution_guidance ?? undefined : undefined,
           resolutionPayload: item.resolution === "allow" ? item.resolution_payload ?? undefined : undefined,
           question: undefined
@@ -1124,7 +1135,7 @@ export class LocalOpenLeashServer {
     return {
       ...decision,
       decision: "deny" as const,
-      summary: "OpenLeash timed out waiting for approval.",
+      summary: "Leash timed out waiting for approval.",
       question: undefined
     };
   }
@@ -2110,7 +2121,7 @@ async function summarizeActionPurposeWithOpenAI(request: EvaluationRequest, apiK
         input: [
           {
             role: "system",
-            content: "Summarize why the AI agent is likely taking the current action. Use one short plain-English sentence under 22 words. Do not mention policy, approval, OpenLeash, or safety."
+            content: "Summarize why the AI agent is likely taking the current action. Use one short plain-English sentence under 22 words. Do not mention policy, approval, Leash, or safety."
           },
           {
             role: "user",
@@ -2318,7 +2329,7 @@ function summarizeBlockedAction(request: EvaluationRequest, policyName: string) 
   if (policy.includes("external")) return `${agent} is trying to share code or data outside this workspace.`;
   if (policy.includes("personal")) return `${agent} is trying to use personal or sensitive data.`;
   if (policy.includes("package")) return `${agent} is trying to install or run a package.`;
-  return `${agent} is trying to continue with an action OpenLeash paused.`;
+  return `${agent} is trying to continue with an action Leash paused.`;
 }
 
 function summarizeAllowedAction(request: EvaluationRequest, filePath?: string) {
@@ -2376,7 +2387,7 @@ function agentInteractionForRequest(request: EvaluationRequest) {
     const firstQuestion = typeof first?.question === "string" ? first.question.trim() : "";
     return {
       summary: firstQuestion || `${request.agent.displayName} has a question for you.`,
-      question: "Answer in OpenLeash to continue the agent.",
+      question: "Answer in Leash to continue the agent.",
       purpose: `${request.agent.displayName} is waiting for your input.`
     };
   }
@@ -2549,7 +2560,7 @@ function normalizePolicy(value: unknown): Policy | undefined {
     id,
     name,
     category: stringValue(record.category) || "Imported rules",
-    description: stringValue(record.description ?? record.natural_language_rule ?? record.naturalLanguageRule) || "Imported local OpenLeash rule.",
+    description: stringValue(record.description ?? record.natural_language_rule ?? record.naturalLanguageRule) || "Imported local Leash rule.",
     enabled: typeof record.enabled === "boolean" ? record.enabled : true,
     locked: Boolean(record.locked ?? record.mandatory ?? record.required),
     match: match.length > 0 ? match : undefined,
@@ -2847,11 +2858,11 @@ function normalizeHookTranscript(value: unknown) {
 
 function nativeHookDecision(agent: string, eventName: string, decision: { decision: "allow" | "ask" | "deny"; summary: string; question?: string; resolutionGuidance?: string; resolutionPayload?: Record<string, unknown> }) {
   const reason = decision.decision === "deny" && decision.resolutionGuidance
-    ? `OpenLeash denied this action. User guidance: ${decision.resolutionGuidance}`
+    ? `Leash denied this action. User guidance: ${decision.resolutionGuidance}`
     : decision.decision === "allow"
-    ? "OpenLeash approved this action."
+    ? "Leash approved this action."
     : decision.decision === "deny"
-      ? decision.summary || "OpenLeash denied this action."
+      ? decision.summary || "Leash denied this action."
       : decision.question ?? decision.summary;
   if (agent === "claude" || agent === "nanoclaw") {
     if (eventName === "PreToolUse") {
@@ -2888,8 +2899,8 @@ function backendUnavailableHookDecision(agent: string, eventName: string) {
   return nativeHookDecision(agent, eventName, {
     decision: unavailableDecision,
     summary: unavailableDecision === "deny"
-      ? "OpenLeash backend is unavailable. Connect to OpenLeash Cloud or your Private Cloud API before continuing."
-      : "OpenLeash backend is unavailable. OpenLeash allowed this action without remote policy evaluation."
+      ? "Leash backend is unavailable. Connect to Leash Cloud or your personal API before continuing."
+      : "Leash backend is unavailable. Leash allowed this action without remote policy evaluation."
   });
 }
 
@@ -2985,7 +2996,7 @@ async function checkDlp(prompt: string, config: PromptTransformConfig, apiKey?: 
     apiKey,
     config.dlp.model,
     [
-      "You are OpenLeash DLP. Inspect text for only the configured categories.",
+      "You are Leash DLP. Inspect text for only the configured categories.",
       config.dlp.action === "block" ? "If configured sensitive data is present, return blocked true." : "If configured sensitive data is present, mask it and return maskedText.",
       "Return JSON with matched, blocked, maskedText, categories, findings."
     ].join("\n"),
@@ -3025,7 +3036,7 @@ function heuristicCompressPrompt(prompt: string, level: CompressionLevel) {
   const normalized = prompt.replace(/[ \t]+/g, " ").replace(/\n{3,}/g, "\n\n").trim();
   if (level === "light") return normalized;
   const limit = level === "maximum" ? 1800 : 3600;
-  return normalized.length > limit ? `${normalized.slice(0, limit).trim()}\n\n[OpenLeash compressed remaining repetitive context.]` : normalized;
+  return normalized.length > limit ? `${normalized.slice(0, limit).trim()}\n\n[Leash compressed remaining repetitive context.]` : normalized;
 }
 
 function heuristicDlp(prompt: string, config: PromptTransformConfig) {
@@ -3105,7 +3116,7 @@ function applyLocalContract(req: http.IncomingMessage, res: http.ServerResponse,
   const requested = req.headers[OPENLEASH_API_VERSION_HEADER] as string | undefined;
   if (requested && requested !== version) {
     res.writeHead(426, { "content-type": "application/json", "access-control-allow-origin": "*" });
-    res.end(JSON.stringify({ error: "unsupported OpenLeash API contract version", function: functionName, expectedVersion: version, receivedVersion: requested }));
+    res.end(JSON.stringify({ error: "unsupported Leash API contract version", function: functionName, expectedVersion: version, receivedVersion: requested }));
     return false;
   }
   return true;

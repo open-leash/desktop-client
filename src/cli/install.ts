@@ -403,12 +403,12 @@ async function codexHookGroup(event: HookEventName) {
 async function geminiHookGroup(event: HookEventName, matcher?: string) {
   return {
     ...(matcher ? { matcher } : {}),
-    hooks: [{ type: "command", command: await hookCommand("gemini", event), name: "OpenLeash", timeout: HOOK_TIMEOUT_MS }]
+    hooks: [{ type: "command", command: await hookCommand("gemini", event), name: "Leash", timeout: HOOK_TIMEOUT_MS }]
   };
 }
 
 async function cursorHook(event: HookEventName) {
-  return { command: await hookCommand("cursor", event), name: "OpenLeash", timeout: HOOK_TIMEOUT_MS };
+  return { command: await hookCommand("cursor", event), name: "Leash", timeout: HOOK_TIMEOUT_MS };
 }
 
 async function copilotHooksConfig() {
@@ -470,7 +470,7 @@ async function evaluate(url, payload) {
   if (!response.ok) return;
   const decision = await response.json().catch(() => ({}));
   if (decision.decision === "deny" || decision.decision === "block") {
-    throw new Error(decision.reason || "OpenLeash denied this action.");
+    throw new Error(decision.reason || "Leash denied this action.");
   }
 }
 
@@ -516,7 +516,7 @@ async function hookEndpoint(agent: HookAgent, event: HookEventName) {
 function openClawHookMetadata() {
   return `---
 name: openleash
-description: "OpenLeash local approval checks for OpenClaw messages and commands"
+description: "Leash local approval checks for OpenClaw messages and commands"
 metadata:
   { "openclaw": { "emoji": "", "events": ["message:received", "message:preprocessed", "command:new", "command"], "requires": { "bins": ["node"] } } }
 ---
@@ -544,13 +544,13 @@ const handler = async (event) => {
     maxBuffer: 1024 * 1024
   });
   if (result.error || result.status !== 0) {
-    event?.messages?.push?.("OpenLeash could not evaluate this action.");
+    event?.messages?.push?.("Leash could not evaluate this action.");
     return;
   }
   try {
     const decision = JSON.parse(result.stdout || "{}");
     if (decision.decision === "block" || decision.decision === "deny") {
-      event?.messages?.push?.(decision.reason || "OpenLeash denied this action.");
+      event?.messages?.push?.(decision.reason || "Leash denied this action.");
       event.cancel = true;
     }
   } catch {

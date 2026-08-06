@@ -1,8 +1,8 @@
 {
   "name": "@openleash/desktop-client",
-  "version": "0.36.59",
-  "description": "OpenLeash desktop agent policy and attention client.",
-  "author": "OpenLeash",
+  "version": "0.37.0",
+  "description": "Leash desktop agent policy and attention client.",
+  "author": "Leash",
   "type": "commonjs",
   "main": "dist/main.js",
   "bin": {
@@ -15,12 +15,12 @@
     "dev": "npm run build && env -u ELECTRON_RUN_AS_NODE electron .",
     "build": "tsc -p tsconfig.json && node src/copy-assets.mjs && node src/build-native-island.mjs",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "test": "tsx --test src/proxy-manager.test.ts src/plugin-container-manager.test.ts src/local-plugin-runtime.test.ts src/agent-registry.test.ts src/activity-island.test.ts src/agent-session-focus.test.ts src/agent-restart.test.ts src/notice-window.test.ts src/intent-dedupe.test.ts src/notice-presentation.test.ts src/local-server-token.test.ts src/setup-connection-draft.test.ts src/setup-install-progress.test.ts src/plugin-detail-edit-refresh.test.ts src/plugin-install-state.test.ts src/session-monitoring.test.ts src/instruction-rules.test.ts src/policy-defaults.test.ts",
+    "test": "tsx --test src/proxy-manager.test.ts src/agent-registry.test.ts src/activity-island.test.ts src/agent-session-focus.test.ts src/agent-restart.test.ts src/notice-window.test.ts src/intent-dedupe.test.ts src/notice-presentation.test.ts src/local-server-token.test.ts src/setup-connection-draft.test.ts src/setup-install-progress.test.ts src/plugin-detail-edit-refresh.test.ts src/plugin-install-state.test.ts src/session-monitoring.test.ts src/instruction-rules.test.ts src/policy-defaults.test.ts",
     "test:island:mac": "node scripts/verify-native-island.mjs --plain && node scripts/verify-native-island.mjs --notch",
     "verify:release-dependencies": "node scripts/verify-release-dependencies.mjs"
   },
   "dependencies": {
-    "@openleash/shared": "0.1.4",
+    "@openleash/shared": "0.2.0",
     "better-sqlite3": "^12.10.0",
     "commander": "^12.1.0",
     "lottie-web": "^5.13.0"
@@ -29,7 +29,7 @@
     "@electron/rebuild": "^4.0.4",
     "@types/better-sqlite3": "^7.6.13",
     "@types/node": "^22.15.21",
-    "electron": "^40.10.6",
+    "electron": "^43.3.0",
     "electron-builder": "26.15.3",
     "sharp": "0.35.3",
     "simple-icons": "^16.19.0",

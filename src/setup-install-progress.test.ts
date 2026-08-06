@@ -39,7 +39,7 @@ test("active installation uses a dedicated screen with no back control", () => {
   assert.match(installationView, /setupInstallScreen/);
   assert.match(installationView, /class="gray"/);
   assert.match(installationView, /class="color"/);
-  assert.match(installationView, /OpenLeash is installed/);
+  assert.match(installationView, /Leash is installed/);
   assert.doesNotMatch(installationView, /id="setupBack"/);
   assert.match(
     renderer,
@@ -58,8 +58,7 @@ test("desktop setup reports real installation stages to the renderer", () => {
   assert.match(setupHandler, /Enrolling this Mac/);
   assert.match(setupHandler, /Protecting \$\{agentDisplayName\}/);
   assert.match(setupHandler, /Verifying agent protection/);
-  assert.match(setupHandler, /Verifying plugin containers/);
-  assert.match(setupHandler, /reconcilePluginContainers/);
+  assert.match(setupHandler, /Verifying built-in Features/);
   assert.match(setupHandler, /verifyRemotePluginRuntimes/);
   assert.match(setupHandler, /percent: 100/);
   assert.match(preload, /onSetupProgress/);

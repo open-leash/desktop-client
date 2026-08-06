@@ -8,7 +8,7 @@ export const LOCAL_PROXY_URL = "http://127.0.0.1:9320";
 // the desktop. A mutable/missing `latest` tag makes existing desktop installs
 // impossible to repair after installation.
 export const DEFAULT_LOCAL_PROXY_IMAGE =
-  "ghcr.io/open-leash/local-proxy:0.36.4@sha256:5fa7abbaf281ff44fbbdcff1250ae300158e6884449652b0cf57c643d18dc8a2";
+  "ghcr.io/open-leash/local-proxy:0.37.0@sha256:e4b51dd59ac0b60d768ed76026d20a48d28f3b5538f3bb17d945d23767dc02da";
 function agentProxyUrl(kind: string, openAi = false) {
   return `${LOCAL_PROXY_URL}/agent/${kind}${openAi ? "/v1" : ""}`;
 }
@@ -43,13 +43,13 @@ export const PROXY_AGENT_SUPPORT = {
     mode: "hooks",
     surfaces: ["Copilot CLI", "Copilot VS Code"],
     instructions:
-      "Copilot remains protected by OpenLeash hooks. BYOK proxy routing requires a launch environment and is not persisted by Copilot.",
+      "Copilot remains protected by Leash hooks. BYOK proxy routing requires a launch environment and is not persisted by Copilot.",
   },
   openclaw: {
     mode: "hooks",
     surfaces: ["OpenClaw"],
     instructions:
-      "OpenClaw remains protected by its OpenLeash hook pack; gateway proxying requires an OpenClaw runtime plugin.",
+      "OpenClaw remains protected by its Leash hook pack; gateway proxying requires an OpenClaw runtime extension.",
   },
 } as const;
 export type LocalProxyStatus = {
@@ -104,7 +104,7 @@ export async function installLocalProxy(options: {
     throw new Error("Docker Desktop or Docker Engine must be running.");
   if (!options.token.trim())
     throw new Error(
-      "OpenLeash backend token is required before installing the proxy.",
+      "Leash backend token is required before installing the proxy.",
     );
   const agents = options.agents ?? [];
   for (const agent of agents) configureAgentProxy(agent, false);
@@ -144,7 +144,7 @@ export async function installLocalProxy(options: {
   const result = docker(args);
   if (result.status !== 0)
     throw new Error(
-      result.stderr.trim() || "Could not start the OpenLeash proxy container.",
+      result.stderr.trim() || "Could not start the Leash proxy container.",
     );
   for (const agent of agents) configureAgentProxy(agent, true);
   return waitForHealthyProxy();
@@ -162,7 +162,7 @@ export async function uninstallLocalProxy() {
     !/no such (?:container|object)/i.test(message)
   ) {
     throw new Error(
-      message || "Docker is unavailable, so the OpenLeash proxy container could not be removed.",
+      message || "Docker is unavailable, so the Leash proxy container could not be removed.",
     );
   }
   return localProxyStatus();
@@ -316,7 +316,7 @@ function configureCodex(enabled: boolean) {
     codexAuthMode() === "chatgpt"
       ? '\nhttp_headers = { "x-openleash-codex-auth-mode" = "chatgpt" }'
       : "";
-  const block = `# Managed by OpenLeash local proxy\nmodel_provider = "openleash"\n\n${source}\n\n[model_providers.openleash]\nname = "OpenLeash local proxy"\nbase_url = "${agentProxyUrl("codex", true)}"\nwire_api = "responses"\nrequires_openai_auth = true${chatGptHeader}\n`;
+  const block = `# Managed by OpenLeash local proxy\nmodel_provider = "openleash"\n\n${source}\n\n[model_providers.openleash]\nname = "Leash local proxy"\nbase_url = "${agentProxyUrl("codex", true)}"\nwire_api = "responses"\nrequires_openai_auth = true${chatGptHeader}\n`;
   fs.writeFileSync(
     file,
     block.replace(`\n\n${source}\n\n`, source ? `\n\n${source}\n\n` : "\n\n"),
@@ -430,7 +430,7 @@ function parseJsonOrThrow(
     return JSON.parse(source) as Record<string, unknown>;
   } catch {
     throw new Error(
-      `OpenLeash did not modify ${file} because it is not strict JSON. Set provider.anthropic.options.baseURL to ${agentProxyUrl("opencode")} and provider.openai.options.baseURL to ${agentProxyUrl("opencode", true)} manually.`,
+      `Leash did not modify ${file} because it is not strict JSON. Set provider.anthropic.options.baseURL to ${agentProxyUrl("opencode")} and provider.openai.options.baseURL to ${agentProxyUrl("opencode", true)} manually.`,
     );
   }
 }

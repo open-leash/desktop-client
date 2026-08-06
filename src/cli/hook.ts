@@ -24,7 +24,7 @@ export async function runHook(agent: HookAgent, eventName: HookEventName) {
   });
 
   if (!response.ok) {
-    process.stderr.write(`OpenLeash could not evaluate this action (${response.status}).\n`);
+    process.stderr.write(`Leash could not evaluate this action (${response.status}).\n`);
     process.exitCode = 1;
     return;
   }

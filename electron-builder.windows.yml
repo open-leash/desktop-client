@@ -1,7 +1,7 @@
 appId: com.openleash.personal
-productName: OpenLeash
-copyright: Copyright © 2026 OpenLeash
-electronVersion: 40.10.6
+productName: Leash
+copyright: Copyright © 2026 Leash
+electronVersion: 43.3.0
 extraMetadata:
   main: dist/main.js
 directories:
@@ -20,7 +20,7 @@ win:
     - target: nsis
       arch:
         - x64
-  artifactName: OpenLeash-${version}-${arch}-Setup.${ext}
+  artifactName: Leash-${version}-${arch}-Setup.${ext}
 nsis:
   oneClick: false
   perMachine: false

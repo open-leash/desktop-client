@@ -1,4 +1,4 @@
-name: Release macOS desktop
+name: Release Leash for macOS
 
 on:
   workflow_dispatch:
@@ -22,14 +22,14 @@ jobs:
         uses: actions/checkout@v7
         with:
           repository: open-leash/shared
-          ref: effe9afd1c616d52da9ea710283e9fbebbf4ce77
+          ref: v0.2.0
           path: packages/shared
 
       - name: Checkout public release tooling
         uses: actions/checkout@v7
         with:
           repository: open-leash/openleash
-          ref: 5ba209cc01ccabd55e6bcd3fe1cdab26ddec7ea6
+          ref: main
           path: platform
 
       - name: Setup Node
@@ -69,7 +69,7 @@ jobs:
           CSC_IDENTITY_AUTO_DISCOVERY: "false"
         run: |
           set -euo pipefail
-          npx electron-rebuild -v 40.10.6 -w better-sqlite3 --force
+          npx electron-rebuild -v 43.3.0 -w better-sqlite3 --force
           npx electron-builder --config electron-builder.mac.yml --mac --arm64 --publish never
 
       - name: Verify unsigned development package
@@ -77,9 +77,9 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          app_path=$(find release/macos -type d -name 'OpenLeash.app' -print -quit)
+          app_path=$(find release/macos -type d -name 'Leash.app' -print -quit)
           test -n "$app_path"
-          test -x "$app_path/Contents/MacOS/OpenLeash"
+          test -x "$app_path/Contents/MacOS/Leash"
           test -x "$app_path/Contents/Resources/app.asar.unpacked/dist/openleash-island"
 
       - name: Create checksums
@@ -89,12 +89,12 @@ jobs:
           set -euo pipefail
           cp ../../scripts/install-openleash-personal.sh .
           chmod +x install-openleash-personal.sh
-          shasum -a 256 OpenLeash-*.dmg *.blockmap latest-mac.yml install-openleash-personal.sh > SHA256SUMS
+          shasum -a 256 Leash-*.dmg *.blockmap latest-mac.yml install-openleash-personal.sh > SHA256SUMS
 
       - name: Upload workflow artifact
         uses: actions/upload-artifact@v7
         with:
-          name: OpenLeash-macOS-arm64-${{ github.ref_name }}
+          name: Leash-macOS-arm64-${{ github.ref_name }}
           path: |
             apps/desktop-client/release/macos/*.dmg
             apps/desktop-client/release/macos/*.blockmap
