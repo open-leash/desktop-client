@@ -3,7 +3,7 @@
 <img src="https://capsule-render.vercel.app/api?type=waving&color=0:14B8A6,45:2563EB,100:111827&height=220&section=header&text=Local%20Proxy&fontSize=54&fontColor=ffffff&fontAlignY=38&desc=The%20real-time%20policy%20gate%20for%20local%20AI%20agents.&descSize=18&descAlignY=58" width="100%" />
 
 <p>
-  <a href="https://openleash.com"><img src="https://img.shields.io/badge/OpenLeash-openleash.com-14B8A6?style=for-the-badge&logo=googlechrome&logoColor=white" /></a>
+  <a href="https://openleash.com"><img src="https://img.shields.io/badge/Leash-openleash.com-14B8A6?style=for-the-badge&logo=googlechrome&logoColor=white" /></a>
   <a href="https://docs.openleash.com"><img src="https://img.shields.io/badge/Docs-docs.openleash.com-2563EB?style=for-the-badge&logo=readthedocs&logoColor=white" /></a>
   <img src="https://img.shields.io/badge/License-MIT-111827?style=for-the-badge&logo=opensourceinitiative&logoColor=white" />
 </p>
@@ -22,7 +22,7 @@
 
 ## ✨ What this app is
 
-`local-proxy` is OpenLeash's cross-platform reverse proxy and enforcement relay for local AI agents. It understands Anthropic Messages, OpenAI Chat Completions, and OpenAI Responses traffic, reconstructs prompts and tool calls, sends normalized events to `client-api`, and applies policy decisions before protected traffic continues.
+`local-proxy` is Leash's cross-platform reverse proxy and enforcement relay for local AI agents. It understands Anthropic Messages, OpenAI Chat Completions, and OpenAI Responses traffic, reconstructs prompts and tool calls, sends normalized events to `client-api`, and applies policy decisions before protected traffic continues.
 
 ```text
 Claude Code / Codex / Cursor / OpenCode / other agents
@@ -71,7 +71,7 @@ Default limits include 16 MiB intercepted requests, eight simultaneous request e
 
 ## 🛠 Run locally
 
-Requirements: a stable Rust toolchain and a running OpenLeash `client-api`.
+Requirements: a stable Rust toolchain and a running Leash `client-api`.
 
 ```bash
 cargo run
@@ -95,7 +95,7 @@ For an OpenAI-compatible agent, use its OpenAI upstream instead. The desktop cli
 | Variable | Purpose |
 | --- | --- |
 | `OPENLEASH_PROXY_UPSTREAM` | Provider API origin receiving allowed traffic. |
-| `OPENLEASH_CLIENT_API` | OpenLeash evaluation API URL. |
+| `OPENLEASH_CLIENT_API` | Leash evaluation API URL. |
 | `OPENLEASH_TOKEN` | Authentication token for `client-api`. |
 | `OPENLEASH_CORPORATE_PROXY` | Optional existing organization proxy to chain through. |
 | `OPENLEASH_PROXY_FAIL_OPEN` | Explicitly allow protected traffic when evaluation fails. Defaults to `false`. |
@@ -121,7 +121,7 @@ The test suite covers provider URL construction, header filtering, Anthropic and
 
 ## 🔐 Security
 
-Please report vulnerabilities according to [SECURITY.md](SECURITY.md). Never include live provider keys, OpenLeash tokens, or captured prompt contents in a public issue.
+Please report vulnerabilities according to [SECURITY.md](SECURITY.md). Never include live provider keys, Leash tokens, or captured prompt contents in a public issue.
 
 <div align="center">
 

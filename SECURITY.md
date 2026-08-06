@@ -5,7 +5,7 @@ The local proxy is a policy enforcement boundary. This document states the assum
 ## Enforcement behavior
 
 - The default listen address is loopback-only. Do not expose the proxy on an untrusted network without a separate authenticated ingress.
-- OpenLeash credentials and `x-openleash-*` headers are stripped before provider forwarding. Hop-by-hop and connection-nominated headers are stripped in both directions.
+- Leash credentials and `x-openleash-*` headers are stripped before provider forwarding. Hop-by-hop and connection-nominated headers are stripped in both directions.
 - Protected evaluation fails closed by default. Prompt requests are not sent upstream after a deny or evaluation failure. Complete HTTP/JSON/SSE tool responses are held until `client-api` returns `allow`; deny, evaluator error, or timeout releases none of the provider tool bytes.
 - `OPENLEASH_PROXY_FAIL_OPEN=true` weakens this boundary and must be an explicit operator decision.
 - WebSocket traffic is transport passthrough and is not synchronously tool-gated. Do not claim enforcement for provider tool calls carried exclusively over WebSockets.

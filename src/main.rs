@@ -296,7 +296,7 @@ async fn forward(
                 .map_err(|_| {
                     (
                         StatusCode::SERVICE_UNAVAILABLE,
-                        "OpenLeash request evaluator is shutting down".to_owned(),
+                        "Leash request evaluator is shutting down".to_owned(),
                     )
                 })?,
         )
@@ -368,14 +368,14 @@ async fn forward(
             Ok(Err(error)) if !app.config.fail_open => {
                 return Err((
                     StatusCode::SERVICE_UNAVAILABLE,
-                    format!("OpenLeash plugin runtime unavailable: {error}"),
+                    format!("Leash Feature runtime unavailable: {error}"),
                 ));
             }
             Ok(Err(_)) => {}
             Err(_) if !app.config.fail_open => {
                 return Err((
                     StatusCode::SERVICE_UNAVAILABLE,
-                    "OpenLeash plugin transformation timed out".to_owned(),
+                    "Leash Feature transformation timed out".to_owned(),
                 ));
             }
             Err(_) => {}
@@ -398,7 +398,7 @@ async fn forward(
                 Ok(Ok(decision)) if decision.decision == "deny" => {
                     return Err((
                         StatusCode::FORBIDDEN,
-                        "OpenLeash blocked this model request".into(),
+                        "Leash blocked this model request".into(),
                     ))
                 }
                 Ok(Ok(decision)) => {
@@ -412,14 +412,14 @@ async fn forward(
                 Ok(Err(error)) if !app.config.fail_open => {
                     return Err((
                         StatusCode::SERVICE_UNAVAILABLE,
-                        format!("OpenLeash backend unavailable: {error}"),
+                        format!("Leash backend unavailable: {error}"),
                     ))
                 }
                 Ok(Err(_)) => {}
                 Err(_) if !app.config.fail_open => {
                     return Err((
                         StatusCode::SERVICE_UNAVAILABLE,
-                        "OpenLeash request evaluation timed out".to_owned(),
+                        "Leash request evaluation timed out".to_owned(),
                     ))
                 }
                 Err(_) => {}
@@ -469,7 +469,7 @@ async fn forward(
         let _gate_permit = app.gate_slots.acquire().await.map_err(|_| {
             (
                 StatusCode::SERVICE_UNAVAILABLE,
-                "OpenLeash tool gate is shutting down".to_owned(),
+                "Leash tool gate is shutting down".to_owned(),
             )
         })?;
         app.gated_responses.fetch_add(1, Ordering::Relaxed);
@@ -496,13 +496,13 @@ async fn forward(
                     app.gate_denials.fetch_add(1, Ordering::Relaxed);
                     return Err((
                         StatusCode::FORBIDDEN,
-                        format!("OpenLeash blocked this tool call: {}", decision.decision),
+                        format!("Leash blocked this tool call: {}", decision.decision),
                     ));
                 }
                 Ok(Err(error)) if !app.config.fail_open => {
                     return Err((
                         StatusCode::SERVICE_UNAVAILABLE,
-                        format!("OpenLeash tool evaluation unavailable: {error}"),
+                        format!("Leash tool evaluation unavailable: {error}"),
                     ))
                 }
                 Ok(Err(_)) => {}
@@ -510,7 +510,7 @@ async fn forward(
                     app.gate_timeouts.fetch_add(1, Ordering::Relaxed);
                     return Err((
                         StatusCode::SERVICE_UNAVAILABLE,
-                        "OpenLeash tool evaluation timed out".to_owned(),
+                        "Leash tool evaluation timed out".to_owned(),
                     ));
                 }
                 Err(_) => {
