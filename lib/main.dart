@@ -166,6 +166,7 @@ class _OpenLeashHomeState extends State<OpenLeashHome> {
   bool _loading = true;
   bool _customApi = false;
   bool _busy = false;
+  bool _notificationSounds = true;
   String _audience = 'individual';
   String? _error;
   String? _token;
@@ -234,7 +235,9 @@ class _OpenLeashHomeState extends State<OpenLeashHome> {
           ? savedApiUrl ?? _defaultCloudApiUrl()
           : _defaultCloudApiUrl();
       _token = saved['token'] as String?;
+      _notificationSounds = saved['notificationSounds'] != false;
     }
+    widget.notifications.soundsEnabled = _notificationSounds;
     if (_signedIn) {
       final bootstrapped = await _bootstrapApi();
       if (!bootstrapped) {
@@ -256,8 +259,15 @@ class _OpenLeashHomeState extends State<OpenLeashHome> {
         'apiUrl': _apiUrl,
         'customApi': _customApi,
         'token': _token,
+        'notificationSounds': _notificationSounds,
       }),
     );
+  }
+
+  Future<void> _setNotificationSounds(bool enabled) async {
+    setStateSafe(() => _notificationSounds = enabled);
+    widget.notifications.soundsEnabled = enabled;
+    await _save();
   }
 
   Map<String, String> _headers(String functionName, {bool json = false}) {
@@ -895,6 +905,8 @@ class _OpenLeashHomeState extends State<OpenLeashHome> {
                   children: [
                     _LogoHeader(
                       signedIn: _signedIn,
+                      notificationSounds: _notificationSounds,
+                      onNotificationSoundsChanged: _setNotificationSounds,
                       onSignOut: _signOut,
                       onPrivacy: () => _openExternalPage(_privacyUrl),
                       onSupport: () => _openExternalPage(_supportUrl),
@@ -2091,6 +2103,7 @@ String _settingLabel(String value) {
 
 class ApprovalNotifications {
   final _plugin = FlutterLocalNotificationsPlugin();
+  bool soundsEnabled = true;
   Future<void> Function(
     String id,
     String resolution,
@@ -2173,13 +2186,17 @@ class ApprovalNotifications {
   Future<void> showApproval(Approval approval) async {
     final supportsGuidance = _supportsAgentGuidance(approval.agentKind);
     final android = AndroidNotificationDetails(
-      'openleash_approvals',
+      'openleash_approvals_question_v1',
       'OpenLeash approvals',
       channelDescription: 'Approve or deny OpenLeash agent actions.',
       importance: Importance.high,
       priority: Priority.high,
       visibility: NotificationVisibility.public,
       category: AndroidNotificationCategory.status,
+      playSound: soundsEnabled,
+      sound: soundsEnabled
+          ? const RawResourceAndroidNotificationSound('question')
+          : null,
       actions: [
         const AndroidNotificationAction('deny', 'Deny'),
         if (supportsGuidance)
@@ -2201,7 +2218,8 @@ class ApprovalNotifications {
           : 'openleash_approval',
       presentAlert: true,
       presentBadge: true,
-      presentSound: true,
+      presentSound: soundsEnabled,
+      sound: soundsEnabled ? 'question.mp3' : null,
       presentBanner: true,
       presentList: true,
       interruptionLevel: InterruptionLevel.timeSensitive,
@@ -2235,9 +2253,11 @@ class ApprovalNotifications {
         (kind == 'question' || kind == 'plan_review'
             ? 'Open OpenLeash to respond.'
             : 'Open OpenLeash to view the details.');
-    final actionable = kind == 'question' || kind == 'plan_review';
+    final actionable =
+        event['state'] == 'waiting' &&
+        (kind == 'question' || kind == 'plan_review');
     final android = AndroidNotificationDetails(
-      actionable ? 'openleash_attention' : 'openleash_updates',
+      actionable ? 'openleash_attention_question_v1' : 'openleash_updates',
       actionable ? 'OpenLeash attention' : 'OpenLeash updates',
       channelDescription: actionable
           ? 'Questions and plans that need your response.'
@@ -2248,11 +2268,16 @@ class ApprovalNotifications {
       category: actionable
           ? AndroidNotificationCategory.status
           : AndroidNotificationCategory.progress,
+      playSound: actionable && soundsEnabled,
+      sound: actionable && soundsEnabled
+          ? const RawResourceAndroidNotificationSound('question')
+          : null,
     );
     final darwin = DarwinNotificationDetails(
       presentAlert: true,
       presentBadge: actionable,
-      presentSound: actionable,
+      presentSound: actionable && soundsEnabled,
+      sound: actionable && soundsEnabled ? 'question.mp3' : null,
       presentBanner: true,
       presentList: true,
       interruptionLevel: actionable
@@ -2348,6 +2373,8 @@ class ApprovalContextLine {
 class _LogoHeader extends StatelessWidget {
   const _LogoHeader({
     required this.signedIn,
+    required this.notificationSounds,
+    required this.onNotificationSoundsChanged,
     required this.onSignOut,
     required this.onPrivacy,
     required this.onSupport,
@@ -2355,6 +2382,8 @@ class _LogoHeader extends StatelessWidget {
   });
 
   final bool signedIn;
+  final bool notificationSounds;
+  final ValueChanged<bool> onNotificationSoundsChanged;
   final VoidCallback onSignOut;
   final VoidCallback onPrivacy;
   final VoidCallback onSupport;
@@ -2392,13 +2421,41 @@ class _LogoHeader extends StatelessWidget {
               borderRadius: BorderRadius.circular(12),
             ),
             onSelected: (value) {
+              if (value == 'notification-sounds') {
+                onNotificationSoundsChanged(!notificationSounds);
+              }
               if (value == 'sign-out') onSignOut();
               if (value == 'privacy') onPrivacy();
               if (value == 'support') onSupport();
               if (value == 'delete-account') onDeleteAccount();
             },
-            itemBuilder: (context) => const [
+            itemBuilder: (context) => [
               PopupMenuItem(
+                value: 'notification-sounds',
+                child: Row(
+                  children: [
+                    Icon(
+                      notificationSounds
+                          ? Icons.volume_up_outlined
+                          : Icons.volume_off_outlined,
+                      size: 20,
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        notificationSounds
+                            ? 'Notification sounds on'
+                            : 'Notification sounds off',
+                      ),
+                    ),
+                    Switch.adaptive(
+                      value: notificationSounds,
+                      onChanged: onNotificationSoundsChanged,
+                    ),
+                  ],
+                ),
+              ),
+              const PopupMenuItem(
                 value: 'privacy',
                 child: Row(
                   children: [
@@ -2408,7 +2465,7 @@ class _LogoHeader extends StatelessWidget {
                   ],
                 ),
               ),
-              PopupMenuItem(
+              const PopupMenuItem(
                 value: 'support',
                 child: Row(
                   children: [
@@ -2418,7 +2475,7 @@ class _LogoHeader extends StatelessWidget {
                   ],
                 ),
               ),
-              PopupMenuItem(
+              const PopupMenuItem(
                 value: 'delete-account',
                 child: Row(
                   children: [
@@ -2428,7 +2485,7 @@ class _LogoHeader extends StatelessWidget {
                   ],
                 ),
               ),
-              PopupMenuItem(
+              const PopupMenuItem(
                 value: 'sign-out',
                 child: Row(
                   children: [
