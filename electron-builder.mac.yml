@@ -2,6 +2,7 @@ appId: com.openleash.personal
 productName: Leash
 copyright: Copyright © 2026 Leash
 electronVersion: 43.3.0
+npmRebuild: false
 forceCodeSigning: false
 extraMetadata:
   main: dist/main.js
