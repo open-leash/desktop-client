@@ -1023,14 +1023,18 @@ async fn evaluate(
         .map(str::to_owned)
         .unwrap_or_else(|| chrono::Utc::now().to_rfc3339());
     let transcript = normalized_transcript(body);
+    let event = with_optional_project_path(
+        json!({"eventName":event_name,"agentKind":agent_kind,"sessionId":session,"prompt":prompt,"tool":tool,"transcript":transcript,
+          "raw":{"proxyPath":path,"containerPluginApplied":applied_plugin_ids,"containerPluginRuns":container_plugin_runs,
+            "backgroundControl":background_control_request},"occurredAt":occurred_at}),
+        project_path,
+    );
     let envelope = json!({
       "source":"local_proxy", "provider": provider(path, body),
       "correlationId": session,
       "request": { "computer": {"hostname":"local-proxy","platform":std::env::consts::OS},
         "agent":{"kind":agent_kind,"displayName":agent_display_name(agent_kind)},
-        "event":{"eventName":event_name,"agentKind":agent_kind,"sessionId":session,"projectPath":project_path,"prompt":prompt,"tool":tool,"transcript":transcript,
-          "raw":{"proxyPath":path,"containerPluginApplied":applied_plugin_ids,"containerPluginRuns":container_plugin_runs,
-            "backgroundControl":background_control_request},"occurredAt":occurred_at}}
+        "event":event}
     });
     app.client
         .post(format!(
@@ -1044,6 +1048,13 @@ async fn evaluate(
         .error_for_status()?
         .json()
         .await
+}
+
+fn with_optional_project_path(mut event: Value, project_path: Option<String>) -> Value {
+    if let (Some(fields), Some(project_path)) = (event.as_object_mut(), project_path) {
+        fields.insert("projectPath".to_owned(), Value::String(project_path));
+    }
+    event
 }
 
 async fn transform_request(
@@ -1632,6 +1643,21 @@ mod tests {
             provider_project_path(&json!({"projectPath":"/workspace/service"})).as_deref(),
             Some("/workspace/service"),
         );
+    }
+
+    #[test]
+    fn missing_project_path_is_omitted_from_agent_events() {
+        let without_path =
+            with_optional_project_path(json!({"eventName":"UserPromptSubmit"}), None);
+        assert!(!without_path
+            .as_object()
+            .unwrap()
+            .contains_key("projectPath"));
+        let with_path = with_optional_project_path(
+            json!({"eventName":"UserPromptSubmit"}),
+            Some("/workspace/service".to_owned()),
+        );
+        assert_eq!(with_path["projectPath"], "/workspace/service");
     }
     #[test]
     fn transform_response_can_pause_monitoring_for_one_request_session() {

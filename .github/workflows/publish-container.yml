@@ -6,7 +6,7 @@ on:
       version:
         description: Version tag to publish
         required: true
-        default: 0.36.3
+        default: 0.36.4
   push:
     tags:
       - "v*"
