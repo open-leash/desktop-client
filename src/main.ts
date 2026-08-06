@@ -6600,7 +6600,7 @@ function playQuestionSound() {
             "-NoProfile",
             "-NonInteractive",
             "-Command",
-            "$player = New-Object System.Windows.Media.MediaPlayer; $player.Open([Uri]$args[0]); $player.Play(); Start-Sleep -Milliseconds 3000",
+            "$ErrorActionPreference = 'Stop'; Add-Type -AssemblyName PresentationCore; $player = New-Object System.Windows.Media.MediaPlayer; $player.Open([Uri]$args[0]); $player.Play(); Start-Sleep -Milliseconds 3000",
             soundPath,
           ],
         }
