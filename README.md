@@ -16,9 +16,9 @@
 
 ## ✨ What this app is
 
-`mobile-client` is the iOS/Android companion app for OpenLeash agent attention.
+`mobile-client` is the iOS/Android companion app for Leash agent attention.
 
-It connects to OpenLeash Cloud or a customer-hosted API, signs existing users in through the configured identity provider, registers the phone, and lets users approve or deny held agent actions.
+It connects to Leash Cloud or a customer-hosted API, signs existing users in through the configured identity provider, registers the phone, and lets users approve or deny held agent actions.
 
 Mobile is sign-in only. Account creation happens from desktop or web.
 
@@ -70,7 +70,7 @@ Start a local cloud simulation first:
 python3 run.py
 ```
 
-Choose **OpenLeash Cloud**.
+Choose **Leash Cloud**.
 
 Then:
 

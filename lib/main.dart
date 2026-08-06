@@ -75,18 +75,18 @@ void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   final notifications = ApprovalNotifications();
   await notifications.init();
-  runApp(OpenLeashMobileApp(notifications: notifications));
+  runApp(LeashMobileApp(notifications: notifications));
 }
 
-class OpenLeashMobileApp extends StatelessWidget {
-  const OpenLeashMobileApp({super.key, required this.notifications});
+class LeashMobileApp extends StatelessWidget {
+  const LeashMobileApp({super.key, required this.notifications});
 
   final ApprovalNotifications notifications;
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'OpenLeash',
+      title: 'Leash',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
         useMaterial3: true,
@@ -139,21 +139,21 @@ class OpenLeashMobileApp extends StatelessWidget {
           child: child ?? const SizedBox.shrink(),
         );
       },
-      home: OpenLeashHome(notifications: notifications),
+      home: LeashHome(notifications: notifications),
     );
   }
 }
 
-class OpenLeashHome extends StatefulWidget {
-  const OpenLeashHome({super.key, required this.notifications});
+class LeashHome extends StatefulWidget {
+  const LeashHome({super.key, required this.notifications});
 
   final ApprovalNotifications notifications;
 
   @override
-  State<OpenLeashHome> createState() => _OpenLeashHomeState();
+  State<LeashHome> createState() => _LeashHomeState();
 }
 
-class _OpenLeashHomeState extends State<OpenLeashHome> {
+class _LeashHomeState extends State<LeashHome> {
   final _storage = const FlutterSecureStorage();
   final _appLinks = AppLinks();
   final _apiController = TextEditingController(text: _defaultCloudApiUrl());
@@ -320,11 +320,10 @@ class _OpenLeashHomeState extends State<OpenLeashHome> {
         }
       }
       _error =
-          'Could not reach OpenLeash at ${_apiCandidates.join(' or ')}. Check that the API is running and try again.';
+          'Could not reach Leash at ${_apiCandidates.join(' or ')}. Check that the API is running and try again.';
       return false;
     } catch (error) {
-      _error =
-          'Could not connect to OpenLeash. ${_cleanError(lastError ?? error)}';
+      _error = 'Could not connect to Leash. ${_cleanError(lastError ?? error)}';
       return false;
     } finally {
       setStateSafe(() => _busy = false);
@@ -347,8 +346,8 @@ class _OpenLeashHomeState extends State<OpenLeashHome> {
           provider['type'] as String? ??
           provider['providerType'] as String? ??
           'google';
-      _pendingOrganizationId =
-          (_bootstrap?['organization'] as Map?)?['id'] as String?;
+      _pendingOrganizationId = null;
+      _audience = 'individual';
       final response = await _request(
         'POST',
         '/v1/mobile/auth/start',
@@ -392,10 +391,7 @@ class _OpenLeashHomeState extends State<OpenLeashHome> {
       return;
     }
     final exchangeRedirectUri = uri.queryParameters['exchangeRedirectUri'];
-    final audience = uri.queryParameters['audience'];
-    if (audience == 'organization' || audience == 'individual') {
-      _audience = audience!;
-    }
+    _audience = 'individual';
     if (exchangeRedirectUri != null && exchangeRedirectUri.isNotEmpty) {
       _pendingExchangeRedirectUri = exchangeRedirectUri;
     }
@@ -445,7 +441,7 @@ class _OpenLeashHomeState extends State<OpenLeashHome> {
       _startLiveEvents();
     } catch (error) {
       _error =
-          'Sign-in completed, but OpenLeash could not create the mobile session. ${_cleanError(error)}';
+          'Sign-in completed, but Leash could not create the mobile session. ${_cleanError(error)}';
     } finally {
       setStateSafe(() => _busy = false);
     }
@@ -814,7 +810,7 @@ class _OpenLeashHomeState extends State<OpenLeashHome> {
       interaction: approval['interaction'] is Map
           ? Map<String, dynamic>.from(approval['interaction'] as Map)
           : null,
-      title: approval['summary']?.toString() ?? 'OpenLeash approval needed',
+      title: approval['summary']?.toString() ?? 'Leash approval needed',
       agent:
           approval['agent_name']?.toString() ??
           approval['agentName']?.toString() ??
@@ -823,11 +819,11 @@ class _OpenLeashHomeState extends State<OpenLeashHome> {
           approval['agent_kind']?.toString() ??
           approval['agentKind']?.toString(),
       project: project ?? 'Project',
-      policy: policy?.toString() ?? 'OpenLeash rule',
+      policy: policy?.toString() ?? 'Leash rule',
       plugin:
           approval['plugin_name']?.toString() ??
           approval['pluginName']?.toString() ??
-          'OpenLeash core',
+          'Leash core',
       purpose:
           approval['purpose_summary']?.toString() ??
           approval['purposeSummary']?.toString(),
@@ -937,7 +933,7 @@ class _OpenLeashHomeState extends State<OpenLeashHome> {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           const Text(
-            'Sign in to OpenLeash',
+            'Sign in to Leash',
             style: TextStyle(
               fontSize: 32,
               height: 1.02,
@@ -947,7 +943,7 @@ class _OpenLeashHomeState extends State<OpenLeashHome> {
           ),
           const SizedBox(height: 8),
           const Text(
-            'Use an existing OpenLeash Cloud or company account to approve agent actions from your phone.',
+            'Use your personal Leash Cloud account to approve agent actions from your phone.',
             style: TextStyle(
               color: _OlTheme.dim,
               fontSize: 16,
@@ -975,28 +971,28 @@ class _OpenLeashHomeState extends State<OpenLeashHome> {
             ),
             const SizedBox(height: 10),
             _SecondaryButton(
-              label: 'Use company API',
+              label: 'Use personal API',
               onPressed: () => setState(() {
                 _customApi = true;
-                _audience = 'organization';
+                _audience = 'individual';
               }),
             ),
           ],
           if (_customApi) ...[
             _Input(
               controller: _apiController,
-              label: 'OpenLeash URL',
-              hint: 'https://api.company.com',
+              label: 'Personal Leash API URL',
+              hint: 'https://your-leash-api.example',
             ),
             const SizedBox(height: 16),
             _PrimaryButton(
-              label: 'Sign in with company',
+              label: 'Connect personal API',
               icon: Icons.arrow_forward,
               onPressed: () => _startSignIn(),
             ),
             const SizedBox(height: 10),
             _SecondaryButton(
-              label: 'Use OpenLeash Cloud',
+              label: 'Use Leash Cloud',
               onPressed: () => setState(() {
                 _customApi = false;
                 _audience = 'individual';
@@ -1022,8 +1018,7 @@ class _OpenLeashHomeState extends State<OpenLeashHome> {
         (_state?['user'] as Map?)?['displayName']?.toString() ??
         (_state?['user'] as Map?)?['email']?.toString() ??
         'Signed in';
-    final organization =
-        (_state?['organization'] as Map?)?['name']?.toString() ?? 'OpenLeash';
+    const organization = 'Personal Leash';
     final visibleAgents =
         _agents.whereType<Map>().where(_isVisibleAgent).toList()
           ..sort(_compareAgentsByCanonicalOrder);
@@ -1288,7 +1283,7 @@ class _PluginHomeSection extends StatelessWidget {
       children: [
         Row(
           children: [
-            const Expanded(child: _SectionTitle('Plugins')),
+            const Expanded(child: _SectionTitle('Features')),
             OutlinedButton.icon(
               onPressed: onAddPlugins,
               icon: const Icon(Icons.add_rounded, size: 18),
@@ -1300,7 +1295,7 @@ class _PluginHomeSection extends StatelessWidget {
         _Panel(
           child: plugins.isEmpty
               ? const Text(
-                  'No installed plugins yet.',
+                  'No Features are enabled yet.',
                   style: TextStyle(
                     color: _OlTheme.dim,
                     fontWeight: FontWeight.w700,
@@ -1461,7 +1456,7 @@ class _PluginMarketplacePageState extends State<_PluginMarketplacePage> {
     return Scaffold(
       backgroundColor: _OlTheme.bg,
       appBar: AppBar(
-        title: const Text('Add plugins'),
+        title: const Text('Available Features'),
         backgroundColor: _OlTheme.bg,
         foregroundColor: _OlTheme.ink,
         elevation: 0,
@@ -1473,7 +1468,7 @@ class _PluginMarketplacePageState extends State<_PluginMarketplacePage> {
             TextField(
               decoration: InputDecoration(
                 prefixIcon: const Icon(Icons.search_rounded),
-                hintText: 'Search plugins',
+                hintText: 'Search Features',
                 filled: true,
                 fillColor: _OlTheme.surface,
                 border: OutlineInputBorder(
@@ -1504,7 +1499,7 @@ class _PluginMarketplacePageState extends State<_PluginMarketplacePage> {
             if (plugins.isEmpty)
               const _Panel(
                 child: Text(
-                  'No plugins match this search.',
+                  'No Features match this search.',
                   style: TextStyle(
                     color: _OlTheme.dim,
                     fontWeight: FontWeight.w700,
@@ -1578,7 +1573,7 @@ class _MarketplacePluginCard extends StatelessWidget {
               ],
             ),
           ),
-          FilledButton(onPressed: onInstall, child: const Text('Install')),
+          FilledButton(onPressed: onInstall, child: const Text('Enable')),
         ],
       ),
     );
@@ -1638,9 +1633,9 @@ class _PluginDetailPageState extends State<_PluginDetailPage> {
                       final remove = await showDialog<bool>(
                         context: context,
                         builder: (context) => AlertDialog(
-                          title: const Text('Remove plugin?'),
+                          title: const Text('Disable Feature?'),
                           content: Text(
-                            'Remove ${_pluginName(widget.plugin)} from this account?',
+                            'Disable ${_pluginName(widget.plugin)} for this account?',
                           ),
                           actions: [
                             TextButton(
@@ -1649,7 +1644,7 @@ class _PluginDetailPageState extends State<_PluginDetailPage> {
                             ),
                             FilledButton(
                               onPressed: () => Navigator.pop(context, true),
-                              child: const Text('Remove'),
+                              child: const Text('Disable'),
                             ),
                           ],
                         ),
@@ -1666,8 +1661,8 @@ class _PluginDetailPageState extends State<_PluginDetailPage> {
               mandatory
                   ? 'Required'
                   : installed
-                  ? 'Remove'
-                  : 'Install',
+                  ? 'Disable'
+                  : 'Enable',
             ),
           ),
         ],
@@ -1982,7 +1977,7 @@ String _pluginDescription(Map plugin) {
           ? marketplace['shortDescription']?.toString()
           : null) ??
       plugin['description']?.toString() ??
-      'OpenLeash plugin';
+      'Leash Feature';
 }
 
 String _pluginInitials(Map plugin) {
@@ -2187,8 +2182,8 @@ class ApprovalNotifications {
     final supportsGuidance = _supportsAgentGuidance(approval.agentKind);
     final android = AndroidNotificationDetails(
       'openleash_approvals_question_v1',
-      'OpenLeash approvals',
-      channelDescription: 'Approve or deny OpenLeash agent actions.',
+      'Leash approvals',
+      channelDescription: 'Approve or deny Leash agent actions.',
       importance: Importance.high,
       priority: Priority.high,
       visibility: NotificationVisibility.public,
@@ -2242,23 +2237,23 @@ class ApprovalNotifications {
     final title = switch (kind) {
       'question' => 'An agent has a question',
       'plan_review' => 'An agent plan is ready',
-      'blocked' => 'OpenLeash blocked an action',
+      'blocked' => 'Leash blocked an action',
       'subagent_completed' => 'A subagent finished',
       'completed' => 'An agent finished',
-      _ => event['title']?.toString() ?? 'OpenLeash update',
+      _ => event['title']?.toString() ?? 'Leash update',
     };
     final body =
         event['body']?.toString() ??
         event['title']?.toString() ??
         (kind == 'question' || kind == 'plan_review'
-            ? 'Open OpenLeash to respond.'
-            : 'Open OpenLeash to view the details.');
+            ? 'Open Leash to respond.'
+            : 'Open Leash to view the details.');
     final actionable =
         event['state'] == 'waiting' &&
         (kind == 'question' || kind == 'plan_review');
     final android = AndroidNotificationDetails(
       actionable ? 'openleash_attention_question_v1' : 'openleash_updates',
-      actionable ? 'OpenLeash attention' : 'OpenLeash updates',
+      actionable ? 'Leash attention' : 'Leash updates',
       channelDescription: actionable
           ? 'Questions and plans that need your response.'
           : 'Agent completion and policy updates.',
@@ -2340,7 +2335,7 @@ class Approval {
         'Why: ${purpose!.trim()}',
       'Project: $project',
       'Rule: $policy',
-      'Plugin: $plugin',
+      'Feature: $plugin',
       if (quote != null && quote!.trim().isNotEmpty) 'Quote: ${quote!.trim()}',
       if (context.isNotEmpty) 'Context: ${context.last.content}',
     ];
@@ -2404,7 +2399,7 @@ class _LogoHeader extends StatelessWidget {
         ),
         const SizedBox(width: 12),
         const Text(
-          'OpenLeash',
+          'Leash',
           style: TextStyle(
             fontSize: 20,
             letterSpacing: -0.4,
@@ -2900,7 +2895,7 @@ class _EmptyApprovals extends StatelessWidget {
           ),
           SizedBox(height: 6),
           Text(
-            'Install OpenLeash Client on your Mac or Windows computer. Your agents and approvals will appear here.',
+            'Install Leash Client on your Mac or Windows computer. Your agents and approvals will appear here.',
             textAlign: TextAlign.center,
             style: TextStyle(color: _OlTheme.dim, fontWeight: FontWeight.w600),
           ),
@@ -3418,7 +3413,7 @@ class _SessionDetailPage extends StatelessWidget {
                       const SizedBox(height: 14),
                       Text(
                         session['summary']?.toString() ??
-                            'Session captured by OpenLeash.',
+                            'Session captured by Leash.',
                         style: const TextStyle(
                           color: _OlTheme.ink2,
                           height: 1.35,

@@ -1,4 +1,4 @@
-# OpenLeash Mobile Store Submission Checklist
+# Leash Mobile Store Submission Checklist
 
 Last updated: 2026-06-11
 
@@ -11,11 +11,11 @@ Last updated: 2026-06-11
 
 ## App behavior summary
 
-OpenLeash Mobile is an approval companion for existing OpenLeash Cloud and Private Cloud users. It signs in with Google, Microsoft, or a customer-hosted identity provider, registers the device, polls the configured OpenLeash API, shows pending approval requests, and sends allow/deny decisions.
+Leash Mobile is an approval companion for existing Leash Cloud and Private Cloud users. It signs in with Google, Microsoft, or a customer-hosted identity provider, registers the device, polls the configured Leash API, shows pending approval requests, and sends allow/deny decisions.
 
 The app requests:
 
-- Internet access, to reach OpenLeash Cloud or a customer-hosted API.
+- Internet access, to reach Leash Cloud or a customer-hosted API.
 - Notification permission, to show approval prompts.
 
 The app does not request camera, microphone, photo library, contacts, precise location, Bluetooth, calendar, or advertising tracking permissions.
@@ -24,7 +24,7 @@ The app does not request camera, microphone, photo library, contacts, precise lo
 
 - Enter the Privacy Policy URL.
 - Enter the Support URL.
-- Complete App Privacy answers for the data actually collected by OpenLeash Cloud and any third-party processors.
+- Complete App Privacy answers for the data actually collected by Leash Cloud and any third-party processors.
 - Provide a reviewer demo account or a fully usable demo organization.
 - In Review Notes, explain that Private Cloud users can point the app at their customer-managed API URL.
 - Confirm the bundled `ios/Runner/PrivacyInfo.xcprivacy` matches the final binary and any SDKs added later.

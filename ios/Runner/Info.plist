@@ -7,7 +7,7 @@
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
 	<key>CFBundleDisplayName</key>
-	<string>OpenLeash</string>
+	<string>Leash</string>
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
 	<key>CFBundleIdentifier</key>
@@ -15,13 +15,11 @@
 	<key>CFBundleInfoDictionaryVersion</key>
 	<string>6.0</string>
 	<key>CFBundleName</key>
-	<string>OpenLeash</string>
+	<string>Leash</string>
 	<key>OpenLeashPublicConfig</key>
 	<dict>
 		<key>CloudApiUrl</key>
 		<string>https://api.openleash.com</string>
-		<key>CloudDashboardUrl</key>
-		<string>https://dashboard.openleash.com</string>
 		<key>GoogleWebClientId</key>
 		<string>689989240806-fq8654h4993k9psil31t2a6pqildgn39.apps.googleusercontent.com</string>
 		<key>GoogleIosClientId</key>

@@ -1,5 +1,4 @@
 const openLeashPublicCloudApiUrl = 'https://api.openleash.com';
-const openLeashPublicCloudDashboardUrl = 'https://dashboard.openleash.com';
 const openLeashAuthCallbackUri = 'openleash://auth/callback';
 
 // OAuth client IDs and URL schemes are public identifiers. The Google client

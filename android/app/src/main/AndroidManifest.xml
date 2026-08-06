@@ -2,7 +2,7 @@
     <uses-permission android:name="android.permission.INTERNET"/>
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
     <application
-        android:label="OpenLeash"
+        android:label="Leash"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
         <activity
@@ -44,9 +44,6 @@
         <meta-data
             android:name="com.openleash.cloud_api_url"
             android:value="https://api.openleash.com" />
-        <meta-data
-            android:name="com.openleash.cloud_dashboard_url"
-            android:value="https://dashboard.openleash.com" />
         <meta-data
             android:name="com.openleash.google_web_client_id"
             android:value="689989240806-fq8654h4993k9psil31t2a6pqildgn39.apps.googleusercontent.com" />
