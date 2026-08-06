@@ -27,6 +27,10 @@ export function hookApiUrl(config: Pick<LocalConfig, "apiUrl" | "remoteApiUrl">)
   return (config.remoteApiUrl || config.apiUrl).replace(/\/+$/, "");
 }
 
+export function proxyClientApiUrl(config: Pick<LocalConfig, "apiUrl">) {
+  return config.apiUrl.replace(/\/+$/, "");
+}
+
 export async function readConfig(): Promise<LocalConfig> {
   const raw = await fs.readFile(openLeashConfigPath, "utf8");
   return JSON.parse(raw) as LocalConfig;

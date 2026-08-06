@@ -411,6 +411,7 @@ let latestIslandContributions: PluginIslandContribution[] = [];
 let pluginInstallContribution: PluginIslandContribution | undefined;
 let pluginInstallContributionTimer: NodeJS.Timeout | undefined;
 const seenAttentionEventIds = new Set<string>();
+const soundedActionableNoticeKeys = new Set<string>();
 const desktopStartedAt = Date.now();
 let pollInFlight = false;
 let pollQueued = false;
@@ -955,7 +956,7 @@ ipcMain.handle("openleash:list", () => ({
   remoteUser: localServer?.remoteUser,
   apiProvider: localServer?.apiProvider ?? "openai",
   apiKeySet: localServer?.apiKeySet ?? false,
-  agentDoneSound: localServer?.agentDoneSound ?? false,
+  agentDoneSound: localServer?.agentDoneSound ?? true,
   islandVisibility: localServer?.islandVisibility ?? "always",
   islandActivityOnly: localServer?.islandActivityOnly ?? false,
   promptTransforms: localServer?.promptTransforms,
@@ -5156,7 +5157,7 @@ function showMainWindow(
       remoteUser: localServer?.remoteUser,
       apiProvider: localServer?.apiProvider ?? "openai",
       apiKeySet: localServer?.apiKeySet ?? false,
-      agentDoneSound: localServer?.agentDoneSound ?? false,
+      agentDoneSound: localServer?.agentDoneSound ?? true,
       islandVisibility: localServer?.islandVisibility ?? "always",
       islandActivityOnly: localServer?.islandActivityOnly ?? false,
       pending: latestPending,
@@ -6109,6 +6110,7 @@ function showDecisionNotice(notice: DecisionNotice) {
         : notice.kind === "activity"
           ? activityNoticeKey(notice.sessions, notice.contributions, notice.pending)
         : notice.kind;
+  maybePlayActionRequiredSound(notice);
   const payload = {
     ...(formatNotice(notice) as Record<string, unknown>),
     islandMenu: islandMenuState(),
@@ -6497,6 +6499,7 @@ function friendlyAction(eventName?: string, toolName?: string) {
 }
 
 let lastAgentDoneSoundAt = 0;
+let lastQuestionSoundAt = 0;
 function handleLocalAgentStop(event: { agent: string; body: unknown }) {
   const body = objectValue(event.body);
   const agentName = localAgentDisplayName(event.agent);
@@ -6567,6 +6570,47 @@ function playAgentDoneSound() {
     return;
   }
   process.stdout.write("\x07");
+}
+
+function maybePlayActionRequiredSound(notice: DecisionNotice) {
+  if (!localServer?.agentDoneSound) return;
+  const key = notice.kind === "ask"
+    ? decisionNoticeKey(notice.pending)
+    : notice.kind === "activity" && notice.pending
+      ? decisionNoticeKey(notice.pending)
+      : notice.kind === "attention" && notice.event.state === "waiting" && ["approval", "question", "plan_review"].includes(notice.event.kind)
+        ? `attention:${notice.event.id}`
+        : undefined;
+  if (!key || soundedActionableNoticeKeys.has(key)) return;
+  soundedActionableNoticeKeys.add(key);
+  playQuestionSound();
+}
+
+function playQuestionSound() {
+  const now = Date.now();
+  if (now - lastQuestionSoundAt < 1200) return;
+  lastQuestionSoundAt = now;
+  const soundPath = path.join(here, "question.mp3");
+  const command = process.platform === "darwin"
+    ? { executable: "afplay", args: [soundPath] }
+    : process.platform === "win32"
+      ? {
+          executable: "powershell.exe",
+          args: [
+            "-NoProfile",
+            "-NonInteractive",
+            "-Command",
+            "$player = New-Object System.Windows.Media.MediaPlayer; $player.Open([Uri]$args[0]); $player.Play(); Start-Sleep -Milliseconds 3000",
+            soundPath,
+          ],
+        }
+      : { executable: "ffplay", args: ["-nodisp", "-autoexit", "-loglevel", "quiet", soundPath] };
+  const child = spawn(command.executable, command.args, {
+    stdio: "ignore",
+    detached: true,
+  });
+  child.once("error", () => process.stdout.write("\x07"));
+  child.unref();
 }
 
 function openAgentApplication(target?: string | AgentSessionFocusTarget) {

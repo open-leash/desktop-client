@@ -8,6 +8,7 @@ import {
   DEFAULT_LOCAL_PROXY_IMAGE,
   LOCAL_PROXY_URL,
 } from "./proxy-manager.js";
+import { hookApiUrl, proxyClientApiUrl } from "./cli/config.js";
 
 const home = fs.mkdtempSync(path.join(os.tmpdir(), "openleash-proxy-test-"));
 process.env.HOME = home;
@@ -16,9 +17,18 @@ process.env.USERPROFILE = home;
 test("released desktop uses an immutable published proxy image", () => {
   assert.equal(
     DEFAULT_LOCAL_PROXY_IMAGE,
-    "ghcr.io/open-leash/local-proxy:0.36.3@sha256:a82ab662a520cca6879b359f13f51e5e45e3a0679db4ebcb93c51e7d7cd382f0",
+    "ghcr.io/open-leash/local-proxy:0.36.4@sha256:5fa7abbaf281ff44fbbdcff1250ae300158e6884449652b0cf57c643d18dc8a2",
   );
   assert.doesNotMatch(DEFAULT_LOCAL_PROXY_IMAGE, /:latest$/);
+});
+
+test("proxy traffic uses the desktop edge while hooks use the managed API", () => {
+  const config = {
+    apiUrl: "http://127.0.0.1:9317/",
+    remoteApiUrl: "https://api.openleash.com/",
+  };
+  assert.equal(proxyClientApiUrl(config), "http://127.0.0.1:9317");
+  assert.equal(hookApiUrl(config), "https://api.openleash.com");
 });
 
 test("Claude proxy configuration is reversible", () => {

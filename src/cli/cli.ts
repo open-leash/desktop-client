@@ -3,7 +3,7 @@ import { Command } from "commander";
 import { canonicalPluginSlug } from "../plugin-slug.js";
 import os from "node:os";
 import { apiVersionHeaders } from "./api-contract.js";
-import { defaultCloudApiUrl, defaultDesktopApiUrl, hookApiUrl, readConfig, writeConfig } from "./config.js";
+import { defaultCloudApiUrl, defaultDesktopApiUrl, hookApiUrl, proxyClientApiUrl, readConfig, writeConfig } from "./config.js";
 import { discoverAgents } from "./discovery.js";
 import {
   installClaudeHooks,
@@ -254,7 +254,10 @@ proxy.command("install")
     try {
       const config = await readConfig();
       const status = await installLocalProxy({
-        clientApiUrl: hookApiUrl(config),
+        // Proxy traffic must enter the desktop edge so local container plugins
+        // run before the normalized event is relayed to the managed backend.
+        // Installed hooks intentionally use hookApiUrl(config) instead.
+        clientApiUrl: proxyClientApiUrl(config),
         token: config.token,
         agents: String(options.agents).split(",").map((item) => item.trim()).filter(Boolean),
         corporateProxy: options.corporateProxy
