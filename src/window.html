@@ -1426,6 +1426,53 @@
         background: #fff0f1;
         box-shadow: inset 4px 0 0 #df2f3b;
       }
+      .history article.historyDetailed {
+        grid-template-columns: 42px minmax(0, 1fr) minmax(170px, auto) 18px;
+        align-items: start;
+        gap: 14px;
+        margin: 10px 0 0;
+        padding: 16px;
+        border: 1.5px solid var(--line);
+        border-radius: 14px;
+        background: #fff;
+      }
+      .history article.historyDetailed.unread {
+        margin-left: 0;
+        margin-right: 0;
+        border-color: #eca1a8;
+        background: linear-gradient(100deg, #fff0f1, #fff 45%);
+      }
+      .historyStatusIcon {
+        width: 42px;
+        height: 42px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 12px;
+        background: #e5f6ee;
+        color: #087b52;
+        font-weight: 950;
+      }
+      .historyStatusIcon.denied { background: #ffe7e9; color: #bd2d3f; }
+      .historyStatusIcon.waiting { background: #fff1cf; color: #8a5a00; }
+      .historyStatusIcon.stopped { background: #ffe7e9; color: #bd2d3f; }
+      .historyStatusIcon.needs-you { background: #fff1cf; color: #8a5a00; }
+      .historyTitleLine { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+      .historyTitleLine strong { font-size: 15px; }
+      .historyDetailed .eventBody > p { margin-top: 6px; font-size: 13px; line-height: 1.4; }
+      .historyMeta { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; margin-top: 9px; color: var(--muted); font-size: 11px; }
+      .historyMeta b { color: var(--ink); }
+      .historyMeta span::before { content: "•"; margin-right: 6px; }
+      .historyDetailed .evidenceLine { display: grid; width: fit-content; max-width: 100%; gap: 4px; margin-top: 10px; }
+      .historyDetailed .evidenceLine small { color: var(--muted); font-size: 9px; font-weight: 900; text-transform: uppercase; letter-spacing: .06em; }
+      .historyDetailed .evidenceLine code { overflow: hidden; max-width: 100%; text-overflow: ellipsis; white-space: nowrap; }
+      .historyWhen { display: grid; justify-items: end; gap: 4px; text-align: right; }
+      .historyWhen strong { font-size: 12px; }
+      .historyWhen small { color: var(--muted); font-size: 10px; white-space: nowrap; }
+      .historyWhen i { margin-top: 4px; padding: 4px 7px; border-radius: 999px; background: #df2f3b; color: #fff; font-size: 9px; font-style: normal; font-weight: 950; text-transform: uppercase; }
+      .historyChevron { align-self: center; color: var(--muted); font-size: 24px; }
+      .historyLoadMore { display: block; margin: 20px auto 0; }
+      .historyEnd { margin-top: 18px; text-align: center; font-size: 12px; }
       .loadingOverview {
         min-height: 100%;
         display: grid;
@@ -2952,7 +2999,7 @@
           Leash
         </div>
         <nav id="sideNav"></nav>
-        <div class="foot" id="modeFoot">Personal mode runs fully on this Mac. Rules, history, approvals, and Leash activity stay local.</div>
+        <div class="foot" id="modeFoot">Personal mode runs fully on this Mac. Rules, history, approvals, and Leash data stay local.</div>
       </aside>
       <main id="root"></main>
     </div>
@@ -2997,6 +3044,11 @@
       let view = "overview";
       let selectedEventId = "";
       let selectedAgentHistoryKind = "";
+      let historyVisibleCount = 12;
+      let historyPage = 0;
+      let historyHasMore = true;
+      let historyLoading = false;
+      let historyError = "";
       let notificationMenuOpen = false;
       let storedReadHistoryIds = [];
       try {
@@ -3094,7 +3146,7 @@
       }
 
       function modeFootnote() {
-        if (state.clientMode === "cloud") return "Leash Cloud syncs your personal rules, approvals, and activity across your devices.";
+        if (state.clientMode === "cloud") return "Leash Cloud syncs your personal rules, approvals, and history across your devices.";
         if (state.clientMode === "custom") {
           if (isLocalOpenSourceApi(state.remoteApiUrl)) {
             return "Personal Open Source uses your local Leash API and Postgres while client updates continue through the public Leash update feed.";
@@ -3374,7 +3426,7 @@
                 <h2>Connection</h2>
                 <p>${orgCloud ? "Leash Business uses Leash Cloud so your team stays connected and protected." : "Pick how Leash runs for you."}</p>
                 <div class="cardList">
-                  ${connectionChoice("cloud", orgCloud ? "Leash Business Cloud" : "Leash Cloud", orgCloud ? "Connect this computer to your company account, policies, and shared activity." : "Use your Leash-hosted personal account and sync.", "cloud")}
+                  ${connectionChoice("cloud", orgCloud ? "Leash Business Cloud" : "Leash Cloud", orgCloud ? "Connect this computer to your company account, policies, and shared history." : "Use your Leash-hosted personal account and sync.", "cloud")}
                   ${setupAudience === "individual" ? connectionChoice("custom", "Personal Open Source", "Run the open-source API and database on this computer.", "devices") : ""}
                 </div>
               </section>
@@ -4168,7 +4220,6 @@
           view = "plugin-detail";
         }
         if (view === "overview") return renderOverview();
-        if (view === "usage") return renderUsage();
         if (view === "plugins") return renderPlugins();
         if (view === "plugin-marketplace") return renderPluginMarketplace();
         if (view === "plugin-detail") return renderPluginDetail();
@@ -4190,7 +4241,6 @@
           { view: "overview", label: "Overview" }
         ];
         const secondaryItems = [
-          { view: "usage", label: "Usage" },
           { view: "history", label: "History" },
           { view: "debug", label: "Log" },
           { view: "settings", label: "Settings" }
@@ -4329,7 +4379,13 @@
               pluginViewCategory = "all";
             }
             view = button.dataset.view || "overview";
-            if (view === "history") selectedAgentHistoryKind = "";
+            if (view === "history") {
+              selectedAgentHistoryKind = "";
+              historyVisibleCount = 12;
+              historyPage = 0;
+              historyHasMore = true;
+              void loadHistoryPage(1, "", true);
+            }
             notificationMenuOpen = false;
             renderView();
           };
@@ -4368,6 +4424,7 @@
             view = "agent-history";
             notificationMenuOpen = false;
             renderView();
+            void loadHistoryPage(1, selectedAgentHistoryKind, true);
           };
         });
         bindOverviewAgentSwitches();
@@ -4424,7 +4481,7 @@
                       <span><strong>${escapeHtml(displayEventSummary(item))}</strong><small>${escapeHtml(item.agent_name || "AI agent")} · ${escapeHtml(formatTime(item.created_at))}</small></span>
                       ${readHistoryIds.has(String(item.id)) ? "" : "<i></i>"}
                     </button>
-                  `).join("") || `<div class="notificationEmpty"><strong>No new activity</strong><small>Leash will let you know when something important happens.</small></div>`}
+                  `).join("") || `<div class="notificationEmpty"><strong>No new notifications</strong><small>Leash will let you know when something important happens.</small></div>`}
                 </div>
               </div>
             ` : ""}
@@ -4461,7 +4518,8 @@
       function renderAgentHistory() {
         const inventory = overviewAgentInventory();
         const agent = inventory.find((item) => item.kind === selectedAgentHistoryKind);
-        const historyItems = visibleHistoryItems().filter((item) => historyAgentKind(item) === selectedAgentHistoryKind);
+        const allHistoryItems = visibleHistoryItems().filter((item) => historyAgentKind(item) === selectedAgentHistoryKind);
+        const historyItems = allHistoryItems.slice(0, historyVisibleCount);
         const unreadCount = historyItems.filter((item) => !readHistoryIds.has(String(item.id))).length;
         root.innerHTML = `
           <div class="head">
@@ -4469,17 +4527,10 @@
             <div class="headActions">${notificationCenterHtml()}<button type="button" class="secondary" id="backOverview">Overview</button></div>
           </div>
           <div class="history">
-            ${historyItems.map((item) => `
-              <article data-event="${escapeHtml(item.id)}" class="${readHistoryIds.has(String(item.id)) ? "" : "unread"}">
-                <div class="eventBody">
-                  <strong>${escapeHtml(displayEventSummary(item))}</strong>
-                  <small>${escapeHtml(formatTime(item.created_at))} · ${escapeHtml(projectTag(item.project_path) || "No project")}</small>
-                  ${filePathForEvent(item) ? `<div class="filePathPill" title="${escapeHtml(filePathForEvent(item))}"><span>File</span><code>${escapeHtml(compactPath(filePathForEvent(item)))}</code></div>` : evidencePreview(item)}
-                </div>
-                <span class="tag statusTag ${item.resolution === "allow" ? "good" : "bad"}">${escapeHtml(statusLabel(item.resolution || item.decision))}</span>
-              </article>
-            `).join("") || `<div class="empty">No activity from this agent yet.</div>`}
+            ${historyItems.map(historyCardHtml).join("") || `<div class="empty">No history from this agent yet.</div>`}
           </div>
+          ${historyError ? `<p class="historyEnd">${escapeHtml(historyError)}</p>` : ""}
+          ${historyHasMore ? `<button class="secondary historyLoadMore" id="historyLoadMore" ${historyLoading ? "disabled" : ""}>${historyLoading ? "Loading older history" : "Load older history"}</button>` : `<p class="historyEnd">${allHistoryItems.length ? "You have reached the end of this history." : ""}</p>`}
         `;
         document.getElementById("backOverview").onclick = () => {
           notificationMenuOpen = false;
@@ -4494,28 +4545,25 @@
             renderView();
           };
         });
+        document.getElementById("historyLoadMore")?.addEventListener("click", () => {
+          void loadHistoryPage(historyPage + 1, selectedAgentHistoryKind, false);
+        });
         bindNotificationCenter();
       }
 
       function renderHistory() {
-        const historyItems = visibleHistoryItems();
+        const allHistoryItems = visibleHistoryItems();
+        const historyItems = allHistoryItems.slice(0, historyVisibleCount);
         root.innerHTML = `
           <div class="head">
             <div><h1>History</h1><p>What Leash checked, stopped, or sent to you for a decision.</p></div>
             <div class="headActions">${notificationCenterHtml()}${modeTag()}</div>
           </div>
           <div class="history">
-            ${historyItems.map((item) => `
-              <article data-event="${escapeHtml(item.id)}" class="${readHistoryIds.has(String(item.id)) ? "" : "unread"}">
-                <div class="eventBody">
-                  <strong>${escapeHtml(displayEventSummary(item))}</strong>
-                  <small>${escapeHtml(item.agent_name)} · ${escapeHtml(projectTag(item.project_path) || "No project")} · triggered ${formatTime(item.created_at)}${resolutionTime(item) ? ` · ${escapeHtml(resolutionLabel(item))} ${formatTime(resolutionTime(item))}` : ""}</small>
-                  ${filePathForEvent(item) ? `<div class="filePathPill" title="${escapeHtml(filePathForEvent(item))}"><span>File</span><code>${escapeHtml(compactPath(filePathForEvent(item)))}</code></div>` : evidencePreview(item)}
-                </div>
-                <span class="tag statusTag ${item.resolution === "allow" ? "good" : "bad"}">${escapeHtml(item.resolution || item.decision)}</span>
-              </article>
-            `).join("") || `<div class="empty">No triggered rules yet.</div>`}
+            ${historyItems.map(historyCardHtml).join("") || `<div class="empty">No history yet.</div>`}
           </div>
+          ${historyError ? `<p class="historyEnd">${escapeHtml(historyError)}</p>` : ""}
+          ${historyHasMore ? `<button class="secondary historyLoadMore" id="historyLoadMore" ${historyLoading ? "disabled" : ""}>${historyLoading ? "Loading older history" : "Load older history"}</button>` : `<p class="historyEnd">${allHistoryItems.length ? "You have reached the end of this history." : ""}</p>`}
         `;
         root.querySelectorAll("[data-event]").forEach((row) => {
           row.onclick = () => {
@@ -4525,7 +4573,64 @@
             renderView();
           };
         });
+        document.getElementById("historyLoadMore")?.addEventListener("click", () => {
+          void loadHistoryPage(historyPage + 1, "", false);
+        });
         bindNotificationCenter();
+      }
+
+      function historyCardHtml(item) {
+        const status = historyStatusLabel(item.resolution || item.decision);
+        const evidence = filePathForEvent(item) ? compactPath(filePathForEvent(item)) : prettyEvidence((item.triggered_policies || [])[0] || {}, item);
+        const when = item.created_at || item.createdAt;
+        return `
+          <article data-event="${escapeHtml(item.id)}" class="historyDetailed ${readHistoryIds.has(String(item.id)) ? "" : "unread"}">
+            <span class="historyStatusIcon ${status.toLowerCase().replaceAll(" ", "-")}">${status === "Stopped" ? "✓" : status === "Needs you" ? "!" : "✓"}</span>
+            <div class="eventBody">
+              <div class="historyTitleLine"><strong>${escapeHtml(displayEventSummary(item))}</strong><span class="tag statusTag ${item.resolution === "allow" ? "good" : "bad"}">${escapeHtml(status)}</span></div>
+              <p>${escapeHtml(item.question || item.summary || "Leash recorded this agent action so you can review what happened.")}</p>
+              <div class="historyMeta"><b>${escapeHtml(item.agent_name || "AI agent")}</b><span>${escapeHtml(item.hostname || "This computer")}</span><span>${escapeHtml(projectTag(item.project_path) || "No project")}</span></div>
+              ${evidence ? `<div class="evidenceLine"><small>What it touched</small><code>${escapeHtml(truncate(evidence, 160))}</code></div>` : ""}
+            </div>
+            <div class="historyWhen"><strong>${escapeHtml(humanTimestamp(when))}</strong><small>${escapeHtml(friendlyExactTimestamp(when))}</small>${readHistoryIds.has(String(item.id)) ? "" : "<i>New</i>"}</div>
+            <span class="historyChevron">›</span>
+          </article>
+        `;
+      }
+
+      function historyStatusLabel(value) {
+        const normalized = String(value || "").toLowerCase();
+        if (["deny", "denied", "block", "blocked"].includes(normalized)) return "Stopped";
+        if (["ask", "waiting", "pending", "review"].includes(normalized)) return "Needs you";
+        return "Allowed";
+      }
+
+      function friendlyExactTimestamp(value) {
+        const date = new Date(value || 0);
+        if (Number.isNaN(date.getTime())) return "Time unavailable";
+        return date.toLocaleString([], { weekday: "short", month: "short", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit", second: "2-digit", timeZoneName: "short" });
+      }
+
+      async function loadHistoryPage(page, agentKind = "", reset = false) {
+        if (historyLoading) return;
+        historyLoading = true;
+        historyError = "";
+        renderView();
+        try {
+          const result = await window.openleash.loadHistory?.({ page, limit: 12, agentKind });
+          const next = Array.isArray(result?.history) ? result.history : [];
+          const existing = reset ? [] : (state.history || []);
+          const byId = new Map(existing.map((item) => [String(item.id), item]));
+          next.forEach((item) => byId.set(String(item.id), item));
+          state.history = [...byId.values()].sort((a, b) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime());
+          historyPage = page;
+          historyHasMore = Boolean(result?.pagination?.hasMore);
+        } catch {
+          historyError = "History could not load. Please try again.";
+        } finally {
+          historyLoading = false;
+          renderView();
+        }
       }
 
       function renderDebug() {
@@ -4763,7 +4868,7 @@
               </div>
             </div>
             <div class="card">
-              <h2>${escapeHtml(selected?.server_name || "MCP activity")}</h2>
+              <h2>${escapeHtml(selected?.server_name || "MCP history")}</h2>
               ${selected ? `
                 <div class="kv"><small>Tools</small><strong>${escapeHtml((selected.tools || []).map((tool) => tool.tool_name).join(", ") || "None recorded")}</strong></div>
                 <div class="kv"><small>Users</small><strong>${escapeHtml((selected.users || []).map((user) => user.name).join(", ") || "None recorded")}</strong></div>
@@ -5063,7 +5168,7 @@
             icon: iconNameForAgent(agent.display_name),
             displayName: agent.display_name || "AI agent",
             host: agent.hostname || "This computer",
-            when: source.created_at ? formatTime(source.created_at) : source.activity_at ? formatTime(source.activity_at) : agent.activity_at ? formatTime(agent.activity_at) : "No recent activity",
+            when: source.created_at ? formatTime(source.created_at) : source.activity_at ? formatTime(source.activity_at) : agent.activity_at ? formatTime(agent.activity_at) : "No recent history",
             status: statusLabel(decision),
             statusClass: decision === "ask" ? "" : decision === "deny" || decision === "denied" ? "bad" : "good",
             summary: truncate(cleanAgentSummary(summary, decision), 160),
@@ -6887,7 +6992,7 @@
           <article class="card">
             <div class="fieldRow">
               <div>
-                <strong>${escapeHtml(outcome.title || "Feature activity")}</strong>
+                <strong>${escapeHtml(outcome.title || "Feature history")}</strong>
                 <p>${escapeHtml(outcome.summary || context || "")}</p>
               </div>
               <span class="tag ${statusClass}">${escapeHtml(outcome.status || severity)}</span>
@@ -7111,7 +7216,7 @@
         if (key === "model") return "Optional model override. Leave blank for the default.";
         if (key === "suspiciousRiskThreshold") return "Higher values reduce Instruction Safety alerts.";
         if (key === "policySet") return "Policy group used by this evaluator.";
-        if (key === "redactSecrets") return "Hide secrets in Connected Tool Awareness activity.";
+        if (key === "redactSecrets") return "Hide secrets in Connected Tool Awareness history.";
         if (key === "rules") return "One enforceable instruction per line. Violations can pause the agent and notify your clients.";
         return "";
       }
@@ -7669,7 +7774,7 @@
           renderSetup();
         }
       });
-      root.innerHTML = `<div class="loadingOverview" role="status" aria-live="polite"><span></span><strong>Loading your overview</strong><small>Leash is checking this computer for protected agents and recent activity.</small></div>`;
+      root.innerHTML = `<div class="loadingOverview" role="status" aria-live="polite"><span></span><strong>Loading your overview</strong><small>Leash is checking this computer for protected agents and recent history.</small></div>`;
       window.openleash.list().then(render).catch(() => {
         root.innerHTML = `<div class="loadingOverview"><strong>Leash could not load your overview.</strong><small>Close and reopen the app to try again.</small></div>`;
       });

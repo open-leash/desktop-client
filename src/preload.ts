@@ -2,6 +2,7 @@ import { contextBridge, ipcRenderer } from "electron";
 
 contextBridge.exposeInMainWorld("openleash", {
   list: () => ipcRenderer.invoke("openleash:list"),
+  loadHistory: (payload: unknown) => ipcRenderer.invoke("openleash:load-history", payload),
   bootstrapRemoteApi: (payload: unknown) => ipcRenderer.invoke("openleash:bootstrap-remote-api", payload),
   startRemoteAuth: (payload: unknown) => ipcRenderer.invoke("openleash:start-remote-auth", payload),
   startOrgCloudOnboarding: (payload: unknown) => ipcRenderer.invoke("openleash:start-org-cloud-onboarding", payload),

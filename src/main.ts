@@ -959,6 +959,37 @@ ipcMain.handle("openleash:list", () => ({
   skills: localServer?.skills ?? [],
   proxyStatus,
 }));
+ipcMain.handle(
+  "openleash:load-history",
+  async (_event, payload: { page?: number; limit?: number; agentKind?: string } = {}) => {
+    const page = Math.max(1, Math.floor(Number(payload.page) || 1));
+    const limit = Math.max(1, Math.min(50, Math.floor(Number(payload.limit) || 12)));
+    const agentKind = optionalText(payload.agentKind);
+    if (localServer?.remoteApiUrl && localServer.effectiveToken) {
+      const url = new URL("/v1/client/history", localServer.remoteApiUrl);
+      url.searchParams.set("page", String(page));
+      url.searchParams.set("limit", String(limit));
+      if (agentKind) url.searchParams.set("agentKind", agentKind);
+      const response = await fetch(url, {
+        headers: {
+          authorization: `Bearer ${localServer.effectiveToken}`,
+          ...apiVersionHeaders("mobileState"),
+        },
+      });
+      if (!response.ok) throw new Error(`History request failed (${response.status})`);
+      return response.json();
+    }
+    const matching = (localServer?.history ?? [])
+      .filter((item) => !agentKind || item.agent_kind === agentKind);
+    const offset = (page - 1) * limit;
+    const history = matching.slice(offset, offset + limit);
+    const hasMore = offset + history.length < matching.length;
+    return {
+      history,
+      pagination: { page, limit, hasMore, nextPage: hasMore ? page + 1 : null },
+    };
+  },
+);
 ipcMain.handle("openleash:mark-intro-seen", () => {
   localServer?.markIntroSeen();
   return { ok: true };
@@ -3013,7 +3044,7 @@ async function fetchRemotePluginOutcomes(
 ) {
   try {
     const url = new URL("/v1/outcomes", remoteApiUrl);
-    url.searchParams.set("limit", "80");
+    url.searchParams.set("limit", "12");
     const response = await fetch(url, {
       headers: {
         authorization: `Bearer ${remoteToken}`,
