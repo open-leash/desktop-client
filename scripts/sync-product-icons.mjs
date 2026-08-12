@@ -30,7 +30,6 @@ const pngTargets = new Map([
 
 const webpTargets = new Map([
   ["apps/main-web/public/media/leash-mark.webp", 256],
-  ["apps/new-web-design2/public/media/leash-mark.webp", 256],
 ]);
 
 for (const [relativePath, size] of pngTargets) {
