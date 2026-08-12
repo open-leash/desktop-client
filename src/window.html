@@ -3372,7 +3372,7 @@
                   <h2>Features</h2>
                   ${isDevelopmentDesktopRenderer() ? `<button type="button" class="secondary" id="addAllDevelopmentPlugins">Enable all Features</button>` : ""}
                 </div>
-                <p>Choose from the first-party Features included with Leash. They run in the API without separate containers.</p>
+                <p>Choose the built-in Features you want Leash to use.</p>
                 ${setupPluginInstallCards()}
               </section>
             ` : ""}
@@ -3571,14 +3571,14 @@
             return;
           }
         }
-        setupInstallProgress = { percent: 12, stage: "prepare", title: "Saving plugin choices", detail: "Applying the plugins and settings you selected..." };
+        setupInstallProgress = { percent: 12, stage: "prepare", title: "Saving Feature choices", detail: "Applying the Features and settings you selected..." };
         renderSetup();
         const agents = [...(selectedAgents || new Set())];
         const pluginSave = await saveSelectedPluginSettings();
         if (!pluginSave.ok) {
           setupFinishing = false;
           setupInstallState = "failed";
-          setupFinishError = pluginSave.error || "Could not save plugin settings.";
+          setupFinishError = pluginSave.error || "Could not save Feature settings.";
           setupRemoteNotice = "";
           renderSetup();
           return;
@@ -4036,7 +4036,7 @@
         renderNavigation();
         if (view === "rules") {
           selectedPluginId = "openleash.rules-enforcer";
-          pluginViewCategory = "security";
+          pluginViewCategory = "protection";
           view = "plugin-detail";
         }
         if (view === "overview") return renderOverview();
@@ -4078,7 +4078,7 @@
           </div>
           <div class="navSection">
             ${categoryItems.map((item) => `
-              <button type="button" data-view="plugins" data-plugin-view-category="${escapeHtml(item.id)}" class="navCategory ${escapeHtml(item.id)} ${isPluginCategoryActive(item.id) ? "active" : ""}">
+              <button type="button" data-view="plugins" data-plugin-view-category="${escapeHtml(item.id)}" class="navCategory ${escapeHtml(pluginCategoryClass(item.id))} ${isPluginCategoryActive(item.id) ? "active" : ""}">
                 ${categoryIcon(item.label)}
                 <span class="navLabel">${escapeHtml(item.label)}</span>
                 <span class="navCount">${escapeHtml(String(item.plugins.length))}</span>
@@ -4088,7 +4088,7 @@
                   ${item.plugins.map((plugin) => `
                     <button type="button" class="navPlugin ${view === "plugin-detail" && selectedPluginId === plugin.id ? "active" : ""}" data-plugin-nav-id="${escapeHtml(plugin.id)}" data-plugin-view-category="${escapeHtml(item.id)}">
                       <span class="navPluginIcon">${pluginIconHtml(plugin)}</span>
-                      <span class="navLabel">${escapeHtml(plugin.packageId || pluginPackageName(plugin))}</span>
+                      <span class="navLabel">${escapeHtml(pluginName(plugin))}</span>
                     </button>
                   `).join("")}
                 </div>
@@ -4134,27 +4134,16 @@
       function pluginStatusLabel(plugin) {
         if (plugin?.settings?.runtimeAvailable === false) return "unavailable";
         if (plugin?.organizationPolicy?.mandatory) return "required";
-        return pluginInstalled(plugin) ? "enabled" : "disabled";
+        return pluginInstalled(plugin) ? "enabled" : "off";
       }
 
       function clientPluginCategories() {
-        const fromViewModel = state.viewModel?.pluginCategories;
         const plugins = installedPlugins().sort(comparePluginPopularity);
-        if (Array.isArray(fromViewModel) && fromViewModel.length > 0) {
-          return fromViewModel.map((category) => ({
-            id: category.id,
-            label: category.label || categoryLabel(category.id),
-            plugins: Array.isArray(category.plugins) && category.plugins.length > 0
-              ? category.plugins
-              : plugins.filter((plugin) => pluginCategory(plugin).toLowerCase() === category.id),
-            count: Number(category.count || category.plugins?.length || 0)
-          }));
-        }
-        return ["observability", "cost", "security", "utility"].map((id) => {
+        return ["protection", "cost", "visibility", "other"].map((id) => {
           const label = categoryLabel(id);
           const items = plugins.filter((plugin) => pluginCategory(plugin).toLowerCase() === id);
           return { id, label, plugins: items, count: items.length };
-        });
+        }).filter((category) => category.plugins.length > 0);
       }
 
       function clientPluginCatalogItem(pluginView) {
@@ -4179,10 +4168,10 @@
       }
 
       function categoryLabel(id) {
+        if (id === "protection") return "Protections";
         if (id === "cost") return "Cost";
-        if (id === "security") return "Security";
-        if (id === "observability") return "Visibility";
-        if (id === "utility") return "Other";
+        if (id === "visibility") return "Visibility";
+        if (id === "other") return "Other";
         return "All";
       }
 
@@ -4307,7 +4296,7 @@
           </div>
           <div class="debugTools">
             <input id="debugSearch" value="${escapeHtml(debugSearch)}" placeholder="Search logs, prompts, output, sessions...">
-            <select id="debugPluginFilter"><option value="all">All Features</option>${plugins.map((value) => `<option value="${escapeHtml(value)}" ${debugPluginFilter === value ? "selected" : ""}>${escapeHtml(value)}</option>`).join("")}</select>
+            <select id="debugPluginFilter"><option value="all">All Features</option>${plugins.map((value) => `<option value="${escapeHtml(value)}" ${debugPluginFilter === value ? "selected" : ""}>${escapeHtml(featureNameFromIdentifier(value))}</option>`).join("")}</select>
             <select id="debugEventFilter"><option value="all">All events</option>${events.map((value) => `<option value="${escapeHtml(value)}" ${debugEventFilter === value ? "selected" : ""}>${escapeHtml(value)}</option>`).join("")}</select>
             <select id="debugLevelFilter"><option value="all">All levels</option>${levels.map((value) => `<option value="${escapeHtml(value)}" ${debugLevelFilter === value ? "selected" : ""}>${escapeHtml(value)}</option>`).join("")}</select>
             <select id="debugSort"><option value="newest" ${debugSort === "newest" ? "selected" : ""}>Newest first</option><option value="oldest" ${debugSort === "oldest" ? "selected" : ""}>Oldest first</option></select>
@@ -4317,7 +4306,7 @@
               <details class="debugRow" data-debug-row="${escapeHtml(row.id)}" ${openDebugRowIds.has(row.id) ? "open" : ""}>
                 <summary>
                   <span class="debugLevel ${escapeHtml(row.level)}">${escapeHtml(row.level)}</span>
-                  <span class="debugColumn debugPluginColumn"><small>Feature</small><strong>${escapeHtml(row.pluginId)}</strong></span>
+                  <span class="debugColumn debugPluginColumn"><small>Feature</small><strong>${escapeHtml(featureNameFromIdentifier(row.pluginId))}</strong></span>
                   <span class="debugColumn debugEventColumn"><small>Event</small><strong>${escapeHtml(row.eventName)}</strong></span>
                   <span class="debugColumn debugTimeColumn" title="${escapeHtml(exactTimestamp(row.createdAt))}"><small>Timestamp</small><strong>${escapeHtml(humanTimestamp(row.createdAt))}</strong></span>
                   <span class="debugColumn debugSummaryColumn"><small>Summary</small><strong>${escapeHtml(row.summary)}</strong></span>
@@ -4325,7 +4314,7 @@
                 </summary>
                 <div class="debugDetail">
                   <div class="debugMeta">
-                    <div class="kv"><small>Feature</small><strong>${escapeHtml(row.pluginId)}</strong></div>
+                    <div class="kv"><small>Feature</small><strong>${escapeHtml(featureNameFromIdentifier(row.pluginId))}</strong></div>
                     <div class="kv"><small>Level</small><strong>${escapeHtml(row.level)}</strong></div>
                     <div class="kv"><small>Agent</small><strong>${escapeHtml(row.agentName || "Unknown")}</strong></div>
                     <div class="kv"><small>Session</small><strong>${escapeHtml(row.sessionId || "Unknown")}</strong></div>
@@ -4397,7 +4386,7 @@
               id: `${item.id}:${index}`,
               pluginId: logPluginSlug(run.pluginId || run.plugin_id || "openleash.plugin"),
               level: run.error ? "error" : run.decision === "deny" ? "security" : "debug",
-              summary: normalizeTokenSaverText(run.summary || run.message || run.kind || "Plugin run completed."),
+              summary: normalizeTokenSaverText(run.summary || run.message || run.kind || "Feature check completed."),
               ...context,
               createdAt: item.created_at,
               raw: { pluginRun: run, event: item }
@@ -5416,7 +5405,7 @@
                 <span class="tag">Manual UI</span>
               </div>
               <div class="fieldRow">
-                <div><strong>Copilot and OpenClaw</strong><p>Protected by their Leash hooks. Full provider routing requires a launch environment or runtime gateway plugin.</p></div>
+                <div><strong>Copilot and OpenClaw</strong><p>Protected by Leash while they work. Full provider routing requires a supported launch environment or gateway connection.</p></div>
                 <span class="tag">Hooks</span>
               </div>
               <div class="actions">
@@ -5627,8 +5616,68 @@
         return aliases[lower] || lower.replace(/[\s_]+/g, "-");
       }
 
+      const featurePresentations = {
+        "blast-radius": {
+          name: "Destruction Protection",
+          description: "Stops agents before they delete files, damage databases, or break important systems.",
+          category: "protection"
+        },
+        "code-scanner": {
+          name: "Code Scanner",
+          description: "Reviews AI-generated code for security weaknesses before they become a problem.",
+          category: "protection"
+        },
+        "data-leakage-prevention": {
+          name: "Private Data Protection",
+          description: "Keeps passwords, personal information, and other sensitive data from being shared by mistake.",
+          category: "protection"
+        },
+        "mcp-scanner": {
+          name: "Connected Tool Awareness",
+          description: "Shows which outside tools and services your agents can use and what they do with them.",
+          category: "protection"
+        },
+        "rules-enforcer": {
+          name: "Your Rules",
+          description: "Makes agents follow the boundaries you choose and asks before they cross one.",
+          category: "protection"
+        },
+        "sensitive-access": {
+          name: "Secret Access Protection",
+          description: "Warns you when an agent tries to open passwords, private keys, or other secret files.",
+          category: "protection"
+        },
+        "skill-scanner": {
+          name: "Instruction Safety",
+          description: "Checks agent instructions for hidden or suspicious behavior before it can spread.",
+          category: "protection"
+        },
+        "token-saver": {
+          name: "AI Cost Control",
+          description: "Reduces repeated context so agents use fewer paid AI tokens without losing important details.",
+          category: "cost"
+        }
+      };
+
+      function pluginCompatibilityName(plugin) {
+        return canonicalPluginSlug(plugin.slug || plugin.marketplace?.slug || plugin.id || plugin.name);
+      }
+
+      function featureNameFromIdentifier(value) {
+        const compatibilityName = canonicalPluginSlug(value);
+        return featurePresentations[compatibilityName]?.name || settingLabel(compatibilityName) || "Leash Feature";
+      }
+
+      function featurePresentation(plugin) {
+        return featurePresentations[pluginCompatibilityName(plugin)];
+      }
+
       function pluginName(plugin) {
-        return canonicalPluginSlug(plugin.slug || plugin.marketplace?.slug || plugin.name || plugin.id);
+        const presentation = featurePresentation(plugin);
+        if (presentation) return presentation.name;
+        const supplied = String(plugin.displayName || plugin.name || "").trim();
+        if (supplied && !/^(?:openleash[._-])?[a-z0-9]+(?:[._-][a-z0-9]+)+$/i.test(supplied)) return supplied;
+        return settingLabel(pluginCompatibilityName(plugin)) || "Leash Feature";
       }
 
       function pluginPackageName(plugin) {
@@ -5645,7 +5694,7 @@
       }
 
       function pluginValueLine(plugin) {
-        return plugin.marketplace?.shortDescription || plugin.description || "";
+        return featurePresentation(plugin)?.description || plugin.marketplace?.shortDescription || plugin.description || "";
       }
 
       function pluginIconText(plugin) {
@@ -5663,7 +5712,7 @@
           "skill-scanner": "🕵️",
           "code-scanner": "☣️"
         };
-        const selected = selectedIcons[pluginPackageName(plugin)];
+        const selected = selectedIcons[pluginCompatibilityName(plugin)];
         if (selected) return selected;
         if (marketplaceIcon) return marketplaceIcon;
         if (directIcon) return directIcon;
@@ -5693,7 +5742,9 @@
       }
 
       function comparePluginPopularity(left, right) {
-        return pluginPackageName(left).localeCompare(pluginPackageName(right));
+        const categoryOrder = { protection: 0, cost: 1, visibility: 2, other: 3 };
+        const categoryDifference = (categoryOrder[pluginCategory(left)] ?? 9) - (categoryOrder[pluginCategory(right)] ?? 9);
+        return categoryDifference || pluginName(left).localeCompare(pluginName(right));
       }
 
       function setupPluginInstallCards() {
@@ -5711,7 +5762,7 @@
         return `
           <div class="pluginCategoryFilters">
             ${categories.map((item) => `
-              <button type="button" data-plugin-category="${escapeHtml(item.id)}" class="${escapeHtml(item.id)} ${category === item.id ? "active" : ""}">
+              <button type="button" data-plugin-category="${escapeHtml(item.id)}" class="${escapeHtml(pluginCategoryClass(item.id))} ${category === item.id ? "active" : ""}">
                 ${categoryIcon(item.label)}
                 <span>${escapeHtml(item.label)} ${escapeHtml(String(item.count))}</span>
               </button>
@@ -5732,15 +5783,14 @@
                 <article class="card pluginInstallLine ${checked ? "selected" : ""} ${expanded ? "expanded" : ""}">
                   <span class="agentIcon" data-plugin-expand="${escapeHtml(plugin.id)}">${pluginIconHtml(plugin)}</span>
                   <span class="pluginCopy" data-plugin-expand="${escapeHtml(plugin.id)}">
-                    <strong>${escapeHtml(pluginPackageName(plugin))}</strong>
-                    <small>${escapeHtml(pluginName(plugin))}</small>
-                    <span>${escapeHtml(plugin.marketplace?.shortDescription || pluginValueLine(plugin))}</span>
+                    <strong>${escapeHtml(pluginName(plugin))}</strong>
+                    <span>${escapeHtml(pluginValueLine(plugin))}</span>
                     <span class="pluginStats">
-                      <span class="pluginCategoryTag ${categoryClass}">${categoryIcon(category)} ${escapeHtml(category)}</span>
+                        <span class="pluginCategoryTag ${categoryClass}">${categoryIcon(category)} ${escapeHtml(categoryLabel(category))}</span>
                     </span>
                     ${expanded ? `
                       <span class="pluginDetails">
-                        <p>${escapeHtml(plugin.marketplace?.longDescription || plugin.description || pluginValueLine(plugin))}</p>
+                        <p>${escapeHtml(pluginValueLine(plugin))}</p>
                       </span>
                     ` : ""}
                     <small>${expanded ? "Click to collapse" : "Click for details"}</small>
@@ -5749,8 +5799,8 @@
                     <label>
                       <input data-plugin-install="${escapeHtml(plugin.id)}" aria-label="Enable ${escapeHtml(pluginName(plugin))}" title="${escapeHtml(plugin.settings?.runtimeError || "")}" type="checkbox" ${checked ? "checked" : ""} ${mandatory || plugin.settings?.runtimeAvailable === false ? "disabled" : ""}>
                       <span class="pluginAction" aria-hidden="true">
-                        <span class="pluginActionIcon">${checked ? "-" : "+"}</span>
-                        <span class="pluginActionText">${plugin.settings?.runtimeAvailable === false ? "Unavailable" : mandatory ? "Required" : checked ? "Disable" : "Enable"}</span>
+                        <span class="pluginActionIcon">${checked ? "✓" : "+"}</span>
+                        <span class="pluginActionText">${plugin.settings?.runtimeAvailable === false ? "Unavailable" : mandatory ? "Required" : checked ? "Enabled" : "Enable"}</span>
                       </span>
                     </label>
                   </span>
@@ -5763,6 +5813,7 @@
 
       function pluginSearchText(plugin) {
         return [
+          pluginName(plugin),
           plugin.id,
           plugin.slug,
           plugin.name,
@@ -5776,13 +5827,15 @@
       }
 
       function pluginCategory(plugin) {
+        const presentation = featurePresentation(plugin);
+        if (presentation) return presentation.category;
         const raw = plugin.marketplace?.category || plugin.category || plugin.manifest?.category || "";
         const text = String(raw || `${plugin.id || ""} ${plugin.name || ""} ${plugin.description || ""} ${(plugin.marketplace?.tags || []).join(" ")} ${(plugin.tags || []).join(" ")}`).toLowerCase();
-        if (/mcp-scanner|skill-scanner/.test(text)) return "Security";
-        if (/security|policy|guard|skill|prompt-injection|risk|approval|dlp|leak|sensitive|secret|credential/.test(text)) return "Security";
-        if (/visibility|observability|observe|log|mcp|siem|audit|telemetry|monitor/.test(text)) return "Visibility";
-        if (/cost|token|compression|usage|budget|spend/.test(text)) return "Cost";
-        return "Other";
+        if (/mcp-scanner|skill-scanner/.test(text)) return "protection";
+        if (/security|policy|guard|skill|prompt-injection|risk|approval|dlp|leak|sensitive|secret|credential/.test(text)) return "protection";
+        if (/visibility|observability|observe|log|mcp|siem|audit|telemetry|monitor/.test(text)) return "visibility";
+        if (/cost|token|compression|usage|budget|spend/.test(text)) return "cost";
+        return "other";
       }
 
       function pluginCategorySummary(plugins) {
@@ -5793,26 +5846,30 @@
         }
         return [
           { id: "all", label: "All", count: counts.get("all") || 0 },
+          { id: "protection", label: "Protections", count: counts.get("protection") || 0 },
           { id: "cost", label: "Cost", count: counts.get("cost") || 0 },
-          { id: "security", label: "Security", count: counts.get("security") || 0 },
-          { id: "observability", label: "Visibility", count: counts.get("observability") || 0 },
-          { id: "utility", label: "Other", count: counts.get("utility") || 0 }
-        ];
+          { id: "visibility", label: "Visibility", count: counts.get("visibility") || 0 },
+          { id: "other", label: "Other", count: counts.get("other") || 0 }
+        ].filter((item) => item.id === "all" || item.count > 0);
       }
 
       function pluginCategoryClass(category) {
-        return String(category || "utility").toLowerCase();
+        const normalized = String(category || "other").toLowerCase();
+        if (normalized === "protection") return "security";
+        if (normalized === "visibility") return "observability";
+        if (normalized === "other") return "utility";
+        return normalized;
       }
 
       function categoryIcon(category) {
         const normalized = String(category || "").toLowerCase();
-        if (normalized === "security") {
+        if (normalized === "security" || normalized === "protection" || normalized === "protections") {
           return `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3.5 19 6v5.2c0 4.4-2.8 7.7-7 9.3-4.2-1.6-7-4.9-7-9.3V6z"></path></svg>`;
         }
-        if (normalized === "observability") {
+        if (normalized === "observability" || normalized === "visibility") {
           return `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2.8 12s3.4-6 9.2-6 9.2 6 9.2 6-3.4 6-9.2 6-9.2-6-9.2-6z"></path><circle cx="12" cy="12" r="2.8"></circle></svg>`;
         }
-        if (normalized === "utility") {
+        if (normalized === "utility" || normalized === "other") {
           return `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m13 2-8 11h6l-1 9 9-12h-6z"></path></svg>`;
         }
         if (normalized === "all") {
@@ -6013,18 +6070,18 @@
         ensurePluginSetupConfig(pluginId).enabled = Boolean(input.checked);
         const actionIcon = input.parentElement?.querySelector(".pluginActionIcon");
         const actionText = input.parentElement?.querySelector(".pluginActionText");
-        if (actionIcon) actionIcon.textContent = input.checked ? "-" : "+";
-        if (actionText) actionText.textContent = input.checked ? "Added" : "Add";
+        if (actionIcon) actionIcon.textContent = input.checked ? "✓" : "+";
+        if (actionText) actionText.textContent = input.checked ? "Enabled" : "Enable";
         const card = input.closest(".pluginInstallLine");
         card?.classList.toggle("selected", Boolean(input.checked));
         if (flash && card) {
           card.classList.add("justChanged");
           setTimeout(() => {
             card.classList.remove("justChanged");
-            if (actionText) actionText.textContent = input.checked ? "Remove" : "Add";
+            if (actionText) actionText.textContent = input.checked ? "Enabled" : "Enable";
           }, 650);
         } else if (actionText) {
-          actionText.textContent = input.checked ? "Remove" : "Add";
+          actionText.textContent = input.checked ? "Enabled" : "Enable";
         }
       }
 
@@ -6064,18 +6121,18 @@
             button.disabled = true;
             const original = button.textContent;
             button.textContent = "Adding...";
-            const result = await window.openleash.importLocalPluginFolder?.().catch((error) => ({ ok: false, error: error?.message || "Could not add local plugin." }));
+            const result = await window.openleash.importLocalPluginFolder?.().catch((error) => ({ ok: false, error: error?.message || "Could not add local Feature." }));
             button.disabled = false;
             button.textContent = original || "Add/reload local folder";
             if (result?.canceled) return;
             if (!result?.ok) {
-              alert(result?.error || "Could not add local plugin.");
+              alert(result?.error || "Could not add local Feature.");
               return;
             }
             if (result.runtimeStatus && !result.runtimeStatus.healthy) {
-              alert(`Plugin saved, but its container is not ready: ${result.runtimeStatus.error || "health check failed"}`);
+              alert(`Feature saved, but it is not ready: ${result.runtimeStatus.error || "health check failed"}`);
             } else {
-              alert(`${result.plugin?.slug || result.pluginId} loaded. Rebuild the image and choose this folder again to reload it.`);
+              alert(`${pluginName(result.plugin || { id: result.pluginId })} loaded. Choose this folder again after rebuilding to reload it.`);
             }
             if (result.plugin && !state.plugins?.some((plugin) => plugin.id === result.plugin.id)) {
               state.plugins = [...(state.plugins || []), {
@@ -6159,8 +6216,8 @@
             apiUrl: setupRemoteApiUrl,
             token: setupRemoteAuth?.token,
             ...payload
-          }).catch((error) => ({ ok: false, error: error?.message || "Could not save plugin settings." }));
-          if (!result?.ok) return { ok: false, error: result?.error || `Could not save ${payload.pluginId}.`, pluginId: payload.pluginId };
+          }).catch((error) => ({ ok: false, error: error?.message || "Could not save Feature settings." }));
+          if (!result?.ok) return { ok: false, error: result?.error || `Could not save ${featureNameFromIdentifier(payload.pluginId)}.`, pluginId: payload.pluginId };
           updated.push(result);
         }
         const settingsById = new Map(updated.map((item) => [item.pluginId, item.settings]));
@@ -6189,17 +6246,17 @@
             ${filtered.map((plugin) => {
               const outcomes = pluginOutcomes(plugin.id);
               const latest = outcomes[0];
-              const categoryLabel = pluginCategory(plugin);
-              const categoryClass = pluginCategoryClass(categoryLabel);
+              const categoryId = pluginCategory(plugin);
+              const categoryClass = pluginCategoryClass(categoryId);
               return `
               <article class="card pluginOutcomeCard" data-open-plugin="${escapeHtml(plugin.id)}">
                 <div class="pluginOutcomeMain">
                   <span class="agentIcon">${pluginIconHtml(plugin)}</span>
                   <div class="pluginOutcomeCopy">
-                    <strong>${escapeHtml(pluginPackageName(plugin))}</strong>
-                    <p>${escapeHtml(plugin.marketplace?.shortDescription || plugin.description || "")}</p>
+                    <strong>${escapeHtml(pluginName(plugin))}</strong>
+                    <p>${escapeHtml(pluginValueLine(plugin))}</p>
                     <span class="pluginOutcomeMeta">
-                      <span class="pluginCategoryTag ${categoryClass}">${categoryIcon(categoryLabel)} ${escapeHtml(categoryLabel)}</span>
+                      <span class="pluginCategoryTag ${categoryClass}">${categoryIcon(categoryId)} ${escapeHtml(categoryLabel(categoryId))}</span>
                     </span>
                   </div>
                   <span class="tag ${pluginInstalled(plugin) ? "good" : ""}">${escapeHtml(pluginStatusLabel(plugin))}</span>
@@ -6237,7 +6294,7 @@
           <div class="card">
             <div class="pluginCategoryFilters">
               ${categories.map((item) => `
-                <button type="button" data-plugin-category="${escapeHtml(item.id)}" class="${escapeHtml(item.id)} ${category === item.id ? "active" : ""}">
+                <button type="button" data-plugin-category="${escapeHtml(item.id)}" class="${escapeHtml(pluginCategoryClass(item.id))} ${category === item.id ? "active" : ""}">
                   ${categoryIcon(item.label)}
                   <span>${escapeHtml(item.label)} ${escapeHtml(String(item.count))}</span>
                 </button>
@@ -6249,17 +6306,16 @@
             </div>
             <div class="cardList">
               ${plugins.map((plugin) => {
-                const categoryLabel = pluginCategory(plugin);
-                const categoryClass = pluginCategoryClass(categoryLabel);
+                const categoryId = pluginCategory(plugin);
+                const categoryClass = pluginCategoryClass(categoryId);
                 return `
                   <article class="card pluginInstallLine">
                     <span class="agentIcon">${pluginIconHtml(plugin)}</span>
                     <span class="pluginCopy">
-                      <strong>${escapeHtml(pluginPackageName(plugin))}</strong>
-                      <small>${escapeHtml(pluginName(plugin))}</small>
-                      <span>${escapeHtml(plugin.marketplace?.shortDescription || pluginValueLine(plugin))}</span>
+                      <strong>${escapeHtml(pluginName(plugin))}</strong>
+                      <span>${escapeHtml(pluginValueLine(plugin))}</span>
                       <span class="pluginStats">
-                        <span class="pluginCategoryTag ${categoryClass}">${categoryIcon(categoryLabel)} ${escapeHtml(categoryLabel)}</span>
+                        <span class="pluginCategoryTag ${categoryClass}">${categoryIcon(categoryId)} ${escapeHtml(categoryLabel(categoryId))}</span>
                       </span>
                       ${plugin.settings?.runtimeError ? `<small>${escapeHtml(plugin.settings.runtimeError)}</small>` : ""}
                     </span>
@@ -6294,8 +6350,8 @@
         }
         selectedPluginId = plugin.id;
         const outcomes = pluginOutcomes(plugin.id);
-        const categoryLabel = pluginCategory(plugin);
-        const categoryClass = pluginCategoryClass(categoryLabel);
+        const categoryId = pluginCategory(plugin);
+        const categoryClass = pluginCategoryClass(categoryId);
         const installed = pluginInstalled(plugin);
         const mandatory = false;
         const locked = false;
@@ -6307,13 +6363,13 @@
               <button id="backPlugins" class="secondary">Back</button>
               <div class="pluginDetailTitle">
                 <span class="agentIcon">${pluginIconHtml(plugin)}</span>
-                <h1>${escapeHtml(pluginPackageName(plugin))}</h1>
+                <h1>${escapeHtml(pluginName(plugin))}</h1>
               </div>
-              <p>${escapeHtml(plugin.marketplace?.shortDescription || plugin.description || "")}</p>
+              <p>${escapeHtml(pluginValueLine(plugin))}</p>
             </div>
             <div class="actions">
-              <span class="pluginCategoryTag ${categoryClass}">${categoryIcon(categoryLabel)} ${escapeHtml(categoryLabel)}</span>
-              <button id="togglePluginInstall" class="${installed ? "secondary" : "primary"}" title="${escapeHtml(plugin.settings?.runtimeError || "")}" ${plugin.settings?.runtimeAvailable === false ? "disabled" : ""}>${escapeHtml(plugin.settings?.runtimeAvailable === false ? "Unavailable here" : installed ? "Disable" : "Enable")}</button>
+              <span class="pluginCategoryTag ${categoryClass}">${categoryIcon(categoryId)} ${escapeHtml(categoryLabel(categoryId))}</span>
+              <button id="togglePluginInstall" class="${installed ? "secondary" : "primary"}" title="${escapeHtml(plugin.settings?.runtimeError || "")}" ${plugin.settings?.runtimeAvailable === false ? "disabled" : ""}>${escapeHtml(plugin.settings?.runtimeAvailable === false ? "Unavailable here" : installed ? "Enabled" : "Enable")}</button>
             </div>
           </div>
           <div id="pluginDetailPageStatus" class="detailSettingStatus">${escapeHtml(plugin.settings?.runtimeError || "")}</div>
@@ -6322,7 +6378,7 @@
             <span>v${escapeHtml(plugin.version || "0.0.0")}</span>
             <span>${escapeHtml(pluginStatusLabel(plugin))}</span>
           </div>
-          <div class="pluginDetailTabs" role="tablist" aria-label="${escapeHtml(pluginPackageName(plugin))} sections">
+          <div class="pluginDetailTabs" role="tablist" aria-label="${escapeHtml(pluginName(plugin))} sections">
             <button type="button" data-plugin-detail-tab="insights" class="${pluginDetailTab === "insights" ? "active" : ""}">Insights</button>
             <button type="button" data-plugin-detail-tab="outcomes" class="${pluginDetailTab === "outcomes" ? "active" : ""}">Outcomes <span>${escapeHtml(String(outcomes.length))}</span></button>
             <button type="button" data-plugin-detail-tab="settings" class="${pluginDetailTab === "settings" ? "active" : ""}">Settings</button>
@@ -6394,9 +6450,9 @@
         const toggleInstall = document.getElementById("togglePluginInstall");
         if (toggleInstall && !mandatory) {
           toggleInstall.onclick = async () => {
-            if (installed && !confirm(`Disable ${pluginPackageName(plugin)} for this account?`)) return;
+            if (installed && !confirm(`Turn off ${pluginName(plugin)} for this account?`)) return;
             toggleInstall.disabled = true;
-            toggleInstall.textContent = installed ? "Disabling..." : "Enabling...";
+            toggleInstall.textContent = installed ? "Turning off..." : "Enabling...";
             const result = await window.openleash.savePluginSettings({
               pluginId: plugin.id,
               enabled: !installed,
@@ -6408,7 +6464,7 @@
               const status = document.getElementById("pluginDetailSaveStatus") || document.getElementById("pluginDetailPageStatus");
               if (status) status.textContent = result?.error || "Could not update Feature.";
               toggleInstall.disabled = false;
-              toggleInstall.textContent = installed ? "Disable" : "Enable";
+              toggleInstall.textContent = installed ? "Enabled" : "Enable";
               return;
             }
             state.plugins = (state.plugins || []).map((item) => item.id === plugin.id
@@ -6579,7 +6635,7 @@
           <article class="card">
             <div class="fieldRow">
               <div>
-                <strong>${escapeHtml(outcome.title || "Plugin outcome")}</strong>
+                <strong>${escapeHtml(outcome.title || "Feature activity")}</strong>
                 <p>${escapeHtml(outcome.summary || context || "")}</p>
               </div>
               <span class="tag ${statusClass}">${escapeHtml(outcome.status || severity)}</span>
@@ -6613,7 +6669,7 @@
         const rulesEnforcer = plugin.id === "openleash.rules-enforcer";
         return `
           <div class="pluginDetailHeader" style="margin-top:24px">
-            <div><strong>${rulesEnforcer ? "Rules by project or agent" : "Agent-specific settings"}</strong><p>${rulesEnforcer ? "Project rules are usually the easiest choice. Select a detected project path or enter one yourself; use agent rules when a rule should follow an agent everywhere." : "Override this plugin for an agent type or one enrolled agent. The same container handles every profile."}</p></div>
+            <div><strong>${rulesEnforcer ? "Rules by project or agent" : "Agent-specific settings"}</strong><p>${rulesEnforcer ? "Project rules are usually the easiest choice. Select a detected project path or enter one yourself; use agent rules when a rule should follow an agent everywhere." : "Choose different Feature behavior for an agent type or one enrolled agent."}</p></div>
             ${disabled ? "" : rulesEnforcer
               ? `<div class="ruleListActions"><button type="button" class="secondary" id="addProjectPluginProfile">Add project rules</button><button type="button" class="secondary" id="addAgentPluginProfile">Add agent rules</button></div>`
               : `<button type="button" class="secondary" id="addPluginProfile">Add profile</button>`}
@@ -6648,7 +6704,7 @@
                 <label><strong>Agent types</strong><select class="detailSettingInput" data-profile-agent-kinds multiple size="5" ${disabled ? "disabled" : ""}>${profileAgentKinds.map((kind) => `<option value="${kind}" ${(profile.agentKinds || []).includes(kind) ? "selected" : ""}>${escapeHtml(settingLabel(kind))}</option>`).join("")}</select><small>No selection means every agent type.</small></label>
                 <label><strong>Exact enrolled agents (optional)</strong><select class="detailSettingInput" data-profile-agent-ids multiple size="5" ${disabled ? "disabled" : ""}>${knownAgents.map((agent) => { const id = String(agent.instanceId || agent.id); return `<option value="${escapeHtml(id)}" ${(profile.agentIds || []).includes(id) ? "selected" : ""}>${escapeHtml(agent.displayName || agent.name || id)}</option>`; }).join("")}</select></label>
               `}
-              <label><strong>Enabled override</strong><select class="detailSettingInput" data-profile-enabled ${disabled || plugin.organizationPolicy?.mandatory ? "disabled" : ""}><option value="inherit" ${plugin.organizationPolicy?.mandatory || typeof profile.enabled !== "boolean" ? "selected" : ""}>${plugin.organizationPolicy?.mandatory ? "Required by organization" : "Use base setting"}</option><option value="true" ${!plugin.organizationPolicy?.mandatory && profile.enabled === true ? "selected" : ""}>Enabled</option><option value="false" ${!plugin.organizationPolicy?.mandatory && profile.enabled === false ? "selected" : ""}>Disabled</option></select></label>
+              <label><strong>Feature status</strong><select class="detailSettingInput" data-profile-enabled ${disabled || plugin.organizationPolicy?.mandatory ? "disabled" : ""}><option value="inherit" ${plugin.organizationPolicy?.mandatory || typeof profile.enabled !== "boolean" ? "selected" : ""}>${plugin.organizationPolicy?.mandatory ? "Required by organization" : "Use main Feature setting"}</option><option value="true" ${!plugin.organizationPolicy?.mandatory && profile.enabled === true ? "selected" : ""}>On</option><option value="false" ${!plugin.organizationPolicy?.mandatory && profile.enabled === false ? "selected" : ""}>Off</option></select></label>
               <label><strong>Priority</strong><input class="detailSettingInput" data-profile-priority type="number" value="${escapeHtml(String(profile.priority ?? 0))}" ${disabled ? "disabled" : ""}></label>
             </div>
             ${rulesEnforcer
@@ -6797,13 +6853,13 @@
 
       function pluginSettingHint(key) {
         if (key === "action") return "Choose whether sensitive data is masked or blocked.";
-        if (key === "categories") return "Sensitive data families this plugin should inspect.";
+        if (key === "categories") return "Sensitive data types this Feature should inspect.";
         if (key === "level") return "How aggressively prompts are compressed.";
         if (key === "conciseResponse") return "Ask the model to keep responses tighter.";
         if (key === "model") return "Optional model override. Leave blank for the default.";
-        if (key === "suspiciousRiskThreshold") return "Higher values reduce skill-scanner alerts.";
+        if (key === "suspiciousRiskThreshold") return "Higher values reduce Instruction Safety alerts.";
         if (key === "policySet") return "Policy group used by this evaluator.";
-        if (key === "redactSecrets") return "Hide secrets in MCP observations.";
+        if (key === "redactSecrets") return "Hide secrets in Connected Tool Awareness activity.";
         if (key === "rules") return "One enforceable instruction per line. Violations can pause the agent and notify your clients.";
         return "";
       }
@@ -7076,7 +7132,7 @@
             profiles,
             orderingPriority: plugin.settings?.orderingPriority ?? plugin.ordering?.priority ?? null,
             marketplace: plugin.marketplace || null
-          }).catch((error) => ({ ok: false, error: error?.message || "Could not save plugin settings." }));
+          }).catch((error) => ({ ok: false, error: error?.message || "Could not save Feature settings." }));
           if (!result?.ok) {
             status.textContent = result?.error || "Could not save settings.";
             button.disabled = false;
