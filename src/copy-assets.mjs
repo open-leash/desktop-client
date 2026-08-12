@@ -26,7 +26,10 @@ await copyIntroVideo();
 await copyWelcomeAgentIcons();
 await fs.mkdir(path.join("dist", "agent-icons"), { recursive: true });
 
-await sharp(path.join("src", "openleash-icon.png")).resize(64, 64).png().toFile(path.join("dist", "tray-icon.png"));
+await sharp(path.join("src", "openleash-icon.png"))
+  .resize(64, 64, { fit: "fill", kernel: "lanczos3" })
+  .png()
+  .toFile(path.join("dist", "tray-icon.png"));
 
 const iconMap = {
   claude: simpleIcons.siClaude,
