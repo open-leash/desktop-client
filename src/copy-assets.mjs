@@ -16,6 +16,7 @@ await fs.writeFile(
   noticeTemplate.replace("__OPENLEASH_FIREWORKS_DATA__", embeddedFireworks),
 );
 await fs.copyFile(path.join("src", "openleash-icon.png"), path.join("dist", "openleash-icon.png"));
+await fs.copyFile(path.join("src", "island-preview.png"), path.join("dist", "island-preview.png"));
 await fs.cp(path.join("src", "agent-mascots"), path.join("dist", "agent-mascots"), { recursive: true });
 await fs.copyFile("THIRD_PARTY_NOTICES.md", path.join("dist", "THIRD_PARTY_NOTICES.md"));
 await fs.copyFile(path.join("src", "Fireworks.json"), path.join("dist", "Fireworks.json"));

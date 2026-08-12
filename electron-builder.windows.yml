@@ -16,7 +16,7 @@ files:
 asarUnpack:
   - node_modules/better-sqlite3/build/Release/*.node
 win:
-  icon: build/openleash.ico
+  icon: src/openleash-icon.png
   target:
     - target: nsis
       arch:

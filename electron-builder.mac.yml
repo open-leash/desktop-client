@@ -28,7 +28,7 @@ extraResources:
     to: install-openleash-personal.sh
 mac:
   identity: null
-  icon: build/openleash.icns
+  icon: src/openleash-icon.png
   category: public.app-category.developer-tools
   target:
     - target: dmg

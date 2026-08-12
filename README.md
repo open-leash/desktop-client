@@ -16,10 +16,12 @@
 
 ## ✨ What this app is
 
-`desktop-client` is the installed OpenLeash client: tray app, local helper API, approval UI, hook installer, update checks, and deployment CLI.
+`desktop-client` is the installed Leash client: tray app, local helper API, approval UI, hook installer, update checks, and deployment CLI.
 
-The attention island is a non-activating, top-center overlay for the moments
-when an agent needs a person. It presents OpenLeash policy approvals, native
+The attention Island is an optional, non-activating, top-center overlay for the moments
+when an agent needs a person. Setup shows a real preview and asks whether to
+enable it. The tray is always installed, and Island visibility can be changed
+later in Settings. It presents Leash policy approvals, native
 agent questions and plan reviews, blocked actions, and completion notices
 without opening the main window or stealing focus from the terminal.
 
@@ -37,19 +39,20 @@ always-on-top). "Open agent" activates a likely host application; it is not
 described as an exact session jump unless that agent publishes a stable deep
 link.
 
-Enabled plugins can contribute typed, expiring annotations, activity, progress,
-and ambient status to Live Sessions through the shared Island API. OpenLeash
-owns layout, accessibility, truncation, animation, and safe navigation. Plugins
+Enabled built-in Features can contribute typed, expiring annotations, activity, progress,
+and ambient status to Live Sessions through the shared Island API. Leash
+owns layout, accessibility, truncation, animation, and safe navigation. Features
 cannot inject HTML, CSS, JavaScript, arbitrary URLs, shell commands, or custom
 Electron IPC.
 
-Installed hooks call the configured managed OpenLeash API:
+Installed hooks call the configured managed Leash API (the URL retains its
+OpenLeash compatibility hostname):
 
 ```text
 https://api.openleash.com/v1/hooks/:agent/:event
 ```
 
-Private Cloud installs use the customer-hosted `client-api` URL. The desktop local API still exists for setup, tray state, OAuth callbacks, local cache, local development, and legacy/dev relay behavior. If the managed backend is unavailable, enforcement fails closed instead of running a fully local SQLite-backed product mode.
+Personal Open Source installs use the locally running `client-api` URL. The desktop local API still exists for setup, tray state, OAuth callbacks, local cache, local development, and compatibility relay behavior. If the configured backend is unavailable, enforcement fails closed.
 
 ---
 
@@ -57,20 +60,16 @@ Private Cloud installs use the customer-hosted `client-api` URL. The desktop loc
 
 | Mode | Behavior |
 | --- | --- |
-| 🧑‍💻 Individual Open Source | Desktop uses the locally running public `client-api` and Postgres; hooks target that local API. |
-| 🏢 Private Cloud | Hooks target customer-hosted `client-api`; desktop receives state and approvals from that backend. |
-| ☁️ OpenLeash Cloud | Hooks target OpenLeash-hosted cloud APIs; desktop receives state and approvals from OpenLeash Cloud. |
+| 🧑‍💻 Personal Open Source | Desktop uses the locally running public `client-api` and Postgres; hooks target that local API. |
+| ☁️ Leash Cloud | Hooks target Leash-hosted cloud APIs; desktop receives personal state and approvals from Leash Cloud. |
 
 ---
 
-## 🧩 Plugin settings and organization policy
+## 🧩 Feature settings
 
-Personal users can configure plugins globally, by agent kind, or by exact
-authenticated/enrolled agent runtime. In organization modes, desktop displays
-the effective backend-owned policy: mandatory plugins cannot be removed or
-disabled, optional installs may be blocked, and settings may be locked. When an
-admin leaves configuration unlocked, employees may keep personal and per-agent
-settings even for a mandatory plugin.
+Personal users can configure the first-party Features shipped with Leash.
+There is no public marketplace, uploader, publisher profile, or organization
+policy surface.
 
 ---
 

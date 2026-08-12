@@ -72,7 +72,7 @@ export type ImmediateAgentActivity = {
   occurredAt: string;
 };
 
-export type IslandVisibility = "always" | "activity" | "notifications";
+export type IslandVisibility = "always" | "activity" | "notifications" | "off";
 
 export function shouldPresentActivityIsland(input: {
   visibility: IslandVisibility;
@@ -80,6 +80,7 @@ export function shouldPresentActivityIsland(input: {
   hasVisibleActivity: boolean;
   manualReveal?: boolean;
 }) {
+  if (input.visibility === "off") return false;
   if (input.hasPending || input.manualReveal) return true;
   if (input.visibility === "notifications") return false;
   return input.visibility === "always" || input.hasVisibleActivity;

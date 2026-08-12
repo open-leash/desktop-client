@@ -639,6 +639,37 @@
         justify-content: space-between;
         gap: 16px;
       }
+      .islandSetupPreview {
+        overflow: hidden;
+        border: 1px solid var(--line);
+        border-radius: 18px;
+        background: #111;
+        box-shadow: var(--shadow-md);
+      }
+      .islandSetupPreview img {
+        display: block;
+        width: 100%;
+        height: 330px;
+        object-fit: contain;
+        object-position: center;
+      }
+      .islandSetupNote {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        color: var(--muted);
+        font-size: 13px;
+        font-weight: 750;
+      }
+      .islandSetupNote::before {
+        content: "";
+        width: 8px;
+        height: 8px;
+        flex: 0 0 auto;
+        border-radius: 50%;
+        background: #25b47e;
+        box-shadow: 0 0 0 4px rgba(37, 180, 126, .12);
+      }
       .cardList {
         display: grid;
         gap: 14px;
@@ -660,6 +691,17 @@
       .choiceCard.selected {
         border-color: rgba(93, 119, 205, .35);
         background: #f5f7ff;
+      }
+      .choiceIcon {
+        display: grid;
+        place-items: center;
+        width: 40px;
+        height: 40px;
+        border-radius: 12px;
+        background: var(--soft);
+        color: var(--accent);
+        font-size: 20px;
+        font-weight: 900;
       }
       .choiceCard.featured {
         position: relative;
@@ -2828,6 +2870,7 @@
       let setupDockerAutoStarted = false;
       let setupProvider = "openai";
       let setupApiKey = "";
+      let setupIslandEnabled;
       let importedRules;
       let importRulesMessage = "";
       let desktopMessageTimer;
@@ -3099,25 +3142,37 @@
         }
         enforceAudienceMode();
         const cloud = setupClientMode === "cloud";
-        const individualOpenSource = setupClientMode === "custom";
-        const orgCloud = false;
+        const individualCloud = setupAudience === "individual" && cloud;
+        const individualOpenSource = setupAudience === "individual" && setupClientMode === "custom";
+        const orgCloud = setupAudience === "organization" && cloud;
         initializePluginSetupState();
         const pluginSteps = [
+          { title: "Island", subtitle: "Choose whether Leash should show the desktop Island." },
           { title: "Features", subtitle: "Choose the built-in Features Leash should enable." }
         ];
         const steps = individualOpenSource
           ? [
+              { title: "Account", subtitle: "Choose Personal or Business." },
               { title: "Connect", subtitle: "Pick how Leash runs." },
               { title: "Local backend", subtitle: "Start your open-source backend." },
               { title: "Agents", subtitle: "Choose agents to manage." },
               ...pluginSteps
             ]
-          : [
-              { title: "Connect", subtitle: "Pick how Leash runs." },
-              { title: "Sign in", subtitle: "Sign in to Leash Cloud." },
-              { title: "Agents", subtitle: "Choose agents to manage." },
-              ...pluginSteps
-            ];
+          : individualCloud
+            ? [
+                { title: "Account", subtitle: "Choose Personal or Business." },
+                { title: "Connect", subtitle: "Pick how Leash runs." },
+                { title: "Sign in", subtitle: "Sign in to Leash Cloud." },
+                { title: "Agents", subtitle: "Choose agents to manage." },
+                ...pluginSteps
+              ]
+            : [
+                { title: "Account", subtitle: "Choose Personal or Business." },
+                { title: "Connect", subtitle: "Connect this computer to Leash Business." },
+                { title: "Sign in", subtitle: "Sign in to Leash Business." },
+                { title: "Agents", subtitle: "Choose agents to protect." },
+                ...pluginSteps
+              ];
         const current = steps[Math.max(0, setupStep - 1)] || steps[0];
         const currentId = current.title.toLowerCase();
         const progress = Math.round((Math.max(1, setupStep) / steps.length) * 100);
@@ -3178,20 +3233,21 @@
           <div class="setupStack">
             ${currentId === "account" ? `
               <section class="setupSection">
-                <h2>Personal Leash</h2>
-                <p>Leash protects your own AI agents.</p>
+                <h2>Who will use Leash?</h2>
+                <p>This changes the account and setup options you see next.</p>
                 <div class="cardList">
-                  ${audienceChoice("individual", "Personal", "Use Leash for your own AI agents.")}
+                  ${audienceChoice("individual", "Personal", "Protect the AI agents you use yourself.")}
+                  ${audienceChoice("organization", "Business", "Protect your team with shared security and control.")}
                 </div>
               </section>
             ` : ""}
             ${currentId === "connect" ? `
               <section class="setupSection">
                 <h2>Connection</h2>
-                <p>Pick how Leash runs for you.</p>
+                <p>${orgCloud ? "Leash Business uses Leash Cloud so your team stays connected and protected." : "Pick how Leash runs for you."}</p>
                 <div class="cardList">
-                  ${connectionChoice("cloud", "Leash Cloud", "Use your Leash-hosted personal account and sync.", "cloud")}
-                  ${connectionChoice("custom", "Personal Open Source", "Run the open-source API and database on this computer.", "devices")}
+                  ${connectionChoice("cloud", orgCloud ? "Leash Business Cloud" : "Leash Cloud", orgCloud ? "Connect this computer to your company account, policies, and shared activity." : "Use your Leash-hosted personal account and sync.", "cloud")}
+                  ${setupAudience === "individual" ? connectionChoice("custom", "Personal Open Source", "Run the open-source API and database on this computer.", "devices") : ""}
                 </div>
               </section>
             ` : ""}
@@ -3238,8 +3294,8 @@
                       <span class="tag good">Connected</span>
                     </div>
                   ` : `
-                    <strong>${setupClientMode === "cloud" ? "Continue with Google or GitHub" : "Connect to your personal API"}</strong>
-                    <p>${setupClientMode === "cloud" ? "Create or access your personal Leash Cloud account here." : "Personal Open Source is bootstrapped locally without a cloud sign-in."}</p>
+                    <strong>${orgCloud ? "Continue with your work account" : setupClientMode === "cloud" ? "Continue with Google or GitHub" : "Connect to your personal API"}</strong>
+                    <p>${orgCloud ? "Sign in to Leash Business. Your company setup and controls stay in the Business dashboard." : setupClientMode === "cloud" ? "Create or access your personal Leash Cloud account here." : "Personal Open Source is bootstrapped locally without a cloud sign-in."}</p>
                     <div class="actions left" style="margin-top:16px">
                       ${orgCloud && state.cloudDevAuth ? `
                         <button class="googleSignIn" id="orgCloudGoogle" ${setupRemoteBusy ? "disabled" : ""}>
@@ -3286,6 +3342,30 @@
                 ${agentCards({ selectable: true })}
               </section>
             ` : ""}
+            ${currentId === "island" ? `
+              <section class="setupSection">
+                <div>
+                  <h2>Do you want the Island?</h2>
+                  <p>The Island keeps live agent activity, questions, and approvals at the top of your screen.</p>
+                </div>
+                <div class="islandSetupPreview">
+                  <img src="island-preview.png" alt="Example of the Leash Island showing live agents and an approval request">
+                </div>
+                <div class="cardList">
+                  <label class="choiceCard ${setupIslandEnabled === true ? "selected" : ""}">
+                    <span class="choiceIcon">◒</span>
+                    <span><strong>Use the Island</strong><p>Show agent activity and questions without opening the desktop window.</p></span>
+                    <input type="radio" name="setupIsland" value="on" ${setupIslandEnabled === true ? "checked" : ""}>
+                  </label>
+                  <label class="choiceCard ${setupIslandEnabled === false ? "selected" : ""}">
+                    <span class="choiceIcon">Off</span>
+                    <span><strong>Don’t use the Island</strong><p>Keep Leash in the tray and open the desktop window when you need it.</p></span>
+                    <input type="radio" name="setupIsland" value="off" ${setupIslandEnabled === false ? "checked" : ""}>
+                  </label>
+                </div>
+                <div class="islandSetupNote">The tray icon is always installed, whichever option you choose.</div>
+              </section>
+            ` : ""}
             ${currentId === "features" ? `
               <section class="setupSection">
                 <div class="setupSectionHead">
@@ -3301,7 +3381,7 @@
           <div class="actions">
             <button class="secondary" id="setupBack">Back</button>
             ${setupStep < steps.length
-              ? `<button class="primary" id="setupNext" ${currentId === "local backend" && setupDockerBusy ? "disabled" : ""}>${currentId === "local backend" && setupDockerBusy ? "Starting..." : "Next"}</button>`
+              ? `<button class="primary" id="setupNext" ${(currentId === "local backend" && setupDockerBusy) || (currentId === "island" && typeof setupIslandEnabled !== "boolean") ? "disabled" : ""}>${currentId === "local backend" && setupDockerBusy ? "Starting..." : "Next"}</button>`
               : `<button class="primary" id="finish" ${setupFinishing ? "disabled" : ""}>${setupFinishing ? "Installing..." : "Install and start managing"}</button>`}
           </div>
           ${setupStep >= steps.length && (setupRemoteNotice || setupFinishError) ? `
@@ -3318,6 +3398,7 @@
         const next = document.getElementById("setupNext");
         if (next) next.onclick = async () => {
           rememberSetupInputs();
+          if (currentId === "island" && typeof setupIslandEnabled !== "boolean") return;
           if (currentId === "connect" && setupAudience === "individual" && setupClientMode === "custom") {
             setupRemoteApiUrl = "http://127.0.0.1:9318";
             setupRemoteAuth = undefined;
@@ -3339,7 +3420,10 @@
             const ok = await bootstrapRemoteSetup();
             if (!ok) return renderSetup();
           }
-          if (currentId === "sign in" && setupClientMode === "cloud" && setupAudience === "organization") return;
+          if (currentId === "sign in" && setupClientMode === "cloud" && setupAudience === "organization" && !setupRemoteAuth) {
+            setupRemoteError = "Sign in with your work account before continuing.";
+            return renderSetup();
+          }
           if (currentId === "sign in" && setupClientMode !== "personal" && !setupRemoteAuth) {
             setupRemoteError = "Sign in before continuing.";
             return renderSetup();
@@ -3360,6 +3444,7 @@
           void finishSetup();
         };
         bindAgentSelection();
+        bindIslandSelection();
         bindRuleSelection();
         bindPluginExpansion();
         bindPluginSelection();
@@ -3376,6 +3461,10 @@
         if (signInGithub) signInGithub.onclick = () => startRemoteSignIn("github");
         const signInMicrosoft = document.getElementById("remoteSignInMicrosoft");
         if (signInMicrosoft) signInMicrosoft.onclick = () => startRemoteSignIn("azure_ad");
+        const orgCloudGoogle = document.getElementById("orgCloudGoogle");
+        if (orgCloudGoogle) orgCloudGoogle.onclick = () => startOrgCloudOnboarding("google");
+        const orgCloudMicrosoft = document.getElementById("orgCloudMicrosoft");
+        if (orgCloudMicrosoft) orgCloudMicrosoft.onclick = () => startOrgCloudOnboarding("microsoft");
         const startLocalBackend = document.getElementById("startLocalBackend");
         if (startLocalBackend) startLocalBackend.onclick = () => startSelfHostedRuntime();
         const checkLocalBackend = document.getElementById("checkDockerStatus");
@@ -3386,6 +3475,27 @@
           setupDockerAutoStarted = true;
           window.setTimeout(() => startSelfHostedRuntime(), 80);
         }
+      }
+
+      async function startOrgCloudOnboarding(provider) {
+        rememberSetupInputs();
+        setupRemoteProvider = provider;
+        setupRemoteBusy = true;
+        setupRemoteError = "";
+        setupRemoteNotice = "";
+        renderSetup();
+        const result = await window.openleash.startOrgCloudOnboarding({ provider });
+        setupRemoteBusy = false;
+        if (!result?.ok) {
+          setupRemoteError = result?.error || "Could not open Leash Business sign-in.";
+        } else {
+          setupRemoteNotice = state.cloudDevAuth
+            ? `Using local dev sign-in as ${state.cloudDevAuthEmail || "mobile.user@openleash.com"}.`
+            : provider === "microsoft"
+              ? "Continue with your Microsoft 365 account in the browser."
+              : "Continue with your Google Workspace account in the browser.";
+        }
+        renderSetup();
       }
 
       function rememberSetupInputs() {
@@ -3425,6 +3535,8 @@
         if (provider) setupProvider = provider.value;
         const key = document.getElementById("apiKey");
         if (key) setupApiKey = key.value.trim();
+        const island = root.querySelector("[name=setupIsland]:checked");
+        if (island) setupIslandEnabled = island.value === "on";
       }
 
       async function finishSetup() {
@@ -3488,7 +3600,8 @@
           remoteToken: setupRemoteAuth?.token,
           remoteOrganization: setupRemoteAuth?.organizationName || setupRemoteAuth?.organizationSlug,
           remoteUser: setupRemoteAuth?.userName || setupRemoteAuth?.userEmail,
-          skipDashboardOpen: setupSkipDashboardOpenAfterInstall
+          skipDashboardOpen: setupSkipDashboardOpenAfterInstall,
+          islandVisibility: setupIslandEnabled ? "always" : "off"
         }).catch((error) => ({ ok: false, error: error?.message || "Setup could not be completed." }));
         if (result && result.ok === false) {
           setupFinishing = false;
@@ -3529,6 +3642,15 @@
           setupStep = 1;
           renderSetup();
         };
+      }
+
+      function bindIslandSelection() {
+        root.querySelectorAll("[name=setupIsland]").forEach((input) => {
+          input.onchange = () => {
+            setupIslandEnabled = input.value === "on";
+            renderSetup();
+          };
+        });
       }
 
       function startWelcomeAgentAnimation() {
@@ -3673,7 +3795,7 @@
       }
 
       function enforceAudienceMode() {
-        setupAudience = "individual";
+        if (setupAudience === "organization") setupClientMode = "cloud";
         if (setupClientMode === "personal") setupClientMode = "cloud";
       }
 
@@ -5323,6 +5445,7 @@
                   <option value="always" ${(state.islandVisibility || (state.islandActivityOnly ? "activity" : "always")) === "always" ? "selected" : ""}>Always visible</option>
                   <option value="activity" ${(state.islandVisibility || (state.islandActivityOnly ? "activity" : "always")) === "activity" ? "selected" : ""}>During agent activity</option>
                   <option value="notifications" ${state.islandVisibility === "notifications" ? "selected" : ""}>Notifications only</option>
+                  <option value="off" ${state.islandVisibility === "off" ? "selected" : ""}>Off, tray only</option>
                 </select>
               </div>
               <div id="settingsMessage" class="notice"></div>
@@ -5403,7 +5526,9 @@
           state.islandActivityOnly = result.islandActivityOnly;
           islandVisibilityInput.value = state.islandVisibility;
           document.getElementById("settingsMessage").textContent =
-            state.islandVisibility === "notifications"
+            state.islandVisibility === "off"
+              ? "The Island is off. Leash remains available from the tray."
+              : state.islandVisibility === "notifications"
               ? "The Island will appear only for notifications or when opened from the tray."
               : state.islandVisibility === "activity"
                 ? "The Island will hide while all agents are idle."
@@ -5535,7 +5660,6 @@
           "mcp-scanner": "📡",
           "rules-enforcer": "📏",
           "sensitive-access": "🔐",
-          "siem-exporter": "📤",
           "skill-scanner": "🕵️",
           "code-scanner": "☣️"
         };
@@ -5654,7 +5778,6 @@
       function pluginCategory(plugin) {
         const raw = plugin.marketplace?.category || plugin.category || plugin.manifest?.category || "";
         const text = String(raw || `${plugin.id || ""} ${plugin.name || ""} ${plugin.description || ""} ${(plugin.marketplace?.tags || []).join(" ")} ${(plugin.tags || []).join(" ")}`).toLowerCase();
-        if (/siem-exporter/.test(text)) return "Other";
         if (/mcp-scanner|skill-scanner/.test(text)) return "Security";
         if (/security|policy|guard|skill|prompt-injection|risk|approval|dlp|leak|sensitive|secret|credential/.test(text)) return "Security";
         if (/visibility|observability|observe|log|mcp|siem|audit|telemetry|monitor/.test(text)) return "Visibility";

@@ -47,7 +47,7 @@ test("only shows Token Saver after it publishes a real savings metric", () => {
   });
 });
 
-test("supports always-on, activity-only, and notification-only Island visibility", () => {
+test("supports always-on, activity-only, notification-only, and disabled Island visibility", () => {
   assert.equal(shouldPresentActivityIsland({
     visibility: "always",
     hasPending: false,
@@ -79,6 +79,12 @@ test("supports always-on, activity-only, and notification-only Island visibility
     hasVisibleActivity: false,
     manualReveal: true,
   }), true);
+  assert.equal(shouldPresentActivityIsland({
+    visibility: "off",
+    hasPending: true,
+    hasVisibleActivity: true,
+    manualReveal: true,
+  }), false);
 });
 
 test("passive token savings do not masquerade as a plugin update", () => {

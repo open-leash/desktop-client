@@ -22,6 +22,8 @@ test("the configured local service token survives setup and install resets", asy
     assert.equal(server.islandVisibility, "always");
     server.updateSettings("openai", undefined, undefined, undefined, "notifications");
     assert.equal(server.islandVisibility, "notifications");
+    server.updateSettings("openai", undefined, undefined, undefined, "off");
+    assert.equal(server.islandVisibility, "off");
     server.updateSettings("openai", undefined, undefined, true);
     assert.equal(server.islandActivityOnly, true);
     assert.equal(server.islandVisibility, "activity");

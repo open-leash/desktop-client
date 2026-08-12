@@ -227,13 +227,13 @@ type SkillRecord = {
 
 type SkillLifecycleEvent = "detected" | "changed" | "seen" | "removed";
 
-type IslandVisibility = "always" | "activity" | "notifications";
+type IslandVisibility = "always" | "activity" | "notifications" | "off";
 
 function normalizeIslandVisibility(
   value: unknown,
   legacyActivityOnly = false,
 ): IslandVisibility {
-  return value === "activity" || value === "notifications"
+  return value === "activity" || value === "notifications" || value === "off"
     ? value
     : legacyActivityOnly
       ? "activity"
@@ -269,6 +269,7 @@ type SetupConfig = {
   remoteToken?: string;
   remoteOrganization?: string;
   remoteUser?: string;
+  islandVisibility?: IslandVisibility;
 };
 
 type LocalServerOptions = {
@@ -574,6 +575,10 @@ export class LocalOpenLeashServer {
     this.store.remoteToken = config.remoteToken;
     this.store.remoteOrganization = config.remoteOrganization;
     this.store.remoteUser = config.remoteUser;
+    if (config.islandVisibility !== undefined) {
+      this.store.islandVisibility = normalizeIslandVisibility(config.islandVisibility);
+      this.store.islandActivityOnly = this.store.islandVisibility === "activity";
+    }
     this.store.apiKey = undefined;
     this.store.history = [];
     this.store.setupComplete = true;

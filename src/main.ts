@@ -43,6 +43,7 @@ import {
   OPENLEASH_DESKTOP_GOOGLE_REDIRECT_URI,
   OPENLEASH_DESKTOP_MICROSOFT_REDIRECT_URI,
   OPENLEASH_PUBLIC_CLOUD_API_URL,
+  OPENLEASH_PUBLIC_CLOUD_DASHBOARD_URL,
 } from "./public-config";
 import type { PluginCatalogItem } from "./plugin-catalog";
 import { canonicalPluginSlug } from "./plugin-slug";
@@ -341,6 +342,9 @@ const apiUrl = OPENLEASH_DESKTOP_API_URL;
 const cloudApiUrl =
   process.env.OPENLEASH_CLOUD_API_URL ??
   (app.isPackaged ? OPENLEASH_PUBLIC_CLOUD_API_URL : localDevCloudApiUrl);
+const cloudDashboardUrl =
+  process.env.OPENLEASH_CLOUD_DASHBOARD_URL ??
+  OPENLEASH_PUBLIC_CLOUD_DASHBOARD_URL;
 const cloudDevAuth = process.env.OPENLEASH_MOBILE_DEV_AUTH === "1";
 const cloudDevAuthEmail =
   process.env.OPENLEASH_MOBILE_DEV_EMAIL ?? "mobile.user@openleash.com";
@@ -1039,6 +1043,32 @@ ipcMain.handle(
     }
   },
 );
+ipcMain.handle(
+  "openleash:start-org-cloud-onboarding",
+  async (_event, payload: { provider?: "google" | "microsoft" }) => {
+    try {
+      keepDockIconForSetup();
+      const provider = payload.provider === "microsoft" ? "microsoft" : "google";
+      const dashboardUrl = new URL(
+        cloudDashboardUrl.replace(/\/$/, "") || "http://localhost:9300",
+      );
+      dashboardUrl.pathname = "/auth/cloud/start";
+      dashboardUrl.searchParams.set("provider", provider);
+      dashboardUrl.searchParams.set("desktop", "1");
+      await openTrustedExternalUrl(dashboardUrl.toString());
+      keepDockIconForSetup();
+      return { ok: true };
+    } catch (error) {
+      return {
+        ok: false,
+        error:
+          error instanceof Error
+            ? error.message
+            : "Could not open Leash Cloud sign-in.",
+      };
+    }
+  },
+);
 async function fetchMobileBootstrap(
   remoteApiUrl: string,
   organizationSlug?: string,
@@ -1478,6 +1508,7 @@ ipcMain.handle(
       remoteOrganization?: string;
       remoteUser?: string;
       skipDashboardOpen?: boolean;
+      islandVisibility?: "always" | "activity" | "notifications" | "off";
     },
   ) => {
     const sendSetupProgress = (progress: {
@@ -1497,7 +1528,8 @@ ipcMain.handle(
       detail: "Validating your account and backend connection...",
     });
     const clientMode = payload.clientMode === "custom" ? "custom" : "cloud";
-    const audience = "individual" as const;
+    const audience =
+      payload.audience === "organization" ? "organization" as const : "individual" as const;
     const apiKey = String(payload.apiKey ?? "").trim();
     let remoteToken = payload.remoteToken || desktopAuthSession?.token;
     const remoteApiUrl = normalizeRemoteApiUrl(
@@ -1564,6 +1596,7 @@ ipcMain.handle(
         desktopAuthSession?.organizationName ||
         desktopAuthSession?.organizationSlug,
       remoteUser: enrolledRemoteUser,
+      islandVisibility: payload.islandVisibility,
     });
     await configureLocalAgent();
     await installLeashCli();
@@ -1715,7 +1748,24 @@ ipcMain.handle(
       openAsHidden: true,
       name: APP_DISPLAY_NAME,
     });
-    const desktopMessage: string | undefined = proxyInstallError;
+    let desktopMessage: string | undefined = proxyInstallError;
+    if (
+      clientMode === "cloud" &&
+      audience === "organization" &&
+      !payload.skipDashboardOpen
+    ) {
+      const dashboardUrl = new URL(
+        cloudDashboardUrl.replace(/\/$/, "") || "http://localhost:9300",
+      );
+      dashboardUrl.pathname = "/onboarding";
+      await openTrustedExternalUrl(dashboardUrl.toString());
+      desktopMessage = [
+        "Complete your Business setup in the browser.",
+        proxyInstallError,
+      ]
+        .filter(Boolean)
+        .join(" ");
+    }
     startProtectionIntegrityGuard();
     refreshMenu();
     const setupState = {
@@ -1841,7 +1891,7 @@ ipcMain.handle(
       apiProvider?: "openai" | "anthropic";
       apiKey?: string;
       agentDoneSound?: boolean;
-      islandVisibility?: "always" | "activity" | "notifications";
+      islandVisibility?: "always" | "activity" | "notifications" | "off";
       islandActivityOnly?: boolean;
     },
   ) => {
@@ -3833,7 +3883,8 @@ function ensureTray(status: "ok" | "pending" | "down" = currentTrayStatus) {
       if (traySingleClickTimer) clearTimeout(traySingleClickTimer);
       traySingleClickTimer = setTimeout(() => {
         traySingleClickTimer = undefined;
-        revealIslandFromTray();
+        if (localServer?.islandVisibility === "off") restoreMainWindow();
+        else revealIslandFromTray();
       }, 260);
     });
     tray.on("double-click", () => {
@@ -3909,7 +3960,10 @@ function refreshMenu(open = false) {
       : latestPending.map((item) => ({
           label: `${item.agent_name} - ${compactSummary(item.question ?? item.summary)}`,
           sublabel: `${item.tool_name ?? item.event_name} · ${timeAgo(item.created_at)}`,
-          click: () => showDecisionNotice({ kind: "ask", pending: item }),
+          click: () => {
+            if (localServer.islandVisibility === "off") manualIslandReveal = true;
+            showDecisionNotice({ kind: "ask", pending: item });
+          },
         }));
 
   const menu = Menu.buildFromTemplate([
@@ -5838,6 +5892,7 @@ function handleNativeIslandMessage(line: string, host: NativeIslandHost) {
 }
 
 function showDecisionNotice(notice: DecisionNotice) {
+  if (localServer.islandVisibility === "off" && !manualIslandReveal) return;
   const display = noticeWorkArea(notice);
   const width = 300;
   const supportsGuidance =
@@ -6776,7 +6831,7 @@ services:
       OPENLEASH_PROVIDER_USAGE_ENCRYPTION_KEY: \${OPENLEASH_PROVIDER_USAGE_ENCRYPTION_KEY:-openleash-local-provider-key-change-me}
       OPENLEASH_SECRET_KEY: \${OPENLEASH_SECRET_KEY:-openleash-local-secret-change-me}
       OPENLEASH_PLUGIN_RUNTIME_SECRET: \${OPENLEASH_PLUGIN_RUNTIME_SECRET}
-      OPENLEASH_PLUGIN_ENDPOINTS: '{"openleash.prompt-compression":"http://host.docker.internal:9349","openleash.blast-radius":"http://host.docker.internal:9349","openleash.sensitive-access":"http://host.docker.internal:9349","openleash.dlp":"http://host.docker.internal:9349","openleash.rules-enforcer":"http://host.docker.internal:9349","openleash.mcp-scanner":"http://host.docker.internal:9349","openleash.code-scanner":"http://host.docker.internal:9349","openleash.skill-scanner":"http://host.docker.internal:9349","openleash.siem-exporter":"http://host.docker.internal:9349"}'
+      OPENLEASH_PLUGIN_ENDPOINTS: '{"openleash.prompt-compression":"http://host.docker.internal:9349","openleash.blast-radius":"http://host.docker.internal:9349","openleash.sensitive-access":"http://host.docker.internal:9349","openleash.dlp":"http://host.docker.internal:9349","openleash.rules-enforcer":"http://host.docker.internal:9349","openleash.mcp-scanner":"http://host.docker.internal:9349","openleash.code-scanner":"http://host.docker.internal:9349","openleash.skill-scanner":"http://host.docker.internal:9349"}'
     ports:
       - "127.0.0.1:\${OPENLEASH_CLIENT_API_PORT:-9318}:9318"
     depends_on:
