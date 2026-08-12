@@ -29,7 +29,7 @@ extraResources:
     to: install-openleash-personal.sh
 mac:
   identity: null
-  icon: apps/desktop-client/build/openleash.icns
+  icon: apps/desktop-client/src/openleash-icon.png
   category: public.app-category.developer-tools
   target:
     - target: dmg
@@ -40,7 +40,7 @@ mac:
   entitlements: apps/desktop-client/build/entitlements.mac.plist
   entitlementsInherit: apps/desktop-client/build/entitlements.mac.inherit.plist
 win:
-  icon: apps/desktop-client/build/openleash.ico
+  icon: apps/desktop-client/src/openleash-icon.png
   target:
     - target: nsis
       arch:
