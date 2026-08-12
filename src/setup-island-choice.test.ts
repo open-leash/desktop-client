@@ -20,5 +20,5 @@ test("installation asks whether to enable the Island and shows the real preview"
 test("tray remains useful when the Island is disabled", () => {
   assert.match(main, /localServer\?\.islandVisibility === "off"\) restoreMainWindow\(\)/);
   assert.match(main, /localServer\.islandVisibility === "off" && !manualIslandReveal\) return/);
-  assert.match(renderer, /Off — tray only/);
+  assert.match(renderer, /Off, tray only/);
 });
