@@ -1277,7 +1277,7 @@ class _PluginHomeSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final categories = ['observability', 'cost', 'security', 'utility'];
+    final categories = ['security', 'cost', 'observability', 'utility'];
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -1482,7 +1482,7 @@ class _PluginMarketplacePageState extends State<_PluginMarketplacePage> {
             Wrap(
               spacing: 8,
               runSpacing: 8,
-              children: ['all', 'observability', 'cost', 'security', 'utility']
+              children: ['all', 'security', 'cost', 'observability', 'utility']
                   .map((category) {
                     final selected = _category == category;
                     return ChoiceChip(
@@ -1633,9 +1633,9 @@ class _PluginDetailPageState extends State<_PluginDetailPage> {
                       final remove = await showDialog<bool>(
                         context: context,
                         builder: (context) => AlertDialog(
-                          title: const Text('Disable Feature?'),
+                          title: const Text('Turn off Feature?'),
                           content: Text(
-                            'Disable ${_pluginName(widget.plugin)} for this account?',
+                            'Turn off ${_pluginName(widget.plugin)} for this account?',
                           ),
                           actions: [
                             TextButton(
@@ -1644,7 +1644,7 @@ class _PluginDetailPageState extends State<_PluginDetailPage> {
                             ),
                             FilledButton(
                               onPressed: () => Navigator.pop(context, true),
-                              child: const Text('Disable'),
+                              child: const Text('Turn off'),
                             ),
                           ],
                         ),
@@ -1661,7 +1661,7 @@ class _PluginDetailPageState extends State<_PluginDetailPage> {
               mandatory
                   ? 'Required'
                   : installed
-                  ? 'Disable'
+                  ? 'Enabled'
                   : 'Enable',
             ),
           ),
@@ -1955,20 +1955,64 @@ bool _pluginConfigLocked(Map plugin) {
 }
 
 int _comparePlugins(Map left, Map right) {
-  return _pluginName(
-    left,
-  ).toLowerCase().compareTo(_pluginName(right).toLowerCase());
+  const order = {'security': 0, 'cost': 1, 'observability': 2, 'utility': 3};
+  final categoryOrder = (order[_pluginCategory(left)] ?? 9).compareTo(
+    order[_pluginCategory(right)] ?? 9,
+  );
+  if (categoryOrder != 0) return categoryOrder;
+  return _pluginName(left).toLowerCase().compareTo(
+    _pluginName(right).toLowerCase(),
+  );
 }
 
 String _pluginName(Map plugin) {
+  final compatibilityName = _pluginCompatibilityName(plugin);
+  const names = {
+    'blast-radius': 'Destruction Protection',
+    'code-scanner': 'Code Scanner',
+    'data-leakage-prevention': 'Private Data Protection',
+    'mcp-scanner': 'Connected Tool Awareness',
+    'rules-enforcer': 'Your Rules',
+    'sensitive-access': 'Secret Access Protection',
+    'skill-scanner': 'Instruction Safety',
+    'token-saver': 'AI Cost Control',
+  };
+  final canonicalName = names[compatibilityName];
+  if (canonicalName != null) return canonicalName;
+  final supplied = plugin['displayName']?.toString() ?? plugin['name']?.toString();
+  if (supplied != null && supplied.trim().isNotEmpty && !supplied.contains('-')) {
+    return supplied.trim();
+  }
+  return _readableFeatureName(compatibilityName);
+}
+
+String _pluginCompatibilityName(Map plugin) {
   final marketplace = plugin['marketplace'];
-  return plugin['slug']?.toString() ??
+  final raw = plugin['slug']?.toString() ??
       (marketplace is Map ? marketplace['slug']?.toString() : null) ??
       plugin['packageId']?.toString() ??
-      plugin['name']?.toString() ??
-      plugin['displayName']?.toString() ??
       plugin['id']?.toString().split('.').last ??
-      'plugin';
+      plugin['name']?.toString() ??
+      'feature';
+  final normalized = raw.replaceFirst(RegExp(r'^openleash[._-]'), '').trim().toLowerCase();
+  const aliases = {
+    'blast radius': 'blast-radius',
+    'prompt-compression': 'token-saver',
+    'prompt compression': 'token-saver',
+    'token-compression': 'token-saver',
+    'token compression': 'token-saver',
+    'token saver': 'token-saver',
+    'dlp': 'data-leakage-prevention',
+  };
+  return aliases[normalized] ?? normalized.replaceAll(RegExp(r'[\s_]+'), '-');
+}
+
+String _readableFeatureName(String value) {
+  return value
+      .split(RegExp(r'[-_\s]+'))
+      .where((part) => part.isNotEmpty)
+      .map((part) => '${part[0].toUpperCase()}${part.substring(1)}')
+      .join(' ');
 }
 
 String _pluginDescription(Map plugin) {
@@ -2007,9 +2051,6 @@ String _pluginCategory(Map plugin) {
       ? explicit
       : '${plugin['id'] ?? ''} ${plugin['name'] ?? ''} ${plugin['description'] ?? ''} $marketplaceTags $pluginTags'
             .toLowerCase();
-  if (RegExp(r'siem-exporter').hasMatch(text)) {
-    return 'utility';
-  }
   if (RegExp(r'mcp-scanner|skill-scanner').hasMatch(text)) {
     return 'security';
   }
@@ -2030,10 +2071,10 @@ String _pluginCategory(Map plugin) {
 }
 
 String _categoryLabel(String category) {
+  if (category == 'security') return 'Protections';
   if (category == 'cost') return 'Cost';
-  if (category == 'security') return 'Security';
   if (category == 'observability') return 'Visibility';
-  if (category == 'utility') return 'Misc';
+  if (category == 'utility') return 'Other';
   return 'All';
 }
 
