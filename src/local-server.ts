@@ -38,7 +38,7 @@ const defaultPromptTransformConfig: PromptTransformConfig = {
   },
   dlp: {
     enabled: false,
-    action: "mask",
+    action: "ask",
     categories: ["pii", "phi", "tokens", "keys", "credentials"],
     model: process.env.OPENLEASH_PROMPT_TRANSFORM_MODEL ?? "gpt-4.1-nano"
   }
@@ -78,7 +78,7 @@ export type Policy = {
 
 type CompressionLevel = "light" | "standard" | "maximum";
 type DlpCategory = "pii" | "phi" | "tokens" | "keys" | "credentials";
-type DlpAction = "block" | "mask";
+type DlpAction = "allow" | "ask" | "block" | "mask";
 
 type PromptTransformConfig = {
   compression: {
@@ -98,6 +98,7 @@ type PromptTransformConfig = {
 type PromptTransformResult = {
   finalPrompt: string;
   blocked: boolean;
+  requiresApproval?: boolean;
   summary: string;
   model: string;
   compression?: {
@@ -1000,6 +1001,9 @@ export class LocalOpenLeashServer {
     if (result.blocked) {
       return nativeHookDecision(agent, eventName, { decision: "deny", summary: result.summary });
     }
+    if (result.requiresApproval) {
+      return nativeHookDecision(agent, eventName, { decision: "ask", summary: result.summary, question: result.summary });
+    }
     return promptTransformHookDecision(agent, eventName, result.finalPrompt, result.summary);
   }
 
@@ -1008,11 +1012,11 @@ export class LocalOpenLeashServer {
     const evaluation: Evaluation = {
       id,
       intentKey: triggerIntentKey(request),
-      decision: result.blocked ? "deny" : "allow",
-      resolution: result.blocked ? "deny" : "allow",
+      decision: result.blocked ? "deny" : result.requiresApproval ? "ask" : "allow",
+      resolution: result.blocked ? "deny" : result.requiresApproval ? null : "allow",
       summary: result.summary,
       created_at: new Date().toISOString(),
-      resolved_at: new Date().toISOString(),
+      resolved_at: result.requiresApproval ? undefined : new Date().toISOString(),
       user_name: "Max Brin",
       hostname: request.computer.hostname || os.hostname(),
       agent_name: request.agent.displayName,
@@ -1031,10 +1035,10 @@ export class LocalOpenLeashServer {
           model: result.model
         }
       } as EvaluationRequest["event"],
-      triggered_policies: result.blocked ? [{
+      triggered_policies: result.blocked || result.requiresApproval ? [{
         policy_name: "DLP funnel",
-        status: "failed",
-        severity: "high",
+        status: result.blocked ? "failed" : "needs_question",
+        severity: result.blocked ? "high" : "medium",
         explanation: result.summary,
         evidence: result.dlp?.findings?.map((finding) => `${finding.category}: ${finding.reason}`) ?? []
       }] : []
@@ -2940,7 +2944,7 @@ function normalizePromptTransformConfig(value: unknown): PromptTransformConfig {
     },
     dlp: {
       enabled: Boolean(dlp.enabled),
-      action: dlp.action === "block" ? "block" : "mask",
+      action: isDlpAction(dlp.action) ? dlp.action : defaultPromptTransformConfig.dlp.action,
       categories: Array.isArray(dlp.categories) ? dlp.categories.filter(isDlpCategory) : defaultPromptTransformConfig.dlp.categories,
       model: cleanModel(dlp.model) ?? defaultPromptTransformConfig.dlp.model
     }
@@ -2982,6 +2986,9 @@ async function transformPrompt({ prompt, config, apiKey }: { prompt: string; con
     if (checked.blocked) {
       return { finalPrompt: current, blocked: true, summary: `DLP blocked prompt submission: ${checked.categories.join(", ") || "sensitive data"}.`, model: [...models].join(", ") || "heuristic", compression, dlp };
     }
+    if (checked.requiresApproval) {
+      return { finalPrompt: current, blocked: false, requiresApproval: true, summary: `Leash is asking before sharing ${checked.categories.join(", ") || "sensitive data"}.`, model: [...models].join(", ") || "heuristic", compression, dlp };
+    }
     current = checked.text;
   }
   return { finalPrompt: current, blocked: false, summary: summaryForPromptTransform(prompt, current, compression, dlp), model: [...models].join(", ") || "none", compression, dlp };
@@ -3002,7 +3009,7 @@ async function checkDlp(prompt: string, config: PromptTransformConfig, apiKey?: 
     config.dlp.model,
     [
       "You are Leash DLP. Inspect text for only the configured categories.",
-      config.dlp.action === "block" ? "If configured sensitive data is present, return blocked true." : "If configured sensitive data is present, mask it and return maskedText.",
+      config.dlp.action === "block" ? "If configured sensitive data is present, return blocked true." : config.dlp.action === "mask" ? "If configured sensitive data is present, mask it and return maskedText." : "Detect configured sensitive data and leave the text unchanged.",
       "Return JSON with matched, blocked, maskedText, categories, findings."
     ].join("\n"),
     { categories: config.dlp.categories, action: config.dlp.action, text: prompt }
@@ -3012,6 +3019,7 @@ async function checkDlp(prompt: string, config: PromptTransformConfig, apiKey?: 
   return {
     matched: Boolean(parsed.matched),
     blocked: config.dlp.action === "block" && Boolean(parsed.matched),
+    requiresApproval: config.dlp.action === "ask" && Boolean(parsed.matched),
     masked: config.dlp.action === "mask" && Boolean(parsed.matched) && typeof parsed.maskedText === "string" && parsed.maskedText !== prompt,
     text: config.dlp.action === "mask" && typeof parsed.maskedText === "string" ? parsed.maskedText : prompt,
     categories: Array.isArray(parsed.categories) ? parsed.categories.filter(isDlpCategory) : heuristic.categories,
@@ -3062,7 +3070,7 @@ function heuristicDlp(prompt: string, config: PromptTransformConfig) {
   add("phi", /\b(patient|diagnosis|medical record|mrn)\b[^\n]{0,120}/gi, "[PHI_MASKED]", "Health-data context detected.");
   const categories = [...new Set(findings.map((item) => item.category))];
   const matched = findings.length > 0;
-  return { matched, blocked: config.dlp.action === "block" && matched, masked: config.dlp.action === "mask" && text !== prompt, text: config.dlp.action === "mask" ? text : prompt, categories, findings };
+  return { matched, blocked: config.dlp.action === "block" && matched, requiresApproval: config.dlp.action === "ask" && matched, masked: config.dlp.action === "mask" && text !== prompt, text: config.dlp.action === "mask" ? text : prompt, categories, findings };
 }
 
 function compressionInstruction(level: CompressionLevel) {
@@ -3084,6 +3092,10 @@ function isCompressionLevel(value: unknown): value is CompressionLevel {
 
 function isDlpCategory(value: unknown): value is DlpCategory {
   return value === "pii" || value === "phi" || value === "tokens" || value === "keys" || value === "credentials";
+}
+
+function isDlpAction(value: unknown): value is DlpAction {
+  return value === "allow" || value === "ask" || value === "block" || value === "mask";
 }
 
 function cleanModel(value: unknown) {

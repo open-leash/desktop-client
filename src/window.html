@@ -1641,6 +1641,61 @@
         max-width: 44ch;
         text-align: right;
       }
+      .protectionResponseSlider {
+        --response-index: 1;
+        position: relative;
+        isolation: isolate;
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        width: min(100%, 390px);
+        min-height: 48px;
+        padding: 4px;
+        border: 1px solid var(--line);
+        border-radius: 999px;
+        background: #e8ebf2;
+        box-shadow: inset 0 2px 5px rgba(16,19,24,.06);
+      }
+      .protectionResponseSlider[data-level="allow"] { --response-index: 0; }
+      .protectionResponseSlider[data-level="ask"] { --response-index: 1; }
+      .protectionResponseSlider[data-level="block"] { --response-index: 2; }
+      .protectionResponseSlider::before {
+        content: "";
+        position: absolute;
+        z-index: -1;
+        inset: 4px auto 4px 4px;
+        width: calc((100% - 8px) / 3);
+        border-radius: 999px;
+        background: #fff;
+        box-shadow: 0 4px 13px rgba(16,19,24,.14);
+        transform: translateX(calc(var(--response-index) * 100%));
+        transition: transform 170ms ease, background 170ms ease;
+      }
+      .protectionResponseSlider[data-level="ask"]::before { background: #ece9ff; }
+      .protectionResponseSlider[data-level="block"]::before { background: #ffe7e9; }
+      .protectionResponseSlider label {
+        position: relative;
+        display: grid;
+        place-items: center;
+        min-width: 0;
+        cursor: pointer;
+        color: var(--muted);
+        font-size: 12px;
+        font-weight: 900;
+      }
+      .protectionResponseSlider label:has(input:checked) { color: var(--ink); }
+      .protectionResponseSlider input { position: absolute; opacity: 0; pointer-events: none; }
+      .protectionResponseSlider label:not(:last-child)::after {
+        content: "";
+        position: absolute;
+        right: 0;
+        width: 1px;
+        height: 14px;
+        background: rgba(16,19,24,.1);
+      }
+      .ruleResponseSlider { min-height: 40px; width: 230px; }
+      .ruleResponseSlider label { font-size: 11px; }
+      .pluginHistoryCard { cursor: pointer; }
+      .pluginHistoryCard:hover { border-color: var(--accent); transform: translateY(-1px); }
       .choicePills {
         display: flex;
         flex-wrap: wrap;
@@ -1695,7 +1750,7 @@
       }
       .ruleListRow {
         display: grid;
-        grid-template-columns: minmax(0, 1fr) 124px 36px;
+        grid-template-columns: minmax(0, 1fr) 230px 36px;
         gap: 10px;
         align-items: center;
         border: 1px solid rgba(21, 24, 17, .1);
@@ -1706,7 +1761,7 @@
         padding: 10px;
       }
       .ruleListRow.pendingImport {
-        grid-template-columns: minmax(0, 1fr) 124px 44px 36px;
+        grid-template-columns: minmax(0, 1fr) 230px 44px 36px;
         border-color: rgba(245, 158, 11, .34);
         background:
           linear-gradient(90deg, rgba(254, 243, 199, .64), rgba(255, 255, 255, .95));
@@ -3043,6 +3098,7 @@
       let welcomeAgentAnimation = 0;
       let view = "overview";
       let selectedEventId = "";
+      let eventReturnView = "history";
       let selectedAgentHistoryKind = "";
       let historyVisibleCount = 12;
       let historyPage = 0;
@@ -4505,6 +4561,7 @@
         root.querySelectorAll("[data-notification-event]").forEach((item) => {
           item.onclick = () => {
             selectedEventId = item.dataset.notificationEvent;
+            eventReturnView = "history";
             const event = visibleHistoryItems().find((candidate) => String(candidate.id) === String(selectedEventId));
             selectedAgentHistoryKind = event ? historyAgentKind(event) : "";
             markHistoryRead(selectedEventId);
@@ -4540,6 +4597,7 @@
         root.querySelectorAll("[data-event]").forEach((row) => {
           row.onclick = () => {
             selectedEventId = row.dataset.event;
+            eventReturnView = "agent-history";
             markHistoryRead(selectedEventId);
             view = "event";
             renderView();
@@ -4568,6 +4626,7 @@
         root.querySelectorAll("[data-event]").forEach((row) => {
           row.onclick = () => {
             selectedEventId = row.dataset.event;
+            eventReturnView = "history";
             markHistoryRead(selectedEventId);
             view = "event";
             renderView();
@@ -4787,7 +4846,8 @@
       }
 
       function renderEventDetail() {
-        const item = visibleHistoryItems().find((entry) => entry.id === selectedEventId);
+        const outcome = (state.outcomes || []).find((entry) => String(entry.id) === String(selectedEventId));
+        const item = visibleHistoryItems().find((entry) => String(entry.id) === String(selectedEventId)) || (outcome ? pluginOutcomeHistoryItem(outcome) : null);
         if (!item) {
           view = "history";
           return renderHistory();
@@ -4829,7 +4889,7 @@
           </div>
         `;
         document.getElementById("backHistory").onclick = () => {
-          view = selectedAgentHistoryKind ? "agent-history" : "history";
+          view = eventReturnView === "plugin-detail" ? "plugin-detail" : selectedAgentHistoryKind ? "agent-history" : "history";
           renderView();
         };
         document.getElementById("copyEvent").onclick = async () => {
@@ -6365,6 +6425,9 @@
       }
 
       function settingLabel(value) {
+        if (value === "allow") return "Ignore";
+        if (value === "ask") return "Ask me";
+        if (value === "block") return "Stop it";
         return String(value || "")
           .replace(/[_-]+/g, " ")
           .replace(/([a-z0-9])([A-Z])/g, "$1 $2")
@@ -6737,7 +6800,7 @@
           </div>
           <div class="pluginDetailTabs" role="tablist" aria-label="${escapeHtml(pluginName(plugin))} sections">
             <button type="button" data-plugin-detail-tab="insights" class="${pluginDetailTab === "insights" ? "active" : ""}">Insights</button>
-            <button type="button" data-plugin-detail-tab="outcomes" class="${pluginDetailTab === "outcomes" ? "active" : ""}">Outcomes <span>${escapeHtml(String(outcomes.length))}</span></button>
+            <button type="button" data-plugin-detail-tab="outcomes" class="${pluginDetailTab === "outcomes" ? "active" : ""}">History <span>${escapeHtml(String(outcomes.length))}</span></button>
             <button type="button" data-plugin-detail-tab="settings" class="${pluginDetailTab === "settings" ? "active" : ""}">Settings</button>
           </div>
           <div class="pluginDetailGrid">
@@ -6763,8 +6826,8 @@
             <div class="card">
               <div class="fieldRow">
                 <div>
-                  <strong>Outcomes</strong>
-                  <p>Events this Feature has reported for your account.</p>
+                  <strong>Recent history</strong>
+                  <p>What this protection noticed, which agent was involved, and what happened next.</p>
                 </div>
                 <span class="tag good">${escapeHtml(String(outcomes.length))}</span>
               </div>
@@ -6802,6 +6865,22 @@
           button.onclick = () => {
             pluginDetailTab = button.dataset.pluginDetailTab || "insights";
             renderPluginDetail();
+          };
+        });
+        root.querySelectorAll("[data-plugin-history-outcome]").forEach((card) => {
+          const open = () => {
+            selectedEventId = card.dataset.pluginHistoryOutcome || "";
+            eventReturnView = "plugin-detail";
+            markHistoryRead(selectedEventId);
+            view = "event";
+            renderView();
+          };
+          card.onclick = open;
+          card.onkeydown = (event) => {
+            if (event.key === "Enter" || event.key === " ") {
+              event.preventDefault();
+              open();
+            }
           };
         });
         const toggleInstall = document.getElementById("togglePluginInstall");
@@ -6988,8 +7067,10 @@
         const severity = String(outcome.severity || "info").toLowerCase();
         const statusClass = severity === "critical" || severity === "high" || outcome.status === "blocked" ? "bad" : outcome.status === "resolved" || outcome.status === "allowed" ? "good" : "";
         const context = [outcome.agent?.name, outcome.context?.toolName, outcome.context?.projectPath ? projectTag(outcome.context.projectPath) : ""].filter(Boolean).join(" · ");
+        const when = outcome.occurredAt || outcome.createdAt;
+        const evidence = (outcome.evidence || []).find((item) => item?.value)?.value || "";
         return `
-          <article class="card">
+          <article class="card pluginHistoryCard" data-plugin-history-outcome="${escapeHtml(outcome.id)}" tabindex="0" role="button">
             <div class="fieldRow">
               <div>
                 <strong>${escapeHtml(outcome.title || "Feature history")}</strong>
@@ -6998,11 +7079,41 @@
               <span class="tag ${statusClass}">${escapeHtml(outcome.status || severity)}</span>
             </div>
             <div class="eventMeta" style="margin-top:10px">
-              <span>${escapeHtml(formatTime(outcome.occurredAt || outcome.createdAt))}</span>
+              <span>${escapeHtml(humanTimestamp(when))}</span>
+              <span>${escapeHtml(friendlyExactTimestamp(when))}</span>
               ${context ? `<span>${escapeHtml(context)}</span>` : ""}
             </div>
+            ${evidence ? `<div class="evidenceLine" style="margin-top:10px"><small>What it touched</small><code>${escapeHtml(truncate(evidence, 160))}</code></div>` : ""}
           </article>
         `;
+      }
+
+      function pluginOutcomeHistoryItem(outcome) {
+        const decision = String(outcome.decision || outcome.status || "allow").toLowerCase();
+        const resolution = /block|stop|deny/.test(decision) ? "deny" : /ask|question|review|waiting|pending/.test(decision) ? "ask" : "allow";
+        return {
+          id: outcome.id,
+          summary: outcome.title || "Leash checked an agent action",
+          question: outcome.summary || "Leash recorded this agent action so you can understand what happened.",
+          resolution,
+          decision: resolution,
+          agent_name: outcome.agent?.name || outcome.agent?.kind || "AI agent",
+          hostname: outcome.agent?.hostname || "This computer",
+          project_path: outcome.context?.projectPath || outcome.subject?.name || "",
+          tool_name: outcome.context?.toolName || "",
+          event_name: outcome.context?.eventName || "",
+          created_at: outcome.occurredAt || outcome.createdAt,
+          triggered_policies: (outcome.evidence || []).map((item) => ({
+            policy_name: item.label || "What Leash noticed",
+            explanation: item.value || "Recorded"
+          })),
+          payload: {
+            ...(outcome.details || {}),
+            protection: outcome.source?.label || outcome.source?.pluginId || "Leash protection",
+            subject: outcome.subject || null,
+            evidence: outcome.evidence || []
+          }
+        };
       }
 
       function pluginDetailSettingsFields(plugin) {
@@ -7125,6 +7236,22 @@
             ${hint ? `<small>${escapeHtml(hint)}</small>` : ""}
           </div>
         `;
+        if (isProtectionActionSetting(field.key, schema.enum, value)) {
+          const action = normalizeProtectionAction(value);
+          return `
+            <div class="pluginDetailSetting">
+              ${head}
+              <div class="protectionResponseSlider" data-level="${action}">
+                ${["allow", "ask", "block"].map((option) => `
+                  <label>
+                    <input data-plugin-detail-setting="${escapeHtml(plugin.id)}" data-setting-key="${escapeHtml(field.key)}" type="radio" name="plugin-detail-${escapeHtml(plugin.id)}-${escapeHtml(field.key)}" value="${option}" ${action === option ? "checked" : ""} ${disabled}>
+                    <span>${escapeHtml(settingLabel(option))}</span>
+                  </label>
+                `).join("")}
+              </div>
+            </div>
+          `;
+        }
         if (Array.isArray(schema.enum)) {
           return `
             <div class="pluginDetailSetting">
@@ -7209,7 +7336,7 @@
       }
 
       function pluginSettingHint(key) {
-        if (key === "action") return "Choose whether sensitive data is masked or blocked.";
+        if (key === "action" || key.endsWith("Action")) return "Ignore records it, Ask me pauses for you, and Stop it blocks it automatically.";
         if (key === "categories") return "Sensitive data types this Feature should inspect.";
         if (key === "level") return "How aggressively prompts are compressed.";
         if (key === "conciseResponse") return "Ask the model to keep responses tighter.";
@@ -7217,8 +7344,21 @@
         if (key === "suspiciousRiskThreshold") return "Higher values reduce Instruction Safety alerts.";
         if (key === "policySet") return "Policy group used by this evaluator.";
         if (key === "redactSecrets") return "Hide secrets in Connected Tool Awareness history.";
-        if (key === "rules") return "One enforceable instruction per line. Violations can pause the agent and notify your clients.";
+        if (key === "rules") return "Choose whether each boundary is recorded, sent to you, or stopped automatically.";
         return "";
+      }
+
+      function normalizeProtectionAction(value) {
+        if (value === "allow") return "allow";
+        if (value === "block") return "block";
+        return "ask";
+      }
+
+      function isProtectionActionSetting(key, values, value) {
+        if (key === "action" || key.endsWith("Action")) return true;
+        const options = Array.isArray(values) ? values.map(String) : [];
+        return options.some((option) => ["allow", "ask", "block", "mask"].includes(option))
+          && ["allow", "ask", "block", "mask"].includes(String(value));
       }
 
       function isStringArraySetting(value) {
@@ -7243,7 +7383,7 @@
         if (value && typeof value === "object") {
           return {
             text: String(value.text || value.rule || value.description || "").trim(),
-            action: value.action === "block" ? "block" : "ask",
+            action: normalizeProtectionAction(value.action),
             pending: Boolean(value.pending)
           };
         }
@@ -7252,15 +7392,20 @@
 
       function ruleEditorRow(pluginId, key, value = "", disabled = "") {
         const rule = normalizeRuleEditorValue(value);
+        const responseName = `rule-action-${Math.random().toString(36).slice(2)}`;
         const pendingTexts = pluginPendingRuleTexts[pluginId] || new Set();
         const pending = rule.pending || pendingTexts.has(rule.text.toLowerCase());
         return `
           <div class="ruleListRow ${pending ? "pendingImport" : ""}">
             <textarea data-rule-item="${escapeHtml(pluginId)}" data-setting-key="${escapeHtml(key)}" placeholder="Ask before..." ${disabled}>${escapeHtml(rule.text)}</textarea>
-            <select class="ruleActionSelect" data-rule-action="${escapeHtml(pluginId)}" data-setting-key="${escapeHtml(key)}" ${disabled}>
-              <option value="ask" ${rule.action !== "block" ? "selected" : ""}>Ask</option>
-              <option value="block" ${rule.action === "block" ? "selected" : ""}>Block</option>
-            </select>
+            <div class="protectionResponseSlider ruleResponseSlider" data-level="${rule.action}">
+              ${["allow", "ask", "block"].map((option) => `
+                <label>
+                  <input type="radio" data-rule-action="${escapeHtml(pluginId)}" data-setting-key="${escapeHtml(key)}" name="${responseName}" value="${option}" ${rule.action === option ? "checked" : ""} ${disabled}>
+                  <span>${escapeHtml(settingLabel(option))}</span>
+                </label>
+              `).join("")}
+            </div>
             ${disabled ? "" : `<button type="button" class="ruleListRemove" data-rule-remove="${escapeHtml(pluginId)}" title="Remove rule">-</button>`}
           </div>
         `;
@@ -7335,7 +7480,7 @@
                 const row = item.closest(".ruleListRow");
                 return {
                   text: String(item.value || "").replace(/^[-*]\s+/, "").trim(),
-                  action: row?.querySelector("[data-rule-action]")?.value === "block" ? "block" : "ask"
+                  action: normalizeProtectionAction(row?.querySelector("[data-rule-action]:checked")?.value)
                 };
               })
               .filter((item) => item.text);

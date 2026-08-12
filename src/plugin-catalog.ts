@@ -157,7 +157,7 @@ export const bundledFirstPartyPlugins: BundledPluginManifest[] = [
       additionalProperties: false,
       properties: {
         enabled: { type: "boolean" },
-        action: { enum: ["mask", "block"] },
+        action: { enum: ["allow", "ask", "block"] },
         categories: {
           type: "array",
           items: { enum: ["pii", "phi", "tokens", "keys", "credentials"] }
@@ -165,7 +165,7 @@ export const bundledFirstPartyPlugins: BundledPluginManifest[] = [
         model: { type: "string" }
       }
     },
-    defaultConfig: { enabled: false, action: "mask", categories: ["pii", "phi", "tokens", "keys", "credentials"] },
+    defaultConfig: { enabled: false, action: "ask", categories: ["pii", "phi", "tokens", "keys", "credentials"] },
     tags: ["security", "privacy", "prompt"]
   },
   {
@@ -188,12 +188,12 @@ export const bundledFirstPartyPlugins: BundledPluginManifest[] = [
       additionalProperties: false,
       properties: {
         enabled: { type: "boolean" },
-        secretFileAction: { enum: ["ask", "block"] },
-        envDumpAction: { enum: ["ask", "block"] },
-        exfiltrationAction: { enum: ["ask", "block"] }
+        secretFileAction: { enum: ["allow", "ask", "block"] },
+        envDumpAction: { enum: ["allow", "ask", "block"] },
+        exfiltrationAction: { enum: ["allow", "ask", "block"] }
       }
     },
-    defaultConfig: { enabled: true, secretFileAction: "ask", envDumpAction: "block", exfiltrationAction: "block" },
+    defaultConfig: { enabled: true, secretFileAction: "ask", envDumpAction: "ask", exfiltrationAction: "block" },
     tags: ["security", "secrets", "credentials", "privacy"]
   },
   {
@@ -216,12 +216,12 @@ export const bundledFirstPartyPlugins: BundledPluginManifest[] = [
       additionalProperties: false,
       properties: {
         enabled: { type: "boolean" },
-        destructiveAction: { enum: ["ask", "block"] },
-        databaseMutationAction: { enum: ["ask", "block"] },
-        broadFilesystemAction: { enum: ["ask", "block"] }
+        destructiveAction: { enum: ["allow", "ask", "block"] },
+        databaseMutationAction: { enum: ["allow", "ask", "block"] },
+        broadFilesystemAction: { enum: ["allow", "ask", "block"] }
       }
     },
-    defaultConfig: { enabled: true, destructiveAction: "block", databaseMutationAction: "ask", broadFilesystemAction: "block" },
+    defaultConfig: { enabled: true, destructiveAction: "ask", databaseMutationAction: "ask", broadFilesystemAction: "ask" },
     tags: ["security", "destructive", "database", "tools"]
   },
   {
@@ -251,7 +251,7 @@ export const bundledFirstPartyPlugins: BundledPluginManifest[] = [
             additionalProperties: false,
             properties: {
               text: { type: "string" },
-              action: { type: "string", enum: ["ask", "block"] }
+              action: { type: "string", enum: ["allow", "ask", "block"] }
             }
           }
         }
