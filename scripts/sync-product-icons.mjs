@@ -28,8 +28,17 @@ const pngTargets = new Map([
   ["apps/mobile-client/android/app/src/main/res/mipmap-xxxhdpi/ic_launcher.png", 192],
 ]);
 
+const webpTargets = new Map([
+  ["apps/main-web/public/media/leash-mark.webp", 256],
+  ["apps/new-web-design2/public/media/leash-mark.webp", 256],
+]);
+
 for (const [relativePath, size] of pngTargets) {
-  await writeIcon(relativePath, size);
+  await writePngIcon(relativePath, size);
+}
+
+for (const [relativePath, size] of webpTargets) {
+  await writeWebpIcon(relativePath, size);
 }
 
 const iosIconDirectory = path.join(
@@ -44,19 +53,36 @@ for (const image of iosManifest.images ?? []) {
   const points = Number.parseFloat(String(image.size).split("x")[0]);
   const scale = Number.parseFloat(String(image.scale).replace("x", ""));
   const pixels = Math.round(points * scale);
-  await writeIcon(
+  await writePngIcon(
     path.relative(root, path.join(iosIconDirectory, image.filename)),
     pixels,
   );
 }
 
-console.log(`${checkOnly ? "Verified" : "Synced"} ${pngTargets.size + (iosManifest.images?.length ?? 0)} product icons from assets/icon.png.`);
+console.log(`${checkOnly ? "Verified" : "Synced"} ${pngTargets.size + webpTargets.size + (iosManifest.images?.length ?? 0)} product icons from assets/icon.png.`);
 
-async function writeIcon(relativePath, size) {
+async function writePngIcon(relativePath, size) {
   const destination = path.join(root, relativePath);
   const expected = await sharp(source)
     .resize(size, size, { fit: "cover", position: "centre" })
     .png({ compressionLevel: 9 })
+    .toBuffer();
+  if (checkOnly) {
+    const actual = await fs.readFile(destination);
+    if (!actual.equals(expected)) {
+      throw new Error(`${relativePath} is not synchronized with assets/icon.png`);
+    }
+    return;
+  }
+  await fs.mkdir(path.dirname(destination), { recursive: true });
+  await fs.writeFile(destination, expected);
+}
+
+async function writeWebpIcon(relativePath, size) {
+  const destination = path.join(root, relativePath);
+  const expected = await sharp(source)
+    .resize(size, size, { fit: "cover", position: "centre" })
+    .webp({ quality: 95 })
     .toBuffer();
   if (checkOnly) {
     const actual = await fs.readFile(destination);
