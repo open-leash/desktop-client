@@ -638,7 +638,7 @@ export type PluginRunRecord = {
 };
 export type PluginPromptCompressionLevel = "light" | "standard" | "maximum";
 export type PluginDlpCategory = "pii" | "phi" | "tokens" | "keys" | "credentials";
-export type PluginDlpAction = "block" | "mask";
+export type PluginDlpAction = "allow" | "ask" | "block" | "mask";
 export type PluginPromptCompressionRequest = {
     prompt: string;
     level: PluginPromptCompressionLevel;
@@ -1122,7 +1122,7 @@ export type Policy = {
     naturalLanguageRule: string;
     enabled: boolean;
     locked?: boolean;
-    enforcementAction?: "ask" | "block";
+    enforcementAction?: "allow" | "ask" | "block";
 };
 export type PolicyDecision = {
     policyId: string;

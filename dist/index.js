@@ -92,7 +92,7 @@ export const FIRST_PARTY_PLUGIN_MANIFESTS = [
             additionalProperties: false,
             properties: {
                 enabled: { type: "boolean" },
-                action: { enum: ["mask", "block"] },
+                action: { enum: ["allow", "ask", "block"] },
                 categories: {
                     type: "array",
                     items: { enum: ["pii", "phi", "tokens", "keys", "credentials"] }
@@ -102,7 +102,7 @@ export const FIRST_PARTY_PLUGIN_MANIFESTS = [
         },
         defaultConfig: {
             enabled: false,
-            action: "mask",
+            action: "ask",
             categories: ["pii", "phi", "tokens", "keys", "credentials"]
         },
         tags: ["security", "privacy", "prompt"]
@@ -127,15 +127,15 @@ export const FIRST_PARTY_PLUGIN_MANIFESTS = [
             additionalProperties: false,
             properties: {
                 enabled: { type: "boolean" },
-                secretFileAction: { enum: ["ask", "block"] },
-                envDumpAction: { enum: ["ask", "block"] },
-                exfiltrationAction: { enum: ["ask", "block"] }
+                secretFileAction: { enum: ["allow", "ask", "block"] },
+                envDumpAction: { enum: ["allow", "ask", "block"] },
+                exfiltrationAction: { enum: ["allow", "ask", "block"] }
             }
         },
         defaultConfig: {
             enabled: true,
             secretFileAction: "ask",
-            envDumpAction: "block",
+            envDumpAction: "ask",
             exfiltrationAction: "block"
         },
         tags: ["security", "secrets", "credentials", "privacy"]
@@ -160,16 +160,16 @@ export const FIRST_PARTY_PLUGIN_MANIFESTS = [
             additionalProperties: false,
             properties: {
                 enabled: { type: "boolean" },
-                destructiveAction: { enum: ["ask", "block"] },
-                databaseMutationAction: { enum: ["ask", "block"] },
-                broadFilesystemAction: { enum: ["ask", "block"] }
+                destructiveAction: { enum: ["allow", "ask", "block"] },
+                databaseMutationAction: { enum: ["allow", "ask", "block"] },
+                broadFilesystemAction: { enum: ["allow", "ask", "block"] }
             }
         },
         defaultConfig: {
             enabled: true,
-            destructiveAction: "block",
+            destructiveAction: "ask",
             databaseMutationAction: "ask",
-            broadFilesystemAction: "block"
+            broadFilesystemAction: "ask"
         },
         tags: ["security", "destructive", "database", "tools"]
     },
@@ -200,7 +200,7 @@ export const FIRST_PARTY_PLUGIN_MANIFESTS = [
                         additionalProperties: false,
                         properties: {
                             text: { type: "string" },
-                            action: { type: "string", enum: ["ask", "block"] }
+                            action: { type: "string", enum: ["allow", "ask", "block"] }
                         }
                     }
                 }
