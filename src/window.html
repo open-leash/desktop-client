@@ -1326,6 +1326,124 @@
         flex-wrap: wrap;
         justify-content: flex-end;
       }
+      .notificationCenter { position: relative; }
+      .notificationButton {
+        position: relative;
+        width: 42px;
+        height: 42px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        padding: 0;
+        border: 1.5px solid var(--line);
+        border-radius: 999px;
+        background: #fff;
+        color: var(--ink);
+      }
+      .notificationButton svg { width: 19px; height: 19px; }
+      .notificationButton b,
+      .agentUnreadBadge {
+        position: absolute;
+        min-width: 20px;
+        height: 20px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        padding: 0 5px;
+        border: 2px solid #fff;
+        border-radius: 999px;
+        background: #df2f3b;
+        color: #fff;
+        font-size: 10px;
+        font-weight: 900;
+        line-height: 1;
+      }
+      .notificationButton b { top: -5px; right: -5px; }
+      .notificationMenu {
+        position: absolute;
+        z-index: 30;
+        top: calc(100% + 10px);
+        right: 0;
+        width: min(390px, 70vw);
+        overflow: hidden;
+        border: 1.5px solid var(--line);
+        border-radius: 18px;
+        background: #fff;
+        box-shadow: 0 24px 60px rgba(26,22,16,.18);
+      }
+      .notificationMenuHead {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        padding: 16px;
+        border-bottom: 1px solid var(--line);
+      }
+      .notificationMenuHead div { display: grid; gap: 2px; }
+      .notificationMenuHead strong { font-size: 18px; }
+      .notificationMenuHead small { font-size: 11px; }
+      .notificationMenuHead button { border: 0; background: transparent; color: var(--accent); font-weight: 800; }
+      .notificationItems { max-height: 420px; overflow-y: auto; }
+      .notificationItem {
+        width: 100%;
+        display: grid;
+        grid-template-columns: 38px minmax(0,1fr) 8px;
+        align-items: center;
+        gap: 10px;
+        padding: 13px 15px;
+        border: 0;
+        border-bottom: 1px solid var(--line);
+        background: #fff;
+        color: var(--ink);
+        text-align: left;
+      }
+      .notificationItem.unread { background: #fff0f1; }
+      .notificationItem:hover { background: var(--soft); }
+      .notificationItem .notificationAgent {
+        width: 38px;
+        height: 38px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 10px;
+        background: var(--accent-soft);
+        color: var(--accent);
+        font-weight: 900;
+      }
+      .notificationItem > span:nth-child(2) { display: grid; gap: 3px; min-width: 0; }
+      .notificationItem strong,
+      .notificationItem small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      .notificationItem i { width: 8px; height: 8px; border-radius: 999px; background: #df2f3b; }
+      .notificationEmpty { display: grid; gap: 5px; padding: 28px 18px; text-align: center; }
+      .overviewAgentTile { position: relative; cursor: pointer; }
+      .overviewAgentTile:hover { border-color: var(--accent); }
+      .agentUnreadBadge { top: -7px; right: -7px; }
+      .history article.unread {
+        margin: 0 -12px;
+        padding-left: 12px;
+        padding-right: 12px;
+        border-radius: 12px;
+        background: #fff0f1;
+        box-shadow: inset 4px 0 0 #df2f3b;
+      }
+      .loadingOverview {
+        min-height: 100%;
+        display: grid;
+        place-content: center;
+        justify-items: center;
+        gap: 12px;
+        text-align: center;
+      }
+      .loadingOverview span {
+        width: 26px;
+        height: 26px;
+        border: 3px solid #dedaf8;
+        border-top-color: var(--accent);
+        border-radius: 999px;
+        animation: overviewLoadSpin .7s linear infinite;
+      }
+      .loadingOverview small { max-width: 280px; }
+      @keyframes overviewLoadSpin { to { transform: rotate(360deg); } }
       .actions.left { justify-content: flex-start; margin-top: 18px; }
       .fieldRow {
         display: grid;
@@ -2878,6 +2996,16 @@
       let welcomeAgentAnimation = 0;
       let view = "overview";
       let selectedEventId = "";
+      let selectedAgentHistoryKind = "";
+      let notificationMenuOpen = false;
+      let storedReadHistoryIds = [];
+      try {
+        const stored = JSON.parse(localStorage.getItem("leash-read-history") || "[]");
+        storedReadHistoryIds = Array.isArray(stored) ? stored : [];
+      } catch {
+        localStorage.removeItem("leash-read-history");
+      }
+      const readHistoryIds = new Set(storedReadHistoryIds.map(String));
       let selectedMcpServerId = "";
       let selectedSkillPath = "";
       let pluginViewCategory = "all";
@@ -4052,14 +4180,14 @@
         if (view === "debug") return renderDebug();
         if (view === "settings") return renderSettings();
         if (view === "event") return renderEventDetail();
+        if (view === "agent-history") return renderAgentHistory();
         if (view === "agent-session") return renderAgentSessionDetail();
         renderHistory();
       }
 
       function renderNavigation() {
         const primaryItems = [
-          { view: "overview", label: "Overview" },
-          { view: "agents", label: "Agents" }
+          { view: "overview", label: "Overview" }
         ];
         const secondaryItems = [
           { view: "usage", label: "Usage" },
@@ -4201,6 +4329,8 @@
               pluginViewCategory = "all";
             }
             view = button.dataset.view || "overview";
+            if (view === "history") selectedAgentHistoryKind = "";
+            notificationMenuOpen = false;
             renderView();
           };
         });
@@ -4208,14 +4338,18 @@
 
       function renderOverview() {
         const inventory = overviewAgentInventory();
+        const unread = unreadHistoryItems();
         root.innerHTML = `
           <div class="head">
-            <div><h1>Overview</h1><p>What local AI agents are doing right now.</p></div>
-            ${modeTag()}
+            <div><h1>Overview</h1><p>${unread.length ? `${unread.length} new ${unread.length === 1 ? "update" : "updates"} from your agents.` : "See what your protected AI agents are doing."}</p></div>
+            <div class="headActions">${notificationCenterHtml()}${modeTag()}</div>
           </div>
           <div class="overviewAgentGrid">
-            ${inventory.map((agent) => `
-              <article class="card overviewAgentTile ${agent.installed ? agent.protected ? "protected" : "" : "missing"}">
+            ${inventory.map((agent) => {
+              const unreadCount = unread.filter((item) => historyAgentKind(item) === agent.kind).length;
+              return `
+              <article data-overview-agent-card="${escapeHtml(agent.kind)}" class="card overviewAgentTile ${agent.installed ? agent.protected ? "protected" : "" : "missing"}">
+                ${unreadCount ? `<b class="agentUnreadBadge" aria-label="${unreadCount} new notifications">${unreadCount}</b>` : ""}
                 <span class="agentIcon ${agent.installed ? "" : "muted"}">${agentIcon(agent)}</span>
                 <span>
                   <strong>${escapeHtml(agent.displayName)}</strong>
@@ -4223,9 +4357,19 @@
                 </span>
                 ${agent.installed && agent.supportsInstall !== false ? `<span class="switch overviewAgentSwitch"><input data-overview-agent="${escapeHtml(agent.kind)}" type="checkbox" ${agent.desiredMonitored ? "checked" : ""}><span></span></span>` : ""}
               </article>
-            `).join("")}
+            `}).join("")}
           </div>
         `;
+        bindNotificationCenter();
+        root.querySelectorAll("[data-overview-agent-card]").forEach((card) => {
+          card.onclick = (event) => {
+            if (event.target.closest("[data-overview-agent]")) return;
+            selectedAgentHistoryKind = card.dataset.overviewAgentCard || "";
+            view = "agent-history";
+            notificationMenuOpen = false;
+            renderView();
+          };
+        });
         bindOverviewAgentSwitches();
       }
 
@@ -4247,15 +4391,122 @@
         });
       }
 
-      function renderHistory() {
+      function historyAgentKind(item) {
+        return item.agent_kind || agentKindForName(item.agent_name) || "unknown";
+      }
+
+      function unreadHistoryItems() {
+        return visibleHistoryItems().filter((item) => !readHistoryIds.has(String(item.id)));
+      }
+
+      function markHistoryRead(id) {
+        if (!id) return;
+        readHistoryIds.add(String(id));
+        localStorage.setItem("leash-read-history", JSON.stringify([...readHistoryIds].slice(-500)));
+      }
+
+      function notificationCenterHtml() {
+        const unread = unreadHistoryItems();
+        const items = (unread.length ? unread : visibleHistoryItems()).slice(0, 7);
+        return `
+          <div class="notificationCenter">
+            <button type="button" class="notificationButton" id="notificationButton" aria-label="Notifications${unread.length ? `, ${unread.length} unread` : ""}" aria-expanded="${notificationMenuOpen}">
+              <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9"/><path d="M10 21h4"/></svg>
+              ${unread.length ? `<b>${Math.min(unread.length, 99)}</b>` : ""}
+            </button>
+            ${notificationMenuOpen ? `
+              <div class="notificationMenu">
+                <div class="notificationMenuHead"><div><strong>Notifications</strong><small>${unread.length ? `${unread.length} new` : "You are all caught up"}</small></div><button type="button" id="notificationSeeAll">See all</button></div>
+                <div class="notificationItems">
+                  ${items.map((item) => `
+                    <button type="button" class="notificationItem ${readHistoryIds.has(String(item.id)) ? "" : "unread"}" data-notification-event="${escapeHtml(item.id)}">
+                      <span class="notificationAgent">${escapeHtml(String(item.agent_name || "AI").slice(0, 1).toUpperCase())}</span>
+                      <span><strong>${escapeHtml(displayEventSummary(item))}</strong><small>${escapeHtml(item.agent_name || "AI agent")} · ${escapeHtml(formatTime(item.created_at))}</small></span>
+                      ${readHistoryIds.has(String(item.id)) ? "" : "<i></i>"}
+                    </button>
+                  `).join("") || `<div class="notificationEmpty"><strong>No new activity</strong><small>Leash will let you know when something important happens.</small></div>`}
+                </div>
+              </div>
+            ` : ""}
+          </div>
+        `;
+      }
+
+      function bindNotificationCenter() {
+        const trigger = document.getElementById("notificationButton");
+        if (trigger) trigger.onclick = () => {
+          notificationMenuOpen = !notificationMenuOpen;
+          renderView();
+        };
+        const seeAll = document.getElementById("notificationSeeAll");
+        if (seeAll) seeAll.onclick = () => {
+          selectedAgentHistoryKind = "";
+          notificationMenuOpen = false;
+          view = "history";
+          renderView();
+        };
+        root.querySelectorAll("[data-notification-event]").forEach((item) => {
+          item.onclick = () => {
+            selectedEventId = item.dataset.notificationEvent;
+            const event = visibleHistoryItems().find((candidate) => String(candidate.id) === String(selectedEventId));
+            selectedAgentHistoryKind = event ? historyAgentKind(event) : "";
+            markHistoryRead(selectedEventId);
+            notificationMenuOpen = false;
+            view = "event";
+            renderView();
+          };
+        });
+      }
+
+      function renderAgentHistory() {
+        const inventory = overviewAgentInventory();
+        const agent = inventory.find((item) => item.kind === selectedAgentHistoryKind);
+        const historyItems = visibleHistoryItems().filter((item) => historyAgentKind(item) === selectedAgentHistoryKind);
+        const unreadCount = historyItems.filter((item) => !readHistoryIds.has(String(item.id))).length;
         root.innerHTML = `
           <div class="head">
-            <div><h1>History</h1><p>Triggered and blocked rule activity from local agents.</p></div>
-            ${modeTag()}
+            <div><h1>${escapeHtml(agent?.displayName || "AI agent")}</h1><p>${unreadCount ? `${unreadCount} new ${unreadCount === 1 ? "update" : "updates"}.` : "Everything Leash checked for this agent."}</p></div>
+            <div class="headActions">${notificationCenterHtml()}<button type="button" class="secondary" id="backOverview">Overview</button></div>
           </div>
           <div class="history">
-            ${visibleHistoryItems().map((item) => `
-              <article data-event="${escapeHtml(item.id)}">
+            ${historyItems.map((item) => `
+              <article data-event="${escapeHtml(item.id)}" class="${readHistoryIds.has(String(item.id)) ? "" : "unread"}">
+                <div class="eventBody">
+                  <strong>${escapeHtml(displayEventSummary(item))}</strong>
+                  <small>${escapeHtml(formatTime(item.created_at))} · ${escapeHtml(projectTag(item.project_path) || "No project")}</small>
+                  ${filePathForEvent(item) ? `<div class="filePathPill" title="${escapeHtml(filePathForEvent(item))}"><span>File</span><code>${escapeHtml(compactPath(filePathForEvent(item)))}</code></div>` : evidencePreview(item)}
+                </div>
+                <span class="tag statusTag ${item.resolution === "allow" ? "good" : "bad"}">${escapeHtml(statusLabel(item.resolution || item.decision))}</span>
+              </article>
+            `).join("") || `<div class="empty">No activity from this agent yet.</div>`}
+          </div>
+        `;
+        document.getElementById("backOverview").onclick = () => {
+          notificationMenuOpen = false;
+          view = "overview";
+          renderView();
+        };
+        root.querySelectorAll("[data-event]").forEach((row) => {
+          row.onclick = () => {
+            selectedEventId = row.dataset.event;
+            markHistoryRead(selectedEventId);
+            view = "event";
+            renderView();
+          };
+        });
+        bindNotificationCenter();
+      }
+
+      function renderHistory() {
+        const historyItems = visibleHistoryItems();
+        root.innerHTML = `
+          <div class="head">
+            <div><h1>History</h1><p>What Leash checked, stopped, or sent to you for a decision.</p></div>
+            <div class="headActions">${notificationCenterHtml()}${modeTag()}</div>
+          </div>
+          <div class="history">
+            ${historyItems.map((item) => `
+              <article data-event="${escapeHtml(item.id)}" class="${readHistoryIds.has(String(item.id)) ? "" : "unread"}">
                 <div class="eventBody">
                   <strong>${escapeHtml(displayEventSummary(item))}</strong>
                   <small>${escapeHtml(item.agent_name)} · ${escapeHtml(projectTag(item.project_path) || "No project")} · triggered ${formatTime(item.created_at)}${resolutionTime(item) ? ` · ${escapeHtml(resolutionLabel(item))} ${formatTime(resolutionTime(item))}` : ""}</small>
@@ -4269,10 +4520,12 @@
         root.querySelectorAll("[data-event]").forEach((row) => {
           row.onclick = () => {
             selectedEventId = row.dataset.event;
+            markHistoryRead(selectedEventId);
             view = "event";
             renderView();
           };
         });
+        bindNotificationCenter();
       }
 
       function renderDebug() {
@@ -4437,11 +4690,12 @@
         const transcript = (item.payload?.transcript || []).slice(-5).reverse();
         root.innerHTML = `
           <div class="head">
-            <div><h1>Event detail</h1><p>${escapeHtml(displayEventSummary(item))}</p></div>
+            <div><h1>What happened</h1><p>${escapeHtml(displayEventSummary(item))}</p></div>
             <div>
               <div class="headActions">
+                ${notificationCenterHtml()}
                 <button class="secondary" id="shareEvent">Share</button>
-                <button class="secondary" id="copyEvent">Copy JSON</button>
+                <button class="secondary" id="copyEvent">Copy details</button>
                 <button class="secondary" id="backHistory">Back</button>
               </div>
               <div class="inlineNotice" id="eventActionNotice"></div>
@@ -4449,7 +4703,7 @@
           </div>
           <div class="detailStack">
             <div class="card">
-              <div class="kv"><small>Status</small><strong>${escapeHtml(item.resolution || item.decision)}</strong></div>
+              <div class="kv"><small>Result</small><strong>${escapeHtml(statusLabel(item.resolution || item.decision))}</strong></div>
               <div class="kv"><small>Agent</small><strong>${escapeHtml(item.agent_name)}</strong></div>
               <div class="kv"><small>Project</small><strong>${escapeHtml(projectTag(item.project_path) || "No project")}</strong></div>
               ${filePathForEvent(item) ? `<div class="kv"><small>File path</small><strong>${escapeHtml(filePathForEvent(item))}</strong></div>` : ""}
@@ -4457,23 +4711,20 @@
               ${resolutionTime(item) ? `<div class="kv"><small>${escapeHtml(resolutionLabel(item))}</small><strong>${formatTime(resolutionTime(item))}</strong></div>` : ""}
             </div>
             <div class="card">
-              <h2>Triggered rules</h2>
+              <h2>Why Leash noticed it</h2>
               ${(item.triggered_policies || []).map((policy) => `
                 <div class="kv"><small>${escapeHtml(policy.policy_name)}</small><strong>${escapeHtml(prettyEvidence(policy, item))}</strong></div>
               `).join("") || `<p>No rule evidence was recorded.</p>`}
             </div>
             <div class="card">
-              <h2>Conversation context</h2>
-              ${transcript.length ? transcript.map((msg) => `<div class="kv"><small>${escapeHtml(msg.role || "message")}</small><strong>${escapeHtml(msg.content || "")}</strong></div>`).join("") : `<p>No conversation context was included with this event.</p>`}
+              <h2>What the agent was doing</h2>
+              ${transcript.length ? transcript.map((msg) => `<div class="kv"><small>${escapeHtml(msg.role === "user" ? "Your request" : "Agent")}</small><strong>${escapeHtml(msg.content || "")}</strong></div>`).join("") : `<p>No conversation details were included with this event.</p>`}
             </div>
-            <div class="card">
-              <h2>Raw event</h2>
-              <div class="pre">${escapeHtml(JSON.stringify(item.payload || {}, null, 2))}</div>
-            </div>
+            <details class="card"><summary><strong>Technical details</strong></summary><div class="pre" style="margin-top:14px">${escapeHtml(JSON.stringify(item.payload || {}, null, 2))}</div></details>
           </div>
         `;
         document.getElementById("backHistory").onclick = () => {
-          view = "history";
+          view = selectedAgentHistoryKind ? "agent-history" : "history";
           renderView();
         };
         document.getElementById("copyEvent").onclick = async () => {
@@ -4484,6 +4735,7 @@
           const shared = await shareEvent(item);
           showEventNotice(shared ? "Share opened." : "Sharing is not available here, so JSON was copied.");
         };
+        bindNotificationCenter();
       }
 
       function renderMcps() {
@@ -7417,7 +7669,10 @@
           renderSetup();
         }
       });
-      window.openleash.list().then(render);
+      root.innerHTML = `<div class="loadingOverview" role="status" aria-live="polite"><span></span><strong>Loading your overview</strong><small>Leash is checking this computer for protected agents and recent activity.</small></div>`;
+      window.openleash.list().then(render).catch(() => {
+        root.innerHTML = `<div class="loadingOverview"><strong>Leash could not load your overview.</strong><small>Close and reopen the app to try again.</small></div>`;
+      });
     </script>
   </body>
 </html>
