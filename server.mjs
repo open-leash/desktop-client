@@ -29,10 +29,7 @@ export function createFlowViewerServer(options = {}) {
       `http://${request.headers.host || config.host}`,
     );
     try {
-      if (url.pathname === "/favicon.ico") {
-        response.writeHead(204);
-        return response.end();
-      }
+      if (url.pathname === "/favicon.ico") url.pathname = "/favicon.png";
       if (url.pathname === "/healthz") {
         return json(response, { ok: true, traceFile: config.traceFile });
       }

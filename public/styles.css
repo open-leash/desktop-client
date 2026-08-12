@@ -52,6 +52,7 @@ header {
   color: #111;
   font-weight: 900;
   letter-spacing: -1px;
+  object-fit: cover;
 }
 .brand div {
   display: flex;

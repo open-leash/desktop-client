@@ -66,6 +66,11 @@ test("serves the flow UI, health, and bounded NDJSON events", async (context) =>
   assert.match(await page.text(), /Agent traffic/);
   assert.match(page.headers.get("content-security-policy") || "", /default-src 'self'/);
 
+  const favicon = await fetch(`${baseUrl}/favicon.ico`);
+  assert.equal(favicon.status, 200);
+  assert.equal(favicon.headers.get("content-type"), "image/png");
+  assert.ok((await favicon.arrayBuffer()).byteLength > 0);
+
   const traversal = await fetch(`${baseUrl}/..%2Fserver.mjs`);
   assert.equal(traversal.status, 404);
 });
