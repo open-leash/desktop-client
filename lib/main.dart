@@ -178,6 +178,12 @@ class _LeashHomeState extends State<LeashHome> {
   final Set<String> _notifiedApprovalIds = {};
   final Set<String> _notifiedAttentionIds = {};
   bool _loadedAttentionOnce = false;
+  int _historyVisibleCount = 10;
+  int _historyPage = 1;
+  bool _historyHasMore = false;
+  bool _historyLoading = false;
+  String? _historyError;
+  final List<Map<String, dynamic>> _historyItems = [];
 
   String get _apiUrl =>
       _apiController.text.trim().replaceAll(RegExp(r'/$'), '');
@@ -205,8 +211,9 @@ class _LeashHomeState extends State<LeashHome> {
   List<dynamic> get _agents => (_state?['agents'] as List?) ?? const [];
   List<dynamic> get _plugins => (_state?['plugins'] as List?) ?? const [];
   List<dynamic> get _outcomes => (_state?['outcomes'] as List?) ?? const [];
-  List<dynamic> get _recentActivity =>
-      (_state?['recentActivity'] as List?) ?? const [];
+  List<dynamic> get _recentActivity => _historyItems.isNotEmpty
+      ? _historyItems
+      : ((_state?['recentActivity'] as List?) ?? const []);
 
   @override
   void initState() {
@@ -535,12 +542,65 @@ class _LeashHomeState extends State<LeashHome> {
       }
       if (response.statusCode >= 400) throw Exception(response.body);
       final data = jsonDecode(response.body) as Map<String, dynamic>;
-      setStateSafe(() => _state = data);
+      setStateSafe(() {
+        _state = data;
+        final newest = ((data['recentActivity'] as List?) ?? const [])
+            .whereType<Map>()
+            .map((item) => Map<String, dynamic>.from(item));
+        final byId = <String, Map<String, dynamic>>{
+          for (final item in [...newest, ..._historyItems])
+            if (item['id'] != null) item['id'].toString(): item,
+        };
+        _historyItems
+          ..clear()
+          ..addAll(byId.values);
+        final pagination = data['historyPagination'];
+        if (pagination is Map && _historyPage <= 1) {
+          _historyHasMore = pagination['hasMore'] == true;
+          _historyPage = 1;
+        }
+      });
       if (showNotifications) {
         await _showNewAttentionNotifications(data);
       }
     } catch (_) {
       setStateSafe(() => _error = 'Could not refresh approvals from the API.');
+    }
+  }
+
+  Future<void> _loadOlderHistory() async {
+    if (_historyLoading || !_historyHasMore) return;
+    setStateSafe(() {
+      _historyLoading = true;
+      _historyError = null;
+    });
+    try {
+      final nextPage = _historyPage + 1;
+      final response = await _request(
+        'GET',
+        '/v1/client/history',
+        'mobileState',
+        query: {'page': '$nextPage', 'limit': '10'},
+      );
+      if (response.statusCode >= 400) throw Exception(response.body);
+      final data = jsonDecode(response.body) as Map<String, dynamic>;
+      final next = ((data['history'] as List?) ?? const [])
+          .whereType<Map>()
+          .map((item) => Map<String, dynamic>.from(item));
+      setStateSafe(() {
+        final ids = _historyItems
+            .map((item) => item['id']?.toString())
+            .whereType<String>()
+            .toSet();
+        _historyItems.addAll(next.where((item) => ids.add(item['id']?.toString() ?? '')));
+        _historyPage = nextPage;
+        _historyHasMore = (data['pagination'] as Map?)?['hasMore'] == true;
+        _historyVisibleCount = _historyItems.length;
+      });
+    } catch (_) {
+      setStateSafe(() => _historyError = 'History could not load. Try again.');
+    } finally {
+      setStateSafe(() => _historyLoading = false);
     }
   }
 
@@ -865,7 +925,7 @@ class _LeashHomeState extends State<LeashHome> {
                 ),
                 SizedBox(height: 6),
                 Text(
-                  'Leash is checking for protected agents and new activity.',
+                  'Leash is checking for protected agents and new history.',
                   textAlign: TextAlign.center,
                   style: TextStyle(color: _OlTheme.dim, height: 1.4),
                 ),
@@ -1030,9 +1090,12 @@ class _LeashHomeState extends State<LeashHome> {
       (count, agent) => count + _agentSessions(agent).length,
     );
     final sessionMetrics = (_state?['sessionMetrics'] as Map?) ?? const {};
-    final visibleHistory = _recentActivity
+    final allVisibleHistory = _recentActivity
         .whereType<Map>()
         .where(_isInterestingActivity)
+        .toList();
+    final visibleHistory = allVisibleHistory
+        .take(_historyVisibleCount)
         .toList();
     final recentAttention =
         _attentionEvents
@@ -1253,6 +1316,42 @@ class _LeashHomeState extends State<LeashHome> {
                 ],
               ),
       ),
+      if (_historyHasMore || allVisibleHistory.length > visibleHistory.length) ...[
+        const SizedBox(height: 10),
+        _SecondaryButton(
+          label: _historyLoading ? 'Loading older history' : 'Load older history',
+          onPressed: _historyLoading
+              ? null
+              : allVisibleHistory.length > visibleHistory.length
+              ? () => setState(() => _historyVisibleCount += 10)
+              : _loadOlderHistory,
+        ),
+      ] else if (visibleHistory.isNotEmpty) ...[
+        const SizedBox(height: 10),
+        const Center(
+          child: Text(
+            'You have reached the end of this history.',
+            style: TextStyle(
+              color: _OlTheme.mute,
+              fontSize: 12,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ),
+      ],
+      if (_historyError != null) ...[
+        const SizedBox(height: 8),
+        Center(
+          child: Text(
+            _historyError!,
+            style: const TextStyle(
+              color: _OlTheme.danger,
+              fontSize: 12,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ),
+      ],
       const SizedBox(height: 16),
       _LegalLinks(
         onPrivacy: () => _openExternalPage(_privacyUrl),
@@ -2679,7 +2778,7 @@ class _PrimaryButton extends StatelessWidget {
 class _GoogleButton extends StatelessWidget {
   const _GoogleButton({required this.onPressed, required this.busy});
 
-  final VoidCallback onPressed;
+  final VoidCallback? onPressed;
   final bool busy;
 
   @override
@@ -2742,7 +2841,7 @@ class _ProviderButton extends StatelessWidget {
 
   final String label;
   final String mark;
-  final VoidCallback onPressed;
+  final VoidCallback? onPressed;
   final bool busy;
 
   @override
@@ -2788,7 +2887,7 @@ class _SecondaryButton extends StatelessWidget {
   const _SecondaryButton({required this.label, required this.onPressed});
 
   final String label;
-  final VoidCallback onPressed;
+  final VoidCallback? onPressed;
 
   @override
   Widget build(BuildContext context) {
@@ -3607,7 +3706,13 @@ class _HistoryRow extends StatelessWidget {
         item['resolution']?.toString() ??
         item['decision']?.toString() ??
         'logged';
-    final createdAt = _relativeTime(item['created_at'] ?? item['createdAt']);
+    final rawCreatedAt = item['created_at'] ?? item['createdAt'];
+    final createdAt = _relativeTime(rawCreatedAt);
+    final exactTime = _formatHistoryDateTime(rawCreatedAt);
+    final project =
+        _projectNameFromAny(item['project_name'] ?? item['projectName']) ??
+        _projectNameFromAny(item['project_path'] ?? item['projectPath']);
+    final evidence = _historyEvidence(item);
     return InkWell(
       borderRadius: BorderRadius.circular(12),
       onTap: () => _openEventDetail(context, item),
@@ -3642,11 +3747,58 @@ class _HistoryRow extends StatelessWidget {
                   ),
                   const SizedBox(height: 3),
                   Text(
-                    '$agent · $createdAt',
+                    agent,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: const TextStyle(
                       color: _OlTheme.dim,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  if (project != null) ...[
+                    const SizedBox(height: 2),
+                    Text(
+                      project,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: _OlTheme.dim,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ],
+                  if (evidence != null) ...[
+                    const SizedBox(height: 7),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 6,
+                      ),
+                      decoration: BoxDecoration(
+                        color: _OlTheme.surfaceRaised,
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Text(
+                        'What it touched: $evidence',
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          color: _OlTheme.dim,
+                          fontSize: 11,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ),
+                  ],
+                  const SizedBox(height: 2),
+                  Text(
+                    '$createdAt · $exactTime',
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      color: _OlTheme.mute,
+                      fontSize: 12,
                       fontWeight: FontWeight.w700,
                     ),
                   ),
@@ -3692,12 +3844,12 @@ class _EventDetailPage extends StatelessWidget {
         _projectNameFromAny(item['project_name'] ?? item['projectName']) ??
         _projectNameFromAny(item['project_path'] ?? item['projectPath']) ??
         'No project';
-    final createdAt = _formatDateTime(
-      item['created_at'] ??
+    final rawCreatedAt = item['created_at'] ??
           item['createdAt'] ??
           item['activity_at'] ??
-          item['activityAt'],
-    );
+          item['activityAt'];
+    final createdAt = _formatHistoryDateTime(rawCreatedAt);
+    final relativeCreatedAt = _relativeTime(rawCreatedAt);
     final policies =
         ((item['triggered_policies'] as List?) ??
                 (item['triggeredPolicies'] as List?) ??
@@ -3710,7 +3862,7 @@ class _EventDetailPage extends StatelessWidget {
     return Scaffold(
       backgroundColor: _OlTheme.bg,
       appBar: AppBar(
-        title: const Text('Event details'),
+        title: const Text('What happened'),
         backgroundColor: _OlTheme.bg,
         foregroundColor: _OlTheme.ink,
         elevation: 0,
@@ -3759,7 +3911,7 @@ class _EventDetailPage extends StatelessWidget {
                                 ),
                                 const SizedBox(height: 7),
                                 Text(
-                                  '$agent · $createdAt',
+                                  '$agent · $relativeCreatedAt\n$createdAt',
                                   style: const TextStyle(
                                     color: _OlTheme.dim,
                                     fontWeight: FontWeight.w700,
@@ -4256,6 +4408,26 @@ String? _eventTarget(Map item) {
       : _truncate(value.trim(), 80);
 }
 
+String? _historyEvidence(Map item) {
+  final target = _eventTarget(item);
+  if (target != null) return target;
+  final evidence = item['evidence'];
+  if (evidence is List) {
+    for (final entry in evidence.whereType<Map>()) {
+      final value = entry['value']?.toString().trim();
+      if (value != null && value.isNotEmpty) return _truncate(value, 120);
+    }
+  }
+  final policies = _triggeredPolicies(item);
+  for (final policy in policies) {
+    final explanation = policy['explanation']?.toString().trim();
+    if (explanation != null && explanation.isNotEmpty) {
+      return _truncate(explanation, 120);
+    }
+  }
+  return null;
+}
+
 String? _projectNameFromAny(dynamic raw) {
   final value = raw?.toString();
   if (value == null || value.trim().isEmpty) return null;
@@ -4278,6 +4450,12 @@ String _formatDateTime(dynamic raw) {
   final date = DateTime.tryParse(raw?.toString() ?? '');
   if (date == null) return 'Unknown time';
   return DateFormat.MMMd().add_jm().format(date.toLocal());
+}
+
+String _formatHistoryDateTime(dynamic raw) {
+  final date = DateTime.tryParse(raw?.toString() ?? '');
+  if (date == null) return 'Unknown time';
+  return DateFormat.yMMMd().add_jms().format(date.toLocal());
 }
 
 String _formatDuration(dynamic raw) {
