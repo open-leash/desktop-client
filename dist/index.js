@@ -10,8 +10,8 @@ export const FIRST_PARTY_PLUGIN_MANIFESTS = [
     {
         id: "openleash.prompt-compression",
         slug: "token-saver",
-        name: "token-saver",
-        description: "Trim noisy context before every model call.",
+        name: "AI Cost Control",
+        description: "Reduces repeated context so agents use fewer paid AI tokens without losing important details.",
         repositoryUrl: "https://github.com/open-leash/plugin-token-saver",
         version: "1.1.3",
         publisher: "openleash",
@@ -54,8 +54,8 @@ export const FIRST_PARTY_PLUGIN_MANIFESTS = [
     {
         id: "openleash.skill-scanner",
         slug: "skill-scanner",
-        name: "skill-scanner",
-        description: "Catch suspicious instructions before they spread.",
+        name: "Instruction Safety",
+        description: "Checks agent instructions for hidden or suspicious behavior before it can spread.",
         repositoryUrl: "https://github.com/open-leash/plugin-skill-scanner",
         version: "1.0.2",
         publisher: "openleash",
@@ -75,8 +75,8 @@ export const FIRST_PARTY_PLUGIN_MANIFESTS = [
     {
         id: "openleash.dlp",
         slug: "data-leakage-prevention",
-        name: "data-leakage-prevention",
-        description: "Mask secrets before agents send them.",
+        name: "Private Data Protection",
+        description: "Keeps passwords, personal information, and other sensitive data from being shared by mistake.",
         repositoryUrl: "https://github.com/open-leash/plugin-data-leakage-prevention",
         version: "1.0.0",
         publisher: "openleash",
@@ -110,8 +110,8 @@ export const FIRST_PARTY_PLUGIN_MANIFESTS = [
     {
         id: "openleash.sensitive-access",
         slug: "sensitive-access",
-        name: "sensitive-access",
-        description: "Catch agents reading secrets, printing env vars, or touching credential files.",
+        name: "Secret Access Protection",
+        description: "Warns you when an agent tries to open passwords, private keys, or other secret files.",
         repositoryUrl: "https://github.com/open-leash/plugin-sensitive-access",
         version: "1.0.0",
         publisher: "openleash",
@@ -143,8 +143,8 @@ export const FIRST_PARTY_PLUGIN_MANIFESTS = [
     {
         id: "openleash.blast-radius",
         slug: "blast-radius",
-        name: "blast-radius",
-        description: "Block destructive tool use before agents damage files, databases, or infrastructure.",
+        name: "Destruction Protection",
+        description: "Stops agents before they delete files, damage databases, or break important systems.",
         repositoryUrl: "https://github.com/open-leash/plugin-blast-radius",
         version: "1.0.3",
         publisher: "openleash",
@@ -176,8 +176,8 @@ export const FIRST_PARTY_PLUGIN_MANIFESTS = [
     {
         id: "openleash.rules-enforcer",
         slug: "rules-enforcer",
-        name: "rules-enforcer",
-        description: "Watch agent conversations and pause when configured rules are violated.",
+        name: "Your Rules",
+        description: "Makes agents follow the boundaries you choose and asks before they cross one.",
         repositoryUrl: "https://github.com/open-leash/plugin-rules-enforcer",
         version: "1.0.0",
         publisher: "openleash",
@@ -215,8 +215,8 @@ export const FIRST_PARTY_PLUGIN_MANIFESTS = [
     {
         id: "openleash.mcp-scanner",
         slug: "mcp-scanner",
-        name: "mcp-scanner",
-        description: "See every MCP server, tool, and call.",
+        name: "Connected Tool Awareness",
+        description: "Shows which outside tools and services your agents can use and what they do with them.",
         repositoryUrl: "https://github.com/open-leash/plugin-mcp-scanner",
         version: "1.0.0",
         publisher: "openleash",
@@ -232,71 +232,25 @@ export const FIRST_PARTY_PLUGIN_MANIFESTS = [
             redactSecrets: true
         },
         tags: ["security", "mcp", "inventory", "audit"]
-    },
-    {
-        id: "openleash.siem-exporter",
-        slug: "siem-exporter",
-        name: "siem-exporter",
-        description: "Send agent incidents to your SOC stack.",
-        repositoryUrl: "https://github.com/open-leash/plugin-siem-exporter",
-        version: "1.0.0",
-        publisher: "openleash",
-        runtime: "builtin",
-        execution: firstPartyFeature("siem-exporter", "1.0.0", {
-            failureMode: "open",
-        }),
-        entrypoint: "client-api",
-        events: ["prompt.beforeSubmit", "agent.response", "tool.beforeUse", "tool.afterUse", "session.started", "session.ended", "skill.detected", "skill.changed", "skill.removed", "log.emitted"],
-        permissions: ["event:read", "prompt:read", "tool:read", "network:access", "audit:write", "log:write"],
-        effects: ["observe", "notify"],
-        ordering: { priority: 900, after: ["openleash.rules-enforcer", "openleash.mcp-scanner"] },
-        configSchema: {
-            type: "object",
-            additionalProperties: false,
-            properties: {
-                enabled: { type: "boolean" },
-                protocol: { enum: ["ecs-json", "splunk-hec", "generic-webhook"] },
-                endpointUrl: { type: "string" },
-                bearerToken: { type: "string" },
-                hecToken: { type: "string" },
-                source: { type: "string" },
-                sourcetype: { type: "string" },
-                index: { type: "string" },
-                minSeverity: { enum: ["info", "low", "medium", "high", "critical"] },
-                includePrompt: { type: "boolean" },
-                includeToolArguments: { type: "boolean" }
-            }
-        },
-        defaultConfig: {
-            enabled: false,
-            protocol: "ecs-json",
-            endpointUrl: "",
-            bearerToken: "",
-            hecToken: "",
-            source: "openleash",
-            sourcetype: "openleash:security",
-            index: "security",
-            minSeverity: "info",
-            includePrompt: false,
-            includeToolArguments: false
-        },
-        tags: ["utility", "siem", "soc", "ecs", "splunk", "syslog", "incident-response"]
     }
 ];
 export const OPENLEASH_PLUGIN_CATEGORIES = [
-    { id: "observability", label: "Visibility", color: "#2a63d8", icon: "eye" },
+    { id: "security", label: "Protections", color: "#0b7968", icon: "shield" },
     { id: "cost", label: "Cost", color: "#5b47e0", icon: "trend" },
-    { id: "security", label: "Security", color: "#0b7968", icon: "shield" },
+    { id: "observability", label: "Visibility", color: "#2a63d8", icon: "eye" },
     { id: "utility", label: "Other", color: "#a15b12", icon: "bolt" }
 ];
 export function pluginPackageId(plugin) {
     return plugin.slug || plugin.marketplace?.slug || String(plugin.id || "").split(".").pop() || plugin.name || plugin.id;
 }
 export function pluginCategoryId(plugin) {
+    const featureId = pluginPackageId(plugin);
+    if (["blast-radius", "code-scanner", "data-leakage-prevention", "mcp-scanner", "rules-enforcer", "sensitive-access", "skill-scanner"].includes(featureId))
+        return "security";
+    if (["prompt-compression", "token-saver"].includes(featureId))
+        return "cost";
     const raw = plugin.marketplace?.category || plugin.category || plugin.manifest?.category || "";
     const text = String(raw || `${plugin.id || ""} ${plugin.name || ""} ${plugin.description || ""} ${(plugin.marketplace?.tags || []).join(" ")} ${(plugin.tags || []).join(" ")}`).toLowerCase();
-    if (/siem-exporter/.test(text))
-        return "utility";
     if (/mcp-scanner|skill-scanner/.test(text))
         return "security";
     if (/security|policy|guard|skill|prompt-injection|risk|approval|dlp|leak|sensitive|secret|credential/.test(text))
@@ -322,9 +276,9 @@ export function buildOpenLeashClientViewModel({ plugins, outcomes, summary, shel
         return {
             id: plugin.id,
             packageId: pluginPackageId(plugin),
-            // A plugin's package slug is its product-facing identity. Do not turn
-            // it into a title-cased product name in clients.
-            displayName: pluginPackageId(plugin),
+            // Compatibility IDs remain internal. Clients receive the one readable
+            // Feature name authored in the built-in manifest.
+            displayName: plugin.name || pluginPackageId(plugin),
             description: plugin.marketplace?.shortDescription || plugin.description,
             category: pluginCategoryId(plugin),
             installed: true,

@@ -218,16 +218,6 @@ export declare const FIRST_PARTY_PLUGIN_MANIFESTS: ({
             databaseMutationAction?: undefined;
             broadFilesystemAction?: undefined;
             rules?: undefined;
-            protocol?: undefined;
-            endpointUrl?: undefined;
-            bearerToken?: undefined;
-            hecToken?: undefined;
-            source?: undefined;
-            sourcetype?: undefined;
-            index?: undefined;
-            minSeverity?: undefined;
-            includePrompt?: undefined;
-            includeToolArguments?: undefined;
         };
     };
     defaultConfig: {
@@ -249,16 +239,6 @@ export declare const FIRST_PARTY_PLUGIN_MANIFESTS: ({
         broadFilesystemAction?: undefined;
         rules?: undefined;
         redactSecrets?: undefined;
-        protocol?: undefined;
-        endpointUrl?: undefined;
-        bearerToken?: undefined;
-        hecToken?: undefined;
-        source?: undefined;
-        sourcetype?: undefined;
-        index?: undefined;
-        minSeverity?: undefined;
-        includePrompt?: undefined;
-        includeToolArguments?: undefined;
     };
     tags: string[];
 } | {
@@ -299,16 +279,6 @@ export declare const FIRST_PARTY_PLUGIN_MANIFESTS: ({
         broadFilesystemAction?: undefined;
         rules?: undefined;
         redactSecrets?: undefined;
-        protocol?: undefined;
-        endpointUrl?: undefined;
-        bearerToken?: undefined;
-        hecToken?: undefined;
-        source?: undefined;
-        sourcetype?: undefined;
-        index?: undefined;
-        minSeverity?: undefined;
-        includePrompt?: undefined;
-        includeToolArguments?: undefined;
     };
     tags: string[];
     configSchema?: undefined;
@@ -363,16 +333,6 @@ export declare const FIRST_PARTY_PLUGIN_MANIFESTS: ({
             databaseMutationAction?: undefined;
             broadFilesystemAction?: undefined;
             rules?: undefined;
-            protocol?: undefined;
-            endpointUrl?: undefined;
-            bearerToken?: undefined;
-            hecToken?: undefined;
-            source?: undefined;
-            sourcetype?: undefined;
-            index?: undefined;
-            minSeverity?: undefined;
-            includePrompt?: undefined;
-            includeToolArguments?: undefined;
         };
     };
     defaultConfig: {
@@ -394,16 +354,6 @@ export declare const FIRST_PARTY_PLUGIN_MANIFESTS: ({
         broadFilesystemAction?: undefined;
         rules?: undefined;
         redactSecrets?: undefined;
-        protocol?: undefined;
-        endpointUrl?: undefined;
-        bearerToken?: undefined;
-        hecToken?: undefined;
-        source?: undefined;
-        sourcetype?: undefined;
-        index?: undefined;
-        minSeverity?: undefined;
-        includePrompt?: undefined;
-        includeToolArguments?: undefined;
     };
     tags: string[];
 } | {
@@ -454,16 +404,6 @@ export declare const FIRST_PARTY_PLUGIN_MANIFESTS: ({
             databaseMutationAction?: undefined;
             broadFilesystemAction?: undefined;
             rules?: undefined;
-            protocol?: undefined;
-            endpointUrl?: undefined;
-            bearerToken?: undefined;
-            hecToken?: undefined;
-            source?: undefined;
-            sourcetype?: undefined;
-            index?: undefined;
-            minSeverity?: undefined;
-            includePrompt?: undefined;
-            includeToolArguments?: undefined;
         };
     };
     defaultConfig: {
@@ -485,16 +425,6 @@ export declare const FIRST_PARTY_PLUGIN_MANIFESTS: ({
         broadFilesystemAction?: undefined;
         rules?: undefined;
         redactSecrets?: undefined;
-        protocol?: undefined;
-        endpointUrl?: undefined;
-        bearerToken?: undefined;
-        hecToken?: undefined;
-        source?: undefined;
-        sourcetype?: undefined;
-        index?: undefined;
-        minSeverity?: undefined;
-        includePrompt?: undefined;
-        includeToolArguments?: undefined;
     };
     tags: string[];
 } | {
@@ -545,16 +475,6 @@ export declare const FIRST_PARTY_PLUGIN_MANIFESTS: ({
             envDumpAction?: undefined;
             exfiltrationAction?: undefined;
             rules?: undefined;
-            protocol?: undefined;
-            endpointUrl?: undefined;
-            bearerToken?: undefined;
-            hecToken?: undefined;
-            source?: undefined;
-            sourcetype?: undefined;
-            index?: undefined;
-            minSeverity?: undefined;
-            includePrompt?: undefined;
-            includeToolArguments?: undefined;
         };
     };
     defaultConfig: {
@@ -576,16 +496,6 @@ export declare const FIRST_PARTY_PLUGIN_MANIFESTS: ({
         exfiltrationAction?: undefined;
         rules?: undefined;
         redactSecrets?: undefined;
-        protocol?: undefined;
-        endpointUrl?: undefined;
-        bearerToken?: undefined;
-        hecToken?: undefined;
-        source?: undefined;
-        sourcetype?: undefined;
-        index?: undefined;
-        minSeverity?: undefined;
-        includePrompt?: undefined;
-        includeToolArguments?: undefined;
     };
     tags: string[];
 } | {
@@ -645,16 +555,6 @@ export declare const FIRST_PARTY_PLUGIN_MANIFESTS: ({
             destructiveAction?: undefined;
             databaseMutationAction?: undefined;
             broadFilesystemAction?: undefined;
-            protocol?: undefined;
-            endpointUrl?: undefined;
-            bearerToken?: undefined;
-            hecToken?: undefined;
-            source?: undefined;
-            sourcetype?: undefined;
-            index?: undefined;
-            minSeverity?: undefined;
-            includePrompt?: undefined;
-            includeToolArguments?: undefined;
         };
     };
     defaultConfig: {
@@ -676,16 +576,6 @@ export declare const FIRST_PARTY_PLUGIN_MANIFESTS: ({
         databaseMutationAction?: undefined;
         broadFilesystemAction?: undefined;
         redactSecrets?: undefined;
-        protocol?: undefined;
-        endpointUrl?: undefined;
-        bearerToken?: undefined;
-        hecToken?: undefined;
-        source?: undefined;
-        sourcetype?: undefined;
-        index?: undefined;
-        minSeverity?: undefined;
-        includePrompt?: undefined;
-        includeToolArguments?: undefined;
     };
     tags: string[];
 } | {
@@ -726,124 +616,9 @@ export declare const FIRST_PARTY_PLUGIN_MANIFESTS: ({
         databaseMutationAction?: undefined;
         broadFilesystemAction?: undefined;
         rules?: undefined;
-        protocol?: undefined;
-        endpointUrl?: undefined;
-        bearerToken?: undefined;
-        hecToken?: undefined;
-        source?: undefined;
-        sourcetype?: undefined;
-        index?: undefined;
-        minSeverity?: undefined;
-        includePrompt?: undefined;
-        includeToolArguments?: undefined;
     };
     tags: string[];
     configSchema?: undefined;
-} | {
-    id: string;
-    slug: string;
-    name: string;
-    description: string;
-    repositoryUrl: string;
-    version: string;
-    publisher: string;
-    runtime: "builtin";
-    execution: PluginInProcessExecution;
-    entrypoint: string;
-    events: ("skill.detected" | "skill.changed" | "skill.removed" | "log.emitted" | "prompt.beforeSubmit" | "agent.response" | "tool.beforeUse" | "tool.afterUse" | "session.started" | "session.ended")[];
-    permissions: ("event:read" | "prompt:read" | "tool:read" | "network:access" | "audit:write" | "log:write")[];
-    effects: ("observe" | "notify")[];
-    ordering: {
-        priority: number;
-        after: string[];
-        before?: undefined;
-    };
-    configSchema: {
-        type: "object";
-        additionalProperties: false;
-        properties: {
-            enabled: {
-                type: string;
-            };
-            protocol: {
-                enum: string[];
-            };
-            endpointUrl: {
-                type: string;
-            };
-            bearerToken: {
-                type: string;
-            };
-            hecToken: {
-                type: string;
-            };
-            source: {
-                type: string;
-            };
-            sourcetype: {
-                type: string;
-            };
-            index: {
-                type: string;
-            };
-            minSeverity: {
-                enum: string[];
-            };
-            includePrompt: {
-                type: string;
-            };
-            includeToolArguments: {
-                type: string;
-            };
-            level?: undefined;
-            conciseResponse?: undefined;
-            model?: undefined;
-            minimumChars?: undefined;
-            protectRecent?: undefined;
-            ccrEnabled?: undefined;
-            ccrTtlSeconds?: undefined;
-            action?: undefined;
-            categories?: undefined;
-            secretFileAction?: undefined;
-            envDumpAction?: undefined;
-            exfiltrationAction?: undefined;
-            destructiveAction?: undefined;
-            databaseMutationAction?: undefined;
-            broadFilesystemAction?: undefined;
-            rules?: undefined;
-        };
-    };
-    defaultConfig: {
-        enabled: boolean;
-        protocol: string;
-        endpointUrl: string;
-        bearerToken: string;
-        hecToken: string;
-        source: string;
-        sourcetype: string;
-        index: string;
-        minSeverity: string;
-        includePrompt: boolean;
-        includeToolArguments: boolean;
-        level?: undefined;
-        conciseResponse?: undefined;
-        minimumChars?: undefined;
-        protectRecent?: undefined;
-        ccrEnabled?: undefined;
-        ccrTtlSeconds?: undefined;
-        suspiciousRiskThreshold?: undefined;
-        action?: undefined;
-        categories?: undefined;
-        secretFileAction?: undefined;
-        envDumpAction?: undefined;
-        exfiltrationAction?: undefined;
-        destructiveAction?: undefined;
-        databaseMutationAction?: undefined;
-        broadFilesystemAction?: undefined;
-        rules?: undefined;
-        redactSecrets?: undefined;
-    };
-    tags: string[];
 })[];
 export type PluginRunStatus = "skipped" | "passed" | "modified" | "blocked" | "needs_question" | "failed";
 export type PluginFinding = {
@@ -1195,7 +970,7 @@ export type OpenLeashClientViewModel = {
     };
 };
 export declare function pluginPackageId(plugin: Pick<PluginCatalogItem, "id" | "slug" | "name" | "marketplace">): string;
-export declare function pluginCategoryId(plugin: Pick<PluginCatalogItem, "id" | "name" | "description" | "tags" | "marketplace"> & {
+export declare function pluginCategoryId(plugin: Pick<PluginCatalogItem, "id" | "slug" | "name" | "description" | "tags" | "marketplace"> & {
     category?: unknown;
     manifest?: {
         category?: unknown;
