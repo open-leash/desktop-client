@@ -1798,7 +1798,7 @@ class _PluginDetailPageState extends State<_PluginDetailPage> {
                 const ButtonSegment(value: 'insights', label: Text('Insights')),
                 ButtonSegment(
                   value: 'outcomes',
-                  label: Text('Outcomes ${widget.outcomes.length}'),
+                  label: Text('History ${widget.outcomes.length}'),
                 ),
                 const ButtonSegment(value: 'settings', label: Text('Settings')),
               ],
@@ -1892,7 +1892,7 @@ class _PluginOutcomesPanel extends StatelessWidget {
           : Column(
               children: [
                 for (var index = 0; index < outcomes.length; index++) ...[
-                  _HistoryRow(item: outcomes[index]),
+                  _HistoryRow(item: _pluginOutcomeHistoryItem(outcomes[index])),
                   if (index != outcomes.length - 1) const Divider(height: 18),
                 ],
               ],
@@ -1938,6 +1938,7 @@ class _PluginSettingsPanel extends StatelessWidget {
               (key) => Padding(
                 padding: const EdgeInsets.only(bottom: 12),
                 child: _PluginSettingControl(
+                  settingKey: key,
                   label: _settingLabel(key),
                   value: config[key],
                   enabled: enabled,
@@ -1958,12 +1959,14 @@ class _PluginSettingsPanel extends StatelessWidget {
 
 class _PluginSettingControl extends StatelessWidget {
   const _PluginSettingControl({
+    required this.settingKey,
     required this.label,
     required this.value,
     required this.enabled,
     required this.onChanged,
   });
 
+  final String settingKey;
   final String label;
   final dynamic value;
   final bool enabled;
@@ -1971,6 +1974,37 @@ class _PluginSettingControl extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    if (settingKey == 'action' || settingKey.endsWith('Action')) {
+      const options = ['allow', 'ask', 'block'];
+      final selected = _normalizeProtectionAction(value);
+      final index = options.indexOf(selected);
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(label, style: const TextStyle(fontWeight: FontWeight.w900)),
+          const SizedBox(height: 3),
+          const Text(
+            'Ignore records it, Ask me pauses for you, and Stop it blocks it automatically.',
+            style: TextStyle(color: _OlTheme.dim, fontSize: 12, fontWeight: FontWeight.w700),
+          ),
+          Slider(
+            value: index.toDouble(),
+            min: 0,
+            max: 2,
+            divisions: 2,
+            onChanged: enabled ? (next) => onChanged(options[next.round()]) : null,
+          ),
+          const Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text('Ignore', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800)),
+              Text('Ask me', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800)),
+              Text('Stop it', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800)),
+            ],
+          ),
+        ],
+      );
+    }
     if (value is bool) {
       return SwitchListTile.adaptive(
         contentPadding: EdgeInsets.zero,
@@ -2225,6 +2259,9 @@ List<String> _pluginSettingKeys(Map plugin, Map<String, dynamic> config) {
 }
 
 String _settingLabel(String value) {
+  if (value == 'allow') return 'Ignore';
+  if (value == 'ask') return 'Ask me';
+  if (value == 'block') return 'Stop it';
   final spaced = value
       .replaceAll(RegExp(r'[_-]+'), ' ')
       .replaceAllMapped(
@@ -2237,6 +2274,49 @@ String _settingLabel(String value) {
       .where((part) => part.isNotEmpty)
       .map((part) => '${part[0].toUpperCase()}${part.substring(1)}')
       .join(' ');
+}
+
+String _normalizeProtectionAction(dynamic value) {
+  if (value?.toString() == 'allow') return 'allow';
+  if (value?.toString() == 'block') return 'block';
+  return 'ask';
+}
+
+Map<String, dynamic> _pluginOutcomeHistoryItem(Map outcome) {
+  final agent = outcome['agent'] is Map ? outcome['agent'] as Map : const {};
+  final context = outcome['context'] is Map ? outcome['context'] as Map : const {};
+  final subject = outcome['subject'] is Map ? outcome['subject'] as Map : const {};
+  final decision = '${outcome['decision'] ?? outcome['status'] ?? 'allow'}'.toLowerCase();
+  final resolution = RegExp(r'block|stop|deny').hasMatch(decision)
+      ? 'deny'
+      : RegExp(r'ask|question|review|waiting|pending').hasMatch(decision)
+      ? 'ask'
+      : 'allow';
+  final evidence = ((outcome['evidence'] as List?) ?? const []).whereType<Map>().toList();
+  return {
+    'id': outcome['id'],
+    'summary': outcome['title'] ?? 'Leash checked an agent action',
+    'question': outcome['summary'] ?? 'Leash recorded this agent action so you can understand what happened.',
+    'resolution': resolution,
+    'decision': resolution,
+    'agent_name': agent['name'] ?? agent['kind'] ?? 'AI agent',
+    'hostname': agent['hostname'] ?? 'This device',
+    'project_path': context['projectPath'] ?? subject['name'] ?? '',
+    'tool_name': context['toolName'] ?? '',
+    'event_name': context['eventName'] ?? '',
+    'created_at': outcome['occurredAt'] ?? outcome['createdAt'],
+    'triggered_policies': evidence.map((item) => {
+      'policy_name': item['label'] ?? 'What Leash noticed',
+      'explanation': item['value'] ?? 'Recorded',
+      'evidence': [item['value'] ?? 'Recorded'],
+    }).toList(),
+    'payload': {
+      if (outcome['details'] is Map) ...(outcome['details'] as Map),
+      'source': outcome['source'],
+      'subject': outcome['subject'],
+      'evidence': evidence,
+    },
+  };
 }
 
 class ApprovalNotifications {
