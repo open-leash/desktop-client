@@ -1477,6 +1477,7 @@ export const OPENLEASH_API_CONTRACTS = {
   mobileModelKey: "2026-05-23.mobile-model-key.v1",
   mobileDeviceRegister: "2026-05-22.mobile-device-register.v1",
   mobileState: "2026-05-22.mobile-state.v1",
+  clientOverview: "2026-08-13.client-overview.v1",
   mobileDecisionResolve: "2026-05-22.mobile-decision-resolve.v1",
   clientNotifications: "2026-06-28.client-notifications.v1",
   clientEvents: "2026-07-27.client-events.v1",
