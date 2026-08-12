@@ -34,8 +34,8 @@ test("Feature cards hide compatibility slugs and show enabled state", () => {
   assert.match(setupCards, /checked \? "Enabled" : "Enable"/);
 });
 
-test("desktop groups built-in Features into Protections and Cost", () => {
+test("desktop groups built-in Features into Protections and Costs", () => {
   assert.match(renderer, /\{ id: "protection", label: "Protections"/);
-  assert.match(renderer, /\{ id: "cost", label: "Cost"/);
+  assert.match(renderer, /\{ id: "cost", label: "Costs"/);
   assert.doesNotMatch(renderer, /\{ id: "security", label: "Security"/);
 });

@@ -4469,7 +4469,7 @@
 
       function categoryLabel(id) {
         if (id === "protection") return "Protections";
-        if (id === "cost") return "Cost";
+        if (id === "cost") return "Costs";
         if (id === "visibility") return "Visibility";
         if (id === "other") return "Other";
         return "All";
@@ -6330,7 +6330,7 @@
         return [
           { id: "all", label: "All", count: counts.get("all") || 0 },
           { id: "protection", label: "Protections", count: counts.get("protection") || 0 },
-          { id: "cost", label: "Cost", count: counts.get("cost") || 0 },
+          { id: "cost", label: "Costs", count: counts.get("cost") || 0 },
           { id: "visibility", label: "Visibility", count: counts.get("visibility") || 0 },
           { id: "other", label: "Other", count: counts.get("other") || 0 }
         ].filter((item) => item.id === "all" || item.count > 0);
