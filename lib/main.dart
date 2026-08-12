@@ -535,7 +535,6 @@ class _LeashHomeState extends State<LeashHome> {
       }
       if (response.statusCode >= 400) throw Exception(response.body);
       final data = jsonDecode(response.body) as Map<String, dynamic>;
-      await _hydratePlugins(data);
       setStateSafe(() => _state = data);
       if (showNotifications) {
         await _showNewAttentionNotifications(data);
@@ -577,31 +576,6 @@ class _LeashHomeState extends State<LeashHome> {
       );
     }
     _loadedAttentionOnce = true;
-  }
-
-  Future<void> _hydratePlugins(Map<String, dynamic> data) async {
-    try {
-      final responses = await Future.wait([
-        _request('GET', '/v1/plugins', 'tenantPluginsRead'),
-        _request(
-          'GET',
-          '/v1/outcomes',
-          'authAccountOutcomes',
-          query: {'limit': '50'},
-        ),
-      ]);
-      if (responses[0].statusCode < 400) {
-        final body = jsonDecode(responses[0].body) as Map<String, dynamic>;
-        data['plugins'] = (body['plugins'] as List?) ?? const [];
-      }
-      if (responses[1].statusCode < 400) {
-        final body = jsonDecode(responses[1].body) as Map<String, dynamic>;
-        data['outcomes'] = (body['outcomes'] as List?) ?? const [];
-      }
-    } catch (_) {
-      data['plugins'] = data['plugins'] ?? const [];
-      data['outcomes'] = data['outcomes'] ?? const [];
-    }
   }
 
   Future<bool> _setPluginInstalled(Map plugin, bool installed) async {
@@ -870,7 +844,36 @@ class _LeashHomeState extends State<LeashHome> {
   @override
   Widget build(BuildContext context) {
     if (_loading) {
-      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+      return const Scaffold(
+        body: Center(
+          child: Padding(
+            padding: EdgeInsets.all(28),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Image(
+                  image: AssetImage('assets/openleash-icon.png'),
+                  width: 54,
+                  height: 54,
+                ),
+                SizedBox(height: 22),
+                CircularProgressIndicator(),
+                SizedBox(height: 16),
+                Text(
+                  'Loading your overview',
+                  style: TextStyle(fontSize: 19, fontWeight: FontWeight.w800),
+                ),
+                SizedBox(height: 6),
+                Text(
+                  'Leash is checking for protected agents and new activity.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(color: _OlTheme.dim, height: 1.4),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
     }
     return Scaffold(
       body: Container(
