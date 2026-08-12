@@ -2171,6 +2171,19 @@ String _pluginInitials(Map plugin) {
 }
 
 String _pluginCategory(Map plugin) {
+  final compatibilityName = _pluginCompatibilityName(plugin);
+  if (compatibilityName == 'token-saver') return 'cost';
+  if ({
+    'blast-radius',
+    'code-scanner',
+    'data-leakage-prevention',
+    'mcp-scanner',
+    'rules-enforcer',
+    'sensitive-access',
+    'skill-scanner',
+  }.contains(compatibilityName)) {
+    return 'security';
+  }
   final marketplace = plugin['marketplace'];
   final marketplaceTags = marketplace is Map && marketplace['tags'] is List
       ? (marketplace['tags'] as List).join(' ')
@@ -2208,7 +2221,7 @@ String _pluginCategory(Map plugin) {
 
 String _categoryLabel(String category) {
   if (category == 'security') return 'Protections';
-  if (category == 'cost') return 'Cost';
+  if (category == 'cost') return 'Costs';
   if (category == 'observability') return 'Visibility';
   if (category == 'utility') return 'Other';
   return 'All';
