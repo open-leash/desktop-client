@@ -3081,6 +3081,7 @@
       let setupRemoteBusy = false;
       let setupRemoteProvider = "google";
       let setupRemoteKeySaved = false;
+      let setupRemotePackage = "personal-byok";
       let setupFinishing = false;
       let setupInstallState = "idle";
       let setupInstallProgress = { percent: 0, stage: "prepare", title: "Preparing installation", detail: "Checking your selections..." };
@@ -3391,6 +3392,7 @@
               { title: "Account", subtitle: "Choose Personal or Business." },
               { title: "Connect", subtitle: "Pick how Leash runs." },
               { title: "Local backend", subtitle: "Start your open-source backend." },
+              { title: "AI provider", subtitle: "Connect the AI Leash will use for safety checks." },
               { title: "Agents", subtitle: "Choose agents to manage." },
               ...pluginSteps
             ]
@@ -3399,6 +3401,7 @@
                 { title: "Account", subtitle: "Choose Personal or Business." },
                 { title: "Connect", subtitle: "Pick how Leash runs." },
                 { title: "Sign in", subtitle: "Sign in to Leash Cloud." },
+                { title: "AI provider", subtitle: "Choose how Leash evaluates agent actions." },
                 { title: "Agents", subtitle: "Choose agents to manage." },
                 ...pluginSteps
               ]
@@ -3571,6 +3574,51 @@
                 </div>
               </section>
             ` : ""}
+            ${currentId === "ai provider" ? `
+              <section class="setupSection">
+                <h2>${individualOpenSource ? "Connect your AI provider" : "Choose how Leash evaluates actions"}</h2>
+                <p>${individualOpenSource
+                  ? "Personal Open Source uses your provider to understand agent actions and decide when to allow, ask, or stop. A provider key is required."
+                  : "Leash Cloud starts free with your provider. You can also choose Leash AI for managed, purpose-built safety evaluation."}</p>
+                ${individualCloud ? `
+                  <div class="cardList" style="margin-bottom:16px">
+                    <label class="card choiceCard ${setupRemotePackage === "personal-byok" ? "selected" : ""}">
+                      <span class="choiceIcon">AI</span>
+                      <span><strong>Your AI provider</strong><small>Free. Leash securely uses your key only to evaluate agent actions.</small></span>
+                      <input type="radio" name="evaluationPackage" value="personal-byok" ${setupRemotePackage === "personal-byok" ? "checked" : ""}>
+                    </label>
+                    <label class="card choiceCard ${setupRemotePackage === "personal-managed" ? "selected" : ""}">
+                      <span class="choiceIcon">L</span>
+                      <span><strong>Leash AI</strong><small>$8 per month. No provider key to create, fund, or maintain. Switch back whenever you want.</small></span>
+                      <input type="radio" name="evaluationPackage" value="personal-managed" ${setupRemotePackage === "personal-managed" ? "checked" : ""}>
+                    </label>
+                  </div>
+                ` : ""}
+                ${individualOpenSource || setupRemotePackage === "personal-byok" ? `
+                  <div class="card">
+                    <strong>Your AI provider</strong>
+                    <p>Leash sends the relevant action details to this provider for a safety decision. Your key is stored by your selected Leash backend and is not shared with your agents.</p>
+                    <div class="fieldRow" style="margin-top:14px">
+                      <strong>Provider</strong>
+                      <select id="apiProvider">
+                        <option value="openai" ${setupProvider === "openai" ? "selected" : ""}>OpenAI</option>
+                        <option value="anthropic" ${setupProvider === "anthropic" ? "selected" : ""}>Anthropic</option>
+                        <option value="deepseek" ${setupProvider === "deepseek" ? "selected" : ""}>DeepSeek</option>
+                      </select>
+                    </div>
+                    <div class="fieldRow" style="margin-top:12px">
+                      <strong>API key</strong>
+                      <input id="apiKey" type="password" autocomplete="off" value="${escapeHtml(setupApiKey)}" placeholder="Paste your provider API key">
+                    </div>
+                    <a id="providerKeyHelp" class="secondary" style="display:inline-flex;margin-top:12px;text-decoration:none" href="#">How to create a ${escapeHtml(setupProvider === "anthropic" ? "Anthropic" : setupProvider === "deepseek" ? "DeepSeek" : "OpenAI")} API key</a>
+                    ${individualCloud && setupRemoteKeySaved ? `<div class="notice" style="margin-top:12px">Provider key connected. Leash Cloud will use it for evaluation.</div>` : ""}
+                  </div>
+                ` : `
+                  <div class="card"><strong>Leash AI</strong><p>Leash manages the AI used for safety evaluation. Complete the $8 monthly upgrade in your account, then return here.</p><a class="primary" href="https://openleash.com/account?setup=package&plan=personal-managed" target="_blank" rel="noreferrer">Upgrade to Leash AI</a></div>
+                `}
+                <div id="providerSetupError" class="error">${escapeHtml(setupRemoteError)}</div>
+              </section>
+            ` : ""}
             ${currentId === "agents" ? `
               <section class="setupSection">
                 <h2>Agents</h2>
@@ -3667,6 +3715,20 @@
           if (currentId === "sign in" && setupClientMode === "cloud" && setupAudience === "organization" && isPersonalEmail(setupRemoteAuth?.userEmail)) {
             setupRemoteError = "Use your company Google Workspace or Microsoft 365 account, not a personal email address.";
             setupRemoteAuth = undefined;
+            return renderSetup();
+          }
+          if (currentId === "ai provider" && setupAudience === "individual" && setupRemotePackage === "personal-byok") {
+            if (!setupApiKey.trim() && !setupRemoteKeySaved) {
+              setupRemoteError = "Add your AI provider key before continuing.";
+              return renderSetup();
+            }
+            if (!setupRemoteKeySaved) {
+              await saveRemoteModelKey();
+              if (!setupRemoteKeySaved) return;
+            }
+          }
+          if (currentId === "ai provider" && setupAudience === "individual" && setupRemotePackage === "personal-managed" && setupRemoteAuth?.account?.packageId !== "personal-managed") {
+            setupRemoteError = "Complete the Leash AI upgrade, then sign in again to continue.";
             return renderSetup();
           }
           setupStep = Math.min(steps.length, setupStep + 1);
@@ -3769,6 +3831,10 @@
         });
         const provider = root.querySelector("[name=provider]:checked");
         if (provider) setupProvider = provider.value;
+        const providerSelect = document.getElementById("apiProvider");
+        if (providerSelect) setupProvider = providerSelect.value;
+        const evaluationPackage = root.querySelector("[name=evaluationPackage]:checked");
+        if (evaluationPackage) setupRemotePackage = evaluationPackage.value;
         const key = document.getElementById("apiKey");
         if (key) setupApiKey = key.value.trim();
         const island = root.querySelector("[name=setupIsland]:checked");
@@ -7657,9 +7723,31 @@
             setupProvider = input.value;
           };
         });
+        const providerSelect = document.getElementById("apiProvider");
+        if (providerSelect) providerSelect.onchange = () => {
+          setupProvider = providerSelect.value;
+          renderSetup();
+        };
+        root.querySelectorAll("[name=evaluationPackage]").forEach((input) => {
+          input.onchange = () => {
+            setupRemotePackage = input.value;
+            setupRemoteError = "";
+            renderSetup();
+          };
+        });
         const key = document.getElementById("apiKey");
         if (key) key.oninput = () => {
           setupApiKey = key.value;
+        };
+        const help = document.getElementById("providerKeyHelp");
+        if (help) help.onclick = (event) => {
+          event.preventDefault();
+          const links = {
+            openai: "https://platform.openai.com/api-keys",
+            anthropic: "https://platform.claude.com/settings/keys",
+            deepseek: "https://api-docs.deepseek.com/api/deepseek-api/"
+          };
+          window.open(links[setupProvider] || links.openai, "_blank", "noopener,noreferrer");
         };
       }
 
@@ -7900,7 +7988,9 @@
           setupRemoteError = "";
           setupRemoteNotice = "";
           setupRemoteBusy = false;
-          const signedInStep = setupClientMode === "custom" ? 5 : setupAudience === "organization" ? 3 : 3;
+          setupRemotePackage = payload.account?.packageId || "personal-byok";
+          setupRemoteKeySaved = Boolean(payload.evaluationProvider?.connected);
+          const signedInStep = setupClientMode === "custom" ? 6 : setupAudience === "organization" ? 3 : 4;
           setupStep = Math.max(setupStep, signedInStep);
           void loadManagedRules().then(() => {
             if (shouldAutoFinishAfterRemoteAuth()) {

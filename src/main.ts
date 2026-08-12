@@ -515,6 +515,8 @@ let desktopAuthSession:
       organizationSlug?: string;
       userName?: string;
       userEmail?: string;
+      account?: { packageId?: string | null };
+      evaluationProvider?: { connected?: boolean; provider?: string; masked?: string };
     }
   | undefined;
 let selfHostedRuntime = {
@@ -1297,11 +1299,11 @@ ipcMain.handle(
     payload: {
       apiUrl?: string;
       token?: string;
-      apiProvider?: "openai" | "anthropic";
+      apiProvider?: "openai" | "anthropic" | "deepseek";
       apiKey?: string;
     },
   ) => {
-    const token = payload.token || desktopAuthSession?.token;
+    const token = payload.token || desktopAuthSession?.token || localServer.effectiveToken;
     if (!token)
       return { ok: false, error: "Sign in before saving the model key." };
     const apiKey = String(payload.apiKey ?? "").trim();
@@ -1320,7 +1322,11 @@ ipcMain.handle(
         },
         body: JSON.stringify({
           provider:
-            payload.apiProvider === "anthropic" ? "anthropic" : "openai",
+            payload.apiProvider === "anthropic"
+              ? "anthropic"
+              : payload.apiProvider === "deepseek"
+                ? "deepseek"
+                : "openai",
           apiKey,
         }),
       },
@@ -1530,7 +1536,7 @@ ipcMain.handle(
         locked?: boolean;
         natural_language_rule?: string;
       }>;
-      apiProvider?: "openai" | "anthropic";
+      apiProvider?: "openai" | "anthropic" | "deepseek";
       apiKey?: string;
       audience?: "individual" | "organization";
       clientMode?: "personal" | "cloud" | "custom";
@@ -1919,7 +1925,7 @@ ipcMain.handle(
   (
     _event,
     payload: {
-      apiProvider?: "openai" | "anthropic";
+      apiProvider?: "openai" | "anthropic" | "deepseek";
       apiKey?: string;
       agentDoneSound?: boolean;
       islandVisibility?: "always" | "activity" | "notifications" | "off";
@@ -7107,6 +7113,8 @@ async function handleDesktopAuthCallback(rawUrl: string) {
         body.session?.user?.display_name ||
         body.session?.user?.name,
       userEmail: body.user?.email || body.session?.user?.email,
+      account: body.account || body.session?.account,
+      evaluationProvider: body.evaluationProvider || body.session?.evaluationProvider,
     };
     pendingDesktopAuth = undefined;
     restoreMainWindow();

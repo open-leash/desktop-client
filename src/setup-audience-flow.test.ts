@@ -16,6 +16,15 @@ test("Personal setup offers Cloud and Open Source", () => {
   assert.match(html, /connectionChoice\("custom", "Personal Open Source"/);
 });
 
+test("Personal setup requires an AI provider before agents are installed", () => {
+  assert.match(html, /\{ title: "AI provider", subtitle: "Connect the AI Leash will use for safety checks\." \}/);
+  assert.match(html, /Add your AI provider key before continuing\./);
+  assert.match(html, /await saveRemoteModelKey\(\)/);
+  assert.match(html, /platform\.openai\.com\/api-keys/);
+  assert.match(html, /platform\.claude\.com\/settings\/keys/);
+  assert.match(html, /api-docs\.deepseek\.com\/api\/deepseek-api/);
+});
+
 test("Business is preserved and restricted to Leash Cloud", () => {
   assert.match(html, /if \(setupAudience === "organization"\) setupClientMode = "cloud";/);
   assert.doesNotMatch(html, /setupAudience = "individual";\s*if \(setupClientMode === "personal"\)/);
