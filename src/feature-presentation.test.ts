@@ -11,7 +11,7 @@ test("desktop uses one plain-language name for every built-in Feature", () => {
     "Code Scanner",
     "Private Data Protection",
     "Connected Tools",
-    "AI Cost Control",
+    "Token Saver",
     "Your Rules",
     "Secret Access Protection",
     "Instruction Safety",
