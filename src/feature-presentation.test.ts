@@ -14,7 +14,7 @@ test("desktop uses one plain-language name for every built-in Feature", () => {
     "Token Saver",
     "Your Rules",
     "Secret Access Protection",
-    "Instruction Safety",
+    "Instruction Scanning",
   ]) {
     assert.match(renderer, new RegExp(`name: "${name}"`));
   }
