@@ -2110,7 +2110,7 @@ String _pluginName(Map plugin) {
     'mcp-scanner': 'Connected Tools',
     'rules-enforcer': 'Your Rules',
     'sensitive-access': 'Secret Access Protection',
-    'skill-scanner': 'Instruction Safety',
+    'skill-scanner': 'Instruction Scanning',
     'token-saver': 'Token Saver',
   };
   final canonicalName = names[compatibilityName];
