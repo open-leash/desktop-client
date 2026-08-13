@@ -2111,7 +2111,7 @@ String _pluginName(Map plugin) {
     'rules-enforcer': 'Your Rules',
     'sensitive-access': 'Secret Access Protection',
     'skill-scanner': 'Instruction Safety',
-    'token-saver': 'AI Cost Control',
+    'token-saver': 'Token Saver',
   };
   final canonicalName = names[compatibilityName];
   if (canonicalName != null) return canonicalName;
