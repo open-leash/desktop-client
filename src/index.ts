@@ -270,7 +270,7 @@ export const FIRST_PARTY_PLUGIN_MANIFESTS = [
   {
     id: "openleash.prompt-compression",
     slug: "token-saver",
-    name: "AI Cost Control",
+    name: "Token Saver",
     description: "Reduces repeated context so agents use fewer paid AI tokens without losing important details.",
     repositoryUrl: "https://github.com/open-leash/plugin-token-saver",
     version: "1.1.3",
