@@ -215,7 +215,7 @@ export const FIRST_PARTY_PLUGIN_MANIFESTS = [
     {
         id: "openleash.mcp-scanner",
         slug: "mcp-scanner",
-        name: "Connected Tool Awareness",
+        name: "Connected Tools",
         description: "Shows which outside tools and services your agents can use and what they do with them.",
         repositoryUrl: "https://github.com/open-leash/plugin-mcp-scanner",
         version: "1.0.0",
