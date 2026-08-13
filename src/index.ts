@@ -314,7 +314,7 @@ export const FIRST_PARTY_PLUGIN_MANIFESTS = [
   {
     id: "openleash.skill-scanner",
     slug: "skill-scanner",
-    name: "Instruction Safety",
+    name: "Instruction Scanning",
     description: "Checks agent instructions for hidden or suspicious behavior before it can spread.",
     repositoryUrl: "https://github.com/open-leash/plugin-skill-scanner",
     version: "1.0.2",
