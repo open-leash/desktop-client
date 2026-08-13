@@ -1623,10 +1623,9 @@
         gap: 10px;
       }
       .pluginDetailSettingHead {
-        display: flex;
-        justify-content: space-between;
-        gap: 14px;
-        align-items: center;
+        display: grid;
+        justify-items: start;
+        gap: 4px;
       }
       .pluginDetailSettingHead strong {
         color: var(--ink);
@@ -1634,8 +1633,9 @@
         text-transform: none;
       }
       .pluginDetailSettingHead small {
-        max-width: 44ch;
-        text-align: right;
+        max-width: 62ch;
+        line-height: 1.45;
+        text-align: left;
       }
       .protectionResponseSlider {
         --response-index: 1;
