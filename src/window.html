@@ -4706,13 +4706,14 @@
 
       function historyCardHtml(item) {
         const status = historyStatusLabel(item.resolution || item.decision);
+        const statusTone = status === "Approved" ? "good" : status === "Waiting for you" || status === "Checked" ? "" : "bad";
         const evidence = filePathForEvent(item) ? compactPath(filePathForEvent(item)) : prettyEvidence((item.triggered_policies || [])[0] || {}, item);
         const when = item.created_at || item.createdAt;
         return `
           <article data-event="${escapeHtml(item.id)}" class="historyDetailed ${readHistoryIds.has(String(item.id)) ? "" : "unread"}">
             <span class="historyStatusIcon ${status.toLowerCase().replaceAll(" ", "-")}">${status === "Waiting for you" ? "!" : "✓"}</span>
             <div class="eventBody">
-              <div class="historyTitleLine"><strong>${escapeHtml(displayEventSummary(item))}</strong><span class="tag statusTag ${item.resolution === "allow" ? "good" : "bad"}">${escapeHtml(status)}</span></div>
+              <div class="historyTitleLine"><strong>${escapeHtml(displayEventSummary(item))}</strong><span class="tag statusTag ${statusTone}">${escapeHtml(status)}</span></div>
               <p>${escapeHtml(item.question || item.summary || "Leash recorded this agent action so you can review what happened.")}</p>
               <div class="historyMeta"><b>${escapeHtml(item.agent_name || "AI agent")}</b><span>${escapeHtml(item.hostname || "This computer")}</span><span>${escapeHtml(projectTag(item.project_path) || "No project")}</span></div>
               ${evidence ? `<div class="evidenceLine"><small>What it touched</small><code>${escapeHtml(truncate(evidence, 160))}</code></div>` : ""}
