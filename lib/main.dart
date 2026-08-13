@@ -2107,7 +2107,7 @@ String _pluginName(Map plugin) {
     'blast-radius': 'Destruction Protection',
     'code-scanner': 'Code Scanner',
     'data-leakage-prevention': 'Private Data Protection',
-    'mcp-scanner': 'Connected Tool Awareness',
+    'mcp-scanner': 'Connected Tools',
     'rules-enforcer': 'Your Rules',
     'sensitive-access': 'Secret Access Protection',
     'skill-scanner': 'Instruction Safety',
