@@ -1974,6 +1974,7 @@ class _PluginSettingControl extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final hint = _pluginSettingHint(settingKey);
     if (settingKey == 'action' || settingKey.endsWith('Action')) {
       const options = ['allow', 'ask', 'block'];
       final selected = _normalizeProtectionAction(value);
@@ -2009,6 +2010,16 @@ class _PluginSettingControl extends StatelessWidget {
       return SwitchListTile.adaptive(
         contentPadding: EdgeInsets.zero,
         title: Text(label, style: const TextStyle(fontWeight: FontWeight.w900)),
+        subtitle: hint.isEmpty
+            ? null
+            : Text(
+                hint,
+                style: const TextStyle(
+                  color: _OlTheme.dim,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
         value: value == true,
         onChanged: enabled ? onChanged : null,
       );
@@ -2018,11 +2029,23 @@ class _PluginSettingControl extends StatelessWidget {
       enabled: enabled,
       decoration: InputDecoration(
         labelText: label,
+        helperText: hint.isEmpty ? null : hint,
+        helperMaxLines: 2,
         border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
       ),
       onChanged: onChanged,
     );
   }
+}
+
+String _pluginSettingHint(String key) {
+  if (key == 'suspiciousRiskThreshold') {
+    return 'Lower values warn you more often. Higher values warn only about stronger risks.';
+  }
+  if (key == 'redactSecrets') {
+    return 'Keeps private values out of the history shown in Leash.';
+  }
+  return '';
 }
 
 class _PluginIcon extends StatelessWidget {
