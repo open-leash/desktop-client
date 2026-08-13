@@ -1349,7 +1349,7 @@
         padding: 0 5px;
         border: 2px solid #fff;
         border-radius: 999px;
-        background: #df2f3b;
+        background: var(--accent);
         color: #fff;
         font-size: 10px;
         font-weight: 900;
@@ -1394,7 +1394,7 @@
         color: var(--ink);
         text-align: left;
       }
-      .notificationItem.unread { background: #fff0f1; }
+      .notificationItem.unread { background: #f1efff; }
       .notificationItem:hover { background: var(--soft); }
       .notificationItem .notificationAgent {
         width: 38px;
@@ -1410,7 +1410,7 @@
       .notificationItem > span:nth-child(2) { display: grid; gap: 3px; min-width: 0; }
       .notificationItem strong,
       .notificationItem small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-      .notificationItem i { width: 8px; height: 8px; border-radius: 999px; background: #df2f3b; }
+      .notificationItem i { width: 8px; height: 8px; border-radius: 999px; background: var(--accent); }
       .notificationEmpty { display: grid; gap: 5px; padding: 28px 18px; text-align: center; }
       .overviewAgentTile { position: relative; cursor: pointer; }
       .overviewAgentTile:hover { border-color: var(--accent); }
@@ -1420,8 +1420,8 @@
         padding-left: 12px;
         padding-right: 12px;
         border-radius: 12px;
-        background: #fff0f1;
-        box-shadow: inset 4px 0 0 #df2f3b;
+        background: #f1efff;
+        box-shadow: inset 4px 0 0 var(--accent);
       }
       .history article.historyDetailed {
         grid-template-columns: 42px minmax(0, 1fr) minmax(170px, auto) 18px;
@@ -1436,8 +1436,8 @@
       .history article.historyDetailed.unread {
         margin-left: 0;
         margin-right: 0;
-        border-color: #eca1a8;
-        background: linear-gradient(100deg, #fff0f1, #fff 45%);
+        border-color: #c7bfff;
+        background: linear-gradient(100deg, #f1efff, #fff 45%);
       }
       .historyStatusIcon {
         width: 42px;
@@ -1451,9 +1451,8 @@
         font-weight: 950;
       }
       .historyStatusIcon.denied { background: #ffe7e9; color: #bd2d3f; }
-      .historyStatusIcon.waiting { background: #fff1cf; color: #8a5a00; }
-      .historyStatusIcon.stopped { background: #ffe7e9; color: #bd2d3f; }
-      .historyStatusIcon.needs-you { background: #fff1cf; color: #8a5a00; }
+      .historyStatusIcon.blocked { background: #ffe7e9; color: #bd2d3f; }
+      .historyStatusIcon.waiting-for-you { background: #fff1cf; color: #8a5a00; }
       .historyTitleLine { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
       .historyTitleLine strong { font-size: 15px; }
       .historyDetailed .eventBody > p { margin-top: 6px; font-size: 13px; line-height: 1.4; }
@@ -1466,7 +1465,7 @@
       .historyWhen { display: grid; justify-items: end; gap: 4px; text-align: right; }
       .historyWhen strong { font-size: 12px; }
       .historyWhen small { color: var(--muted); font-size: 10px; white-space: nowrap; }
-      .historyWhen i { margin-top: 4px; padding: 4px 7px; border-radius: 999px; background: #df2f3b; color: #fff; font-size: 9px; font-style: normal; font-weight: 950; text-transform: uppercase; }
+      .historyWhen i { margin-top: 4px; padding: 4px 7px; border-radius: 999px; background: var(--accent); color: #fff; font-size: 9px; font-style: normal; font-weight: 950; text-transform: uppercase; }
       .historyChevron { align-self: center; color: var(--muted); font-size: 24px; }
       .historyLoadMore { display: block; margin: 20px auto 0; }
       .historyEnd { margin-top: 18px; text-align: center; font-size: 12px; }
@@ -4579,6 +4578,11 @@
         localStorage.setItem("leash-read-history", JSON.stringify([...readHistoryIds].slice(-500)));
       }
 
+      function markAllVisibleHistoryRead() {
+        for (const item of visibleHistoryItems()) readHistoryIds.add(String(item.id));
+        localStorage.setItem("leash-read-history", JSON.stringify([...readHistoryIds].slice(-500)));
+      }
+
       function notificationCenterHtml() {
         const unread = unreadHistoryItems();
         const items = (unread.length ? unread : visibleHistoryItems()).slice(0, 7);
@@ -4609,6 +4613,7 @@
       function bindNotificationCenter() {
         const trigger = document.getElementById("notificationButton");
         if (trigger) trigger.onclick = () => {
+          if (!notificationMenuOpen) markAllVisibleHistoryRead();
           notificationMenuOpen = !notificationMenuOpen;
           renderView();
         };
@@ -4705,7 +4710,7 @@
         const when = item.created_at || item.createdAt;
         return `
           <article data-event="${escapeHtml(item.id)}" class="historyDetailed ${readHistoryIds.has(String(item.id)) ? "" : "unread"}">
-            <span class="historyStatusIcon ${status.toLowerCase().replaceAll(" ", "-")}">${status === "Stopped" ? "✓" : status === "Needs you" ? "!" : "✓"}</span>
+            <span class="historyStatusIcon ${status.toLowerCase().replaceAll(" ", "-")}">${status === "Waiting for you" ? "!" : "✓"}</span>
             <div class="eventBody">
               <div class="historyTitleLine"><strong>${escapeHtml(displayEventSummary(item))}</strong><span class="tag statusTag ${item.resolution === "allow" ? "good" : "bad"}">${escapeHtml(status)}</span></div>
               <p>${escapeHtml(item.question || item.summary || "Leash recorded this agent action so you can review what happened.")}</p>
@@ -4720,9 +4725,11 @@
 
       function historyStatusLabel(value) {
         const normalized = String(value || "").toLowerCase();
-        if (["deny", "denied", "block", "blocked"].includes(normalized)) return "Stopped";
-        if (["ask", "waiting", "pending", "review"].includes(normalized)) return "Needs you";
-        return "Allowed";
+        if (["deny", "denied", "rejected"].includes(normalized)) return "Denied";
+        if (["block", "blocked", "stop", "stopped"].includes(normalized)) return "Blocked";
+        if (["ask", "waiting", "pending", "review", "needs_review"].includes(normalized)) return "Waiting for you";
+        if (["allow", "allowed", "approved", "passed"].includes(normalized)) return "Approved";
+        return "Checked";
       }
 
       function friendlyExactTimestamp(value) {
