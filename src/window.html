@@ -900,9 +900,6 @@
         background: var(--accent-soft);
         color: var(--accent);
       }
-      .pluginInstallLine [data-plugin-expand] {
-        cursor: pointer;
-      }
       .pluginInstallLine .pluginCopy {
         display: grid;
         gap: 7px;
@@ -3066,7 +3063,6 @@
       let pluginSetupConfigs = {};
       let setupPluginSearch = "";
       let setupPluginCategory = "all";
-      let expandedSetupPlugins = new Set();
       let setupStep = 0;
       let setupAudience = "individual";
       let setupClientMode = "cloud";
@@ -3385,7 +3381,7 @@
         initializePluginSetupState();
         const pluginSteps = [
           { title: "Island", subtitle: "Choose whether Leash should show the desktop Island." },
-          { title: "Features", subtitle: "Choose the built-in Features Leash should enable." }
+          { title: "Choose your protection", subtitle: "Turn on the protections and cost controls you want Leash to use." }
         ];
         const steps = individualOpenSource
           ? [
@@ -3653,10 +3649,10 @@
             ${currentId === "features" ? `
               <section class="setupSection">
                 <div class="setupSectionHead">
-                  <h2>Features</h2>
-                  ${isDevelopmentDesktopRenderer() ? `<button type="button" class="secondary" id="addAllDevelopmentPlugins">Enable all Features</button>` : ""}
+                  <h2>Choose your protection</h2>
+                  ${isDevelopmentDesktopRenderer() ? `<button type="button" class="secondary" id="addAllDevelopmentPlugins">Turn everything on</button>` : ""}
                 </div>
-                <p>Choose the built-in Features you want Leash to use.</p>
+                <p>Select the protections and cost controls that matter to you. Everything is built into Leash, and you can change this later.</p>
                 ${setupPluginInstallCards()}
               </section>
             ` : ""}
@@ -3744,7 +3740,6 @@
         bindAgentSelection();
         bindIslandSelection();
         bindRuleSelection();
-        bindPluginExpansion();
         bindPluginSelection();
         bindDevelopmentPluginSelection();
         bindPluginMarketplaceSearch();
@@ -6240,7 +6235,7 @@
         const plugins = query
           ? categoryFiltered.filter((plugin) => pluginSearchText(plugin).includes(query))
           : categoryFiltered;
-        if (allPlugins.length === 0) return `<div class="card empty">No built-in Features were received from the API.</div>`;
+        if (allPlugins.length === 0) return `<div class="card empty">Leash could not load your protection choices. Try again in a moment.</div>`;
         const categories = pluginCategorySummary(allPlugins);
         return `
           <div class="pluginCategoryFilters">
@@ -6252,31 +6247,24 @@
             `).join("")}
           </div>
           <div class="pluginMarketplaceTools">
-            <input id="pluginMarketplaceSearch" value="${escapeHtml(setupPluginSearch)}" placeholder="Search Features and categories...">
+            <input id="pluginMarketplaceSearch" value="${escapeHtml(setupPluginSearch)}" placeholder="Search protections and cost controls...">
             <span>${plugins.length} of ${categoryFiltered.length} shown</span>
           </div>
           <div class="cardList">
             ${plugins.map((plugin) => {
               const checked = selectedPlugins?.has(plugin.id) ?? Boolean(plugin.organizationPolicy?.mandatory || plugin.settings?.enabled === true);
               const mandatory = Boolean(plugin.organizationPolicy?.mandatory);
-              const expanded = expandedSetupPlugins.has(plugin.id);
               const category = pluginCategory(plugin);
               const categoryClass = pluginCategoryClass(category);
               return `
-                <article class="card pluginInstallLine ${checked ? "selected" : ""} ${expanded ? "expanded" : ""}">
-                  <span class="agentIcon" data-plugin-expand="${escapeHtml(plugin.id)}">${pluginIconHtml(plugin)}</span>
-                  <span class="pluginCopy" data-plugin-expand="${escapeHtml(plugin.id)}">
+                <article class="card pluginInstallLine ${checked ? "selected" : ""}">
+                  <span class="agentIcon">${pluginIconHtml(plugin)}</span>
+                  <span class="pluginCopy">
                     <strong>${escapeHtml(pluginName(plugin))}</strong>
                     <span>${escapeHtml(pluginValueLine(plugin))}</span>
                     <span class="pluginStats">
                         <span class="pluginCategoryTag ${categoryClass}">${categoryIcon(category)} ${escapeHtml(categoryLabel(category))}</span>
                     </span>
-                    ${expanded ? `
-                      <span class="pluginDetails">
-                        <p>${escapeHtml(pluginValueLine(plugin))}</p>
-                      </span>
-                    ` : ""}
-                    <small>${expanded ? "Click to collapse" : "Click for details"}</small>
                   </span>
                   <span class="pluginChoice">
                     <label>
@@ -6289,7 +6277,7 @@
                   </span>
                 </article>
               `;
-            }).join("") || `<div class="card empty">No Features match this filter.</div>`}
+            }).join("") || `<div class="card empty">No protections or cost controls match this filter.</div>`}
           </div>
         `;
       }
@@ -6569,18 +6557,6 @@
         } else if (actionText) {
           actionText.textContent = input.checked ? "Enabled" : "Enable";
         }
-      }
-
-      function bindPluginExpansion() {
-        root.querySelectorAll("[data-plugin-expand]").forEach((element) => {
-          element.onclick = () => {
-            const pluginId = element.dataset.pluginExpand;
-            if (!pluginId) return;
-            if (expandedSetupPlugins.has(pluginId)) expandedSetupPlugins.delete(pluginId);
-            else expandedSetupPlugins.add(pluginId);
-            renderSetup();
-          };
-        });
       }
 
       function bindPluginMarketplaceSearch(target = "setup") {
