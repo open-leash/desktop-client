@@ -188,13 +188,19 @@ copy_app() {
     rm -rf "$target_app"
     ditto "$source_app" "$target_app"
     xattr -cr "$target_app" 2>/dev/null || true
-    codesign --force --deep --sign - "$target_app" >/dev/null 2>&1 || true
+    codesign --force --deep --sign - "$target_app" >/dev/null 2>&1 ||
+      die "Could not apply the local macOS signature."
+    codesign --verify --deep --strict "$target_app" >/dev/null 2>&1 ||
+      die "The locally signed Leash app did not pass code-signature verification."
     xattr -cr "$target_app" 2>/dev/null || true
   else
     sudo rm -rf "$target_app"
     sudo ditto "$source_app" "$target_app"
     sudo xattr -cr "$target_app" 2>/dev/null || true
-    sudo codesign --force --deep --sign - "$target_app" >/dev/null 2>&1 || true
+    sudo codesign --force --deep --sign - "$target_app" >/dev/null 2>&1 ||
+      die "Could not apply the local macOS signature."
+    sudo codesign --verify --deep --strict "$target_app" >/dev/null 2>&1 ||
+      die "The locally signed Leash app did not pass code-signature verification."
     sudo xattr -cr "$target_app" 2>/dev/null || true
   fi
   /System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister -f "$target_app" >/dev/null 2>&1 || true
@@ -457,6 +463,11 @@ fi
 DMG_PATH="$(resolve_dmg)"
 [[ -z "$RULES_FILE" || -f "$RULES_FILE" ]] || die "Rules JSON not found: $RULES_FILE"
 
+HAD_EXISTING_LOCAL_STATE=0
+if [[ -d "$HOME/Library/Application Support/Leash" || -d "$HOME/Library/Application Support/OpenLeash" ]]; then
+  HAD_EXISTING_LOCAL_STATE=1
+fi
+
 stop_openleash
 remove_retired_feature_containers
 
@@ -469,7 +480,9 @@ SOURCE_APP="$(find "$MOUNT_POINT" -maxdepth 2 -name "$APP_NAME.app" -type d | he
 [[ -n "$SOURCE_APP" ]] || die "$APP_NAME.app not found in DMG."
 
 TARGET_APP="$(copy_app "$SOURCE_APP")"
-cleanup_existing_integrations "$TARGET_APP"
+if [[ "$HAD_EXISTING_LOCAL_STATE" -eq 1 ]]; then
+  cleanup_existing_integrations "$TARGET_APP"
+fi
 reset_settings
 
 if [[ "$INDIVIDUAL_OPEN_SOURCE" -eq 1 ]]; then
