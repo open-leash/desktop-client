@@ -4,7 +4,21 @@ import sharp from "sharp";
 import * as simpleIcons from "simple-icons";
 
 await fs.mkdir("dist", { recursive: true });
-await fs.copyFile(path.join("src", "window.html"), path.join("dist", "window.html"));
+const windowTemplate = await fs.readFile(path.join("src", "window.html"), "utf8");
+const featurePresentationsJson = await fs.readFile(
+  path.join("..", "..", "packages", "shared", "feature-presentations.json"),
+  "utf8",
+);
+await fs.writeFile(
+  path.join("dist", "window.html"),
+  windowTemplate.replace(
+    "__LEASH_FEATURE_PRESENTATIONS__",
+    featurePresentationsJson
+      .replaceAll("<", "\\u003c")
+      .replaceAll("\u2028", "\\u2028")
+      .replaceAll("\u2029", "\\u2029"),
+  ),
+);
 const noticeTemplate = await fs.readFile(path.join("src", "notice.html"), "utf8");
 const fireworksJson = await fs.readFile(path.join("src", "Fireworks.json"), "utf8");
 const embeddedFireworks = fireworksJson

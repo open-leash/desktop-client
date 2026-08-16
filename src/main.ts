@@ -772,6 +772,17 @@ if (singleInstanceLock) app
       onAgentActivity: handleImmediateAgentActivity,
     });
     startupLog(`local server constructed at ${app.getPath("userData")}`);
+    const protectedAgentsToRestore = shouldPreserveSettingsForLaunch()
+      ? detectLocalAgentProtections({ appVersion: app.getVersion() })
+          .filter(
+            (agent) =>
+              agent.installed &&
+              agent.protected &&
+              agent.approvalHandoff !== false &&
+              agent.supportsInstall,
+          )
+          .map((agent) => agent.kind)
+      : [];
     const installReplaced = syncInstallIdentity();
     if (installReplaced) {
       const cleanup = await cleanupDesktopIntegrations({
@@ -790,6 +801,16 @@ if (singleInstanceLock) app
     if (localServer.setupComplete) {
       await configureLocalAgent();
       await installLeashCli();
+      if (installReplaced) {
+        for (const agentKind of protectedAgentsToRestore) {
+          await installAgentProtection(agentKind, hookInstallContext());
+        }
+        if (protectedAgentsToRestore.length > 0) {
+          startupLog(
+            `restored agent protections after update: ${protectedAgentsToRestore.join(", ")}`,
+          );
+        }
+      }
       startupLog("client integration config refreshed");
     }
     pluginContainerFingerprint = pluginFingerprint(localServer.plugins);
@@ -2274,6 +2295,14 @@ async function resolveDecision(
       responsePayload,
     )) || resolvedLocally;
   }
+  const pendingSkillPath = skillPathFromPendingDecision(pending)
+    ?? skillPathFromDecisionResponse(responsePayload);
+  if (pendingSkillPath) {
+    resolvedLocally = localServer.resolveObservedSkill(
+      pendingSkillPath,
+      resolution,
+    ) || resolvedLocally;
+  }
   if (!resolvedLocally && !localServer.remoteApiUrl)
     startupLog(`approval resolve did not match a local decision for ${pending ? pendingNoticeKey(pending) : id}`);
   closeNoticeWithoutOpeningMainWindow();
@@ -2309,6 +2338,21 @@ async function resolveDecision(
     if (noticeKey) suppressedNoticeKeys.delete(noticeKey);
   }, 5 * 60_000);
   return { ok: true };
+}
+
+function skillPathFromPendingDecision(pending?: PendingDecision) {
+  if (!pending?.payload || typeof pending.payload !== "object") return undefined;
+  const skillPath = (pending.payload as Record<string, unknown>).skillPath;
+  return typeof skillPath === "string" && skillPath.trim()
+    ? skillPath
+    : undefined;
+}
+
+function skillPathFromDecisionResponse(response?: Record<string, unknown>) {
+  const skillPath = response?.skillPath;
+  return typeof skillPath === "string" && skillPath.trim()
+    ? skillPath
+    : undefined;
 }
 
 async function poll() {
@@ -6474,7 +6518,7 @@ async function configureLocalAgent() {
     `${JSON.stringify(
       {
         apiUrl,
-        token: localServer.token,
+        token: localServer.effectiveToken,
         mode: localServer.clientMode,
         remoteApiUrl: localServer.remoteApiUrl,
         clientVersion: app.getVersion(),

@@ -1,3 +1,5 @@
+import { LEASH_FEATURE_PRESENTATIONS } from "@openleash/shared";
+
 export type BundledPluginManifest = {
   id: string;
   slug?: string;
@@ -78,8 +80,8 @@ export const bundledFirstPartyPlugins: BundledPluginManifest[] = [
   {
     id: "openleash.prompt-compression",
     slug: "token-saver",
-    name: "Token Saver",
-    description: "Reduces repeated context so agents use fewer paid AI tokens without losing important details.",
+    name: LEASH_FEATURE_PRESENTATIONS["token-saver"].name,
+    description: LEASH_FEATURE_PRESENTATIONS["token-saver"].description,
     repositoryUrl: "https://github.com/open-leash/plugin-token-saver",
     version: "1.1.3",
     publisher: "openleash",
@@ -108,14 +110,14 @@ export const bundledFirstPartyPlugins: BundledPluginManifest[] = [
         ccrTtlSeconds: { type: "number", minimum: 60 }
       }
     },
-    defaultConfig: { enabled: false, level: "standard", conciseResponse: false, minimumChars: 1200, protectRecent: 2, ccrEnabled: false, ccrTtlSeconds: 3600 },
+    defaultConfig: { enabled: true, level: "standard", conciseResponse: false, minimumChars: 1200, protectRecent: 2, ccrEnabled: false, ccrTtlSeconds: 3600 },
     tags: ["tokens", "cost", "prompt"]
   },
   {
     id: "openleash.skill-scanner",
     slug: "skill-scanner",
-    name: "Instruction Scanning",
-    description: "Checks agent instructions for hidden or suspicious behavior before it can spread.",
+    name: LEASH_FEATURE_PRESENTATIONS["skill-scanner"].name,
+    description: LEASH_FEATURE_PRESENTATIONS["skill-scanner"].description,
     repositoryUrl: "https://github.com/open-leash/plugin-skill-scanner",
     version: "1.0.2",
     publisher: "openleash",
@@ -140,8 +142,8 @@ export const bundledFirstPartyPlugins: BundledPluginManifest[] = [
   {
     id: "openleash.dlp",
     slug: "data-leakage-prevention",
-    name: "Private Data Protection",
-    description: "Keeps passwords, personal information, and other sensitive data from being shared by mistake.",
+    name: LEASH_FEATURE_PRESENTATIONS["data-leakage-prevention"].name,
+    description: LEASH_FEATURE_PRESENTATIONS["data-leakage-prevention"].description,
     repositoryUrl: "https://github.com/open-leash/plugin-data-leakage-prevention",
     version: "1.0.0",
     publisher: "openleash",
@@ -165,14 +167,14 @@ export const bundledFirstPartyPlugins: BundledPluginManifest[] = [
         model: { type: "string" }
       }
     },
-    defaultConfig: { enabled: false, action: "ask", categories: ["pii", "phi", "tokens", "keys", "credentials"] },
+    defaultConfig: { enabled: true, action: "ask", categories: ["pii", "phi", "tokens", "keys", "credentials"] },
     tags: ["security", "privacy", "prompt"]
   },
   {
     id: "openleash.sensitive-access",
     slug: "sensitive-access",
-    name: "Secret Access Protection",
-    description: "Warns you when an agent tries to open passwords, private keys, or other secret files.",
+    name: LEASH_FEATURE_PRESENTATIONS["sensitive-access"].name,
+    description: LEASH_FEATURE_PRESENTATIONS["sensitive-access"].description,
     repositoryUrl: "https://github.com/open-leash/plugin-sensitive-access",
     version: "1.0.0",
     publisher: "openleash",
@@ -199,8 +201,8 @@ export const bundledFirstPartyPlugins: BundledPluginManifest[] = [
   {
     id: "openleash.blast-radius",
     slug: "blast-radius",
-    name: "Destruction Protection",
-    description: "Stops agents before they delete files, damage databases, or break important systems.",
+    name: LEASH_FEATURE_PRESENTATIONS["blast-radius"].name,
+    description: LEASH_FEATURE_PRESENTATIONS["blast-radius"].description,
     repositoryUrl: "https://github.com/open-leash/plugin-blast-radius",
     version: "1.0.2",
     publisher: "openleash",
@@ -225,10 +227,37 @@ export const bundledFirstPartyPlugins: BundledPluginManifest[] = [
     tags: ["security", "destructive", "database", "tools"]
   },
   {
+    id: "openleash.code-scanner",
+    slug: "code-scanner",
+    name: LEASH_FEATURE_PRESENTATIONS["code-scanner"].name,
+    description: LEASH_FEATURE_PRESENTATIONS["code-scanner"].description,
+    repositoryUrl: "https://github.com/open-leash/plugin-code-scanner",
+    version: "1.0.0",
+    publisher: "openleash",
+    runtime: "builtin",
+    execution: bundledFeature("code-scanner", "1.0.0"),
+    entrypoint: "client-api",
+    events: ["agent.response", "tool.beforeUse"],
+    permissions: ["event:read", "tool:read", "model:invoke", "audit:write", "log:write", "signal:write", "notification:send"],
+    effects: ["observe", "notify"],
+    ordering: { priority: 260, before: ["openleash.rules-enforcer"] },
+    configSchema: {
+      type: "object",
+      additionalProperties: false,
+      properties: {
+        enabled: { type: "boolean" },
+        notificationRiskThreshold: { type: "number", minimum: 0, maximum: 100 },
+        minimumCodeCharacters: { type: "number", minimum: 40, maximum: 4000 }
+      }
+    },
+    defaultConfig: { enabled: true, notificationRiskThreshold: 70, minimumCodeCharacters: 80 },
+    tags: ["security", "code", "vulnerabilities", "vibe-coding", "notifications"]
+  },
+  {
     id: "openleash.rules-enforcer",
     slug: "rules-enforcer",
-    name: "Your Rules",
-    description: "Makes agents follow the boundaries you choose and asks before they cross one.",
+    name: LEASH_FEATURE_PRESENTATIONS["rules-enforcer"].name,
+    description: LEASH_FEATURE_PRESENTATIONS["rules-enforcer"].description,
     repositoryUrl: "https://github.com/open-leash/plugin-rules-enforcer",
     version: "1.0.0",
     publisher: "openleash",
@@ -263,8 +292,8 @@ export const bundledFirstPartyPlugins: BundledPluginManifest[] = [
   {
     id: "openleash.mcp-scanner",
     slug: "mcp-scanner",
-    name: "Connected Tools",
-    description: "Shows which outside tools and services your agents can use and what they do with them.",
+    name: LEASH_FEATURE_PRESENTATIONS["mcp-scanner"].name,
+    description: LEASH_FEATURE_PRESENTATIONS["mcp-scanner"].description,
     repositoryUrl: "https://github.com/open-leash/plugin-mcp-scanner",
     version: "1.0.0",
     publisher: "openleash",
@@ -292,7 +321,7 @@ export function bundledPluginCatalog(): PluginCatalogItem[] {
   return bundledFirstPartyPlugins.map((plugin) => ({
     ...plugin,
     settings: {
-      enabled: false,
+      enabled: plugin.defaultConfig?.enabled !== false,
       config: plugin.defaultConfig ?? {},
       orderingPriority: plugin.ordering?.priority ?? null
     }

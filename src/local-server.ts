@@ -31,13 +31,13 @@ type ClientMode = "personal" | "cloud" | "custom";
 
 const defaultPromptTransformConfig: PromptTransformConfig = {
   compression: {
-    enabled: false,
+    enabled: true,
     level: "standard",
     conciseResponse: false,
     model: process.env.OPENLEASH_PROMPT_TRANSFORM_MODEL ?? "gpt-4.1-nano"
   },
   dlp: {
-    enabled: false,
+    enabled: true,
     action: "ask",
     categories: ["pii", "phi", "tokens", "keys", "credentials"],
     model: process.env.OPENLEASH_PROMPT_TRANSFORM_MODEL ?? "gpt-4.1-nano"
@@ -405,6 +405,21 @@ export class LocalOpenLeashServer {
 
   get skills() {
     return this.readSkills();
+  }
+
+  resolveObservedSkill(skillPath: string, resolution: "allow" | "deny") {
+    const resolved = path.resolve(skillPath);
+    const skill = this.skills.find(
+      (item) => path.resolve(item.skill_path) === resolved,
+    );
+    if (!skill) return false;
+    if (resolution === "deny") {
+      deleteSkillFile(skill.skill_path);
+      this.markSkillDeleted(skill.skill_path);
+    } else {
+      this.markSkillApproved(skill.skill_path);
+    }
+    return true;
   }
 
   get apiProvider() {
@@ -1978,7 +1993,7 @@ function findEvidence(policyId: string, text: string, request: EvaluationRequest
   if (policyId === "supply-chain-change" && !globalPackageInstallPattern().test(text) && /(npm\s+(?:install|i|add|update)|pnpm\s+(?:add|install|update)|yarn\s+(?:add|install|upgrade)|pip\s+install|poetry\s+add|uv\s+add|cargo\s+(?:add|update)|go\s+get|bundle\s+(?:add|update)|brew\s+install|package-lock\.json|pnpm-lock\.yaml|yarn\.lock|requirements\.txt|poetry\.lock|cargo\.lock|go\.sum|\.csproj)/i.test(text)) return [truncate(prompt, 160)];
   if (policyId === "exfiltration" && /(curl|wget|upload|pastebin|gist|webhook|scp\s|rsync\s|nc\s|netcat|send .*code|send .*file|post .*secret|external domain|https?:\/\/(?!localhost|127\.0\.0\.1))/i.test(text)) return [truncate(prompt, 160)];
   if (policyId === "personal-data" && /(ssn|social security|passport|credit card|personal data|customer list|employee data)/i.test(text)) return [truncate(prompt, 160)];
-  if (policyId === "destructive" && /(rm\s+-rf|sudo rm|delete all|format disk|chmod\s+-r|chown\s+-r|git reset\s+--hard|terraform destroy)/i.test(text)) return [truncate(prompt, 160)];
+  if (policyId === "destructive" && /(rm\s+-[a-z]*r[a-z]*|sudo rm|find\b.+(?:^|\s)-delete\b|shutil\.rmtree|(?:fs\.)?(?:rmSync|rm)\s*\([^)]*recursive\s*:\s*true|FileUtils\.rm_rf|Remove-Item[^\n;&|]*(?:^|\s)-Recurse|truncate\s+(?:-[^\s]+\s+)*0\s+|dd\b[^\n;&|]*if=\/dev\/zero\b[^\n;&|]*of=|delete all|format disk|chmod\s+-r|chown\s+-r|git reset\s+--hard|git clean\s+(?=[^\n;&]*-[a-z]*f)|git\s+(?:checkout\s+--|restore)\s+\.(?=$|[\s"';&|])|terraform destroy)/im.test(text)) return [truncate(prompt, 160)];
   if (policyId === "git-repo" && /(git init|gh repo create|create (a )?(new )?git repo|initialize (a )?(new )?repository)/i.test(text)) return [truncate(prompt, 160)];
   if (policyId === "package-install" && /(npm install|pip install|brew install|curl .* sh|unknown package)/i.test(text)) return [truncate(prompt, 160)];
   return [];
@@ -2275,7 +2290,7 @@ function intentCategory(request: EvaluationRequest) {
   if (/(\.env(?:\b|["'\\/\s])|\.npmrc|id_rsa|id_ed25519|credentials|kubeconfig|private key|api[_ -]?key|secret|token|password)/i.test(text)) {
     return `credential-${credentialActionVerb((request.event.tool?.name ?? "").toLowerCase(), text)}`;
   }
-  if (/(rm\s+-rf|sudo rm|delete all|format disk|chmod\s+-r|chown\s+-r|git reset\s+--hard|terraform destroy)/i.test(text)) return "destructive";
+  if (/(rm\s+-[a-z]*r[a-z]*|sudo rm|find\b.+(?:^|\s)-delete\b|shutil\.rmtree|(?:fs\.)?(?:rmSync|rm)\s*\([^)]*recursive\s*:\s*true|FileUtils\.rm_rf|Remove-Item[^\n;&|]*(?:^|\s)-Recurse|truncate\s+(?:-[^\s]+\s+)*0\s+|dd\b[^\n;&|]*if=\/dev\/zero\b[^\n;&|]*of=|delete all|format disk|chmod\s+-r|chown\s+-r|git reset\s+--hard|git clean\s+(?=[^\n;&]*-[a-z]*f)|git\s+(?:checkout\s+--|restore)\s+\.(?=$|[\s"';&|])|terraform destroy)/im.test(text)) return "destructive";
   if (/(curl|wget|upload|pastebin|gist|send .*code|post .*secret|external domain|webhook)/i.test(text)) return "exfiltration";
   if (/(ssn|social security|passport|credit card|personal data|customer list|employee data)/i.test(text)) return "personal-data";
   if (/(npm install|pip install|brew install|curl .* sh|unknown package)/i.test(text)) return "package-install";

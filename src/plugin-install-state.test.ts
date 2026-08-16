@@ -37,19 +37,20 @@ test("renderer derives installed and available lists from active plugin state", 
   );
   assert.match(installState, /plugin\?\.settings\?\.enabled === true/);
   assert.doesNotMatch(installState, /plugin\?\.settings\?\.installedVersion/);
+  assert.match(renderer, /<span class="navLabel">Available Features<\/span>/);
 });
 
-test("development wizard selects every runtime-available catalog plugin", () => {
+test("fresh setup selects every runtime-available Feature by default", () => {
   const renderer = readFileSync(path.join(__dirname, "window.html"), "utf8");
   const helperSource = renderer.match(
     /\/\* development-plugin-selection:start \*\/([\s\S]*?)\/\* development-plugin-selection:end \*\//,
   )?.[1];
   assert.ok(helperSource);
   const helpers = new Function(
-    `${helperSource}; return { isDevelopmentDesktopRenderer, developmentPluginSelectionIds };`,
+    `${helperSource}; return { isDevelopmentDesktopRenderer, defaultPluginSelectionIds };`,
   )() as {
     isDevelopmentDesktopRenderer: (pathname: string) => boolean;
-    developmentPluginSelectionIds: (
+    defaultPluginSelectionIds: (
       plugins: Array<{ id: string; settings?: { runtimeAvailable?: boolean } }>,
     ) => string[];
   };
@@ -67,7 +68,7 @@ test("development wizard selects every runtime-available catalog plugin", () => 
     false,
   );
   assert.deepEqual(
-    helpers.developmentPluginSelectionIds([
+    helpers.defaultPluginSelectionIds([
       { id: "openleash.ready" },
       { id: "openleash.available", settings: { runtimeAvailable: true } },
       { id: "openleash.unavailable", settings: { runtimeAvailable: false } },
@@ -76,6 +77,17 @@ test("development wizard selects every runtime-available catalog plugin", () => 
   );
   assert.match(
     renderer,
-    /isDevelopmentDesktopRenderer\(\) \? `<button type="button" class="secondary" id="addAllDevelopmentPlugins">/,
+    /selectedPlugins = pluginSelectionTouched && selectedPlugins[\s\S]*new Set\(defaultPluginSelectionIds\(plugins\)\)/,
   );
+  assert.match(
+    renderer,
+    /function enableEverySetupFeature\(\) \{\s*selectedPlugins = new Set\(defaultPluginSelectionIds\(state\.plugins\)\)/,
+  );
+  assert.match(renderer, /enableEverySetupFeature\(\);\s*setupInstallProgress = \{ percent: 12/);
+  const featureStep = renderer.slice(
+    renderer.indexOf('currentId === "features"'),
+    renderer.indexOf('setupStep >= steps.length', renderer.indexOf('currentId === "features"')),
+  );
+  assert.match(featureStep, /setupFeatureShowcaseCards\(\)/);
+  assert.doesNotMatch(featureStep, /setupPluginInstallCards\(\)|data-plugin-install|checkbox/);
 });

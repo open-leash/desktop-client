@@ -639,6 +639,153 @@
         justify-content: space-between;
         gap: 16px;
       }
+      .setupProtectionPromise {
+        position: relative;
+        display: grid;
+        grid-template-columns: 56px minmax(0, 1fr) auto;
+        align-items: center;
+        gap: 16px;
+        padding: 18px 20px;
+        overflow: hidden;
+        border: 1.5px solid rgba(91, 77, 240, .22);
+        border-radius: 18px;
+        background: linear-gradient(135deg, #f2efff 0%, #fffdf7 58%, #eef9f3 100%);
+      }
+      .setupProtectionPromise::after {
+        content: "";
+        position: absolute;
+        width: 180px;
+        height: 180px;
+        right: -70px;
+        top: -110px;
+        border-radius: 50%;
+        background: rgba(91, 77, 240, .08);
+      }
+      .setupProtectionMark {
+        display: grid;
+        place-items: center;
+        width: 56px;
+        height: 56px;
+        border-radius: 16px;
+        background: var(--ink);
+        color: #fff;
+      }
+      .setupProtectionMark svg {
+        width: 30px;
+        height: 30px;
+        fill: none;
+        stroke: currentColor;
+        stroke-width: 1.8;
+      }
+      .setupProtectionPromise strong {
+        display: block;
+        margin-bottom: 3px;
+        font-size: 17px;
+      }
+      .setupProtectionPromise p {
+        margin: 0;
+        max-width: 720px;
+        line-height: 1.45;
+      }
+      .setupProtectionCount {
+        position: relative;
+        z-index: 1;
+        padding: 8px 12px;
+        border-radius: 999px;
+        background: #fff;
+        color: #12734e;
+        font-size: 12px;
+        font-weight: 850;
+        white-space: nowrap;
+        box-shadow: inset 0 0 0 1px rgba(18, 115, 78, .14);
+      }
+      .setupFeatureGrid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 14px;
+      }
+      .setupFeatureCard {
+        position: relative;
+        display: grid;
+        grid-template-columns: 48px minmax(0, 1fr);
+        grid-template-rows: auto 1fr;
+        gap: 11px 14px;
+        min-height: 142px;
+        padding: 18px;
+        overflow: hidden;
+        border: 1.5px solid var(--line);
+        border-radius: 16px;
+        background: #fff;
+      }
+      .setupFeatureCard::after {
+        content: "";
+        position: absolute;
+        width: 110px;
+        height: 110px;
+        right: -54px;
+        bottom: -66px;
+        border-radius: 50%;
+        background: rgba(91, 77, 240, .055);
+      }
+      .setupFeatureCard.cost::after {
+        background: rgba(241, 180, 41, .12);
+      }
+      .setupFeatureIcon {
+        grid-row: 1 / span 2;
+        display: grid;
+        place-items: center;
+        width: 48px;
+        height: 48px;
+        border-radius: 13px;
+        background: var(--accent-soft);
+        font-size: 21px;
+      }
+      .setupFeatureCard.cost .setupFeatureIcon {
+        background: var(--yellow-soft);
+      }
+      .setupFeatureHeading {
+        position: relative;
+        z-index: 1;
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 10px;
+      }
+      .setupFeatureHeading strong {
+        font-size: 16px;
+        line-height: 1.2;
+      }
+      .setupFeatureOn {
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        color: #14744f;
+        font-size: 10px;
+        font-weight: 850;
+        white-space: nowrap;
+      }
+      .setupFeatureOn::before {
+        content: "";
+        width: 7px;
+        height: 7px;
+        border-radius: 50%;
+        background: #21a76e;
+        box-shadow: 0 0 0 3px rgba(33, 167, 110, .11);
+      }
+      .setupFeatureCard p {
+        position: relative;
+        z-index: 1;
+        margin: 0;
+        color: var(--muted);
+        font-size: 13px;
+        line-height: 1.5;
+      }
+      @media (max-width: 760px) {
+        .setupFeatureGrid { grid-template-columns: 1fr; }
+        .setupProtectionPromise { grid-template-columns: 48px minmax(0, 1fr); }
+        .setupProtectionMark { width: 48px; height: 48px; }
+        .setupProtectionCount { grid-column: 1 / -1; justify-self: start; }
+      }
       .islandSetupPreview {
         overflow: hidden;
         border: 1px solid var(--line);
@@ -3059,6 +3206,7 @@
       let selectedAgents;
       let selectedRules;
       let selectedPlugins;
+      let pluginSelectionTouched = false;
       let pluginSetupConfigs = {};
       let setupPluginSearch = "";
       let setupPluginCategory = "all";
@@ -3384,8 +3532,8 @@
         const orgCloud = setupAudience === "organization" && cloud;
         initializePluginSetupState();
         const pluginSteps = [
-          { title: "Island", subtitle: "Choose whether Leash should show the desktop Island." },
-          { title: "Choose your protection", subtitle: "Turn on the protections and cost controls you want Leash to use." }
+          { id: "island", title: "Island", subtitle: "Choose whether Leash should show the desktop Island." },
+          { id: "features", title: "Your protection", subtitle: "Meet the built-in Features Leash turns on automatically." }
         ];
         const steps = individualOpenSource
           ? [
@@ -3413,7 +3561,7 @@
                 ...pluginSteps
               ];
         const current = steps[Math.max(0, setupStep - 1)] || steps[0];
-        const currentId = current.title.toLowerCase();
+        const currentId = current.id || current.title.toLowerCase();
         const progress = Math.round((Math.max(1, setupStep) / steps.length) * 100);
         if (setupStep === 0) {
           if (root.querySelector(".welcomeHero")) {
@@ -3652,12 +3800,11 @@
             ` : ""}
             ${currentId === "features" ? `
               <section class="setupSection">
-                <div class="setupSectionHead">
-                  <h2>Choose your protection</h2>
-                  ${isDevelopmentDesktopRenderer() ? `<button type="button" class="secondary" id="addAllDevelopmentPlugins">Turn everything on</button>` : ""}
+                <div>
+                  <h2>Protection, already switched on.</h2>
+                  <p>Leash is the antivirus for AI. Every built-in Feature starts on automatically, so your agents are protected from their first command.</p>
                 </div>
-                <p>Select the protections and cost controls that matter to you. Everything is built into Leash, and you can change this later.</p>
-                ${setupPluginInstallCards()}
+                ${setupFeatureShowcaseCards()}
               </section>
             ` : ""}
             ${setupStep >= steps.length ? `<div id="setupError" class="error">${escapeHtml(setupFinishError)}</div>` : ""}
@@ -3872,7 +4019,8 @@
             return;
           }
         }
-        setupInstallProgress = { percent: 12, stage: "prepare", title: "Saving Feature choices", detail: "Applying the Features and settings you selected..." };
+        enableEverySetupFeature();
+        setupInstallProgress = { percent: 12, stage: "prepare", title: "Turning on every Feature", detail: "Activating every built-in protection and cost control..." };
         renderSetup();
         const agents = [...(selectedAgents || new Set())];
         const pluginSave = await saveSelectedPluginSettings();
@@ -4397,7 +4545,7 @@
           <div class="navSection">
             <button type="button" data-view="plugin-marketplace" class="${view === "plugin-marketplace" ? "active" : ""}">
               ${categoryIcon("all")}
-              <span class="navLabel">All Features</span>
+              <span class="navLabel">Available Features</span>
               <span class="navCount">${escapeHtml(String(availablePlugins().length))}</span>
             </button>
           </div>
@@ -4932,12 +5080,15 @@
           return renderHistory();
         }
         const transcript = (item.payload?.transcript || []).slice(-5).reverse();
+        const waitingForDecision = ["ask", "waiting", "pending", "review", "needs_review"].includes(String(item.decision || "").toLowerCase())
+          && !item.resolution;
         root.innerHTML = `
           <div class="head">
             <div><h1>What happened</h1><p>${escapeHtml(displayEventSummary(item))}</p></div>
             <div>
               <div class="headActions">
                 ${notificationCenterHtml()}
+                ${waitingForDecision ? `<button class="secondary dangerButton" id="denyEvent">Deny</button><button class="primary" id="approveEvent">Approve</button>` : ""}
                 <button class="secondary" id="shareEvent">Share</button>
                 <button class="secondary" id="copyEvent">Copy details</button>
                 <button class="secondary" id="backHistory">Back</button>
@@ -4979,6 +5130,41 @@
           const shared = await shareEvent(item);
           showEventNotice(shared ? "Share opened." : "Sharing is not available here, so JSON was copied.");
         };
+        const resolveEvent = async (resolution) => {
+          const denyButton = document.getElementById("denyEvent");
+          const approveButton = document.getElementById("approveEvent");
+          if (denyButton) denyButton.disabled = true;
+          if (approveButton) approveButton.disabled = true;
+          showEventNotice(resolution === "allow" ? "Approving…" : "Denying…");
+          const skillPath = typeof item.payload?.skillPath === "string"
+            ? item.payload.skillPath
+            : undefined;
+          const result = await window.openleash.resolve?.(
+            item.id,
+            resolution,
+            "",
+            0,
+            skillPath ? { skillPath } : undefined,
+          );
+          if (!result?.ok) {
+            if (denyButton) denyButton.disabled = false;
+            if (approveButton) approveButton.disabled = false;
+            showEventNotice("Leash could not save that decision. Try again.");
+            return;
+          }
+          item.resolution = resolution;
+          item.resolved_at = new Date().toISOString();
+          state.pending = (state.pending || []).filter((pending) => String(pending.id) !== String(item.id));
+          selectedEventId = "";
+          view = eventReturnView === "plugin-detail" ? "plugin-detail" : selectedAgentHistoryKind ? "agent-history" : "history";
+          renderView();
+          setTimeout(() => {
+            if (view === "history" || view === "agent-history")
+              void loadHistoryPage(1, view === "agent-history" ? selectedAgentHistoryKind : "", true);
+          }, 600);
+        };
+        document.getElementById("denyEvent")?.addEventListener("click", () => void resolveEvent("deny"));
+        document.getElementById("approveEvent")?.addEventListener("click", () => void resolveEvent("allow"));
         bindNotificationCenter();
       }
 
@@ -5468,6 +5654,8 @@
       function filePathForEvent(item) {
         if (item.file_path) return String(item.file_path);
         const payload = item.payload || {};
+        if (typeof payload.skillPath === "string" && payload.skillPath)
+          return normalizePathForDisplay(payload.skillPath, item.project_path);
         const toolInput = payload.tool?.input;
         if (toolInput && typeof toolInput === "object") {
           const direct = toolInput.file_path || toolInput.path || toolInput.filename || toolInput.filepath;
@@ -6077,14 +6265,17 @@
       function initializePluginSetupState(force = false) {
         const plugins = state.plugins || [];
         if ((force || !selectedPlugins) && plugins.length > 0) {
-          selectedPlugins = new Set(plugins.filter((plugin) => plugin.organizationPolicy?.mandatory || plugin.settings?.enabled === true).map((plugin) => plugin.id));
+          selectedPlugins = pluginSelectionTouched && selectedPlugins
+            ? new Set([...selectedPlugins].filter((pluginId) => plugins.some((plugin) => plugin.id === pluginId)))
+            : new Set(defaultPluginSelectionIds(plugins));
         }
         for (const plugin of plugins) {
           if (!pluginSetupConfigs[plugin.id] || force) {
+            const enabled = Boolean(plugin.organizationPolicy?.mandatory || selectedPlugins?.has(plugin.id));
             pluginSetupConfigs[plugin.id] = {
               ...(plugin.defaultConfig || {}),
               ...(plugin.settings?.config || {}),
-              enabled: plugin.organizationPolicy?.mandatory || plugin.settings?.enabled === true
+              enabled
             };
           }
         }
@@ -6112,48 +6303,9 @@
         return aliases[lower] || lower.replace(/[\s_]+/g, "-");
       }
 
-      const featurePresentations = {
-        "blast-radius": {
-          name: "Destruction Protection",
-          description: "Stops agents before they delete files, damage databases, or break important systems.",
-          category: "protection"
-        },
-        "code-scanner": {
-          name: "Code Scanner",
-          description: "Reviews AI-generated code for security weaknesses before they become a problem.",
-          category: "protection"
-        },
-        "data-leakage-prevention": {
-          name: "Private Data Protection",
-          description: "Keeps passwords, personal information, and other sensitive data from being shared by mistake.",
-          category: "protection"
-        },
-        "mcp-scanner": {
-          name: "Connected Tools",
-          description: "Shows which outside tools and services your agents can use and what they do with them.",
-          category: "protection"
-        },
-        "rules-enforcer": {
-          name: "Your Rules",
-          description: "Makes agents follow the boundaries you choose and asks before they cross one.",
-          category: "protection"
-        },
-        "sensitive-access": {
-          name: "Secret Access Protection",
-          description: "Warns you when an agent tries to open passwords, private keys, or other secret files.",
-          category: "protection"
-        },
-        "skill-scanner": {
-          name: "Instruction Scanning",
-          description: "Checks agent instructions for hidden or suspicious behavior before it can spread.",
-          category: "protection"
-        },
-        "token-saver": {
-          name: "Token Saver",
-          description: "Reduces repeated context so agents use fewer paid AI tokens without losing important details.",
-          category: "cost"
-        }
-      };
+      const featurePresentations = Object.fromEntries(
+        __LEASH_FEATURE_PRESENTATIONS__.map((presentation) => [presentation.slug, presentation])
+      );
 
       function pluginCompatibilityName(plugin) {
         return canonicalPluginSlug(plugin.slug || plugin.marketplace?.slug || plugin.id || plugin.name);
@@ -6198,17 +6350,7 @@
         if (marketplaceIcon && !/^[A-Z0-9]{1,3}$/.test(marketplaceIcon)) return marketplaceIcon;
         const directIcon = String(plugin.iconText || "").trim();
         if (directIcon && !/^[A-Z0-9]{1,3}$/.test(directIcon)) return directIcon;
-        const selectedIcons = {
-          "token-saver": "✂️",
-          "blast-radius": "💥",
-          "data-leakage-prevention": "🤫",
-          "mcp-scanner": "📡",
-          "rules-enforcer": "📏",
-          "sensitive-access": "🔐",
-          "skill-scanner": "🕵️",
-          "code-scanner": "☣️"
-        };
-        const selected = selectedIcons[pluginCompatibilityName(plugin)];
+        const selected = featurePresentation(plugin)?.iconText;
         if (selected) return selected;
         if (marketplaceIcon) return marketplaceIcon;
         if (directIcon) return directIcon;
@@ -6241,6 +6383,43 @@
         const categoryOrder = { protection: 0, cost: 1, visibility: 2, other: 3 };
         const categoryDifference = (categoryOrder[pluginCategory(left)] ?? 9) - (categoryOrder[pluginCategory(right)] ?? 9);
         return categoryDifference || pluginName(left).localeCompare(pluginName(right));
+      }
+
+      function setupFeatureShowcaseCards() {
+        const plugins = [...(state.plugins || [])]
+          .filter((plugin) => plugin.settings?.runtimeAvailable !== false)
+          .sort((left, right) => {
+            const leftOrder = featurePresentation(left)?.showcaseOrder ?? 999;
+            const rightOrder = featurePresentation(right)?.showcaseOrder ?? 999;
+            return leftOrder - rightOrder || pluginName(left).localeCompare(pluginName(right));
+          });
+        return `
+          <div class="setupProtectionPromise">
+            <span class="setupProtectionMark" aria-hidden="true">
+              <svg viewBox="0 0 32 32"><path d="M16 3.5 26 7v7.5c0 6.4-4 11.2-10 13.5-6-2.3-10-7.1-10-13.5V7z"></path><path d="m11 15 3.1 3.2 6.9-7"></path></svg>
+            </span>
+            <div>
+              <strong>Complete protection from day one</strong>
+              <p>Every built-in Feature is ready from the first command, with clear controls available later in Leash.</p>
+            </div>
+            <span class="setupProtectionCount">${escapeHtml(String(plugins.length))} Features on</span>
+          </div>
+          <div class="setupFeatureGrid">
+            ${plugins.map((plugin) => {
+              const category = pluginCategory(plugin);
+              return `
+                <article class="setupFeatureCard ${escapeHtml(pluginCategoryClass(category))}">
+                  <span class="setupFeatureIcon" aria-hidden="true">${pluginIconHtml(plugin)}</span>
+                  <div class="setupFeatureHeading">
+                    <strong>${escapeHtml(pluginName(plugin))}</strong>
+                    <span class="setupFeatureOn">On automatically</span>
+                  </div>
+                  <p>${escapeHtml(pluginValueLine(plugin))}</p>
+                </article>
+              `;
+            }).join("")}
+          </div>
+        `;
       }
 
       function setupPluginInstallCards() {
@@ -6514,13 +6693,20 @@
           || normalized.endsWith("/apps/desktop-client/dist/window.html");
       }
 
-      function developmentPluginSelectionIds(plugins) {
+      function defaultPluginSelectionIds(plugins) {
         return (plugins || [])
           .filter((plugin) => plugin?.settings?.runtimeAvailable !== false)
           .map((plugin) => plugin.id)
           .filter(Boolean);
       }
       /* development-plugin-selection:end */
+
+      function enableEverySetupFeature() {
+        selectedPlugins = new Set(defaultPluginSelectionIds(state.plugins));
+        for (const plugin of state.plugins || []) {
+          ensurePluginSetupConfig(plugin.id).enabled = selectedPlugins.has(plugin.id);
+        }
+      }
 
       function bindPluginSelection() {
         root.querySelectorAll("[data-plugin-install]").forEach((input) => {
@@ -6539,7 +6725,8 @@
         const button = document.getElementById("addAllDevelopmentPlugins");
         if (!button || !isDevelopmentDesktopRenderer()) return;
         button.onclick = () => {
-          selectedPlugins = new Set(developmentPluginSelectionIds(state.plugins));
+          pluginSelectionTouched = true;
+          selectedPlugins = new Set(defaultPluginSelectionIds(state.plugins));
           for (const plugin of state.plugins || []) {
             ensurePluginSetupConfig(plugin.id).enabled = selectedPlugins.has(plugin.id);
           }
@@ -6549,6 +6736,7 @@
 
       function setPluginSelected(input, checked, flash = false) {
         if (!selectedPlugins) selectedPlugins = new Set();
+        pluginSelectionTouched = true;
         const pluginId = input.dataset.pluginInstall;
         if (!pluginId) return;
         const plugin = (state.plugins || []).find((item) => item.id === pluginId);
