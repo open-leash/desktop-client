@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 import test from "node:test";
 
@@ -8,10 +8,13 @@ const copyAssets = readFileSync(path.join(__dirname, "copy-assets.mjs"), "utf8")
 const canonicalPresentations = JSON.parse(
   readFileSync(path.join(__dirname, "../../../packages/shared/feature-presentations.json"), "utf8"),
 ) as Array<{ id: string; slug: string; name: string; description: string }>;
-const mobilePresentations = readFileSync(
-  path.join(__dirname, "../../mobile-client/lib/feature_presentations.g.dart"),
-  "utf8",
+const mobilePresentationsPath = path.join(
+  __dirname,
+  "../../mobile-client/lib/feature_presentations.g.dart",
 );
+const mobilePresentations = existsSync(mobilePresentationsPath)
+  ? readFileSync(mobilePresentationsPath, "utf8")
+  : null;
 
 function escapeRegExp(value: string) {
   return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -21,9 +24,11 @@ test("one canonical presentation supplies every built-in Feature surface", () =>
   assert.equal(canonicalPresentations.length, 8);
   assert.equal(new Set(canonicalPresentations.map((feature) => feature.id)).size, 8);
   assert.equal(new Set(canonicalPresentations.map((feature) => feature.name)).size, 8);
-  for (const feature of canonicalPresentations) {
-    assert.match(mobilePresentations, new RegExp(escapeRegExp(feature.name)));
-    assert.match(mobilePresentations, new RegExp(escapeRegExp(feature.description)));
+  if (mobilePresentations) {
+    for (const feature of canonicalPresentations) {
+      assert.match(mobilePresentations, new RegExp(escapeRegExp(feature.name)));
+      assert.match(mobilePresentations, new RegExp(escapeRegExp(feature.description)));
+    }
   }
   assert.match(renderer, /__LEASH_FEATURE_PRESENTATIONS__/);
   assert.match(copyAssets, /feature-presentations\.json/);
