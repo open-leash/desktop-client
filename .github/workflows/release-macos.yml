@@ -63,6 +63,7 @@ jobs:
           npm run build -w @openleash/desktop-client
 
       - name: Build unsigned development DMG
+        if: ${{ !startsWith(github.ref, 'refs/tags/') }}
         working-directory: apps/desktop-client
         shell: bash
         env:
@@ -73,6 +74,7 @@ jobs:
           npx electron-builder --config electron-builder.mac.yml --mac --arm64 --publish never
 
       - name: Verify unsigned development package
+        if: ${{ !startsWith(github.ref, 'refs/tags/') }}
         working-directory: apps/desktop-client
         shell: bash
         run: |
@@ -81,6 +83,62 @@ jobs:
           test -n "$app_path"
           test -x "$app_path/Contents/MacOS/Leash"
           test -x "$app_path/Contents/Resources/app.asar.unpacked/dist/openleash-island"
+
+      - name: Require production signing and notarization credentials
+        if: startsWith(github.ref, 'refs/tags/')
+        shell: bash
+        env:
+          CSC_LINK: ${{ secrets.MAC_CSC_LINK }}
+          CSC_KEY_PASSWORD: ${{ secrets.MAC_CSC_KEY_PASSWORD }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          set -euo pipefail
+          test -n "$CSC_LINK"
+          test -n "$CSC_KEY_PASSWORD"
+          test -n "$APPLE_ID"
+          test -n "$APPLE_APP_SPECIFIC_PASSWORD"
+          test -n "$APPLE_TEAM_ID"
+
+      - name: Build signed and notarized production DMG
+        if: startsWith(github.ref, 'refs/tags/')
+        working-directory: apps/desktop-client
+        shell: bash
+        env:
+          CSC_LINK: ${{ secrets.MAC_CSC_LINK }}
+          CSC_KEY_PASSWORD: ${{ secrets.MAC_CSC_KEY_PASSWORD }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          set -euo pipefail
+          npx electron-rebuild -v 43.3.0 -w better-sqlite3 --force
+          node - <<'NODE'
+          const fs = require("node:fs");
+          const yaml = require("js-yaml");
+          const config = yaml.load(fs.readFileSync("electron-builder.mac.yml", "utf8"));
+          config.forceCodeSigning = true;
+          delete config.mac.identity;
+          config.mac.notarize = true;
+          fs.writeFileSync("electron-builder.mac.release.yml", yaml.dump(config));
+          NODE
+          npx electron-builder --config electron-builder.mac.release.yml --mac --arm64 --publish never
+
+      - name: Verify production signature and notarization
+        if: startsWith(github.ref, 'refs/tags/')
+        working-directory: apps/desktop-client
+        shell: bash
+        run: |
+          set -euo pipefail
+          app_path=$(find release/macos -type d -name 'Leash.app' -print -quit)
+          dmg_path=$(find release/macos -maxdepth 1 -type f -name 'Leash-*.dmg' -print -quit)
+          test -n "$app_path"
+          test -n "$dmg_path"
+          codesign --verify --deep --strict --verbose=4 "$app_path"
+          spctl --assess --type execute --verbose=4 "$app_path"
+          xcrun stapler validate "$app_path"
+          xcrun stapler validate "$dmg_path"
 
       - name: Create checksums
         working-directory: apps/desktop-client/release/macos
