@@ -20,6 +20,7 @@ import crypto from "node:crypto";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { shouldResetLocalState } from "./install-state";
 import {
   agentIconFor,
   detectLocalAgentProtections,
@@ -546,6 +547,19 @@ async function openTrustedExternalUrl(rawUrl: string) {
       `Refusing to open unsupported external URL scheme: ${url.protocol}`,
     );
   }
+  if (process.platform === "darwin") {
+    await new Promise<void>((resolve, reject) => {
+      const child = spawn("/usr/bin/open", [url.toString()], {
+        stdio: "ignore",
+      });
+      child.once("error", reject);
+      child.once("exit", (code) => {
+        if (code === 0) resolve();
+        else reject(new Error(`macOS could not open the browser (exit ${code ?? "unknown"}).`));
+      });
+    });
+    return;
+  }
   await shell.openExternal(url.toString());
 }
 
@@ -650,38 +664,6 @@ function appBundlePath() {
   return process.execPath.slice(0, markerIndex + ".app".length);
 }
 
-function localStateLooksOlderThanCurrentApp(identity: string) {
-  const current = parseInstallIdentity(identity);
-  if (!current?.ctimeMs) return false;
-  try {
-    const dbPath = path.join(app.getPath("userData"), "openleash.sqlite");
-    const legacyPath = path.join(app.getPath("userData"), "store.json");
-    const candidates = [dbPath, legacyPath]
-      .filter((candidate) => fs.existsSync(candidate))
-      .map((candidate) => fs.statSync(candidate).mtimeMs);
-    if (candidates.length === 0) return false;
-    return Math.min(...candidates) + 60_000 < current.ctimeMs;
-  } catch {
-    return false;
-  }
-}
-
-function isInstalledApplicationIdentity(identity: string) {
-  const current = parseInstallIdentity(identity);
-  if (process.platform !== "darwin") return true;
-  return Boolean(current?.path?.startsWith("/Applications/"));
-}
-
-function parseInstallIdentity(identity?: string) {
-  try {
-    return identity
-      ? (JSON.parse(identity) as { path?: string; ctimeMs?: number })
-      : undefined;
-  } catch {
-    return undefined;
-  }
-}
-
 function syncInstallIdentity() {
   const identity = currentInstallIdentity();
   if (!identity) return false;
@@ -691,14 +673,13 @@ function syncInstallIdentity() {
   const explicitFreshStart = process.argv.includes("--fresh-install");
   if (previous === identity && !explicitFreshStart) return false;
 
-  const shouldReset =
-    explicitFreshStart ||
-    (!preserveSettings && Boolean(previous) && previous !== identity) ||
-    (!preserveSettings &&
-      !previous &&
-      localServer.setupComplete &&
-      (!isInstalledApplicationIdentity(identity) ||
-        localStateLooksOlderThanCurrentApp(identity)));
+  const shouldReset = shouldResetLocalState({
+    currentIdentity: identity,
+    previousIdentity: previous,
+    setupComplete: localServer.setupComplete,
+    preserveSettings,
+    explicitFreshStart,
+  });
 
   if (shouldReset) {
     localServer.resetAllLocalState();
@@ -3754,6 +3735,9 @@ async function fetchUpdateManifest(): Promise<UpdateManifest | undefined> {
 }
 
 function updateFeedUrl() {
+  // Development launches always run the current checkout. Never let an
+  // inherited feed setting offer a packaged release over local source.
+  if (!app.isPackaged) return undefined;
   const args = process.argv.slice(1);
   const mode =
     readCliValue(args, "--update-mode") ?? process.env.OPENLEASH_UPDATE_MODE;

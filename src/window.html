@@ -3110,6 +3110,11 @@
         localStorage.removeItem("leash-read-history");
       }
       const readHistoryIds = new Set(storedReadHistoryIds.map(String));
+      const storedNotificationBaseline = Number(localStorage.getItem("leash-notification-baseline-at"));
+      const notificationBaselineAt = Number.isFinite(storedNotificationBaseline) && storedNotificationBaseline > 0
+        ? storedNotificationBaseline
+        : Date.now();
+      localStorage.setItem("leash-notification-baseline-at", String(notificationBaselineAt));
       let selectedMcpServerId = "";
       let selectedSkillPath = "";
       let pluginViewCategory = "all";
@@ -3388,7 +3393,7 @@
               { title: "Connect", subtitle: "Pick how Leash runs." },
               { title: "Local backend", subtitle: "Start your open-source backend." },
               { title: "AI provider", subtitle: "Connect the AI Leash will use for safety checks." },
-              { title: "Agents", subtitle: "Choose agents to manage." },
+              { title: "Agents", subtitle: "Choose agents to protect." },
               ...pluginSteps
             ]
           : individualCloud
@@ -3397,7 +3402,7 @@
                 { title: "Connect", subtitle: "Pick how Leash runs." },
                 { title: "Sign in", subtitle: "Sign in to Leash Cloud." },
                 { title: "AI provider", subtitle: "Choose how Leash evaluates agent actions." },
-                { title: "Agents", subtitle: "Choose agents to manage." },
+                { title: "Agents", subtitle: "Choose agents to protect." },
                 ...pluginSteps
               ]
             : [
@@ -3431,12 +3436,12 @@
               <div class="welcomeCopy">
                 <div class="welcomeKicker">Control your agents</div>
                 <h1>Leash</h1>
-                <p>Understand and control AI agents wherever they run.</p>
+                <p>Leash Desktop detects the AI agents on this computer and helps you protect them.</p>
               </div>
               <div class="welcomeTiles">
-                <div class="welcomeTile"><strong>See what they do</strong><p>Track agents commands, files, MCPs, Skills, tools, usage and history.</p></div>
-                <div class="welcomeTile"><strong>Control risky actions</strong><p>Approve dangerous or destructive actions to you files, Git, databases, environment, secret access etc.</p></div>
-                <div class="welcomeTile"><strong>Stay in control anywhere</strong><p>Unleash your agents even when you're on the go from your phone.</p></div>
+                <div class="welcomeTile"><strong>See what they do</strong><p>Track agent commands, files, connected tools, usage, and history.</p></div>
+                <div class="welcomeTile"><strong>Control risky actions</strong><p>Approve risky changes to your files, code, databases, settings, and private data.</p></div>
+                <div class="welcomeTile"><strong>Mobile approvals are coming soon</strong><p>Review agent decisions from your phone when you are away from your computer.</p></div>
               </div>
               <div class="welcomeActions">
                 <button class="primary" id="setupNext">Next</button>
@@ -4569,7 +4574,12 @@
       }
 
       function unreadHistoryItems() {
-        return visibleHistoryItems().filter((item) => !readHistoryIds.has(String(item.id)));
+        return visibleHistoryItems().filter((item) => {
+          const createdAt = Date.parse(item.created_at || item.createdAt || "");
+          return Number.isFinite(createdAt)
+            && createdAt > notificationBaselineAt
+            && !readHistoryIds.has(String(item.id));
+        });
       }
 
       function markHistoryRead(id) {
