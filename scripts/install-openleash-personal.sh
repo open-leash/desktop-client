@@ -270,9 +270,24 @@ reset_settings() {
   if [[ "$KEEP_SETTINGS" -eq 1 ]]; then
     return
   fi
-  local support_dir="$HOME/Library/Application Support/OpenLeash"
-  log "Removing old Leash settings..."
-  rm -rf "$support_dir"
+  log "Removing previous Leash local state for a clean installation..."
+  if [[ -f "$OPENLEASH_BACKEND_DIR/docker-compose.yml" ]] && command -v docker >/dev/null 2>&1; then
+    local compose
+    compose="$(docker_compose_cmd)"
+    (cd "$OPENLEASH_BACKEND_DIR" && $compose down -v --remove-orphans) || true
+  fi
+  rm -rf \
+    "$HOME/.openleash" \
+    "$HOME/Library/Application Support/Leash" \
+    "$HOME/Library/Application Support/OpenLeash" \
+    "$HOME/Library/Logs/Leash" \
+    "$HOME/Library/Logs/OpenLeash" \
+    "$HOME/Library/WebKit/leash-island" \
+    "$HOME/Library/WebKit/openleash-island" \
+    "$HOME/Library/Caches/leash-island" \
+    "$HOME/Library/Caches/openleash-island" \
+    "$HOME/Library/Saved Application State/com.openleash.personal.savedState" \
+    "$HOME/Library/Saved Application State/com.openleash.openleash.savedState"
 }
 
 docker_compose_cmd() {
@@ -429,6 +444,16 @@ if [[ "$UNINSTALL" -eq 1 ]]; then
   exit 0
 fi
 
+# The updater always passes --keep-settings. If this installation already has
+# the Personal Open Source backend, upgrade that backend in place as part of the
+# same update: pull the release image, apply migrations, seed idempotently, and
+# restart the client API. A normal install intentionally starts with no backend
+# or desktop state.
+if [[ "$KEEP_SETTINGS" -eq 1 && -f "$OPENLEASH_BACKEND_DIR/docker-compose.yml" ]]; then
+  INDIVIDUAL_OPEN_SOURCE=1
+  CLIENT_MODE="custom"
+fi
+
 DMG_PATH="$(resolve_dmg)"
 [[ -z "$RULES_FILE" || -f "$RULES_FILE" ]] || die "Rules JSON not found: $RULES_FILE"
 
@@ -453,8 +478,10 @@ fi
 
 if [[ "$NO_LAUNCH" -eq 0 ]]; then
   args=()
-  if [[ "$KEEP_SETTINGS" -eq 0 ]]; then
-    args+=(--reset-setup)
+  if [[ "$KEEP_SETTINGS" -eq 1 ]]; then
+    args+=(--keep-settings)
+  else
+    args+=(--fresh-install)
   fi
   if [[ -n "$RULES_FILE" ]]; then
     args+=(--import-rules "$RULES_FILE")
