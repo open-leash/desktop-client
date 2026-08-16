@@ -482,6 +482,9 @@ SOURCE_APP="$(find "$MOUNT_POINT" -maxdepth 2 -name "$APP_NAME.app" -type d | he
 TARGET_APP="$(copy_app "$SOURCE_APP")"
 if [[ "$HAD_EXISTING_LOCAL_STATE" -eq 1 ]]; then
   cleanup_existing_integrations "$TARGET_APP"
+  # Electron can release its process before the macOS single-instance lock is
+  # available to the replacement app. Give LaunchServices a moment to settle.
+  sleep 1
 fi
 reset_settings
 
@@ -490,7 +493,7 @@ if [[ "$INDIVIDUAL_OPEN_SOURCE" -eq 1 ]]; then
 fi
 
 if [[ "$NO_LAUNCH" -eq 0 ]]; then
-  args=()
+  args=(--show-window)
   if [[ "$KEEP_SETTINGS" -eq 1 ]]; then
     args+=(--keep-settings)
   else
@@ -508,10 +511,17 @@ if [[ "$NO_LAUNCH" -eq 0 ]]; then
   log "Starting $APP_NAME..."
   app_executable="$TARGET_APP/Contents/MacOS/$APP_NAME"
   if [[ -x "$app_executable" ]]; then
-    if [[ "${#args[@]}" -gt 0 ]]; then
-      nohup env -u ELECTRON_RUN_AS_NODE "$app_executable" "${args[@]}" >/tmp/openleash-launch.log 2>&1 &
-    else
-      nohup env -u ELECTRON_RUN_AS_NODE "$app_executable" >/tmp/openleash-launch.log 2>&1 &
+    launch_label="com.openleash.installer-launch"
+    launchctl remove "$launch_label" >/dev/null 2>&1 || true
+    launchctl submit -l "$launch_label" -- /usr/bin/env -u ELECTRON_RUN_AS_NODE "$app_executable" "${args[@]}"
+    sleep 2
+    if ! launchctl list "$launch_label" >/dev/null 2>&1; then
+      log "The first launch ended early; retrying once..."
+      sleep 1
+      launchctl submit -l "$launch_label" -- /usr/bin/env -u ELECTRON_RUN_AS_NODE "$app_executable" "${args[@]}"
+      sleep 2
+      launchctl list "$launch_label" >/dev/null 2>&1 ||
+        die "Leash was installed but could not stay running."
     fi
   else
     if [[ "${#args[@]}" -gt 0 ]]; then
