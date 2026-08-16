@@ -1,3 +1,5 @@
+export { LEASH_FEATURE_PRESENTATIONS, LEASH_FEATURE_SHOWCASE, leashFeaturePresentation, } from "./feature-presentations.js";
+export type { LeashFeaturePresentation, LeashFeatureSlug, } from "./feature-presentations.js";
 export type AgentKind = "claude-code" | "codex" | "openclaw" | "nanoclaw" | "salesforce-agentforce" | "azure-ai-foundry" | "microsoft-copilot-studio" | "aws-bedrock-agentcore" | "google-vertex-ai" | "n8n" | "zapier-agents" | "openai-codex-cloud" | "cursor" | "gemini" | "opencode" | "cline" | "continue" | "windsurf" | "github-copilot" | "kiro" | "aider" | "zed" | "unknown";
 export type HookEventName = "SessionStart" | "UserPromptSubmit" | "PreToolUse" | "PostToolUse" | "SubagentStart" | "SubagentStop" | "Notification" | "SessionEnd" | "Stop";
 export type PipelineEvent = "openleash.startup" | "agent.detected" | "skill.detected" | "skill.changed" | "skill.removed" | "log.emitted" | "prompt.beforeSubmit" | "provider.request.beforeSend" | "plugin.tool.execute" | "agent.response" | "tool.beforeUse" | "tool.afterUse" | "session.started" | "session.ended";
@@ -158,8 +160,8 @@ export declare function firstPartyFeature(slug: string, _version: string, option
 export declare const FIRST_PARTY_PLUGIN_MANIFESTS: ({
     id: string;
     slug: string;
-    name: string;
-    description: string;
+    name: "Token Saver";
+    description: "Reduces repeated context so agents use fewer paid AI tokens without losing important details.";
     repositoryUrl: string;
     version: string;
     publisher: string;
@@ -244,8 +246,8 @@ export declare const FIRST_PARTY_PLUGIN_MANIFESTS: ({
 } | {
     id: string;
     slug: string;
-    name: string;
-    description: string;
+    name: "Instruction Scanning";
+    description: "Checks agent instructions for hidden or suspicious behavior before it can spread.";
     repositoryUrl: string;
     version: string;
     publisher: string;
@@ -285,8 +287,8 @@ export declare const FIRST_PARTY_PLUGIN_MANIFESTS: ({
 } | {
     id: string;
     slug: string;
-    name: string;
-    description: string;
+    name: "Private Data Protection";
+    description: "Keeps passwords, personal information, and other sensitive data from being shared by mistake.";
     repositoryUrl: string;
     version: string;
     publisher: string;
@@ -359,8 +361,8 @@ export declare const FIRST_PARTY_PLUGIN_MANIFESTS: ({
 } | {
     id: string;
     slug: string;
-    name: string;
-    description: string;
+    name: "Secret Access Protection";
+    description: "Warns you when an agent tries to open passwords, private keys, or other secret files.";
     repositoryUrl: string;
     version: string;
     publisher: string;
@@ -430,8 +432,8 @@ export declare const FIRST_PARTY_PLUGIN_MANIFESTS: ({
 } | {
     id: string;
     slug: string;
-    name: string;
-    description: string;
+    name: "Destruction Protection";
+    description: "Stops agents before they delete files, damage databases, or break important systems.";
     repositoryUrl: string;
     version: string;
     publisher: string;
@@ -501,8 +503,8 @@ export declare const FIRST_PARTY_PLUGIN_MANIFESTS: ({
 } | {
     id: string;
     slug: string;
-    name: string;
-    description: string;
+    name: "Your Rules";
+    description: "Makes agents follow the boundaries you choose and asks before they cross one.";
     repositoryUrl: string;
     version: string;
     publisher: string;
@@ -581,8 +583,8 @@ export declare const FIRST_PARTY_PLUGIN_MANIFESTS: ({
 } | {
     id: string;
     slug: string;
-    name: string;
-    description: string;
+    name: "Tool Scanner";
+    description: "Scans the outside tools and services your agents can use and shows what they do.";
     repositoryUrl: string;
     version: string;
     publisher: string;

@@ -1,3 +1,5 @@
+import { LEASH_FEATURE_PRESENTATIONS } from "./feature-presentations.js";
+export { LEASH_FEATURE_PRESENTATIONS, LEASH_FEATURE_SHOWCASE, leashFeaturePresentation, } from "./feature-presentations.js";
 export function firstPartyFeature(slug, _version, options = {}) {
     return {
         type: "in-process",
@@ -10,8 +12,8 @@ export const FIRST_PARTY_PLUGIN_MANIFESTS = [
     {
         id: "openleash.prompt-compression",
         slug: "token-saver",
-        name: "AI Cost Control",
-        description: "Reduces repeated context so agents use fewer paid AI tokens without losing important details.",
+        name: LEASH_FEATURE_PRESENTATIONS["token-saver"].name,
+        description: LEASH_FEATURE_PRESENTATIONS["token-saver"].description,
         repositoryUrl: "https://github.com/open-leash/plugin-token-saver",
         version: "1.1.3",
         publisher: "openleash",
@@ -41,7 +43,7 @@ export const FIRST_PARTY_PLUGIN_MANIFESTS = [
             }
         },
         defaultConfig: {
-            enabled: false,
+            enabled: true,
             level: "standard",
             conciseResponse: false,
             minimumChars: 1200,
@@ -54,8 +56,8 @@ export const FIRST_PARTY_PLUGIN_MANIFESTS = [
     {
         id: "openleash.skill-scanner",
         slug: "skill-scanner",
-        name: "Instruction Safety",
-        description: "Checks agent instructions for hidden or suspicious behavior before it can spread.",
+        name: LEASH_FEATURE_PRESENTATIONS["skill-scanner"].name,
+        description: LEASH_FEATURE_PRESENTATIONS["skill-scanner"].description,
         repositoryUrl: "https://github.com/open-leash/plugin-skill-scanner",
         version: "1.0.2",
         publisher: "openleash",
@@ -75,8 +77,8 @@ export const FIRST_PARTY_PLUGIN_MANIFESTS = [
     {
         id: "openleash.dlp",
         slug: "data-leakage-prevention",
-        name: "Private Data Protection",
-        description: "Keeps passwords, personal information, and other sensitive data from being shared by mistake.",
+        name: LEASH_FEATURE_PRESENTATIONS["data-leakage-prevention"].name,
+        description: LEASH_FEATURE_PRESENTATIONS["data-leakage-prevention"].description,
         repositoryUrl: "https://github.com/open-leash/plugin-data-leakage-prevention",
         version: "1.0.0",
         publisher: "openleash",
@@ -101,7 +103,7 @@ export const FIRST_PARTY_PLUGIN_MANIFESTS = [
             }
         },
         defaultConfig: {
-            enabled: false,
+            enabled: true,
             action: "ask",
             categories: ["pii", "phi", "tokens", "keys", "credentials"]
         },
@@ -110,8 +112,8 @@ export const FIRST_PARTY_PLUGIN_MANIFESTS = [
     {
         id: "openleash.sensitive-access",
         slug: "sensitive-access",
-        name: "Secret Access Protection",
-        description: "Warns you when an agent tries to open passwords, private keys, or other secret files.",
+        name: LEASH_FEATURE_PRESENTATIONS["sensitive-access"].name,
+        description: LEASH_FEATURE_PRESENTATIONS["sensitive-access"].description,
         repositoryUrl: "https://github.com/open-leash/plugin-sensitive-access",
         version: "1.0.0",
         publisher: "openleash",
@@ -143,8 +145,8 @@ export const FIRST_PARTY_PLUGIN_MANIFESTS = [
     {
         id: "openleash.blast-radius",
         slug: "blast-radius",
-        name: "Destruction Protection",
-        description: "Stops agents before they delete files, damage databases, or break important systems.",
+        name: LEASH_FEATURE_PRESENTATIONS["blast-radius"].name,
+        description: LEASH_FEATURE_PRESENTATIONS["blast-radius"].description,
         repositoryUrl: "https://github.com/open-leash/plugin-blast-radius",
         version: "1.0.3",
         publisher: "openleash",
@@ -176,8 +178,8 @@ export const FIRST_PARTY_PLUGIN_MANIFESTS = [
     {
         id: "openleash.rules-enforcer",
         slug: "rules-enforcer",
-        name: "Your Rules",
-        description: "Makes agents follow the boundaries you choose and asks before they cross one.",
+        name: LEASH_FEATURE_PRESENTATIONS["rules-enforcer"].name,
+        description: LEASH_FEATURE_PRESENTATIONS["rules-enforcer"].description,
         repositoryUrl: "https://github.com/open-leash/plugin-rules-enforcer",
         version: "1.0.0",
         publisher: "openleash",
@@ -215,8 +217,8 @@ export const FIRST_PARTY_PLUGIN_MANIFESTS = [
     {
         id: "openleash.mcp-scanner",
         slug: "mcp-scanner",
-        name: "Connected Tools",
-        description: "Shows which outside tools and services your agents can use and what they do with them.",
+        name: LEASH_FEATURE_PRESENTATIONS["mcp-scanner"].name,
+        description: LEASH_FEATURE_PRESENTATIONS["mcp-scanner"].description,
         repositoryUrl: "https://github.com/open-leash/plugin-mcp-scanner",
         version: "1.0.0",
         publisher: "openleash",

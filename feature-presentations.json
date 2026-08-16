@@ -1,0 +1,74 @@
+[
+  {
+    "id": "openleash.blast-radius",
+    "slug": "blast-radius",
+    "name": "Destruction Protection",
+    "description": "Stops agents before they delete files, damage databases, or break important systems.",
+    "category": "protection",
+    "iconText": "💥",
+    "showcaseOrder": 1
+  },
+  {
+    "id": "openleash.code-scanner",
+    "slug": "code-scanner",
+    "name": "Code Scanner",
+    "description": "Reviews AI-generated code for security weaknesses before they become a problem.",
+    "category": "protection",
+    "iconText": "☣️",
+    "showcaseOrder": 2
+  },
+  {
+    "id": "openleash.dlp",
+    "slug": "data-leakage-prevention",
+    "name": "Private Data Protection",
+    "description": "Keeps passwords, personal information, and other sensitive data from being shared by mistake.",
+    "category": "protection",
+    "iconText": "🤫",
+    "showcaseOrder": 3
+  },
+  {
+    "id": "openleash.sensitive-access",
+    "slug": "sensitive-access",
+    "name": "Secret Access Protection",
+    "description": "Warns you when an agent tries to open passwords, private keys, or other secret files.",
+    "category": "protection",
+    "iconText": "🔐",
+    "showcaseOrder": 4
+  },
+  {
+    "id": "openleash.skill-scanner",
+    "slug": "skill-scanner",
+    "name": "Instruction Scanning",
+    "description": "Checks agent instructions for hidden or suspicious behavior before it can spread.",
+    "category": "protection",
+    "iconText": "🕵️",
+    "showcaseOrder": 5
+  },
+  {
+    "id": "openleash.mcp-scanner",
+    "slug": "mcp-scanner",
+    "name": "Tool Scanner",
+    "description": "Scans the outside tools and services your agents can use and shows what they do.",
+    "category": "protection",
+    "iconText": "📡",
+    "showcaseOrder": 6
+  },
+  {
+    "id": "openleash.rules-enforcer",
+    "slug": "rules-enforcer",
+    "name": "Your Rules",
+    "description": "Makes agents follow the boundaries you choose and asks before they cross one.",
+    "category": "protection",
+    "iconText": "📏",
+    "showcaseOrder": 7
+  },
+  {
+    "id": "openleash.prompt-compression",
+    "slug": "token-saver",
+    "name": "Token Saver",
+    "description": "Reduces repeated context so agents use fewer paid AI tokens without losing important details.",
+    "category": "cost",
+    "iconText": "✂️",
+    "showcaseOrder": 8
+  }
+]
