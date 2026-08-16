@@ -7,7 +7,7 @@ Leash is a personal product with two supported connection modes.
 1. Download the signed desktop build from `https://openleash.com`.
 2. Sign in to your personal account in the desktop app.
 3. Select the coding agents to monitor.
-4. Choose and configure the built-in Features you want enabled.
+4. Review the built-in Features Leash turns on automatically.
 5. Finish setup. Leash installs the selected hooks, configures the local proxy where supported, verifies the Feature registry, and starts monitoring.
 
 No dashboard, organization, SSO, deployment-token, or marketplace flow is part of this installation.

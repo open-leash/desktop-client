@@ -7,25 +7,31 @@ Read this before changing architecture, package boundaries, deployment modes, or
 `docs/Product.md` is the source of truth for the product contract and
 `docs/USER_FLOWS.md` is the source of truth for onboarding and surface ownership.
 
-Leash is a personal AI-agent safety product. The public open-source repository
-does not ship organization administration, dashboards, dashboard APIs, identity
-provider integrations, multi-tenant policy, billing, or a third-party extension
-marketplace.
+Leash is an AI-agent safety product for individuals and businesses. The public
+open-source repository ships the personal runtime plus public marketing and
+pricing for every offer. It does not ship organization administration,
+dashboards, dashboard APIs, identity-provider integrations, multi-tenant policy,
+billing implementation, or a third-party extension marketplace.
 
-## Public Product Modes
+## Public Product Offers
 
-1. Personal Open Source
+1. Personal, Free (BYOK)
    - Runs the real `client-api` and Postgres for one person.
    - Uses the desktop client and optional mobile client.
    - Requires a user-supplied model-provider key.
    - Has no Leash account, hosted evaluation, billing, dashboard, organization,
      or identity-provider setup.
 
-2. Leash Cloud
+2. Personal, Leash Cloud
    - Runs the same personal client contract against the Leash-hosted API.
-   - May offer BYOK and Leash-managed evaluation.
-   - Any private business administration, tenancy, billing, identity, or support
-     tooling lives outside this public repository.
+   - Costs $8 per month.
+   - May offer Leash-managed evaluation.
+
+3. Business, Leash Cloud
+   - Costs $18 per user per month, or $14 per user per month with annual billing.
+   - The public repository may market the plan and link into its hosted signup.
+   - Business administration, tenancy, billing, identity, policy, and support
+     tooling live outside this public repository.
 
 Do not add a standalone desktop-only enforcement backend or a duplicate local
 schema. Both modes use `client-api`; Personal Open Source uses local Postgres.
@@ -43,6 +49,7 @@ The public repository may contain:
 - `apps/docs-web`
 - `apps/main-web`
 - shared contracts, schema, personal deployment tooling, and built-in Features
+- public marketing, pricing, and hosted-offer entry points for Personal and Business
 
 The public repository must not contain or publish:
 
@@ -110,7 +117,8 @@ unless the user deliberately exposes the backend.
 Before shipping a change, verify:
 
 1. Does Personal Open Source work without Leash Cloud?
-2. Is the public surface personal-only and free of dashboard/identity/admin code?
+2. Are public runtime surfaces free of dashboard/identity/admin code, with any
+   Business offer limited to marketing, pricing, and a private-cloud handoff?
 3. Does every built-in Feature execute in-process through the typed registry?
 4. Are legacy plugin names confined to compatibility contracts?
 5. Can a Leash developer add and test a Feature without Docker?

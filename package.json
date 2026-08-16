@@ -1,7 +1,7 @@
 {
   "name": "leash",
   "private": true,
-  "version": "0.37.0",
+  "version": "0.37.4",
   "description": "Leash protects personal AI coding agents with built-in security Features and clear local visibility.",
   "author": "Leash",
   "workspaces": [
@@ -19,6 +19,10 @@
   "scripts": {
     "build": "npm run build --workspaces --if-present",
     "typecheck": "npm run typecheck --workspaces --if-present",
+    "icons:sync": "node scripts/sync-product-icons.mjs",
+    "icons:check": "node scripts/sync-product-icons.mjs --check",
+    "features:sync": "node scripts/sync-feature-presentations.mjs",
+    "features:check": "node scripts/sync-feature-presentations.mjs --check",
     "desktop-client": "npm run dev -w @openleash/desktop-client",
     "desktop-cli": "npm run cli -w @openleash/desktop-client --",
     "dev:client-api": "npm run dev -w @openleash/client-api",
@@ -49,8 +53,8 @@
     "audit:public": "node scripts/audit-public-boundary.mjs",
     "release:check": "python3 build.py --full && python3 test.py --full",
     "release:prep": "python3 release.py",
-    "dist:personal": "npm run build -w @openleash/desktop-client && npm run test:island:mac -w @openleash/desktop-client && npx electron-rebuild -v 43.3.0 -w better-sqlite3 --force && npx electron-builder --config electron-builder.personal.yml --mac --arm64",
-    "dist:windows": "npm run build -w @openleash/desktop-client && npx electron-rebuild -v 43.3.0 -w better-sqlite3 --force --platform win32 --arch x64 && npx electron-builder --config electron-builder.personal.yml --win --x64",
+    "dist:personal": "npm run build -w @openleash/desktop-client && npm run test:island:mac -w @openleash/desktop-client && npx electron-rebuild -v 43.3.0 -w better-sqlite3 --force && node scripts/build-desktop-distributable.mjs --mac",
+    "dist:windows": "npm run build -w @openleash/desktop-client && npx electron-rebuild -v 43.3.0 -w better-sqlite3 --force --platform win32 --arch x64 && node scripts/build-desktop-distributable.mjs --windows",
     "backup:ol2": "python3 backup-ol2.py"
   },
   "dependencies": {

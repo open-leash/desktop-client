@@ -3,6 +3,8 @@ from __future__ import annotations
 
 import argparse
 import os
+import plistlib
+import shutil
 import signal
 import subprocess
 import sys
@@ -17,6 +19,7 @@ DATABASE_URL = "postgres://openleash:openleash@127.0.0.1:9543/openleash"
 TRACE_FILE = ROOT / "output" / "openleash-flow.ndjson"
 COMPOSE = ["docker", "compose", "--project-name", "openleash-dev"]
 PERSONAL_TOKEN = "individual-open-source-token"
+PACKAGED_DESKTOP_DIR = ROOT / "release" / "personal"
 
 
 @dataclass(frozen=True)
@@ -100,6 +103,16 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--real-oauth", action="store_true")
     parser.add_argument("--desktop-api-url")
     parser.add_argument("--desktop-only", action="store_true")
+    parser.add_argument(
+        "--packaged-desktop",
+        action="store_true",
+        help="Open the packaged Leash desktop app exactly like a downloaded app.",
+    )
+    parser.add_argument(
+        "--packaged-desktop-path",
+        type=Path,
+        help="Packaged .app, .exe, or AppImage to launch instead of auto-discovery.",
+    )
     parser.add_argument("--view-flow", action="store_true")
     parser.add_argument("--dry-run", action="store_true")
     parser.add_argument("--yes", action="store_true")
@@ -112,18 +125,43 @@ def normalize_mode(value: str) -> str:
 
 def main() -> int:
     args = parse_args()
+    if args.packaged_desktop or args.packaged_desktop_path:
+        return launch_packaged_desktop(args.packaged_desktop_path, args.dry_run)
     if args.view_flow:
         return subprocess.call(["node", "server.mjs"], cwd=ROOT / "apps" / "flow-viewer", env=merged_env({"OPENLEASH_PIPELINE_TRACE_FILE": str(TRACE_FILE)}))
     if args.cleanup:
         if args.dry_run:
             print_cleanup_dry_run()
             return 0
-        if not args.yes and not confirm("Delete all local Leash containers, Postgres data, hooks, and client state?", False):
+        if not args.yes and not confirm(
+            "Delete every local Leash app/binary, proxy and hook configuration, container/image, database, and client state?",
+            False,
+        ):
             return 1
         cleanup_local_leash(remove_data=True)
         return 0
 
-    mode_key = normalize_mode(args.mode or choose_mode())
+    selected = args.mode or choose_mode()
+    if selected == "local-release":
+        return launch_packaged_desktop(
+            None,
+            args.dry_run,
+            disable_updates=True,
+            fresh_install=True,
+        )
+    if selected == "cleanup":
+        if args.dry_run:
+            print_cleanup_dry_run()
+            return 0
+        if not args.yes and not confirm(
+            "Delete every local Leash app/binary, proxy and hook configuration, container/image, database, and client state?",
+            False,
+        ):
+            return 1
+        cleanup_local_leash(remove_data=True)
+        return 0
+
+    mode_key = normalize_mode(selected)
     mode = build_modes()[mode_key]
     clean_slate = args.clean_slate or (not args.keep_local and not args.reset_data and not args.reset_all)
     print(f"\nMode: {mode.label}\nDescription: {mode.description}")
@@ -245,31 +283,402 @@ def stop_dev_processes() -> None:
 def cleanup_local_leash(remove_data: bool) -> None:
     print("[leash] stopping local services")
     stop_dev_processes()
+    subprocess.run(["pkill", "-TERM", "-f", "/Leash.app/"], check=False, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    subprocess.run(["pkill", "-TERM", "-f", "/OpenLeash.app/"], check=False, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    cleanup_installed_app_integrations()
+    subprocess.run(["npm", "run", "desktop-cli", "--", "proxy", "uninstall"], cwd=ROOT, check=True)
+    subprocess.run(["npm", "run", "desktop-cli", "--", "uninstall-hooks", "--all"], cwd=ROOT, check=True)
+    remove_macos_registrations()
     subprocess.run([*COMPOSE, "down", *( ["-v"] if remove_data else []), "--remove-orphans"], cwd=ROOT, check=False)
-    for name in (
-        "openleash-local-proxy", "openleash-individual-client-api", "openleash-individual-postgres",
-        "openleash-plugin-gateway", "openleash-plugin-dlp", "openleash-plugin-sensitive-access",
-        "openleash-plugin-rules-enforcer", "openleash-plugin-mcp-scanner", "openleash-plugin-code-scanner",
-        "openleash-plugin-skill-scanner", "openleash-plugin-siem-exporter", "openleash-plugin-token-saver",
-        "openleash-plugin-blast-radius",
-    ):
+    subprocess.run(["docker", "compose", "--project-name", "ol2", "down", *( ["-v"] if remove_data else []), "--remove-orphans"], cwd=ROOT, check=False)
+    for name in discover_local_leash_containers():
         subprocess.run(["docker", "rm", "-f", name], check=False, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     if remove_data:
-        for volume in ("ol2_openleash-postgres", "openleash-individual_openleash-individual-postgres"):
+        for volume in discover_local_leash_volumes():
             subprocess.run(["docker", "volume", "rm", volume], check=False, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-        subprocess.run(["npm", "run", "desktop-cli", "--", "uninstall-hooks", "--all"], cwd=ROOT, check=False)
+        for network in discover_local_leash_networks():
+            subprocess.run(["docker", "network", "rm", network], check=False, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        image_ids = discover_local_leash_image_ids()
+        if image_ids:
+            subprocess.run(["docker", "image", "rm", "-f", *image_ids], check=False, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        for target in local_state_paths():
+            remove_path(target)
     print("[leash] local cleanup complete")
 
 
+def cleanup_installed_app_integrations() -> None:
+    candidates = (
+        Path("/Applications/Leash.app/Contents/MacOS/Leash"),
+        Path("/Applications/OpenLeash.app/Contents/MacOS/OpenLeash"),
+        Path.home() / "Applications" / "Leash.app" / "Contents" / "MacOS" / "Leash",
+        Path.home() / "Applications" / "OpenLeash.app" / "Contents" / "MacOS" / "OpenLeash",
+    )
+    for executable in candidates:
+        if not executable.is_file():
+            continue
+        print(f"[leash:cleanup-integrations] {executable} --cleanup-integrations")
+        env = merged_env()
+        env.pop("ELECTRON_RUN_AS_NODE", None)
+        subprocess.run([str(executable), "--cleanup-integrations"], env=env, check=True)
+
+
+def remove_macos_registrations() -> None:
+    if sys.platform != "darwin":
+        return
+    for label in discover_local_leash_launch_agents():
+        subprocess.run(
+            ["launchctl", "bootout", f"gui/{os.getuid()}/{label}"],
+            check=False,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
+    for login_name in ("Leash", "OpenLeash"):
+        script = (
+            'tell application "System Events" to '
+            f'if exists login item "{login_name}" then delete login item "{login_name}"'
+        )
+        subprocess.run(["osascript", "-e", script], check=False, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    lsregister = Path("/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister")
+    if lsregister.is_file():
+        registered = subprocess.run(
+            [str(lsregister), "-dump"],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        app_paths = set(parse_registered_leash_app_paths(registered.stdout))
+        app_paths.update({
+            Path("/Applications/Leash.app"),
+            Path("/Applications/OpenLeash.app"),
+            Path.home() / "Applications" / "Leash.app",
+            Path.home() / "Applications" / "OpenLeash.app",
+        })
+        for app_path in sorted(app_paths, key=str):
+            subprocess.run([str(lsregister), "-u", "-R", str(app_path)], check=False, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        subprocess.run([str(lsregister), "-gc"], check=False, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    for image_path, detach_targets in discover_macos_leash_disk_images():
+        for detach_target in detach_targets:
+            subprocess.run(["hdiutil", "detach", str(detach_target), "-quiet"], check=False)
+        if str(image_path).startswith(("/tmp/", "/private/tmp/", "/var/folders/")):
+            remove_path(image_path)
+
+
+def parse_registered_leash_app_paths(output: str) -> list[Path]:
+    paths: set[Path] = set()
+    for line in output.splitlines():
+        stripped = line.strip()
+        if not stripped.startswith("path:"):
+            continue
+        raw_path = stripped.removeprefix("path:").strip().rsplit(" (0x", 1)[0].strip()
+        candidate = Path(raw_path)
+        name = candidate.name.lower()
+        if name.startswith(("leash", "openleash")):
+            paths.add(candidate)
+    return sorted(paths, key=str)
+
+
+def discover_macos_leash_disk_images() -> list[tuple[Path, tuple[Path, ...]]]:
+    if sys.platform != "darwin":
+        return []
+    result = subprocess.run(
+        ["hdiutil", "info", "-plist"],
+        capture_output=True,
+        check=False,
+    )
+    if result.returncode != 0:
+        return []
+    try:
+        document = plistlib.loads(result.stdout)
+    except plistlib.InvalidFileException:
+        return []
+    images: list[tuple[Path, tuple[Path, ...]]] = []
+    for image in document.get("images", []):
+        raw_image_path = image.get("image-path")
+        if not isinstance(raw_image_path, str) or "leash" not in Path(raw_image_path).name.lower():
+            continue
+        detach_targets = tuple(
+            Path(entity.get("mount-point") or entity["dev-entry"])
+            for entity in image.get("system-entities", [])
+            if isinstance(entity, dict)
+            and (
+                isinstance(entity.get("mount-point"), str)
+                or isinstance(entity.get("dev-entry"), str)
+            )
+        )
+        images.append((Path(raw_image_path), detach_targets))
+    return images
+
+
+def discover_local_leash_containers() -> list[str]:
+    result = subprocess.run(
+        ["docker", "ps", "-a", "--format", "{{.Names}}"],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if result.returncode != 0:
+        return []
+    return sorted(
+        {
+            name
+            for name in result.stdout.splitlines()
+            if name.lower().startswith(("openleash", "leash-", "ol2-"))
+        }
+    )
+
+
+def discover_local_leash_volumes() -> list[str]:
+    result = subprocess.run(
+        ["docker", "volume", "ls", "--format", "{{.Name}}"],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if result.returncode != 0:
+        return []
+    return sorted(
+        {
+            name
+            for name in result.stdout.splitlines()
+            if name.lower().startswith(("openleash", "leash-", "ol2_"))
+        }
+    )
+
+
+def discover_local_leash_networks() -> list[str]:
+    result = subprocess.run(
+        ["docker", "network", "ls", "--format", "{{.Name}}"],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if result.returncode != 0:
+        return []
+    return sorted(
+        {
+            name
+            for name in result.stdout.splitlines()
+            if name.lower().startswith(("openleash", "leash-", "ol2_"))
+        }
+    )
+
+
+def is_local_leash_image_repository(repository: str) -> bool:
+    return repository.lower().startswith(
+        (
+            "ghcr.io/open-leash/",
+            "ghcr.io/openleash/",
+            "openleash/",
+            "openleash-",
+            "open-leash/",
+            "leash/",
+            "leash-",
+        )
+    )
+
+
+def discover_local_leash_image_ids() -> list[str]:
+    result = subprocess.run(
+        ["docker", "image", "ls", "--format", "{{.Repository}} {{.ID}}"],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if result.returncode != 0:
+        return []
+    image_ids: set[str] = set()
+    for line in result.stdout.splitlines():
+        parts = line.split()
+        if len(parts) == 2 and is_local_leash_image_repository(parts[0]):
+            image_ids.add(parts[1])
+    return sorted(image_ids)
+
+
+def discover_local_leash_launch_agents() -> list[str]:
+    launch_agents = Path.home() / "Library" / "LaunchAgents"
+    if not launch_agents.is_dir():
+        return []
+    labels: list[str] = []
+    for pattern in ("com.openleash*.plist", "com.leash*.plist"):
+        labels.extend(path.stem for path in launch_agents.glob(pattern))
+    return sorted(set(labels))
+
+
+def local_state_paths() -> tuple[Path, ...]:
+    user_home = Path.home()
+    command_names = ("leash", "leash-client", "leash-agent", "openleash", "openleash-client", "openleash-agent")
+    command_roots = (Path("/usr/local/bin"), Path("/opt/homebrew/bin"), user_home / ".local" / "bin")
+    fixed = {
+        user_home / ".openleash",
+        user_home / "Library" / "Application Support" / "Leash",
+        user_home / "Library" / "Application Support" / "OpenLeash",
+        user_home / "Library" / "Application Support" / "OpenLeash (Dev)",
+        user_home / "Library" / "Logs" / "Leash",
+        user_home / "Library" / "Logs" / "OpenLeash",
+        user_home / "Library" / "WebKit" / "leash-island",
+        user_home / "Library" / "WebKit" / "openleash-island",
+        user_home / "Library" / "Caches" / "leash-island",
+        user_home / "Library" / "Caches" / "openleash-island",
+        user_home / "Library" / "Saved Application State" / "com.openleash.personal.savedState",
+        user_home / "Library" / "Saved Application State" / "com.openleash.openleash.savedState",
+        Path("/Applications/Leash.app"),
+        Path("/Applications/OpenLeash.app"),
+        user_home / "Applications" / "Leash.app",
+        user_home / "Applications" / "OpenLeash.app",
+        ROOT / "apps" / "desktop-client" / ".dev" / "Leash.app",
+        ROOT / "apps" / "desktop-client" / ".dev" / "OpenLeash.app",
+        Path("/tmp/openleash-startup.log"),
+        Path("/tmp/openleash-launch.log"),
+        TRACE_FILE,
+    }
+    fixed.update(command_root / command_name for command_root in command_roots for command_name in command_names)
+    library = user_home / "Library"
+    glob_roots = (
+        library / "Application Support" / "CrashReporter",
+        library / "Caches",
+        library / "Containers",
+        library / "HTTPStorages",
+        library / "LaunchAgents",
+        library / "Preferences",
+        library / "Preferences" / "ByHost",
+        library / "WebKit",
+    )
+    for root in glob_roots:
+        if not root.is_dir():
+            continue
+        iterator = root.rglob("*") if root.name == "Caches" else root.glob("*")
+        for candidate in iterator:
+            name = candidate.name.lower()
+            if "openleash" in name or name in {"leash", "leash.plist"} or name.startswith("com.leash."):
+                fixed.add(candidate)
+    return tuple(sorted(fixed, key=lambda path: (len(path.parts), str(path)), reverse=True))
+
+
+def remove_path(target: Path) -> None:
+    print(f"[leash:remove] {target}")
+    try:
+        if target.is_symlink() or target.is_file():
+            target.unlink(missing_ok=True)
+        elif target.exists():
+            shutil.rmtree(target)
+    except PermissionError:
+        print(f"[leash:remove] permission denied: {target}")
+
+
 def print_cleanup_dry_run() -> None:
-    print("[leash:dry-run] stop desktop, API, flow viewer, proxy, and retired Feature containers")
+    print("[leash:dry-run] stop desktop, API, flow viewer, proxy, and all Leash containers")
     print("[leash:dry-run] docker compose down -v --remove-orphans")
-    print("[leash:dry-run] uninstall all agent hooks")
+    print("[leash:dry-run] restore proxy configuration and uninstall all agent hooks")
+    print("[leash:dry-run] remove login items, launch agents, protocol/app registrations, Docker images, volumes, and networks")
+    print("[leash:dry-run] delete local binaries, client state, settings, caches, logs, and installed app copies")
+
+
+def packaged_desktop_candidates(release_dir: Path = PACKAGED_DESKTOP_DIR) -> list[Path]:
+    if sys.platform == "darwin":
+        candidates = [
+            *release_dir.glob("*/Leash.app"),
+            *release_dir.glob("*/OpenLeash.app"),
+            release_dir / "Leash.app",
+            release_dir / "OpenLeash.app",
+        ]
+    elif sys.platform == "win32":
+        candidates = [
+            release_dir / "win-unpacked" / "Leash.exe",
+            release_dir / "win-unpacked" / "OpenLeash.exe",
+        ]
+    else:
+        candidates = [
+            *release_dir.glob("Leash*.AppImage"),
+            *release_dir.glob("OpenLeash*.AppImage"),
+            release_dir / "linux-unpacked" / "leash",
+            release_dir / "linux-unpacked" / "openleash",
+        ]
+    existing = {candidate.resolve() for candidate in candidates if candidate.exists()}
+    return sorted(
+        existing,
+        key=lambda candidate: (
+            candidate.stat().st_mtime,
+            candidate.name.lower().startswith("leash"),
+        ),
+        reverse=True,
+    )
+
+
+def packaged_desktop_command(
+    app_path: Path,
+    disable_updates: bool = False,
+    fresh_install: bool = False,
+) -> list[str]:
+    app_args: list[str] = []
+    if disable_updates:
+        app_args.extend(["--update-mode", "disabled"])
+    if fresh_install:
+        app_args.append("--fresh-install")
+    if sys.platform == "darwin" and app_path.suffix.lower() == ".app":
+        return ["open", "-n", str(app_path), *(["--args", *app_args] if app_args else [])]
+    return [str(app_path), *app_args]
+
+
+def launch_packaged_desktop(
+    requested_path: Path | None,
+    dry_run: bool = False,
+    disable_updates: bool = False,
+    fresh_install: bool = False,
+) -> int:
+    app_path = requested_path.expanduser().resolve() if requested_path else None
+    if app_path is None:
+        candidates = packaged_desktop_candidates()
+        app_path = candidates[0] if candidates else None
+    if app_path is None or not app_path.exists():
+        build_command = "npm run dist:windows" if sys.platform == "win32" else "npm run dist:personal"
+        missing = f" at {app_path}" if app_path else ""
+        print(f"[leash] No packaged desktop app was found{missing}.", file=sys.stderr)
+        print(f"[leash] Build it first with: {build_command}", file=sys.stderr)
+        return 1
+    command = packaged_desktop_command(app_path, disable_updates, fresh_install)
+    print(f"[leash:packaged-desktop] newest built app: {app_path}")
+    if fresh_install:
+        print("[leash] Opening this local release artifact as a clean installation with automatic updates disabled.")
+    elif disable_updates:
+        print("[leash] Opening this local release artifact with automatic updates disabled.")
+    else:
+        print("[leash] Opening the release build with normal user settings and no development services.")
+    if dry_run:
+        print(f"[leash:dry-run] {' '.join(command)}")
+        return 0
+    env = os.environ.copy()
+    env.pop("ELECTRON_RUN_AS_NODE", None)
+    try:
+        if sys.platform == "darwin":
+            completed = subprocess.run(command, cwd=ROOT, env=env, check=False)
+            return completed.returncode
+        subprocess.Popen(
+            command,
+            cwd=ROOT,
+            env=env,
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            start_new_session=True,
+        )
+    except OSError as error:
+        print(f"[leash] Could not open the packaged desktop app: {error}", file=sys.stderr)
+        return 1
+    return 0
 
 
 def choose_mode() -> str:
-    print("1. Personal Open Source\n2. Leash Cloud development")
+    print(
+        "1. Personal Open Source\n"
+        "2. Leash Cloud development\n"
+        "3. Newest built macOS release (release/personal)\n"
+        "C. Delete all local Leash data"
+    )
     answer = input("Choose [default 1]: ").strip()
+    if answer.lower() in {"c", "clean", "cleanup", "delete"}:
+        return "cleanup"
+    if answer in {"3"} or answer.lower() in {"app", "desktop", "packaged", "release"}:
+        return "local-release"
     return "public-cloud" if answer == "2" else "individual-open-source"
 
 

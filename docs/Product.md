@@ -5,18 +5,20 @@ and release expectations. If another document or screen disagrees, fix it.
 
 ## Product and audience
 
-Leash protects one person’s AI-agent activity across desktop, web, and optional
-mobile surfaces. The public open-source product is personal-only.
+Leash protects AI-agent activity for individuals and businesses across desktop,
+web, and optional mobile surfaces. The public open-source runtime remains a
+complete personal product, while the public marketing site presents both
+Personal and Business Leash Cloud offers.
 
 The public repository does not expose an organization dashboard, dashboard API,
 identity-provider integrations, employee provisioning, centralized CISO policy,
 or multi-tenant administration. Leash may operate private cloud systems for
-hosted accounts, billing, operations, and future business products, but those
-systems are not part of this repository or its public API surface.
+hosted accounts, billing, operations, and Business Cloud administration, but
+those systems are not part of this repository or its public API surface.
 
-## Product modes
+## Product offers
 
-### Personal Open Source
+### Personal, Free (BYOK)
 
 - Runs `desktop-client`, the real open-source `client-api`, and Postgres for one
   user.
@@ -32,23 +34,51 @@ systems are not part of this repository or its public API surface.
 Docker may package Postgres and the local API, but it is not part of Feature
 execution. A Feature never needs a container runtime.
 
-### Leash Cloud
+Price: **Free**.
+
+### Personal, Leash Cloud
 
 - Desktop, web, and mobile use the Leash-hosted personal `client-api` surface.
-- Personal BYOK and Leash-managed evaluation may be offered.
+- Leash-managed evaluation may be offered.
 - Hosted tenancy, billing, abuse controls, production credentials, signing,
   support, and operations live in private Leash Cloud code.
 - Public code exposes provider interfaces and personal client contracts; it does
   not expose private administrative services.
 
+Price: **$8 per month**.
+
+### Business, Leash Cloud
+
+- The public marketing site may present Business pricing and a hosted signup or
+  sales entry point.
+- Business clients use Leash Cloud; organization administration, tenancy,
+  billing, identity, mandatory policy, support, and operations remain private
+  Leash Cloud systems.
+- Public clients and the public core do not import or expose the private
+  Business control plane.
+- Built-in Features still execute through the typed `client-api` registry. A
+  Business plan does not create a third-party Feature or arbitrary-code path.
+
+Price: **$18 per user per month**, or **$14 per user per month when billed
+annually**.
+
 ## Public repository boundary
 
 The public core contains the desktop and mobile clients, personal `client-api`,
-local proxy, provider puller, flow viewer, docs, marketing site, shared
-contracts, Postgres schema/migrations, and built-in Features.
+local proxy, provider puller, flow viewer, docs, Personal and Business offer
+marketing/pricing, shared contracts, Postgres schema/migrations, and built-in
+Features.
 
 It does not contain or publish dashboard applications, dashboard APIs,
-identity/directory providers, organization onboarding, or a Feature marketplace.
+identity/directory providers, Business administration/onboarding implementation,
+or a Feature marketplace. Public Business calls to action hand off to private
+Leash Cloud systems.
+
+SIEM reporting is not a Feature and is never available in either personal
+mode. Organization products compose a private audit-export provider through the
+public core's typed event contract. That organization service owns endpoint and
+credential configuration, delivery attempts, retries, and operational status;
+the personal Feature catalog and Feature runtime never execute SIEM delivery.
 
 ## Naming and compatibility
 
@@ -71,8 +101,9 @@ A Feature is a first-party capability shipped with Leash.
 - Only the Leash team authors and distributes Features.
 - There is no upload flow, external uploader/publisher identity, community
   listing, download counter, rating, or marketplace installation.
-- Features are available with the software and may be enabled, disabled, and
-  configured by the user.
+- Fresh setup enables every runtime-available built-in Feature. The setup page
+  showcases what each Feature does; it is not an installation picker. After
+  setup, Features may be enabled, disabled, and configured by the user.
 - `client-api` executes Feature handlers in-process in Node.js. It does not
   launch containers, pull images, call a local runtime gateway, or load arbitrary
   third-party code.
@@ -86,10 +117,11 @@ A Feature is a first-party capability shipped with Leash.
   in `apps/client-api/src/features` (the existing internal `plugins` directory
   may remain temporarily as a source-compatible path).
 
-Feature settings are personal. Manifest defaults are followed by the user’s
-base settings and matching user profiles. Profiles may target project roots,
-agent kinds, or stable enrolled runtime IDs. Mandatory organization policy does
-not exist in the public product.
+Feature settings in the public core are evaluated per user. Manifest defaults
+are followed by base settings and matching user profiles. Profiles may target
+project roots, agent kinds, or stable enrolled runtime IDs. Mandatory Business
+policy, when offered, is a private Leash Cloud overlay and is not implemented by
+the public product.
 
 Rules discovered from `CLAUDE.md`, `AGENTS.md`, and other agent instruction
 files are suggestions. The user explicitly selects which discovered rules the
