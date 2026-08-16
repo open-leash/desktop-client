@@ -12,6 +12,7 @@ import 'package:intl/intl.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import 'openleash_public_config.dart';
+import 'feature_presentations.g.dart';
 
 const _productionCloudApiUrl = openLeashPublicCloudApiUrl;
 const _redirectUri = openLeashAuthCallbackUri;
@@ -2126,17 +2127,7 @@ int _comparePlugins(Map left, Map right) {
 
 String _pluginName(Map plugin) {
   final compatibilityName = _pluginCompatibilityName(plugin);
-  const names = {
-    'blast-radius': 'Destruction Protection',
-    'code-scanner': 'Code Scanner',
-    'data-leakage-prevention': 'Private Data Protection',
-    'mcp-scanner': 'Connected Tools',
-    'rules-enforcer': 'Your Rules',
-    'sensitive-access': 'Secret Access Protection',
-    'skill-scanner': 'Instruction Scanning',
-    'token-saver': 'Token Saver',
-  };
-  final canonicalName = names[compatibilityName];
+  final canonicalName = leashFeaturePresentations[compatibilityName]?['name'];
   if (canonicalName != null) return canonicalName;
   final supplied = plugin['displayName']?.toString() ?? plugin['name']?.toString();
   if (supplied != null && supplied.trim().isNotEmpty && !supplied.contains('-')) {
@@ -2175,6 +2166,8 @@ String _readableFeatureName(String value) {
 }
 
 String _pluginDescription(Map plugin) {
+  final canonicalDescription = leashFeaturePresentations[_pluginCompatibilityName(plugin)]?['description'];
+  if (canonicalDescription != null) return canonicalDescription;
   final marketplace = plugin['marketplace'];
   return (marketplace is Map
           ? marketplace['shortDescription']?.toString()
