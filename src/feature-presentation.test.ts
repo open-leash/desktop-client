@@ -33,6 +33,8 @@ test("one canonical presentation supplies every built-in Feature surface", () =>
   assert.match(renderer, /__LEASH_FEATURE_PRESENTATIONS__/);
   assert.match(copyAssets, /feature-presentations\.json/);
   assert.match(copyAssets, /replace\(\s*"__LEASH_FEATURE_PRESENTATIONS__"/);
+  assert.match(copyAssets, /copyWorkspaceRuntimeDependencies\(\)/);
+  assert.match(copyAssets, /"@openleash", "shared"/);
 });
 
 test("setup showcases Features without installation controls", () => {

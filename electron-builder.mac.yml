@@ -10,6 +10,7 @@ directories:
   output: release/macos
 files:
   - dist/**/*
+  - node_modules/@openleash/shared/**/*
   - node_modules/better-sqlite3/**/*
   - node_modules/bindings/**/*
   - node_modules/file-uri-to-path/**/*

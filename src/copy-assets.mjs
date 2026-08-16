@@ -4,6 +4,7 @@ import sharp from "sharp";
 import * as simpleIcons from "simple-icons";
 
 await fs.mkdir("dist", { recursive: true });
+await copyWorkspaceRuntimeDependencies();
 const windowTemplate = await fs.readFile(path.join("src", "window.html"), "utf8");
 const featurePresentationsJson = await fs.readFile(
   path.join("..", "..", "packages", "shared", "feature-presentations.json"),
@@ -39,6 +40,22 @@ await fs.copyFile(path.join("..", "..", "node_modules", "lottie-web", "build", "
 await copyIntroVideo();
 await copyWelcomeAgentIcons();
 await fs.mkdir(path.join("dist", "agent-icons"), { recursive: true });
+
+async function copyWorkspaceRuntimeDependencies() {
+  const sharedSource = path.join("..", "..", "packages", "shared");
+  const sharedTarget = path.join("node_modules", "@openleash", "shared");
+  await fs.rm(sharedTarget, { recursive: true, force: true });
+  await fs.mkdir(sharedTarget, { recursive: true });
+  await fs.copyFile(
+    path.join(sharedSource, "package.json"),
+    path.join(sharedTarget, "package.json"),
+  );
+  await fs.cp(
+    path.join(sharedSource, "dist"),
+    path.join(sharedTarget, "dist"),
+    { recursive: true },
+  );
+}
 
 await sharp(path.join("src", "openleash-icon.png"))
   .resize(64, 64, { fit: "fill", kernel: "lanczos3" })
