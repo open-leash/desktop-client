@@ -160,7 +160,7 @@ export declare function firstPartyFeature(slug: string, _version: string, option
 export declare const FIRST_PARTY_PLUGIN_MANIFESTS: ({
     id: string;
     slug: string;
-    name: "Token Saver";
+    name: "Leash Token Saver";
     description: "Reduces repeated context so agents use fewer paid AI tokens without losing important details.";
     repositoryUrl: string;
     version: string;
@@ -246,7 +246,7 @@ export declare const FIRST_PARTY_PLUGIN_MANIFESTS: ({
 } | {
     id: string;
     slug: string;
-    name: "Instruction Scanning";
+    name: "Leash Prompt Injection Protection";
     description: "Checks agent instructions for hidden or suspicious behavior before it can spread.";
     repositoryUrl: string;
     version: string;
@@ -287,7 +287,7 @@ export declare const FIRST_PARTY_PLUGIN_MANIFESTS: ({
 } | {
     id: string;
     slug: string;
-    name: "Private Data Protection";
+    name: "Leash Private Data Protection";
     description: "Keeps passwords, personal information, and other sensitive data from being shared by mistake.";
     repositoryUrl: string;
     version: string;
@@ -361,7 +361,7 @@ export declare const FIRST_PARTY_PLUGIN_MANIFESTS: ({
 } | {
     id: string;
     slug: string;
-    name: "Secret Access Protection";
+    name: "Leash Secret Protection";
     description: "Warns you when an agent tries to open passwords, private keys, or other secret files.";
     repositoryUrl: string;
     version: string;
@@ -432,7 +432,7 @@ export declare const FIRST_PARTY_PLUGIN_MANIFESTS: ({
 } | {
     id: string;
     slug: string;
-    name: "Destruction Protection";
+    name: "Leash Destructive Protection";
     description: "Stops agents before they delete files, damage databases, or break important systems.";
     repositoryUrl: string;
     version: string;
@@ -503,7 +503,7 @@ export declare const FIRST_PARTY_PLUGIN_MANIFESTS: ({
 } | {
     id: string;
     slug: string;
-    name: "Your Rules";
+    name: "Leash Rules Protection";
     description: "Makes agents follow the boundaries you choose and asks before they cross one.";
     repositoryUrl: string;
     version: string;
@@ -583,7 +583,7 @@ export declare const FIRST_PARTY_PLUGIN_MANIFESTS: ({
 } | {
     id: string;
     slug: string;
-    name: "Tool Scanner";
+    name: "Leash Tool Protection";
     description: "Scans the outside tools and services your agents can use and shows what they do.";
     repositoryUrl: string;
     version: string;

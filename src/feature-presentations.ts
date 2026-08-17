@@ -12,7 +12,7 @@ export const LEASH_FEATURE_PRESENTATIONS = {
   "blast-radius": {
     "id": "openleash.blast-radius",
     "slug": "blast-radius",
-    "name": "Destruction Protection",
+    "name": "Leash Destructive Protection",
     "description": "Stops agents before they delete files, damage databases, or break important systems.",
     "category": "protection",
     "iconText": "💥",
@@ -21,7 +21,7 @@ export const LEASH_FEATURE_PRESENTATIONS = {
   "code-scanner": {
     "id": "openleash.code-scanner",
     "slug": "code-scanner",
-    "name": "Code Scanner",
+    "name": "Leash Code Protection",
     "description": "Reviews AI-generated code for security weaknesses before they become a problem.",
     "category": "protection",
     "iconText": "☣️",
@@ -30,7 +30,7 @@ export const LEASH_FEATURE_PRESENTATIONS = {
   "data-leakage-prevention": {
     "id": "openleash.dlp",
     "slug": "data-leakage-prevention",
-    "name": "Private Data Protection",
+    "name": "Leash Private Data Protection",
     "description": "Keeps passwords, personal information, and other sensitive data from being shared by mistake.",
     "category": "protection",
     "iconText": "🤫",
@@ -39,7 +39,7 @@ export const LEASH_FEATURE_PRESENTATIONS = {
   "sensitive-access": {
     "id": "openleash.sensitive-access",
     "slug": "sensitive-access",
-    "name": "Secret Access Protection",
+    "name": "Leash Secret Protection",
     "description": "Warns you when an agent tries to open passwords, private keys, or other secret files.",
     "category": "protection",
     "iconText": "🔐",
@@ -48,7 +48,7 @@ export const LEASH_FEATURE_PRESENTATIONS = {
   "skill-scanner": {
     "id": "openleash.skill-scanner",
     "slug": "skill-scanner",
-    "name": "Instruction Scanning",
+    "name": "Leash Prompt Injection Protection",
     "description": "Checks agent instructions for hidden or suspicious behavior before it can spread.",
     "category": "protection",
     "iconText": "🕵️",
@@ -57,7 +57,7 @@ export const LEASH_FEATURE_PRESENTATIONS = {
   "mcp-scanner": {
     "id": "openleash.mcp-scanner",
     "slug": "mcp-scanner",
-    "name": "Tool Scanner",
+    "name": "Leash Tool Protection",
     "description": "Scans the outside tools and services your agents can use and shows what they do.",
     "category": "protection",
     "iconText": "📡",
@@ -66,7 +66,7 @@ export const LEASH_FEATURE_PRESENTATIONS = {
   "rules-enforcer": {
     "id": "openleash.rules-enforcer",
     "slug": "rules-enforcer",
-    "name": "Your Rules",
+    "name": "Leash Rules Protection",
     "description": "Makes agents follow the boundaries you choose and asks before they cross one.",
     "category": "protection",
     "iconText": "📏",
@@ -75,7 +75,7 @@ export const LEASH_FEATURE_PRESENTATIONS = {
   "token-saver": {
     "id": "openleash.prompt-compression",
     "slug": "token-saver",
-    "name": "Token Saver",
+    "name": "Leash Token Saver",
     "description": "Reduces repeated context so agents use fewer paid AI tokens without losing important details.",
     "category": "cost",
     "iconText": "✂️",
