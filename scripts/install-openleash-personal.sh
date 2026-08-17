@@ -283,9 +283,21 @@ leash_processes_running() {
     pgrep -f "/OpenLeash.app/" >/dev/null 2>&1
 }
 
-stop_openleash() {
+stop_leash_launch_jobs() {
+  local label
+  while IFS= read -r label; do
+    case "$label" in
+      com.openleash.*|com.leash.*)
+        launchctl remove "$label" >/dev/null 2>&1 || true
+        ;;
+    esac
+  done < <(launchctl list 2>/dev/null | awk '{print $3}')
   launchctl remove com.openleash.installer-launch >/dev/null 2>&1 || true
   launchctl remove com.openleash.local-release-launch >/dev/null 2>&1 || true
+}
+
+stop_openleash() {
+  stop_leash_launch_jobs
   if leash_processes_running; then
     log "Stopping existing Leash..."
     pkill -TERM -f "/Leash.app/" || true

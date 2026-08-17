@@ -22,8 +22,10 @@ case "$SMOKE_ROOT" in
   *) printf '%s\n' "Unsafe smoke-test directory: $SMOKE_ROOT" >&2; exit 1 ;;
 esac
 SMOKE_PID=""
+SMOKE_LABEL="com.openleash.installer-smoke.$$"
 
 cleanup() {
+  launchctl remove "$SMOKE_LABEL" >/dev/null 2>&1 || true
   if [[ -n "$SMOKE_PID" ]] && kill -0 "$SMOKE_PID" 2>/dev/null; then
     kill -KILL "$SMOKE_PID" 2>/dev/null || true
   fi
@@ -65,9 +67,13 @@ ELECTRON_RUN_AS_NODE=1 "$EXECUTABLE" -e '
 
 printf '%s\n' "[installer-smoke] running, read-only upgrade"
 mkdir -p "$SMOKE_HOME/Library/Application Support/Leash"
-ELECTRON_RUN_AS_NODE=1 "$EXECUTABLE" -e 'setInterval(() => {}, 1000)' &
-SMOKE_PID=$!
-sleep 0.5
+launchctl submit -l "$SMOKE_LABEL" -- /usr/bin/env ELECTRON_RUN_AS_NODE=1 "$EXECUTABLE" -e 'setInterval(() => {}, 1000)'
+for _ in $(seq 1 20); do
+  SMOKE_PID="$(pgrep -f "^$EXECUTABLE" | head -n 1 || true)"
+  [[ -n "$SMOKE_PID" ]] && break
+  sleep 0.1
+done
+[[ -n "$SMOKE_PID" ]]
 kill -0 "$SMOKE_PID"
 chmod -R a-w "$APP"
 HOME="$SMOKE_HOME" bash "$INSTALLER" --dmg "$DMG" --target "$INSTALL_DIR" --keep-settings --no-launch
@@ -76,6 +82,10 @@ if kill -0 "$SMOKE_PID" 2>/dev/null; then
   exit 1
 fi
 SMOKE_PID=""
+if launchctl list "$SMOKE_LABEL" >/dev/null 2>&1; then
+  printf '%s\n' "Installer left the previous Leash launch job loaded." >&2
+  exit 1
+fi
 
 [[ -x "$EXECUTABLE" ]]
 codesign --verify --deep --strict "$APP"
