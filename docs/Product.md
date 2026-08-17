@@ -125,7 +125,14 @@ the public product.
 
 Rules discovered from `CLAUDE.md`, `AGENTS.md`, and other agent instruction
 files are suggestions. The user explicitly selects which discovered rules the
-Rules Enforcer Feature should enforce.
+Leash Rules Protection Feature should enforce.
+
+The canonical customer-facing Feature names are **Leash Destructive
+Protection**, **Leash Code Protection**, **Leash Private Data Protection**,
+**Leash Secret Protection**, **Leash Prompt Injection Protection**, **Leash
+Tool Protection**, **Leash Rules Protection**, and **Leash Token Saver**. Public
+copy uses these names consistently. Stable slugs and IDs remain implementation
+details for compatibility and are not used as marketing names.
 
 ## Agent event pipeline
 
