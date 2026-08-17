@@ -27,6 +27,18 @@ jobs:
           ref: v0.2.1
           path: packages/shared
 
+      - name: Read local proxy version
+        id: local-proxy-version
+        shell: bash
+        run: echo "version=$(cat apps/desktop-client/local-proxy.version)" >> "$GITHUB_OUTPUT"
+
+      - name: Checkout native local proxy
+        uses: actions/checkout@v7
+        with:
+          repository: open-leash/local-proxy
+          ref: v${{ steps.local-proxy-version.outputs.version }}
+          path: apps/local-proxy
+
       - name: Checkout public installer and smoke tests
         uses: actions/checkout@v7
         with:
@@ -38,6 +50,9 @@ jobs:
         uses: actions/setup-node@v7
         with:
           node-version: "22"
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
 
       - name: Create release workspace
         shell: bash

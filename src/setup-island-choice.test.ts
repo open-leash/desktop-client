@@ -7,6 +7,7 @@ const renderer = readFileSync(path.join(__dirname, "window.html"), "utf8");
 const main = readFileSync(path.join(__dirname, "main.ts"), "utf8");
 
 test("installation asks whether to enable the Island and shows the real preview", () => {
+  assert.match(renderer, /let setupIslandEnabled = true;/);
   assert.match(renderer, /title: "Island"/);
   assert.match(renderer, /Do you want the Island\?/);
   assert.match(renderer, /src="island-preview\.png"/);

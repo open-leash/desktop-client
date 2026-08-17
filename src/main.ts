@@ -5,6 +5,7 @@ import {
   dialog,
   Menu,
   nativeImage,
+  Notification,
   screen,
   Tray,
   ipcMain,
@@ -108,12 +109,12 @@ import {
 
 const APP_DISPLAY_NAME = app.isPackaged ? "Leash" : "Leash (Dev)";
 let proxyStatus: LocalProxyStatus = {
-  dockerAvailable: false,
-  containerInstalled: false,
+  runtimeAvailable: false,
+  installed: false,
   running: false,
   healthy: false,
   url: "http://127.0.0.1:9320",
-  image: "",
+  binary: "",
   configuredAgents: [],
 };
 let pluginContainerFingerprint = "";
@@ -402,6 +403,7 @@ let latestViewModel: OpenLeashClientViewModel | undefined;
 let monitoringManagedByOrganization = false;
 let latestAttentionEvents: AttentionEvent[] = [];
 let latestIslandContributions: PluginIslandContribution[] = [];
+let presentedTrialEndKey = "";
 const seenAttentionEventIds = new Set<string>();
 const soundedActionableNoticeKeys = new Set<string>();
 const desktopStartedAt = Date.now();
@@ -518,6 +520,7 @@ let desktopAuthSession:
       userEmail?: string;
       account?: { packageId?: string | null };
       evaluationProvider?: { connected?: boolean; provider?: string; masked?: string };
+      billing?: Record<string, unknown>;
     }
   | undefined;
 let selfHostedRuntime = {
@@ -862,7 +865,7 @@ if (singleInstanceLock) app
     proxyStatus = await localProxyStatus();
     if (
       localServer.setupComplete &&
-      !proxyStatus.containerInstalled &&
+      !proxyStatus.installed &&
       localServer.effectiveToken
     ) {
       try {
@@ -2367,6 +2370,9 @@ async function poll() {
     syncSkillWatchers();
     const body = await fetchTrayState();
     if (!body) return setDisconnected();
+    const billing = localServer.clientMode === "cloud" && localServer.remoteApiUrl && localServer.effectiveToken
+      ? await fetchCloudBilling(localServer.remoteApiUrl, localServer.effectiveToken)
+      : undefined;
     applyRememberedApprovalChoices(body.pending);
     latestPendingSources = body.pending.filter(
       (item) =>
@@ -2400,6 +2406,7 @@ async function poll() {
     latestAttentionEvents = body.attentionEvents ?? [];
     rememberCompletedAgentSessions(latestAttentionEvents);
     latestIslandContributions = body.islandContributions ?? [];
+    presentCloudTrialStatus(billing);
     setTrayStatus(latestPending.length > 0 ? "pending" : "ok");
     refreshMenu();
     window?.webContents.send("openleash:update", {
@@ -2430,6 +2437,7 @@ async function poll() {
         : localServer.history,
       mcpServers: localServer.mcpServers,
       skills: localServer.skills,
+      billing,
     });
     const nextPending = latestPending[0];
     if (nextPending) {
@@ -7057,11 +7065,12 @@ async function handleDesktopAuthCallback(rawUrl: string) {
       callback.searchParams.get("dashboard_token") ||
       callback.searchParams.get("token");
     if (dashboardToken) {
+      const apiUrl = normalizeRemoteApiUrl(
+        callback.searchParams.get("api_url") || cloudApiUrl,
+      );
       desktopAuthSession = {
         token: dashboardToken,
-        apiUrl: normalizeRemoteApiUrl(
-          callback.searchParams.get("api_url") || cloudApiUrl,
-        ),
+        apiUrl,
         expiresAt: callback.searchParams.get("expires_at") || undefined,
         organizationName:
           callback.searchParams.get("organization_name") || undefined,
@@ -7069,7 +7078,9 @@ async function handleDesktopAuthCallback(rawUrl: string) {
           callback.searchParams.get("organization_slug") || undefined,
         userName: callback.searchParams.get("user_name") || undefined,
         userEmail: callback.searchParams.get("user_email") || undefined,
+        billing: await fetchCloudBilling(apiUrl, dashboardToken),
       };
+      presentCloudTrialStatus(desktopAuthSession.billing);
       restoreMainWindow();
       window?.webContents.send("openleash:auth", {
         ok: true,
@@ -7143,7 +7154,9 @@ async function handleDesktopAuthCallback(rawUrl: string) {
       userEmail: body.user?.email || body.session?.user?.email,
       account: body.account || body.session?.account,
       evaluationProvider: body.evaluationProvider || body.session?.evaluationProvider,
+      billing: await fetchCloudBilling(pendingDesktopAuth.apiUrl, token),
     };
+    presentCloudTrialStatus(desktopAuthSession.billing);
     pendingDesktopAuth = undefined;
     restoreMainWindow();
     window?.webContents.send("openleash:auth", {
@@ -7156,6 +7169,50 @@ async function handleDesktopAuthCallback(rawUrl: string) {
       error: "Leash could not process the sign-in callback.",
     });
   }
+}
+
+async function fetchCloudBilling(apiUrl: string, token: string) {
+  try {
+    const response = await fetch(new URL("/auth/account/billing", apiUrl), {
+      headers: { authorization: `Bearer ${token}` },
+    });
+    return response.ok ? await response.json() as Record<string, unknown> : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+function presentCloudTrialStatus(billing: Record<string, unknown> | undefined) {
+  const trial = billing?.trial && typeof billing.trial === "object"
+    ? billing.trial as Record<string, unknown>
+    : undefined;
+  if (!billing?.upgradeRequired || !trial?.expired) return;
+  const now = new Date();
+  latestIslandContributions = [
+    ...latestIslandContributions.filter((item) => item.key !== "cloud-trial-ended"),
+    {
+      schemaVersion: "2026-07-20.plugin-island.v1",
+      id: "leash-cloud-trial-ended",
+      pluginId: "openleash.cloud",
+      kind: "status",
+      key: "cloud-trial-ended",
+      title: "Your Leash Cloud trial ended",
+      detail: "Upgrade to keep Leash AI protection active.",
+      tone: "danger",
+      status: "waiting",
+      updatedAt: now.toISOString(),
+      expiresAt: new Date(now.getTime() + 24 * 60 * 60 * 1000).toISOString(),
+    },
+  ];
+  const notificationKey = String(trial.endsAt ?? "cloud-trial-ended");
+  if (presentedTrialEndKey !== notificationKey && Notification.isSupported()) {
+    presentedTrialEndKey = notificationKey;
+    new Notification({
+      title: "Your Leash Cloud trial ended",
+      body: "Upgrade to keep Leash AI protection active.",
+    }).show();
+  }
+  if (localServer?.islandVisibility !== "off") syncActivityIsland(true);
 }
 
 function compactSummary(value: string) {

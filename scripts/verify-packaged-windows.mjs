@@ -22,12 +22,18 @@ const nativeModule = path.join(
   "better_sqlite3.node",
 );
 const packagedApp = path.join(unpacked, "resources", "app.asar");
+const nativeProxy = path.join(
+  unpacked,
+  "resources",
+  "local-proxy",
+  "openleash-local-proxy.exe",
+);
 const expectedDistAssets = [
   path.join(root, "dist", "agent-mascots", "codex-pet.webp"),
   path.join(root, "dist", "THIRD_PARTY_NOTICES.md"),
 ];
 
-for (const required of [executable, nativeModule, packagedApp, ...expectedDistAssets]) {
+for (const required of [executable, nativeModule, packagedApp, nativeProxy, ...expectedDistAssets]) {
   if (!fs.existsSync(required)) throw new Error(`Missing packaged file: ${required}`);
 }
 
@@ -46,6 +52,11 @@ for (const required of [
 if (process.platform !== "win32") {
   console.log("Packaged Windows layout, island assets, and native module are present (runtime ABI check requires Windows).");
   process.exit(0);
+}
+
+const proxyResult = spawnSync(nativeProxy, ["--help"], { encoding: "utf8" });
+if (proxyResult.status !== 0 || !/openleash-local-proxy/i.test(`${proxyResult.stdout}\n${proxyResult.stderr}`)) {
+  throw new Error("Packaged Windows native local proxy could not execute");
 }
 
 const result = spawnSync(

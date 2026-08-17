@@ -2,9 +2,8 @@
 import assert from "node:assert/strict";
 import fs from "node:fs/promises";
 
-const proxySource = await fs.readFile(new URL("../src/proxy-manager.ts", import.meta.url), "utf8");
-const proxyMatch = proxySource.match(/DEFAULT_LOCAL_PROXY_IMAGE\s*=\s*\n?\s*["']([^"']+)["']/);
-assert(proxyMatch, "Could not find DEFAULT_LOCAL_PROXY_IMAGE in proxy-manager.ts");
+const proxyVersion = (await fs.readFile(new URL("../local-proxy.version", import.meta.url), "utf8")).trim();
+assert.match(proxyVersion, /^\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.-]+)?$/, "Invalid native local-proxy version");
 const mainSource = await fs.readFile(new URL("../src/main.ts", import.meta.url), "utf8");
 const clientApiMatches = [...mainSource.matchAll(/client-api:\\\$\{OPENLEASH_VERSION:-([^}]+)\}/g)]
   .map((match) => `ghcr.io/open-leash/client-api:${match[1]}`);
@@ -31,7 +30,14 @@ try {
   }
 }
 
-for (const image of [proxyMatch[1], clientApiMatches[0]]) {
+const proxyTagResponse = await fetch(
+  `https://api.github.com/repos/open-leash/local-proxy/git/ref/tags/v${proxyVersion}`,
+  { headers: { accept: "application/vnd.github+json" } },
+);
+assert(proxyTagResponse.ok, `Native local-proxy tag v${proxyVersion} is not published`);
+console.log(`[desktop-release] verified native local-proxy source tag v${proxyVersion}`);
+
+for (const image of [clientApiMatches[0]]) {
   await verifyPublishedImage(image);
 }
 

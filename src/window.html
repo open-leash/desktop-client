@@ -3224,7 +3224,7 @@
       let setupRemoteBusy = false;
       let setupRemoteProvider = "google";
       let setupRemoteKeySaved = false;
-      let setupRemotePackage = "personal-byok";
+      let setupRemotePackage = "personal-managed";
       let setupFinishing = false;
       let setupInstallState = "idle";
       let setupInstallProgress = { percent: 0, stage: "prepare", title: "Preparing installation", detail: "Checking your selections..." };
@@ -3234,7 +3234,7 @@
       let setupDockerAutoStarted = false;
       let setupProvider = "openai";
       let setupApiKey = "";
-      let setupIslandEnabled;
+      let setupIslandEnabled = true;
       let importedRules;
       let importRulesMessage = "";
       let desktopMessageTimer;
@@ -3549,7 +3549,7 @@
                 { title: "Account", subtitle: "Choose Personal or Business." },
                 { title: "Connect", subtitle: "Pick how Leash runs." },
                 { title: "Sign in", subtitle: "Sign in to Leash Cloud." },
-                { title: "AI provider", subtitle: "Choose how Leash evaluates agent actions." },
+                { title: "Leash AI", subtitle: "Managed safety evaluation is included with Cloud." },
                 { title: "Agents", subtitle: "Choose agents to protect." },
                 ...pluginSteps
               ]
@@ -3557,6 +3557,7 @@
                 { title: "Account", subtitle: "Choose Personal or Business." },
                 { title: "Connect", subtitle: "Connect this computer to Leash Business." },
                 { title: "Sign in", subtitle: "Sign in to Leash Business." },
+                { title: "Leash AI", subtitle: "Managed safety evaluation is included with Cloud." },
                 { title: "Agents", subtitle: "Choose agents to protect." },
                 ...pluginSteps
               ];
@@ -3722,27 +3723,13 @@
                 </div>
               </section>
             ` : ""}
-            ${currentId === "ai provider" ? `
+            ${currentId === "ai provider" || currentId === "leash ai" ? `
               <section class="setupSection">
-                <h2>${individualOpenSource ? "Connect your AI provider" : "Choose how Leash evaluates actions"}</h2>
+                <h2>${individualOpenSource ? "Connect your AI provider" : "Leash AI is included"}</h2>
                 <p>${individualOpenSource
                   ? "Personal Open Source uses your provider to understand agent actions and decide when to allow, ask, or stop. A provider key is required."
-                  : "Leash Cloud starts free with your provider. You can also choose Leash AI for managed, purpose-built safety evaluation."}</p>
-                ${individualCloud ? `
-                  <div class="cardList" style="margin-bottom:16px">
-                    <label class="card choiceCard ${setupRemotePackage === "personal-byok" ? "selected" : ""}">
-                      <span class="choiceIcon">AI</span>
-                      <span><strong>Your AI provider</strong><small>Free. Leash securely uses your key only to evaluate agent actions.</small></span>
-                      <input type="radio" name="evaluationPackage" value="personal-byok" ${setupRemotePackage === "personal-byok" ? "checked" : ""}>
-                    </label>
-                    <label class="card choiceCard ${setupRemotePackage === "personal-managed" ? "selected" : ""}">
-                      <span class="choiceIcon">L</span>
-                      <span><strong>Leash AI</strong><small>$8 per month. No provider key to create, fund, or maintain. Switch back whenever you want.</small></span>
-                      <input type="radio" name="evaluationPackage" value="personal-managed" ${setupRemotePackage === "personal-managed" ? "checked" : ""}>
-                    </label>
-                  </div>
-                ` : ""}
-                ${individualOpenSource || setupRemotePackage === "personal-byok" ? `
+                  : "Cloud uses Leash AI for every safety decision. No provider key is needed, and your 10-day trial starts when you sign in."}</p>
+                ${individualOpenSource ? `
                   <div class="card">
                     <strong>Your AI provider</strong>
                     <p>Leash sends the relevant action details to this provider for a safety decision. Your key is stored by your selected Leash backend and is not shared with your agents.</p>
@@ -3759,10 +3746,12 @@
                       <input id="apiKey" type="password" autocomplete="off" value="${escapeHtml(setupApiKey)}" placeholder="Paste your provider API key">
                     </div>
                     <a id="providerKeyHelp" class="secondary" style="display:inline-flex;margin-top:12px;text-decoration:none" href="#">How to create a ${escapeHtml(setupProvider === "anthropic" ? "Anthropic" : setupProvider === "deepseek" ? "DeepSeek" : "OpenAI")} API key</a>
-                    ${individualCloud && setupRemoteKeySaved ? `<div class="notice" style="margin-top:12px">Provider key connected. Leash Cloud will use it for evaluation.</div>` : ""}
                   </div>
                 ` : `
-                  <div class="card"><strong>Leash AI</strong><p>Leash manages the AI used for safety evaluation. Complete the $8 monthly upgrade in your account, then return here.</p><a class="primary" href="https://openleash.com/account?setup=package&plan=personal-managed" target="_blank" rel="noreferrer">Upgrade to Leash AI</a></div>
+                  <div class="card">
+                    <div class="fieldRow"><div><strong>Leash AI</strong><p>Purpose-built, fully managed safety evaluation across desktop, web, and mobile.</p></div><span class="tag good">Included</span></div>
+                    <div class="notice" style="margin-top:12px">10 days free${orgCloud ? ", for up to 2 employees" : ""}. No card or AI provider key required.</div>
+                  </div>
                 `}
                 <div id="providerSetupError" class="error">${escapeHtml(setupRemoteError)}</div>
               </section>
@@ -3864,7 +3853,7 @@
             setupRemoteAuth = undefined;
             return renderSetup();
           }
-          if (currentId === "ai provider" && setupAudience === "individual" && setupRemotePackage === "personal-byok") {
+          if (currentId === "ai provider" && setupClientMode === "custom") {
             if (!setupApiKey.trim() && !setupRemoteKeySaved) {
               setupRemoteError = "Add your AI provider key before continuing.";
               return renderSetup();
@@ -3873,10 +3862,6 @@
               await saveRemoteModelKey();
               if (!setupRemoteKeySaved) return;
             }
-          }
-          if (currentId === "ai provider" && setupAudience === "individual" && setupRemotePackage === "personal-managed" && setupRemoteAuth?.account?.packageId !== "personal-managed") {
-            setupRemoteError = "Complete the Leash AI upgrade, then sign in again to continue.";
-            return renderSetup();
           }
           setupStep = Math.min(steps.length, setupStep + 1);
           renderSetup();
@@ -4669,6 +4654,7 @@
             <div><h1>Overview</h1><p>${unread.length ? `${unread.length} new ${unread.length === 1 ? "update" : "updates"} from your agents.` : "See what your protected AI agents are doing."}</p></div>
             <div class="headActions">${notificationCenterHtml()}${modeTag()}</div>
           </div>
+          ${cloudTrialBannerHtml()}
           <div class="overviewAgentGrid">
             ${inventory.map((agent) => {
               const unreadCount = unread.filter((item) => historyAgentKind(item) === agent.kind).length;
@@ -4697,6 +4683,24 @@
           };
         });
         bindOverviewAgentSwitches();
+      }
+
+      function cloudTrialBannerHtml() {
+        if (state.clientMode !== "cloud" || !state.billing) return "";
+        const trial = state.billing.trial;
+        if (state.billing.upgradeRequired) {
+          const href = setupAudience === "organization" ? "https://dashboard.openleash.com/billing" : "https://openleash.com/account";
+          return `<div class="card" style="border-color:#ef4444;background:#fff5f5;margin-bottom:18px"><div class="fieldRow"><div><strong>Your Leash Cloud trial ended</strong><p>Upgrade to keep Leash AI protection and Cloud access active.</p></div><a class="secondary" href="${href}" target="_blank" rel="noreferrer" style="text-decoration:none">Upgrade</a></div></div>`;
+        }
+        if (trial?.active) {
+          return `<div class="notice" style="margin-bottom:18px"><strong>Leash Cloud trial · ${escapeHtml(trial.daysRemaining)} day${Number(trial.daysRemaining) === 1 ? "" : "s"} left</strong><br>Leash AI is included. Trial ends ${escapeHtml(formatDateOnly(trial.endsAt))}.</div>`;
+        }
+        return "";
+      }
+
+      function formatDateOnly(value) {
+        const date = new Date(value || "");
+        return Number.isFinite(date.getTime()) ? date.toLocaleDateString(undefined, { month: "long", day: "numeric", year: "numeric" }) : "soon";
       }
 
       function bindOverviewAgentSwitches() {
@@ -6058,6 +6062,7 @@
           <div class="head">
             <div><h1>Settings</h1><p>Manage desktop preferences for this Mac.</p></div>
           </div>
+          ${cloudTrialBannerHtml()}
           ${state.desktopMessage ? `<div class="desktopToast">${escapeHtml(state.desktopMessage)}</div>` : ""}
           <div class="grid">
             <div class="card">
@@ -6094,7 +6099,7 @@
               </div>
               <div class="actions">
                 <button class="secondary" id="refreshProxy">Refresh status</button>
-                <button class="${state.proxyStatus?.containerInstalled ? "secondary dangerButton" : "primary"}" id="toggleProxy">${state.proxyStatus?.containerInstalled ? "Uninstall proxy" : "Install proxy"}</button>
+                <button class="${state.proxyStatus?.installed ? "secondary dangerButton" : "primary"}" id="toggleProxy">${state.proxyStatus?.installed ? "Stop proxy" : "Start proxy"}</button>
               </div>
               <div id="proxyMessage" class="notice">${escapeHtml(state.proxyStatus?.error || "")}</div>
             </div>
@@ -6147,8 +6152,8 @@
         };
         document.getElementById("toggleProxy").onclick = async () => {
           const message = document.getElementById("proxyMessage");
-          message.textContent = state.proxyStatus?.containerInstalled ? "Restoring agent configuration and removing the proxy…" : "Pulling and starting the proxy container…";
-          const result = state.proxyStatus?.containerInstalled
+          message.textContent = state.proxyStatus?.installed ? "Restoring agent configuration and stopping the proxy…" : "Starting the bundled Leash proxy…";
+          const result = state.proxyStatus?.installed
             ? await window.openleash.uninstallProxy()
             : await window.openleash.installProxy({ agents: (state.localProtections || []).filter((agent) => agent.installed && ["claude-code", "codex", "opencode", "nanoclaw"].includes(agent.kind)).map((agent) => agent.kind) });
           if (!result?.ok) { message.textContent = result?.error || "Proxy operation failed."; return; }
@@ -8170,7 +8175,8 @@
           setupRemoteError = "";
           setupRemoteNotice = "";
           setupRemoteBusy = false;
-          setupRemotePackage = payload.account?.packageId || "personal-byok";
+          setupRemotePackage = setupAudience === "organization" ? "work-managed" : "personal-managed";
+          state.billing = payload.billing || state.billing;
           setupRemoteKeySaved = Boolean(payload.evaluationProvider?.connected);
           const signedInStep = setupClientMode === "custom" ? 6 : setupAudience === "organization" ? 3 : 4;
           setupStep = Math.max(setupStep, signedInStep);

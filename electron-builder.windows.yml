@@ -15,6 +15,9 @@ files:
   - package.json
 asarUnpack:
   - node_modules/better-sqlite3/build/Release/*.node
+extraResources:
+  - from: build/local-proxy
+    to: local-proxy
 win:
   icon: src/openleash-icon.png
   target:

@@ -5,8 +5,8 @@ import path from "node:path";
 import test from "node:test";
 import {
   configureAgentProxy,
-  DEFAULT_LOCAL_PROXY_IMAGE,
   LOCAL_PROXY_URL,
+  localProxyBinaryCandidates,
 } from "./proxy-manager.js";
 import { hookApiUrl, proxyClientApiUrl } from "./cli/config.js";
 
@@ -14,12 +14,25 @@ const home = fs.mkdtempSync(path.join(os.tmpdir(), "openleash-proxy-test-"));
 process.env.HOME = home;
 process.env.USERPROFILE = home;
 
-test("released desktop uses an immutable published proxy image", () => {
-  assert.equal(
-    DEFAULT_LOCAL_PROXY_IMAGE,
-    "ghcr.io/open-leash/local-proxy:0.37.0@sha256:e4b51dd59ac0b60d768ed76026d20a48d28f3b5538f3bb17d945d23767dc02da",
+test("released desktop resolves the bundled native proxy without Docker", () => {
+  assert.deepEqual(
+    localProxyBinaryCandidates({
+      platform: "darwin",
+      resourcesPath: "/Applications/Leash.app/Contents/Resources",
+      moduleDir: "/Applications/Leash.app/Contents/Resources/app.asar/apps/desktop-client/dist",
+      override: "",
+    }).slice(0, 1),
+    ["/Applications/Leash.app/Contents/Resources/local-proxy/openleash-local-proxy"],
   );
-  assert.doesNotMatch(DEFAULT_LOCAL_PROXY_IMAGE, /:latest$/);
+  assert.equal(
+    localProxyBinaryCandidates({
+      platform: "win32",
+      resourcesPath: "C:\\Program Files\\Leash\\resources",
+      moduleDir: "C:\\Program Files\\Leash\\resources\\app.asar\\dist",
+      override: "",
+    })[0].endsWith("openleash-local-proxy.exe"),
+    true,
+  );
 });
 
 test("proxy traffic uses the desktop edge while hooks use the managed API", () => {

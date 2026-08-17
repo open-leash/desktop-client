@@ -1,21 +1,17 @@
-import { spawnSync } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 
 export const LOCAL_PROXY_URL = "http://127.0.0.1:9320";
-// Keep this pinned to an immutable proxy release that is published alongside
-// the desktop. A mutable/missing `latest` tag makes existing desktop installs
-// impossible to repair after installation.
-export const DEFAULT_LOCAL_PROXY_IMAGE =
-  "ghcr.io/open-leash/local-proxy:0.37.0@sha256:e4b51dd59ac0b60d768ed76026d20a48d28f3b5538f3bb17d945d23767dc02da";
 function agentProxyUrl(kind: string, openAi = false) {
   return `${LOCAL_PROXY_URL}/agent/${kind}${openAi ? "/v1" : ""}`;
 }
-const CONTAINER_NAME = "openleash-local-proxy";
-const IMAGE =
-  process.env.OPENLEASH_LOCAL_PROXY_IMAGE ||
-  DEFAULT_LOCAL_PROXY_IMAGE;
+const PROXY_STATE_DIR = process.env.OPENLEASH_LOCAL_PROXY_STATE_DIR ||
+  path.join(os.homedir(), ".openleash", "local-proxy");
+const PROXY_PID_FILE = path.join(PROXY_STATE_DIR, "proxy.pid");
+const PROXY_LOG_FILE = path.join(PROXY_STATE_DIR, "proxy.log");
+const LEGACY_CONTAINER_NAME = "openleash-local-proxy";
 
 export type ProxyAgentKind = "claude-code" | "codex" | "nanoclaw" | "opencode";
 export const PROXY_AGENT_SUPPORT = {
@@ -53,45 +49,32 @@ export const PROXY_AGENT_SUPPORT = {
   },
 } as const;
 export type LocalProxyStatus = {
-  dockerAvailable: boolean;
-  containerInstalled: boolean;
+  runtimeAvailable: boolean;
+  installed: boolean;
   running: boolean;
   healthy: boolean;
   url: string;
-  image: string;
+  binary: string;
   configuredAgents: ProxyAgentKind[];
   error?: string;
 };
 
 export async function localProxyStatus(): Promise<LocalProxyStatus> {
-  const dockerAvailable = commandOk([
-    "version",
-    "--format",
-    "{{.Server.Version}}",
-  ]);
-  if (!dockerAvailable)
-    return baseStatus({ dockerAvailable, error: "Docker is not available." });
-  const inspect = docker([
-    "inspect",
-    "-f",
-    "{{.State.Running}}",
-    CONTAINER_NAME,
-  ]);
-  const containerInstalled = inspect.status === 0;
-  const running = containerInstalled && inspect.stdout.trim() === "true";
-  let healthy = false;
-  if (running) {
-    try {
-      healthy = (
-        await fetch(`${LOCAL_PROXY_URL}/healthz`, {
-          signal: AbortSignal.timeout(1500),
-        })
-      ).ok;
-    } catch {
-      /* status remains unhealthy */
-    }
-  }
-  return baseStatus({ dockerAvailable, containerInstalled, running, healthy });
+  const binary = findLocalProxyBinary();
+  const pid = readProxyPid();
+  const processRunning = pid !== undefined && processExists(pid);
+  const healthy = await proxyIsHealthy();
+  if (pid !== undefined && !processRunning) clearProxyPid();
+  const configured = configuredAgents();
+  return baseStatus({
+    runtimeAvailable: Boolean(binary),
+    installed: processRunning || healthy || configured.length > 0,
+    running: processRunning || healthy,
+    healthy,
+    binary: binary ?? "",
+    configuredAgents: configured,
+    ...(!binary ? { error: "The Leash proxy binary is missing from this desktop build." } : {}),
+  });
 }
 
 export async function installLocalProxy(options: {
@@ -100,71 +83,51 @@ export async function installLocalProxy(options: {
   agents?: string[];
   corporateProxy?: string;
 }) {
-  if (!commandOk(["version", "--format", "{{.Server.Version}}"]))
-    throw new Error("Docker Desktop or Docker Engine must be running.");
+  const binary = findLocalProxyBinary();
+  if (!binary)
+    throw new Error("The Leash proxy binary is missing. Reinstall or update Leash, then try again.");
   if (!options.token.trim())
     throw new Error(
       "Leash backend token is required before installing the proxy.",
     );
   const agents = options.agents ?? [];
   for (const agent of agents) configureAgentProxy(agent, false);
-  docker(["rm", "-f", CONTAINER_NAME]);
-  const args = [
-    "run",
-    "-d",
-    "--name",
-    CONTAINER_NAME,
-    "--restart",
-    "unless-stopped",
-    // Docker Desktop defines this host automatically. Docker Engine on Linux
-    // does not, so declare the portable host-gateway mapping explicitly.
-    "--add-host",
-    "host.docker.internal:host-gateway",
-    "-p",
-    "127.0.0.1:9320:9320",
-    "-e",
-    "OPENLEASH_PROXY_LISTEN=0.0.0.0:9320",
-    "-e",
-    `OPENLEASH_CLIENT_API=${dockerReachableApiUrl(options.clientApiUrl)}`,
-    "-e",
-    `OPENLEASH_TOKEN=${options.token}`,
-    "-e",
-    "OPENLEASH_ANTHROPIC_UPSTREAM=https://api.anthropic.com",
-    "-e",
-    "OPENLEASH_OPENAI_UPSTREAM=https://api.openai.com",
-    "-e",
-    "OPENLEASH_CHATGPT_UPSTREAM=https://chatgpt.com/backend-api/codex",
-  ];
-  if (options.corporateProxy?.trim())
-    args.push(
-      "-e",
-      `OPENLEASH_CORPORATE_PROXY=${options.corporateProxy.trim()}`,
-    );
-  args.push(IMAGE);
-  const result = docker(args);
-  if (result.status !== 0)
-    throw new Error(
-      result.stderr.trim() || "Could not start the Leash proxy container.",
-    );
+  await stopManagedProxy();
+  removeLegacyProxyContainer();
+  fs.mkdirSync(PROXY_STATE_DIR, { recursive: true, mode: 0o700 });
+  const log = fs.openSync(PROXY_LOG_FILE, "a", 0o600);
+  const env = {
+    ...process.env,
+    OPENLEASH_PROXY_LISTEN: "127.0.0.1:9320",
+    OPENLEASH_CLIENT_API: options.clientApiUrl.replace(/\/$/, ""),
+    OPENLEASH_TOKEN: options.token,
+    OPENLEASH_ANTHROPIC_UPSTREAM: "https://api.anthropic.com",
+    OPENLEASH_OPENAI_UPSTREAM: "https://api.openai.com",
+    OPENLEASH_CHATGPT_UPSTREAM: "https://chatgpt.com/backend-api/codex",
+    ...(options.corporateProxy?.trim()
+      ? { OPENLEASH_CORPORATE_PROXY: options.corporateProxy.trim() }
+      : {}),
+  };
+  const child = spawn(binary, [], {
+    detached: true,
+    env,
+    stdio: ["ignore", log, log],
+    windowsHide: true,
+  });
+  fs.closeSync(log);
+  if (!child.pid) throw new Error("Could not start the bundled Leash proxy.");
+  child.unref();
+  fs.writeFileSync(PROXY_PID_FILE, `${child.pid}\n`, { mode: 0o600 });
+  await waitForHealthyProxy();
   for (const agent of agents) configureAgentProxy(agent, true);
-  return waitForHealthyProxy();
+  return localProxyStatus();
 }
 
 export async function uninstallLocalProxy() {
   for (const agent of ["claude-code", "codex", "nanoclaw", "opencode"] as const)
     configureAgentProxy(agent, false);
-  const removal = docker(["rm", "-f", CONTAINER_NAME]);
-  const message = `${removal.stderr ?? ""} ${removal.stdout ?? ""}`.trim();
-  const dockerMissing = removal.error && "code" in removal.error && removal.error.code === "ENOENT";
-  if (
-    !dockerMissing &&
-    removal.status !== 0 &&
-    !/no such (?:container|object)/i.test(message)
-  ) {
-    throw new Error(
-      message || "Docker is unavailable, so the Leash proxy container could not be removed.",
-    );
-  }
+  await stopManagedProxy();
+  removeLegacyProxyContainer();
   return localProxyStatus();
 }
 
@@ -385,35 +348,111 @@ async function waitForHealthyProxy() {
     if (status.healthy) return status;
     await new Promise((resolve) => setTimeout(resolve, 250));
   }
-  const logs = docker(["logs", "--tail", "30", CONTAINER_NAME]);
+  const logs = tailProxyLog();
   throw new Error(
-    `Proxy container did not become healthy. ${logs.stderr || logs.stdout}`.trim(),
+    `The bundled Leash proxy did not become healthy. ${logs}`.trim(),
   );
 }
 
-function dockerReachableApiUrl(value: string) {
-  const url = new URL(value);
-  if (["localhost", "127.0.0.1", "::1"].includes(url.hostname))
-    url.hostname = "host.docker.internal";
-  return url.toString().replace(/\/$/, "");
+function findLocalProxyBinary() {
+  return localProxyBinaryCandidates().find((candidate) => fs.existsSync(candidate));
+}
+
+export function localProxyBinaryCandidates(options: {
+  platform?: NodeJS.Platform;
+  resourcesPath?: string;
+  moduleDir?: string;
+  override?: string;
+} = {}) {
+  const platform = options.platform ?? process.platform;
+  const executable = platform === "win32" ? "openleash-local-proxy.exe" : "openleash-local-proxy";
+  const resourcesPath = options.resourcesPath ?? process.resourcesPath;
+  const moduleDir = options.moduleDir ?? __dirname;
+  const override = options.override ?? process.env.OPENLEASH_LOCAL_PROXY_BINARY;
+  return [
+    override,
+    resourcesPath ? path.join(resourcesPath, "local-proxy", executable) : undefined,
+    path.resolve(moduleDir, "..", "build", "local-proxy", executable),
+    path.resolve(moduleDir, "..", "..", "local-proxy", "target", "release", executable),
+  ].filter((candidate): candidate is string => Boolean(candidate));
+}
+
+async function proxyIsHealthy() {
+  try {
+    return (
+      await fetch(`${LOCAL_PROXY_URL}/healthz`, {
+        signal: AbortSignal.timeout(1500),
+      })
+    ).ok;
+  } catch {
+    return false;
+  }
+}
+
+function readProxyPid() {
+  try {
+    const pid = Number.parseInt(fs.readFileSync(PROXY_PID_FILE, "utf8").trim(), 10);
+    return Number.isInteger(pid) && pid > 0 ? pid : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+function clearProxyPid() {
+  fs.rmSync(PROXY_PID_FILE, { force: true });
+}
+
+function processExists(pid: number) {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+async function stopManagedProxy() {
+  const pid = readProxyPid();
+  if (pid === undefined) return;
+  if (processExists(pid)) {
+    try {
+      process.kill(pid, "SIGTERM");
+    } catch {
+      /* process already exited */
+    }
+    for (let attempt = 0; attempt < 20 && processExists(pid); attempt += 1)
+      await new Promise((resolve) => setTimeout(resolve, 100));
+  }
+  clearProxyPid();
+}
+
+function removeLegacyProxyContainer() {
+  // Older Leash releases used Docker for this proxy. Remove that container
+  // when Docker happens to be available, but never make Docker a requirement.
+  spawnSync("docker", ["rm", "-f", LEGACY_CONTAINER_NAME], {
+    encoding: "utf8",
+    timeout: 15_000,
+  });
+}
+
+function tailProxyLog() {
+  try {
+    return fs.readFileSync(PROXY_LOG_FILE, "utf8").split(/\r?\n/).slice(-30).join("\n");
+  } catch {
+    return "No proxy log was written.";
+  }
 }
 function baseStatus(overrides: Partial<LocalProxyStatus>): LocalProxyStatus {
   return {
-    dockerAvailable: false,
-    containerInstalled: false,
+    runtimeAvailable: false,
+    installed: false,
     running: false,
     healthy: false,
     url: LOCAL_PROXY_URL,
-    image: IMAGE,
+    binary: "",
     configuredAgents: configuredAgents(),
     ...overrides,
   };
-}
-function docker(args: string[]) {
-  return spawnSync("docker", args, { encoding: "utf8", timeout: 120_000 });
-}
-function commandOk(args: string[]) {
-  return docker(args).status === 0;
 }
 function readJson(file: string): Record<string, unknown> {
   try {
