@@ -140,6 +140,15 @@ jobs:
           xcrun stapler validate "$app_path"
           xcrun stapler validate "$dmg_path"
 
+      - name: Smoke-test fresh install and running-app upgrade
+        working-directory: apps/desktop-client
+        shell: bash
+        run: |
+          set -euo pipefail
+          dmg_path=$(find release/macos -maxdepth 1 -type f -name 'Leash-*.dmg' -print -quit)
+          test -n "$dmg_path"
+          bash ../../platform/scripts/smoke-macos-installer.sh "$dmg_path" ../../platform/scripts/install-openleash-personal.sh
+
       - name: Create checksums
         working-directory: apps/desktop-client/release/macos
         shell: bash
