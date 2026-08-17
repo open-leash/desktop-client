@@ -22,6 +22,42 @@ SPEC.loader.exec_module(PIPELINE)
 
 
 class ReleasePipelineTests(unittest.TestCase):
+    def test_interactive_menu_builds_safe_plan_arguments(self):
+        versions = {
+            "client-api": "0.37.3",
+            "cloud-client-api": "0.1.15",
+            "desktop-client": "0.37.5",
+            "main-web": "0.2.12",
+        }
+        answers = iter(["2,4", "", "", "", "", "1"])
+        with patch.object(
+            PIPELINE,
+            "component_version",
+            side_effect=lambda component: versions.get(component.key, "0.1.0"),
+        ), contextlib.redirect_stdout(io.StringIO()):
+            arguments = PIPELINE.interactive_release_arguments(lambda _prompt: next(answers))
+        self.assertIn("client-api=0.37.4", arguments)
+        self.assertIn("cloud-client-api=0.1.16", arguments)
+        self.assertIn("--desktop-channel", arguments)
+        self.assertIn("terminal", arguments)
+        self.assertIn("--dry-run", arguments)
+        self.assertNotIn("--ship", arguments)
+
+    def test_interactive_menu_requires_release_confirmation(self):
+        answers = iter(["6", "", "2", "not release"])
+        with patch.object(PIPELINE, "component_version", return_value="0.2.12"), contextlib.redirect_stdout(io.StringIO()):
+            with self.assertRaisesRegex(SystemExit, "cancelled"):
+                PIPELINE.interactive_release_arguments(lambda _prompt: next(answers))
+
+    def test_interactive_resume_can_show_saved_plan_without_shipping(self):
+        with tempfile.TemporaryDirectory() as directory:
+            state = Path(directory) / "production-test.json"
+            state.write_text(json.dumps({"versions": {"desktop-client": "1.2.3"}}))
+            answers = iter(["1", "1"])
+            with contextlib.redirect_stdout(io.StringIO()):
+                arguments = PIPELINE.interactive_resume_arguments([state], lambda _prompt: next(answers))
+            self.assertEqual(arguments, ["--resume", str(state), "--dry-run"])
+
     def test_client_api_release_cascades_to_desktop_and_live_web(self):
         with patch.object(PIPELINE, "component_version", return_value="0.37.0"):
             selected = PIPELINE.add_required_surfaces({"client-api": "0.38.0"})
@@ -96,8 +132,8 @@ class ReleasePipelineTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             state = Path(directory) / "release.json"
             state.write_text(json.dumps({
-                "versions": {"cloud-client-api": "4.5.6"},
-                "explicit_components": ["cloud-client-api"],
+                "versions": {"cloud-client-api": "4.5.6", "desktop-client": "1.2.3"},
+                "explicit_components": ["cloud-client-api", "desktop-client"],
                 "desktop_channel": "stable",
                 "config": {
                     "cloud_source_only": True,

@@ -98,6 +98,14 @@ COMPONENTS: dict[str, Component] = {
 }
 
 ORDER = ("shared", "client-api", "local-proxy", "cloud-client-api", "desktop-client", "main-web")
+MENU_COMPONENTS = (
+    ("desktop-client", "Desktop app", "Build the Mac/Windows client and update the website"),
+    ("client-api", "Personal client API", "Publish the Personal Open Source backend, desktop, and website"),
+    ("local-proxy", "Local proxy", "Publish the agent proxy, desktop, and website"),
+    ("cloud-client-api", "Cloud client API", "Migrate and deploy the hosted client API"),
+    ("shared", "Shared contracts", "Publish shared contracts for explicitly selected consumers"),
+    ("main-web", "Main website", "Deploy the website and verify live install.sh"),
+)
 ALIASES = {
     "packages/shared": "shared",
     "apps/client-api": "client-api",
@@ -147,6 +155,9 @@ class Journal:
 
 
 def main(argv: list[str] | None = None) -> int:
+    raw_arguments = list(sys.argv[1:] if argv is None else argv)
+    if not raw_arguments or raw_arguments == ["--menu"]:
+        raw_arguments = interactive_release_arguments()
     parser = argparse.ArgumentParser(
         description="Deterministic Leash production release pipeline (tests, migrations, artifacts, deploys, live verification)."
     )
@@ -165,7 +176,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--main-web-url", default=DEFAULT_MAIN_WEB)
     parser.add_argument("--rollout", type=int, default=100, help="Desktop stable update rollout percentage.")
     parser.add_argument("--timeout", type=int, default=1800, help="Maximum seconds for each remote workflow/deployment gate.")
-    args = parser.parse_args(argv)
+    args = parser.parse_args(raw_arguments)
 
     if not args.dry_run and not args.ship:
         parser.error("choose --dry-run or --ship")
@@ -287,6 +298,149 @@ def main(argv: list[str] | None = None) -> int:
     return 0
 
 
+def interactive_release_arguments(input_fn: Callable[[str], str] = input) -> list[str]:
+    print("\nLeash production release")
+    print("Select one or more components. Required desktop/website releases are added automatically.\n")
+    for index, (key, label, description) in enumerate(MENU_COMPONENTS, start=1):
+        print(f"  {index}. {label:<20} {description} [{display_component_version(key)}]")
+    journals = recent_release_journals()
+    if journals:
+        print("  R. Resume a previous release")
+    print("  Q. Quit")
+
+    selection = read_menu_selection(input_fn, len(MENU_COMPONENTS), allow_resume=bool(journals))
+    if selection == "resume":
+        return interactive_resume_arguments(journals, input_fn)
+
+    requested: dict[str, str] = {}
+    for index in selection:
+        key = MENU_COMPONENTS[index - 1][0]
+        component = COMPONENTS[key]
+        current = component_version(component)
+        suggested = next_patch(current)
+        entered = prompt(input_fn, f"{MENU_COMPONENTS[index - 1][1]} version", suggested)
+        validate_version(entered)
+        requested[key] = entered
+
+    expanded = add_required_surfaces(requested)
+    print("\nRelease plan:")
+    for key in ORDER:
+        if key not in expanded:
+            continue
+        suffix = "" if key in requested else " (added automatically)"
+        print(f"  - {key}: {component_version(COMPONENTS[key])} -> {expanded[key]}{suffix}")
+
+    arguments: list[str] = []
+    for key in ORDER:
+        if key in requested:
+            arguments.extend(("--app", f"{key}={requested[key]}"))
+
+    if "desktop-client" in expanded:
+        print("\nDesktop channel:")
+        print("  1. Terminal installer — Mac release without Apple notarization (recommended)")
+        print("  2. Stable signed — Mac + Windows; requires signing/notarization secrets")
+        channel = prompt(input_fn, "Choose", "1")
+        if channel not in {"1", "2"}:
+            raise SystemExit("Cancelled: desktop channel must be 1 or 2.")
+        arguments.extend(("--desktop-channel", "terminal" if channel == "1" else "stable"))
+
+    if "cloud-client-api" in requested:
+        print("\nCloud publication:")
+        print("  1. Production — backup, migrate, deploy, and verify live (recommended)")
+        print("  2. Source only — push source without a production deployment")
+        cloud_mode = prompt(input_fn, "Choose", "1")
+        if cloud_mode not in {"1", "2"}:
+            raise SystemExit("Cancelled: cloud publication must be 1 or 2.")
+        if cloud_mode == "2":
+            arguments.append("--cloud-source-only")
+
+    print("\nAction:")
+    print("  1. Show plan only — no files or remote systems change (recommended first)")
+    print("  2. RELEASE — run every gate, migration, build, upload, deploy, and live check")
+    action = prompt(input_fn, "Choose", "1")
+    if action == "1":
+        arguments.extend(("--dry-run", "--yes"))
+        return arguments
+    if action != "2":
+        raise SystemExit("Cancelled: action must be 1 or 2.")
+    confirmation = prompt(input_fn, "Type RELEASE to continue", "")
+    if confirmation != "RELEASE":
+        raise SystemExit("Release cancelled.")
+    arguments.extend(("--ship", "--yes"))
+    return arguments
+
+
+def read_menu_selection(input_fn: Callable[[str], str], item_count: int, allow_resume: bool) -> list[int] | str:
+    raw = prompt(input_fn, "Components (comma-separated)", "").strip().lower()
+    if raw in {"q", "quit"}:
+        raise SystemExit("Release cancelled.")
+    if raw in {"r", "resume"} and allow_resume:
+        return "resume"
+    try:
+        selected = sorted({int(value.strip()) for value in raw.split(",") if value.strip()})
+    except ValueError as error:
+        raise SystemExit("Cancelled: enter component numbers separated by commas.") from error
+    if not selected or any(value < 1 or value > item_count for value in selected):
+        raise SystemExit(f"Cancelled: select component numbers from 1 to {item_count}.")
+    return selected
+
+
+def interactive_resume_arguments(journals: list[Path], input_fn: Callable[[str], str]) -> list[str]:
+    print("\nInterrupted releases:")
+    for index, path in enumerate(journals, start=1):
+        try:
+            document = json.loads(path.read_text(encoding="utf-8"))
+            versions = ", ".join(f"{key}={value}" for key, value in document.get("versions", {}).items())
+        except (OSError, json.JSONDecodeError):
+            versions = "unreadable state"
+        print(f"  {index}. {path.name}  {versions}")
+    choice = prompt(input_fn, "Resume which release", "1")
+    try:
+        selected = int(choice)
+    except ValueError as error:
+        raise SystemExit("Cancelled: choose a release number.") from error
+    if selected < 1 or selected > len(journals):
+        raise SystemExit("Cancelled: release number is out of range.")
+
+    print("\nAction:")
+    print("  1. Show the saved plan only")
+    print("  2. Resume the production release")
+    action = prompt(input_fn, "Choose", "1")
+    arguments = ["--resume", str(journals[selected - 1])]
+    if action == "1":
+        return [*arguments, "--dry-run"]
+    if action != "2":
+        raise SystemExit("Cancelled: action must be 1 or 2.")
+    confirmation = prompt(input_fn, "Type RELEASE to continue", "")
+    if confirmation != "RELEASE":
+        raise SystemExit("Release cancelled.")
+    return [*arguments, "--ship", "--yes"]
+
+
+def recent_release_journals(limit: int = 5) -> list[Path]:
+    if not STATE_DIR.exists():
+        return []
+    candidates = [path for path in STATE_DIR.glob("production-*.json") if path.is_file()]
+    return sorted(candidates, key=lambda path: path.stat().st_mtime, reverse=True)[:limit]
+
+
+def display_component_version(key: str) -> str:
+    try:
+        return f"current {component_version(COMPONENTS[key])}"
+    except (OSError, RuntimeError, KeyError, json.JSONDecodeError):
+        return "checkout missing"
+
+
+def prompt(input_fn: Callable[[str], str], label: str, default: str) -> str:
+    suffix = f" [{default}]" if default else ""
+    try:
+        value = input_fn(f"{label}{suffix}: ").strip()
+    except (EOFError, KeyboardInterrupt) as error:
+        print()
+        raise SystemExit("Release cancelled.") from error
+    return value or default
+
+
 def parse_selection(values: list[str], common_version: str | None) -> dict[str, str]:
     selected: dict[str, str] = {}
     for raw in values:
@@ -313,8 +467,10 @@ def print_plan(selected: list[str], versions: dict[str, str], args: argparse.Nam
     print("Leash deterministic production release")
     for key in selected:
         print(f"  - {key}: {component_version(COMPONENTS[key])} -> {versions[key]}")
-    print(f"  - desktop channel: {args.desktop_channel}")
-    print(f"  - cloud migrations: {'source only' if args.cloud_source_only else args.migration_target + ' backup + apply + status'}")
+    if "desktop-client" in selected:
+        print(f"  - desktop channel: {args.desktop_channel}")
+    if "cloud-client-api" in selected:
+        print(f"  - cloud migrations: {'source only' if args.cloud_source_only else args.migration_target + ' backup + apply + status'}")
     print(f"  - state: {state_path}")
 
 
@@ -329,9 +485,12 @@ def print_dry_run_stages(selected: list[str], args: argparse.Namespace) -> None:
         if key == "client-api":
             print(f"  {number}. pin the published client-api digest; test the actual Personal Open Source image")
             number += 1
-    print(f"  {number}. production migration status and live cloud health (when selected)")
-    print(f"  {number + 1}. live main-web install.sh download/checksum verification (when selected)")
-    if args.desktop_channel == "terminal":
+    if "cloud-client-api" in selected and not args.cloud_source_only:
+        print(f"  {number}. production migration status and exact-version live cloud health")
+        number += 1
+    if "main-web" in selected:
+        print(f"  {number}. live main-web install.sh download/checksum verification")
+    if "desktop-client" in selected and args.desktop_channel == "terminal":
         print("  - macOS artifacts use the release-gated Terminal installer workflow")
 
 

@@ -167,10 +167,13 @@ APP_PROFILES = {
 
 
 def main() -> int:
-    if "--production" in sys.argv[1:]:
+    arguments = sys.argv[1:]
+    if "--production" in arguments or not arguments:
         from scripts.release_pipeline import main as production_release_main
 
-        return production_release_main([argument for argument in sys.argv[1:] if argument != "--production"])
+        return production_release_main([argument for argument in arguments if argument != "--production"])
+    if "--legacy" in arguments:
+        sys.argv = [sys.argv[0], *[argument for argument in arguments if argument != "--legacy"]]
     parser = argparse.ArgumentParser(description="Interactive/app-aware Leash release conductor.")
     parser.add_argument("--version", help="Use this version for every selected app.")
     parser.add_argument("--app", action="append", default=[], help="Select app and optional version, e.g. desktop-client=0.36.0. Repeatable.")

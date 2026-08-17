@@ -4,6 +4,17 @@
 the complete path from selected source repositories to published containers,
 desktop downloads, cloud deployments, and the live website installer.
 
+For the guided menu, just run:
+
+```bash
+python3 release.py
+```
+
+Select components by number, accept or edit the suggested next versions, then
+choose plan-only or type `RELEASE` to execute. Interrupted release journals are
+also offered in the menu. Use `python3 release.py --legacy` only for the older
+preparatory conductor.
+
 ## Select the release
 
 Every component is explicit and independently versioned:

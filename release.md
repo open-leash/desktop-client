@@ -3,6 +3,9 @@
 The canonical release path is the deterministic production pipeline:
 
 ```bash
+python3 release.py
+
+# Equivalent automation-friendly commands:
 python3 release.py --production --app desktop-client=0.37.6 --dry-run --yes
 python3 release.py --production --app desktop-client=0.37.6 --ship --yes
 ```
