@@ -168,6 +168,17 @@ remove_install_path() {
   sudo rm -rf -- "$target"
 }
 
+make_install_path_replaceable() {
+  local target="$1"
+  [[ -e "$target" ]] || return 0
+  chflags -R nouchg,noschg "$target" >/dev/null 2>&1 ||
+    sudo chflags -R nouchg,noschg "$target" >/dev/null 2>&1 || true
+  chmod -RN "$target" >/dev/null 2>&1 ||
+    sudo chmod -RN "$target" >/dev/null 2>&1 || true
+  chmod -R u+rwX "$target" >/dev/null 2>&1 ||
+    sudo chmod -R u+rwX "$target" >/dev/null 2>&1 || true
+}
+
 cleanup() {
   local status=$?
   if [[ -n "$MOUNT_POINT" ]]; then
@@ -240,6 +251,7 @@ copy_app() {
   stop_openleash
   log "Installing $APP_NAME to $target_app..."
   if [[ -e "$target_app" ]]; then
+    make_install_path_replaceable "$target_app"
     if [[ -w "$INSTALL_DIR" ]]; then
       mv "$target_app" "$backup_app" || die "Could not move the previous Leash app out of the way."
     else
