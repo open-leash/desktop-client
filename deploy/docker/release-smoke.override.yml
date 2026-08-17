@@ -1,0 +1,6 @@
+services:
+  postgres:
+    container_name: openleash-release-smoke-${OPENLEASH_SMOKE_ID}-postgres
+
+  client-api:
+    container_name: openleash-release-smoke-${OPENLEASH_SMOKE_ID}-client-api

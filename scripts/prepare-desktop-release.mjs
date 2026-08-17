@@ -17,6 +17,7 @@ const explicitVersion = valueAfter("--version");
 const dryRun = args.has("--dry-run");
 const linksOnly = args.has("--links-only");
 const includeWindows = args.has("--include-windows");
+const terminalInstaller = args.has("--terminal-installer");
 const shouldBumpMinor = args.has("--bump-minor") || (!explicitVersion && !args.has("--current"));
 const downloadHost = (valueAfter("--download-host") ?? process.env.OPENLEASH_DESKTOP_DOWNLOAD_HOST ?? "github").toLowerCase();
 
@@ -51,7 +52,7 @@ if (linksOnly) {
 }
 console.log(`Website download label: v${shortVersion}`);
 console.log(`Download host: ${downloadHost}`);
-console.log(`Mac asset: Leash-${nextVersion}-arm64.dmg`);
+console.log(`Mac asset: ${terminalInstaller ? `Leash-${nextVersion}-terminal-installer-arm64.dmg` : `Leash-${nextVersion}-arm64.dmg`}`);
 console.log(`Windows asset: ${includeWindows ? `Leash-${nextVersion}-x64-Setup.exe` : "gated until --include-windows and signing credentials are available"}`);
 
 function valueAfter(flag) {
@@ -92,7 +93,7 @@ function rewriteMainWebDownloads(version, label) {
   ]);
 
   replaceInFile(accountClientPath, [
-    [/const macDownloadUrl = ".*?";/, `const macDownloadUrl = "${macUrl}";`]
+    [/const macInstallCommand = "curl -fsSL https:\/\/openleash\.com\/install\.sh \| sh";/, 'const macInstallCommand = "curl -fsSL https://openleash.com/install.sh | sh";']
   ]);
 
   if (includeWindows) {
@@ -126,7 +127,9 @@ function desktopDownloadUrls(version) {
     const bucket = process.env.OPENLEASH_DESKTOP_GCS_BUCKET ?? "openleash-downloads-cloud-497307";
     const baseUrl = `https://storage.googleapis.com/${bucket}/desktop/${version}`;
     return {
-      macUrl: `${baseUrl}/Leash-${version}-arm64.dmg`,
+      macUrl: terminalInstaller
+        ? `${baseUrl}/Leash-${version}-terminal-installer-arm64.dmg`
+        : `${baseUrl}/Leash-${version}-arm64.dmg`,
       windowsUrl: `${baseUrl}/Leash-${version}-x64-Setup.exe`
     };
   }
@@ -134,7 +137,9 @@ function desktopDownloadUrls(version) {
   const repo = process.env.OPENLEASH_DESKTOP_GITHUB_REPO ?? "open-leash/desktop-client";
   const baseUrl = `https://github.com/${repo}/releases/download/v${version}`;
   return {
-    macUrl: `${baseUrl}/Leash-${version}-arm64.dmg`,
+    macUrl: terminalInstaller
+      ? `${baseUrl}/Leash-${version}-terminal-installer-arm64.dmg`
+      : `${baseUrl}/Leash-${version}-arm64.dmg`,
     windowsUrl: `${baseUrl}/Leash-${version}-x64-Setup.exe`
   };
 }

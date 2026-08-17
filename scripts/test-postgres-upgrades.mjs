@@ -3,14 +3,11 @@ import crypto from "node:crypto";
 import { spawn } from "node:child_process";
 import process from "node:process";
 import { Pool } from "pg";
+import { startIsolatedPostgres } from "./postgres-test-container.mjs";
 
-const baseUrl = process.env.OPENLEASH_UPGRADE_DATABASE_URL
-  ?? process.env.DATABASE_URL
-  ?? "postgres://openleash:openleash@localhost:9543/openleash";
+let baseUrl;
 const runId = `${Date.now()}_${process.pid}`;
-const composeProject = process.env.OPENLEASH_UPGRADE_COMPOSE_PROJECT
-  ?? `openleash-upgrade-${process.pid}`;
-let composeStarted = false;
+let postgres;
 const fixtures = [
   {
     name: "empty-current-install",
@@ -89,8 +86,8 @@ const fixtures = [
 const createdDatabases = [];
 
 try {
-  await run("docker", ["compose", "--project-name", composeProject, "up", "-d", "--wait", "postgres"]);
-  composeStarted = true;
+  postgres = await startIsolatedPostgres("openleash-core-upgrade");
+  baseUrl = postgres.databaseUrl;
   for (const fixture of fixtures) {
     await runFixture(fixture);
   }
@@ -104,10 +101,7 @@ try {
       console.error(`Could not drop ${database}: ${error.message}`);
     });
   }
-  if (composeStarted) {
-    await run("docker", ["compose", "--project-name", composeProject, "down", "--remove-orphans"])
-      .catch((error) => console.error(`Could not stop ${composeProject}: ${error.message}`));
-  }
+  if (postgres) await postgres.stop().catch((error) => console.error(`Could not stop ${postgres.name}: ${error.message}`));
 }
 
 async function runFixture(fixture) {

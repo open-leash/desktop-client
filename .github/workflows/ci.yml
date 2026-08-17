@@ -47,12 +47,15 @@ jobs:
         run: npm run test:upgrade
 
       - name: Runner cleanup tests
-        run: npm run test:runner
+        run: |
+          npm run test:runner
+          python3 -m unittest scripts/test_release_pipeline.py
 
       - name: Installer and release entrypoint syntax
         run: |
-          bash -n scripts/install-openleash-personal.sh scripts/smoke-macos-installer.sh
-          python3 -m py_compile scripts/run-openleash.py release.py test.py
+          bash -n scripts/install-openleash-personal.sh scripts/smoke-macos-installer.sh scripts/smoke-personal-release.sh
+          node --check scripts/postgres-test-container.mjs scripts/test-cloud-postgres-upgrades.mjs
+          python3 -m py_compile scripts/run-openleash.py scripts/release_pipeline.py release.py test.py
 
       - name: Deployment readiness
         run: npm run test:deployment:public

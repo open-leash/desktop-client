@@ -45,6 +45,7 @@ def main() -> int:
             Step("public-cloud-dry-run", ["python3", "run.py", "--mode", "public-cloud", "--dry-run", "--yes"]),
             Step("local-release-dry-run", ["python3", "run.py", "--mode", "local-release", "--dry-run", "--yes"]),
             Step("cleanup-dry-run", ["python3", "run.py", "--mode", "cleanup", "--dry-run", "--yes"]),
+            Step("release-pipeline", ["python3", "-m", "unittest", "scripts/test_release_pipeline.py"]),
         ])
 
     for step in steps:
