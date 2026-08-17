@@ -12,8 +12,9 @@ DMG="${1:-}"
 if [[ -z "$DMG" ]]; then
   DMG="$(find "$ROOT/release/personal" "$ROOT/apps/desktop-client/release/macos" -maxdepth 1 -type f -name 'Leash-*-arm64.dmg' -print 2>/dev/null | sort -V | tail -n 1)"
 fi
-[[ -x "$INSTALLER" ]] || { printf '%s\n' "Installer is not executable: $INSTALLER" >&2; exit 1; }
+[[ -f "$INSTALLER" ]] || { printf '%s\n' "Installer was not found: $INSTALLER" >&2; exit 1; }
 [[ -f "$DMG" ]] || { printf '%s\n' "DMG was not found: $DMG" >&2; exit 1; }
+bash -n "$INSTALLER"
 
 SMOKE_ROOT="$(mktemp -d "${TMPDIR:-/tmp}/leash-installer-smoke.XXXXXX")"
 case "$SMOKE_ROOT" in
@@ -38,7 +39,7 @@ INSTALL_DIR="$SMOKE_ROOT/Applications"
 mkdir -p "$SMOKE_HOME" "$INSTALL_DIR"
 
 printf '%s\n' "[installer-smoke] fresh install"
-HOME="$SMOKE_HOME" "$INSTALLER" --dmg "$DMG" --target "$INSTALL_DIR" --no-launch
+HOME="$SMOKE_HOME" bash "$INSTALLER" --dmg "$DMG" --target "$INSTALL_DIR" --no-launch
 APP="$INSTALL_DIR/Leash.app"
 EXECUTABLE="$APP/Contents/MacOS/Leash"
 [[ -x "$EXECUTABLE" ]]
@@ -69,7 +70,7 @@ SMOKE_PID=$!
 sleep 0.5
 kill -0 "$SMOKE_PID"
 chmod -R a-w "$APP"
-HOME="$SMOKE_HOME" "$INSTALLER" --dmg "$DMG" --target "$INSTALL_DIR" --keep-settings --no-launch
+HOME="$SMOKE_HOME" bash "$INSTALLER" --dmg "$DMG" --target "$INSTALL_DIR" --keep-settings --no-launch
 if kill -0 "$SMOKE_PID" 2>/dev/null; then
   printf '%s\n' "Installer did not stop the running previous app." >&2
   exit 1
