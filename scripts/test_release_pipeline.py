@@ -23,13 +23,15 @@ SPEC.loader.exec_module(PIPELINE)
 
 class ReleasePipelineTests(unittest.TestCase):
     def test_client_api_release_cascades_to_desktop_and_live_web(self):
-        selected = PIPELINE.add_required_surfaces({"client-api": "0.38.0"})
+        with patch.object(PIPELINE, "component_version", return_value="0.37.0"):
+            selected = PIPELINE.add_required_surfaces({"client-api": "0.38.0"})
         self.assertEqual(selected["client-api"], "0.38.0")
         self.assertIn("desktop-client", selected)
         self.assertIn("main-web", selected)
 
     def test_desktop_release_cascades_to_main_web(self):
-        selected = PIPELINE.add_required_surfaces({"desktop-client": "0.38.0"})
+        with patch.object(PIPELINE, "component_version", return_value="0.37.0"):
+            selected = PIPELINE.add_required_surfaces({"desktop-client": "0.38.0"})
         self.assertIn("main-web", selected)
 
     def test_explicit_component_versions_are_independent(self):

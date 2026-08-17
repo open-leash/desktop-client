@@ -27,7 +27,9 @@ suffixes are rejected so numeric ordering and immutable tags stay unambiguous.
 
 Supported component names are `shared`, `client-api`, `local-proxy`,
 `cloud-client-api`, `desktop-client`, and `main-web`. Prefixes such as
-`apps/desktop-client` are accepted.
+`apps/desktop-client` are accepted. Run the command from the release workspace,
+where each selected repository is checked out at the path shown by its
+component name; preflight rejects missing or out-of-date sibling checkouts.
 
 Product dependencies are automatic where a release would otherwise strand a
 user on stale binaries:
