@@ -3,6 +3,7 @@ from __future__ import annotations
 import importlib.util
 import subprocess
 import sys
+import tempfile
 import unittest
 from pathlib import Path
 from unittest.mock import patch
@@ -124,6 +125,21 @@ class RunnerTests(unittest.TestCase):
         self.assertTrue(RUNNER.is_local_leash_image_repository("openleash-local-proxy"))
         self.assertTrue(RUNNER.is_local_leash_image_repository("leash-client-api"))
         self.assertFalse(RUNNER.is_local_leash_image_repository("postgres"))
+
+    def test_packaged_integration_cleanup_failure_does_not_abort_full_cleanup(self):
+        with tempfile.TemporaryDirectory() as directory:
+            executable = Path(directory) / "Leash"
+            executable.touch()
+            failed = subprocess.CompletedProcess([], -5, stderr="Electron trapped")
+            with patch.object(RUNNER.subprocess, "run", return_value=failed) as run:
+                RUNNER.cleanup_installed_app_integrations((executable,))
+
+        command = run.call_args.args[0]
+        self.assertEqual(command[0], str(executable))
+        self.assertTrue(command[1].startswith("--user-data-dir="))
+        self.assertEqual(command[2], "--cleanup-integrations")
+        self.assertFalse(run.call_args.kwargs["check"])
+        self.assertEqual(run.call_args.kwargs["timeout"], 15)
 
     def test_launch_services_parser_targets_leash_apps_and_stale_volumes(self):
         dump = """

@@ -8,6 +8,7 @@ import shutil
 import signal
 import subprocess
 import sys
+import tempfile
 import time
 import urllib.error
 import urllib.request
@@ -283,9 +284,9 @@ def stop_dev_processes() -> None:
 def cleanup_local_leash(remove_data: bool) -> None:
     print("[leash] stopping local services")
     stop_dev_processes()
-    subprocess.run(["pkill", "-TERM", "-f", "/Leash.app/"], check=False, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-    subprocess.run(["pkill", "-TERM", "-f", "/OpenLeash.app/"], check=False, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    stop_installed_app_processes()
     cleanup_installed_app_integrations()
+    stop_installed_app_processes()
     subprocess.run(["npm", "run", "desktop-cli", "--", "proxy", "uninstall"], cwd=ROOT, check=True)
     subprocess.run(["npm", "run", "desktop-cli", "--", "uninstall-hooks", "--all"], cwd=ROOT, check=True)
     remove_macos_registrations()
@@ -306,8 +307,46 @@ def cleanup_local_leash(remove_data: bool) -> None:
     print("[leash] local cleanup complete")
 
 
-def cleanup_installed_app_integrations() -> None:
-    candidates = (
+def stop_installed_app_processes() -> None:
+    if sys.platform == "darwin":
+        subprocess.run(
+            ["launchctl", "remove", "com.openleash.installer-launch"],
+            check=False,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
+    patterns = ("/Leash.app/", "/OpenLeash.app/")
+    for pattern in patterns:
+        subprocess.run(
+            ["pkill", "-TERM", "-f", pattern],
+            check=False,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
+    deadline = time.time() + 4
+    while time.time() < deadline:
+        if not any(
+            subprocess.run(
+                ["pgrep", "-f", pattern],
+                check=False,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+            ).returncode == 0
+            for pattern in patterns
+        ):
+            return
+        time.sleep(0.2)
+    for pattern in patterns:
+        subprocess.run(
+            ["pkill", "-KILL", "-f", pattern],
+            check=False,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
+
+
+def cleanup_installed_app_integrations(candidates: tuple[Path, ...] | None = None) -> None:
+    candidates = candidates or (
         Path("/Applications/Leash.app/Contents/MacOS/Leash"),
         Path("/Applications/OpenLeash.app/Contents/MacOS/OpenLeash"),
         Path.home() / "Applications" / "Leash.app" / "Contents" / "MacOS" / "Leash",
@@ -319,7 +358,34 @@ def cleanup_installed_app_integrations() -> None:
         print(f"[leash:cleanup-integrations] {executable} --cleanup-integrations")
         env = merged_env()
         env.pop("ELECTRON_RUN_AS_NODE", None)
-        subprocess.run([str(executable), "--cleanup-integrations"], env=env, check=True)
+        try:
+            with tempfile.TemporaryDirectory(prefix="leash-cleanup-") as user_data_dir:
+                result = subprocess.run(
+                    [
+                        str(executable),
+                        f"--user-data-dir={user_data_dir}",
+                        "--cleanup-integrations",
+                    ],
+                    env=env,
+                    check=False,
+                    timeout=15,
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.PIPE,
+                    text=True,
+                )
+        except (OSError, subprocess.TimeoutExpired) as error:
+            print(
+                f"[leash:cleanup-integrations] packaged helper unavailable ({error}); "
+                "continuing with native proxy and hook cleanup"
+            )
+            continue
+        if result.returncode != 0:
+            detail = (result.stderr or "").strip().splitlines()
+            suffix = f": {detail[-1]}" if detail else ""
+            print(
+                "[leash:cleanup-integrations] packaged helper exited "
+                f"with status {result.returncode}{suffix}; continuing with native proxy and hook cleanup"
+            )
 
 
 def remove_macos_registrations() -> None:
@@ -506,6 +572,7 @@ def discover_local_leash_launch_agents() -> list[str]:
 
 def local_state_paths() -> tuple[Path, ...]:
     user_home = Path.home()
+    temp_roots = {Path(tempfile.gettempdir()), Path("/tmp")}
     command_names = ("leash", "leash-client", "leash-agent", "openleash", "openleash-client", "openleash-agent")
     command_roots = (Path("/usr/local/bin"), Path("/opt/homebrew/bin"), user_home / ".local" / "bin")
     fixed = {
@@ -532,6 +599,9 @@ def local_state_paths() -> tuple[Path, ...]:
         TRACE_FILE,
     }
     fixed.update(command_root / command_name for command_root in command_roots for command_name in command_names)
+    for temp_root in temp_roots:
+        for pattern in ("leash-cleanup-*", "openleash-cleanup-*"):
+            fixed.update(temp_root.glob(pattern))
     library = user_home / "Library"
     glob_roots = (
         library / "Application Support" / "CrashReporter",
