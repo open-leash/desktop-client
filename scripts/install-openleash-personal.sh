@@ -293,7 +293,7 @@ stop_openleash() {
 }
 
 remove_retired_feature_containers() {
-  command -v docker >/dev/null 2>&1 || return
+  command -v docker >/dev/null 2>&1 || return 0
   log "Removing retired containerized Feature runtimes..."
   docker rm -f \
     openleash-plugin-gateway \

@@ -13,7 +13,17 @@ jobs:
         uses: actions/checkout@v7
         with:
           fetch-depth: 0
-          submodules: recursive
+          submodules: false
+
+      - name: Checkout public submodules
+        run: |
+          git submodule update --init --force \
+            apps/client-api \
+            apps/desktop-client \
+            apps/docs-web \
+            apps/local-proxy \
+            apps/mobile-client \
+            packages/shared
 
       - name: Setup Node
         uses: actions/setup-node@v7
