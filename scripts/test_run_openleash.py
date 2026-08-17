@@ -185,6 +185,46 @@ class RunnerTests(unittest.TestCase):
             commands,
         )
 
+    def test_cleanup_discovers_and_removes_stale_submitted_launch_job(self):
+        launchctl_list = subprocess.CompletedProcess(
+            [],
+            0,
+            stdout=(
+                "PID\tStatus\tLabel\n"
+                "431\t0\tcom.openleash.test-launch\n"
+                "-\t0\tcom.apple.unrelated\n"
+            ),
+        )
+        not_running = subprocess.CompletedProcess([], 1)
+
+        def run(command, **_kwargs):
+            if command == ["launchctl", "list"]:
+                return launchctl_list
+            return not_running
+
+        with (
+            patch.object(RUNNER.sys, "platform", "darwin"),
+            patch.object(RUNNER.subprocess, "run", side_effect=run) as subprocess_run,
+        ):
+            RUNNER.stop_installed_app_processes()
+
+        commands = [call.args[0] for call in subprocess_run.call_args_list]
+        self.assertIn(
+            ["launchctl", "remove", "com.openleash.test-launch"],
+            commands,
+        )
+
+    def test_launchctl_parser_only_targets_leash_jobs(self):
+        output = """
+431 0 com.openleash.test-launch
+- 1 com.leash.background
+92 0 com.apple.Safari
+"""
+        self.assertEqual(
+            RUNNER.parse_leash_launchctl_labels(output),
+            ["com.leash.background", "com.openleash.test-launch"],
+        )
+
     def test_launch_services_parser_targets_leash_apps_and_stale_volumes(self):
         dump = """
 path: /Applications/Leash.app (0x123)

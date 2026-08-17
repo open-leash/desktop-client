@@ -319,10 +319,12 @@ def cleanup_local_leash(remove_data: bool) -> None:
 
 def stop_installed_app_processes() -> None:
     if sys.platform == "darwin":
-        for label in (
+        labels = {
             "com.openleash.installer-launch",
             "com.openleash.local-release-launch",
-        ):
+            *discover_running_leash_launch_jobs(),
+        }
+        for label in sorted(labels):
             subprocess.run(
                 ["launchctl", "remove", label],
                 check=False,
@@ -576,12 +578,38 @@ def discover_local_leash_image_ids() -> list[str]:
 
 def discover_local_leash_launch_agents() -> list[str]:
     launch_agents = Path.home() / "Library" / "LaunchAgents"
-    if not launch_agents.is_dir():
-        return []
     labels: list[str] = []
-    for pattern in ("com.openleash*.plist", "com.leash*.plist"):
-        labels.extend(path.stem for path in launch_agents.glob(pattern))
+    if launch_agents.is_dir():
+        for pattern in ("com.openleash*.plist", "com.leash*.plist"):
+            labels.extend(path.stem for path in launch_agents.glob(pattern))
+    labels.extend(discover_running_leash_launch_jobs())
     return sorted(set(labels))
+
+
+def parse_leash_launchctl_labels(output: str) -> list[str]:
+    labels: set[str] = set()
+    for line in output.splitlines():
+        fields = line.split()
+        if not fields:
+            continue
+        label = fields[-1]
+        if label.startswith(("com.openleash.", "com.leash.")):
+            labels.add(label)
+    return sorted(labels)
+
+
+def discover_running_leash_launch_jobs() -> list[str]:
+    if sys.platform != "darwin":
+        return []
+    result = subprocess.run(
+        ["launchctl", "list"],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if result.returncode != 0:
+        return []
+    return parse_leash_launchctl_labels(result.stdout or "")
 
 
 def local_state_paths() -> tuple[Path, ...]:
