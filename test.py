@@ -43,6 +43,8 @@ def main() -> int:
             Step("user-flows", ["npm", "run", "test:flows"]),
             Step("personal-open-source-dry-run", ["python3", "run.py", "--mode", "individual-open-source", "--dry-run", "--yes"]),
             Step("public-cloud-dry-run", ["python3", "run.py", "--mode", "public-cloud", "--dry-run", "--yes"]),
+            Step("local-release-dry-run", ["python3", "run.py", "--mode", "local-release", "--dry-run", "--yes"]),
+            Step("cleanup-dry-run", ["python3", "run.py", "--mode", "cleanup", "--dry-run", "--yes"]),
         ])
 
     for step in steps:

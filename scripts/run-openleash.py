@@ -92,7 +92,17 @@ def build_modes() -> dict[str, Mode]:
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Run the personal Leash development stack.")
-    parser.add_argument("--mode", choices=["individual-open-source", "personal-open-source", "public-cloud", "leash-cloud"])
+    parser.add_argument(
+        "--mode",
+        choices=[
+            "individual-open-source",
+            "personal-open-source",
+            "public-cloud",
+            "leash-cloud",
+            "local-release",
+            "cleanup",
+        ],
+    )
     parser.add_argument("--clean", "--cleanup-local", dest="cleanup", action="store_true")
     parser.add_argument("--clean-slate", action="store_true")
     parser.add_argument("--keep-local", action="store_true")
@@ -309,12 +319,16 @@ def cleanup_local_leash(remove_data: bool) -> None:
 
 def stop_installed_app_processes() -> None:
     if sys.platform == "darwin":
-        subprocess.run(
-            ["launchctl", "remove", "com.openleash.installer-launch"],
-            check=False,
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
-        )
+        for label in (
+            "com.openleash.installer-launch",
+            "com.openleash.local-release-launch",
+        ):
+            subprocess.run(
+                ["launchctl", "remove", label],
+                check=False,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+            )
     patterns = ("/Leash.app/", "/OpenLeash.app/")
     for pattern in patterns:
         subprocess.run(
@@ -679,14 +693,37 @@ def packaged_desktop_command(
     disable_updates: bool = False,
     fresh_install: bool = False,
 ) -> list[str]:
-    app_args: list[str] = []
+    app_args: list[str] = ["--show-window"]
     if disable_updates:
         app_args.extend(["--update-mode", "disabled"])
     if fresh_install:
         app_args.append("--fresh-install")
     if sys.platform == "darwin" and app_path.suffix.lower() == ".app":
-        return ["open", "-n", str(app_path), *(["--args", *app_args] if app_args else [])]
+        executable = app_path / "Contents" / "MacOS" / "Leash"
+        return [
+            "launchctl",
+            "submit",
+            "-l",
+            "com.openleash.local-release-launch",
+            "--",
+            "/usr/bin/env",
+            "-u",
+            "ELECTRON_RUN_AS_NODE",
+            str(executable),
+            *app_args,
+        ]
     return [str(app_path), *app_args]
+
+
+def packaged_desktop_is_ready(app_path: Path) -> bool:
+    executable = app_path / "Contents" / "MacOS" / "Leash"
+    process = subprocess.run(
+        ["pgrep", "-f", f"^{executable}"],
+        check=False,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+    )
+    return process.returncode == 0 and http_ready("http://127.0.0.1:9317/health")
 
 
 def launch_packaged_desktop(
@@ -716,12 +753,29 @@ def launch_packaged_desktop(
     if dry_run:
         print(f"[leash:dry-run] {' '.join(command)}")
         return 0
+    if fresh_install:
+        cleanup_local_leash(remove_data=True)
     env = os.environ.copy()
     env.pop("ELECTRON_RUN_AS_NODE", None)
     try:
         if sys.platform == "darwin":
+            subprocess.run(
+                ["launchctl", "remove", "com.openleash.local-release-launch"],
+                check=False,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+            )
             completed = subprocess.run(command, cwd=ROOT, env=env, check=False)
-            return completed.returncode
+            if completed.returncode != 0:
+                return completed.returncode
+            deadline = time.time() + 20
+            while time.time() < deadline:
+                if packaged_desktop_is_ready(app_path):
+                    print("[leash:ready] packaged desktop: http://127.0.0.1:9317/health")
+                    return 0
+                time.sleep(0.25)
+            print("[leash] Packaged desktop did not become healthy after launch.", file=sys.stderr)
+            return 1
         subprocess.Popen(
             command,
             cwd=ROOT,

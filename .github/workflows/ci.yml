@@ -39,6 +39,11 @@ jobs:
       - name: Runner cleanup tests
         run: npm run test:runner
 
+      - name: Installer and release entrypoint syntax
+        run: |
+          bash -n scripts/install-openleash-personal.sh scripts/smoke-macos-installer.sh
+          python3 -m py_compile scripts/run-openleash.py release.py test.py
+
       - name: Deployment readiness
         run: npm run test:deployment:public
 

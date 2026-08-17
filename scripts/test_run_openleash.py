@@ -73,7 +73,12 @@ class RunnerTests(unittest.TestCase):
         with patch.object(RUNNER.sys, "platform", "darwin"):
             self.assertEqual(
                 RUNNER.packaged_desktop_command(Path("/release/personal/mac-arm64/Leash.app")),
-                ["open", "-n", "/release/personal/mac-arm64/Leash.app"],
+                [
+                    "launchctl", "submit", "-l", "com.openleash.local-release-launch", "--",
+                    "/usr/bin/env", "-u", "ELECTRON_RUN_AS_NODE",
+                    "/release/personal/mac-arm64/Leash.app/Contents/MacOS/Leash",
+                    "--show-window",
+                ],
             )
 
     def test_local_release_launch_is_clean_and_disables_updates_for_exact_bundle(self):
@@ -85,10 +90,31 @@ class RunnerTests(unittest.TestCase):
                     fresh_install=True,
                 ),
                 [
-                    "open", "-n", "/release/personal/mac-arm64/Leash.app",
-                    "--args", "--update-mode", "disabled", "--fresh-install",
+                    "launchctl", "submit", "-l", "com.openleash.local-release-launch", "--",
+                    "/usr/bin/env", "-u", "ELECTRON_RUN_AS_NODE",
+                    "/release/personal/mac-arm64/Leash.app/Contents/MacOS/Leash",
+                    "--show-window", "--update-mode", "disabled", "--fresh-install",
                 ],
             )
+
+    def test_local_release_cleans_state_and_waits_for_health(self):
+        packaged_app = Path("/release/personal/mac-arm64/Leash.app")
+        with (
+            patch.object(RUNNER.sys, "platform", "darwin"),
+            patch.object(Path, "exists", return_value=True),
+            patch.object(RUNNER, "cleanup_local_leash") as cleanup,
+            patch.object(RUNNER, "packaged_desktop_is_ready", return_value=True),
+            patch.object(RUNNER.subprocess, "run", return_value=subprocess.CompletedProcess([], 0)),
+        ):
+            self.assertEqual(
+                RUNNER.launch_packaged_desktop(
+                    packaged_app,
+                    disable_updates=True,
+                    fresh_install=True,
+                ),
+                0,
+            )
+        cleanup.assert_called_once_with(remove_data=True)
 
     def test_explicit_packaged_desktop_flag_skips_development_stack(self):
         with (
@@ -140,6 +166,24 @@ class RunnerTests(unittest.TestCase):
         self.assertEqual(command[2], "--cleanup-integrations")
         self.assertFalse(run.call_args.kwargs["check"])
         self.assertEqual(run.call_args.kwargs["timeout"], 15)
+
+    def test_cleanup_removes_installer_and_local_release_launch_jobs(self):
+        not_running = subprocess.CompletedProcess([], 1)
+        with (
+            patch.object(RUNNER.sys, "platform", "darwin"),
+            patch.object(RUNNER.subprocess, "run", return_value=not_running) as run,
+        ):
+            RUNNER.stop_installed_app_processes()
+
+        commands = [call.args[0] for call in run.call_args_list]
+        self.assertIn(
+            ["launchctl", "remove", "com.openleash.installer-launch"],
+            commands,
+        )
+        self.assertIn(
+            ["launchctl", "remove", "com.openleash.local-release-launch"],
+            commands,
+        )
 
     def test_launch_services_parser_targets_leash_apps_and_stale_volumes(self):
         dump = """

@@ -504,6 +504,7 @@ def build_commands_for(items: list[ReleaseItem], args: argparse.Namespace) -> li
             if sys.platform == "darwin":
                 commands.append(ReleaseCommand("desktop-macos-distributable", ("npm", "run", "dist:personal")))
                 commands.append(ReleaseCommand("desktop-packaged-native-abi", ("node", "scripts/verify-packaged-desktop.mjs")))
+                commands.append(ReleaseCommand("desktop-macos-installer-smoke", ("bash", "scripts/smoke-macos-installer.sh")))
             elif sys.platform.startswith("win"):
                 commands.append(ReleaseCommand("desktop-windows-distributable", ("npm", "run", "dist:windows")))
             commands.append(ReleaseCommand("native-rebuild-after-desktop-dist", ("npm", "rebuild", "better-sqlite3")))

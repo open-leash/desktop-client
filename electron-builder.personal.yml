@@ -11,6 +11,10 @@ directories:
   output: release/personal
 files:
   - apps/desktop-client/dist/**/*
+  - from: apps/desktop-client/node_modules/@openleash/shared
+    to: node_modules/@openleash/shared
+    filter:
+      - "**/*"
   - node_modules/better-sqlite3/**/*
   - node_modules/bindings/**/*
   - node_modules/file-uri-to-path/**/*

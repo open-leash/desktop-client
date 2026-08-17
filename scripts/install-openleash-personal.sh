@@ -150,11 +150,37 @@ done
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 TMP_DIR="$(mktemp -d)"
 MOUNT_POINT=""
+INSTALL_STAGE=""
+INSTALL_BACKUP=""
+
+remove_install_path() {
+  local target="$1"
+  [[ -n "$target" && -e "$target" ]] || return 0
+  chflags -R nouchg,noschg "$target" >/dev/null 2>&1 || true
+  chmod -RN "$target" >/dev/null 2>&1 || true
+  chmod -R u+rwX "$target" >/dev/null 2>&1 || true
+  if rm -rf -- "$target" 2>/dev/null; then
+    return 0
+  fi
+  sudo chflags -R nouchg,noschg "$target" >/dev/null 2>&1 || true
+  sudo chmod -RN "$target" >/dev/null 2>&1 || true
+  sudo chmod -R u+rwX "$target" >/dev/null 2>&1 || true
+  sudo rm -rf -- "$target"
+}
+
 cleanup() {
+  local status=$?
   if [[ -n "$MOUNT_POINT" ]]; then
     hdiutil detach "$MOUNT_POINT" -quiet || true
   fi
+  if [[ -n "$INSTALL_STAGE" ]]; then
+    remove_install_path "$INSTALL_STAGE" || true
+  fi
+  if [[ -n "$INSTALL_BACKUP" ]]; then
+    remove_install_path "$INSTALL_BACKUP" || true
+  fi
   rm -rf "$TMP_DIR"
+  return "$status"
 }
 trap cleanup EXIT
 
@@ -181,38 +207,88 @@ resolve_dmg() {
 copy_app() {
   local source_app="$1"
   local target_app="$INSTALL_DIR/$APP_NAME.app"
+  local stage_app="$INSTALL_DIR/.$APP_NAME.app.installing.$$"
+  local backup_app="$INSTALL_DIR/.$APP_NAME.app.previous.$$"
   mkdir -p "$INSTALL_DIR" 2>/dev/null || true
 
-  log "Installing $APP_NAME to $target_app..."
+  INSTALL_STAGE="$stage_app"
+  remove_install_path "$stage_app"
+  remove_install_path "$backup_app"
+  log "Preparing $APP_NAME for installation..."
   if [[ -w "$INSTALL_DIR" ]]; then
-    rm -rf "$target_app"
-    ditto "$source_app" "$target_app"
-    xattr -cr "$target_app" 2>/dev/null || true
-    codesign --force --deep --sign - "$target_app" >/dev/null 2>&1 ||
+    ditto "$source_app" "$stage_app" || die "Could not stage the Leash application."
+    xattr -cr "$stage_app" 2>/dev/null || true
+    codesign --force --deep --sign - "$stage_app" >/dev/null 2>&1 ||
       die "Could not apply the local macOS signature."
-    codesign --verify --deep --strict "$target_app" >/dev/null 2>&1 ||
+    codesign --verify --deep --strict "$stage_app" >/dev/null 2>&1 ||
       die "The locally signed Leash app did not pass code-signature verification."
-    xattr -cr "$target_app" 2>/dev/null || true
+    xattr -cr "$stage_app" 2>/dev/null || true
   else
-    sudo rm -rf "$target_app"
-    sudo ditto "$source_app" "$target_app"
-    sudo xattr -cr "$target_app" 2>/dev/null || true
-    sudo codesign --force --deep --sign - "$target_app" >/dev/null 2>&1 ||
+    sudo ditto "$source_app" "$stage_app" || die "Could not stage the Leash application."
+    sudo xattr -cr "$stage_app" 2>/dev/null || true
+    sudo codesign --force --deep --sign - "$stage_app" >/dev/null 2>&1 ||
       die "Could not apply the local macOS signature."
-    sudo codesign --verify --deep --strict "$target_app" >/dev/null 2>&1 ||
+    sudo codesign --verify --deep --strict "$stage_app" >/dev/null 2>&1 ||
       die "The locally signed Leash app did not pass code-signature verification."
-    sudo xattr -cr "$target_app" 2>/dev/null || true
+    sudo xattr -cr "$stage_app" 2>/dev/null || true
+  fi
+
+  if [[ "$HAD_EXISTING_LOCAL_STATE" -eq 1 ]]; then
+    cleanup_existing_integrations "$stage_app"
+  fi
+
+  stop_openleash
+  log "Installing $APP_NAME to $target_app..."
+  if [[ -e "$target_app" ]]; then
+    if [[ -w "$INSTALL_DIR" ]]; then
+      mv "$target_app" "$backup_app" || die "Could not move the previous Leash app out of the way."
+    else
+      sudo mv "$target_app" "$backup_app" || die "Could not move the previous Leash app out of the way."
+    fi
+    INSTALL_BACKUP="$backup_app"
+  fi
+  if [[ -w "$INSTALL_DIR" ]]; then
+    if ! mv "$stage_app" "$target_app"; then
+      [[ -e "$backup_app" ]] && mv "$backup_app" "$target_app" || true
+      die "Could not activate the new Leash app. The previous app was restored."
+    fi
+  else
+    if ! sudo mv "$stage_app" "$target_app"; then
+      [[ -e "$backup_app" ]] && sudo mv "$backup_app" "$target_app" || true
+      die "Could not activate the new Leash app. The previous app was restored."
+    fi
+  fi
+  INSTALL_STAGE=""
+  if [[ -n "$INSTALL_BACKUP" ]]; then
+    remove_install_path "$INSTALL_BACKUP"
+    INSTALL_BACKUP=""
   fi
   /System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister -f "$target_app" >/dev/null 2>&1 || true
-  printf '%s\n' "$target_app"
+}
+
+leash_processes_running() {
+  pgrep -f "/Leash.app/" >/dev/null 2>&1 ||
+    pgrep -f "/OpenLeash.app/" >/dev/null 2>&1
 }
 
 stop_openleash() {
-  if pgrep -f "/Leash.app/" >/dev/null 2>&1; then
+  launchctl remove com.openleash.installer-launch >/dev/null 2>&1 || true
+  launchctl remove com.openleash.local-release-launch >/dev/null 2>&1 || true
+  if leash_processes_running; then
     log "Stopping existing Leash..."
     pkill -TERM -f "/Leash.app/" || true
-    sleep 1
+    pkill -TERM -f "/OpenLeash.app/" || true
+    for _ in $(seq 1 40); do
+      leash_processes_running || break
+      sleep 0.25
+    done
     pkill -KILL -f "/Leash.app/" || true
+    pkill -KILL -f "/OpenLeash.app/" || true
+    for _ in $(seq 1 20); do
+      leash_processes_running || return 0
+      sleep 0.1
+    done
+    die "Could not stop the running Leash application."
   fi
 }
 
@@ -236,9 +312,26 @@ remove_retired_feature_containers() {
 cleanup_existing_integrations() {
   local target_app="$1"
   local executable="$target_app/Contents/MacOS/$APP_NAME"
+  local resources="$target_app/Contents/Resources"
   [[ -x "$executable" ]] || die "Installed Leash executable was not found for integration cleanup."
   log "Removing existing Leash hooks and proxy configuration..."
-  if ! env -u ELECTRON_RUN_AS_NODE "$executable" --cleanup-integrations >/dev/null; then
+  if ! env ELECTRON_RUN_AS_NODE=1 "$executable" -e '
+    const fs = require("node:fs");
+    const resources = process.argv[1];
+    const roots = [
+      `${resources}/app.asar/dist`,
+      `${resources}/app.asar/apps/desktop-client/dist`,
+    ];
+    const base = roots.find((candidate) => fs.existsSync(`${candidate}/proxy-manager.js`));
+    if (!base) throw new Error("Packaged integration cleanup modules are missing.");
+    (async () => {
+      await require(`${base}/proxy-manager.js`).uninstallLocalProxy();
+      await require(`${base}/agent-registry.js`).uninstallAllAgentProtections();
+    })().catch((error) => {
+      console.error(error);
+      process.exitCode = 1;
+    });
+  ' "$resources" >/dev/null; then
     die "Could not remove the previous Leash agent integrations. Agent configuration was not replaced."
   fi
 }
@@ -479,13 +572,8 @@ hdiutil attach "$DMG_PATH" -mountpoint "$MOUNT_POINT" -nobrowse -quiet
 SOURCE_APP="$(find "$MOUNT_POINT" -maxdepth 2 -name "$APP_NAME.app" -type d | head -n 1 || true)"
 [[ -n "$SOURCE_APP" ]] || die "$APP_NAME.app not found in DMG."
 
-TARGET_APP="$(copy_app "$SOURCE_APP")"
-if [[ "$HAD_EXISTING_LOCAL_STATE" -eq 1 ]]; then
-  cleanup_existing_integrations "$TARGET_APP"
-  # Electron can release its process before the macOS single-instance lock is
-  # available to the replacement app. Give LaunchServices a moment to settle.
-  sleep 1
-fi
+TARGET_APP="$INSTALL_DIR/$APP_NAME.app"
+copy_app "$SOURCE_APP"
 reset_settings
 
 if [[ "$INDIVIDUAL_OPEN_SOURCE" -eq 1 ]]; then

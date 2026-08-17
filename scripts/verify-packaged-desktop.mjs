@@ -91,3 +91,28 @@ if (result.stderr) process.stderr.write(result.stderr);
 if (result.status !== 0) {
   throw new Error(`Packaged desktop native-module verification failed with exit ${result.status}`);
 }
+
+const catalogModule = path.join(
+  app,
+  "Contents/Resources/app.asar/apps/desktop-client/dist/plugin-catalog.js",
+);
+const catalogResult = spawnSync(
+  executable,
+  [
+    "-e",
+    `const catalog=require(${JSON.stringify(catalogModule)});` +
+      `if(catalog.bundledFirstPartyPlugins.length!==8)throw new Error('Expected 8 built-in Features');` +
+      `console.log('packaged shared runtime and Feature catalog ok')`,
+  ],
+  {
+    cwd: root,
+    env: { ...process.env, ELECTRON_RUN_AS_NODE: "1" },
+    encoding: "utf8",
+  },
+);
+
+if (catalogResult.stdout) process.stdout.write(catalogResult.stdout);
+if (catalogResult.stderr) process.stderr.write(catalogResult.stderr);
+if (catalogResult.status !== 0) {
+  throw new Error(`Packaged desktop shared-runtime verification failed with exit ${catalogResult.status}`);
+}
