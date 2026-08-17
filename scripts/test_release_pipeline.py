@@ -38,6 +38,8 @@ class ReleasePipelineTests(unittest.TestCase):
             arguments = PIPELINE.interactive_release_arguments(lambda _prompt: next(answers))
         self.assertIn("client-api=0.37.4", arguments)
         self.assertIn("cloud-client-api=0.1.16", arguments)
+        self.assertIn("desktop-client=0.37.6", arguments)
+        self.assertIn("main-web=0.2.13", arguments)
         self.assertIn("--desktop-channel", arguments)
         self.assertIn("terminal", arguments)
         self.assertIn("--dry-run", arguments)
@@ -115,7 +117,7 @@ class ReleasePipelineTests(unittest.TestCase):
         rendered = output.getvalue()
         self.assertIn("desktop-client: prepare -> test/build -> commit -> push -> publish/deploy -> verify", rendered)
         self.assertIn("main-web: prepare -> test/build -> commit -> push -> publish/deploy -> verify", rendered)
-        self.assertIn("live main-web install.sh", rendered)
+        self.assertIn("direct Google Cloud main-web deploy and live install.sh", rendered)
 
     def test_journal_only_marks_a_successful_stage_complete(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -127,6 +129,136 @@ class ReleasePipelineTests(unittest.TestCase):
             self.assertEqual(journal.run("works", lambda: {"ok": True}), {"ok": True})
             self.assertIn("works", journal.completed)
             self.assertEqual(journal.run("works", lambda: self.fail("must not rerun")), {"ok": True})
+
+    def test_git_fetch_retries_transient_github_server_errors(self):
+        failed = subprocess.CompletedProcess(
+            ["git", "fetch"],
+            128,
+            "",
+            "error: RPC failed; HTTP 500\nfatal: expected flush after ref listing\n",
+        )
+        passed = subprocess.CompletedProcess(["git", "fetch"], 0, "ok\n", "")
+        output = io.StringIO()
+        with patch.object(PIPELINE.subprocess, "run", side_effect=[failed, passed]) as run, patch.object(
+            PIPELINE.time,
+            "sleep",
+        ) as sleep, contextlib.redirect_stderr(output):
+            result = PIPELINE.git(Path.cwd(), "fetch", "origin", "main")
+        self.assertEqual(result, "ok\n")
+        self.assertEqual(run.call_count, 2)
+        sleep.assert_called_once_with(1)
+        self.assertIn("transient GitHub failure", output.getvalue())
+
+    def test_git_does_not_retry_non_network_failures(self):
+        failed = subprocess.CompletedProcess(
+            ["git", "fetch"],
+            128,
+            "",
+            "fatal: couldn't find remote ref missing\n",
+        )
+        with patch.object(PIPELINE.subprocess, "run", return_value=failed) as run, patch.object(
+            PIPELINE.time,
+            "sleep",
+        ) as sleep:
+            with self.assertRaises(subprocess.CalledProcessError):
+                PIPELINE.git(Path.cwd(), "fetch", "origin", "missing")
+        self.assertEqual(run.call_count, 1)
+        sleep.assert_not_called()
+
+    def test_check_runs_fall_back_to_graphql_when_rest_is_unavailable(self):
+        rest_error = subprocess.CalledProcessError(1, ["gh", "api"], "", "HTTP 504")
+        graphql_payload = json.dumps({
+            "data": {
+                "repository": {
+                    "object": {
+                        "statusCheckRollup": {
+                            "contexts": {
+                                "nodes": [{
+                                    "name": "Build",
+                                    "status": "COMPLETED",
+                                    "conclusion": "SUCCESS",
+                                    "checkSuite": {"app": {"name": "Google Cloud Build"}},
+                                }],
+                            },
+                        },
+                    },
+                },
+            },
+        })
+        with patch.object(PIPELINE, "capture", side_effect=[rest_error, graphql_payload]) as capture:
+            checks = PIPELINE.load_check_runs("open-leash/main-web", "a" * 40)
+        self.assertEqual(capture.call_count, 2)
+        self.assertEqual(checks[0]["status"], "completed")
+        self.assertEqual(checks[0]["conclusion"], "success")
+        self.assertEqual(checks[0]["app"]["name"], "Google Cloud Build")
+
+    def test_main_web_deploys_directly_to_google_cloud_with_an_immutable_image(self):
+        commit = "a" * 40
+        digest = "sha256:" + "b" * 64
+        args = SimpleNamespace(
+            gcp_project="cloud-test",
+            gcp_region="us-central1",
+            main_web_service="main-web",
+        )
+        service = json.dumps({
+            "metadata": {"labels": {"commit-sha": commit}},
+            "spec": {"template": {"spec": {"containers": [{
+                "image": f"us-central1-docker.pkg.dev/cloud-test/cloud-run-source-deploy/main-web/main-web@{digest}",
+            }]}}},
+            "status": {
+                "latestReadyRevisionName": "main-web-00001-test",
+                "traffic": [{"latestRevision": True, "percent": 100}],
+            },
+        })
+        with patch.object(PIPELINE, "run_command") as run, patch.object(
+            PIPELINE,
+            "capture",
+            side_effect=[digest + "\n", service],
+        ):
+            result = PIPELINE.deploy_main_web_to_gcp(
+                PIPELINE.COMPONENTS["main-web"], commit, args,
+            )
+        build_command, build_cwd = run.call_args_list[0].args
+        deploy_command, deploy_cwd = run.call_args_list[1].args
+        self.assertEqual(build_cwd, PIPELINE.COMPONENTS["main-web"].path)
+        self.assertEqual(build_command[:4], ("gcloud", "builds", "submit", "."))
+        self.assertIn(f"--image=us-central1-docker.pkg.dev/cloud-test/cloud-run-source-deploy/main-web/main-web@{digest}", deploy_command)
+        self.assertEqual(deploy_cwd, PIPELINE.ROOT)
+        self.assertEqual(result["image_digest"], digest)
+        self.assertEqual(result["revision"], "main-web-00001-test")
+
+    def test_main_web_publish_does_not_wait_for_a_github_deployment_check(self):
+        args = SimpleNamespace()
+        expected = {"deployed_commit": "a" * 40}
+        with patch.object(PIPELINE, "deploy_main_web_to_gcp", return_value=expected) as deploy, patch.object(
+            PIPELINE,
+            "wait_for_checks",
+        ) as wait:
+            result = PIPELINE.publish_component(
+                PIPELINE.COMPONENTS["main-web"], "1.2.3", "a" * 40, args,
+            )
+        self.assertEqual(result, expected)
+        deploy.assert_called_once()
+        wait.assert_not_called()
+
+    def test_cloud_migrations_are_logged_beside_release_state(self):
+        with tempfile.TemporaryDirectory() as directory:
+            state = Path(directory) / "production-test.json"
+            args = SimpleNamespace(
+                migration_target="gcp",
+                database_url=None,
+                release_state_path=state,
+            )
+            with patch.object(PIPELINE, "run_command") as run:
+                result = PIPELINE.run_cloud_migrations(args, "status")
+            command = run.call_args.args[0]
+            expected = state.parent / "migration-logs" / state.stem
+            self.assertEqual(command[command.index("--log-dir") + 1], str(expected))
+            self.assertEqual(result["log_dir"], str(expected))
+
+    def test_failure_resume_command_selects_production_pipeline(self):
+        source = SCRIPT.read_text(encoding="utf-8")
+        self.assertIn("./release.py --production --resume", source)
 
     def test_resume_preserves_release_configuration(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -152,6 +284,26 @@ class ReleasePipelineTests(unittest.TestCase):
             rendered = output.getvalue()
             self.assertIn("desktop channel: stable", rendered)
             self.assertIn("cloud migrations: source only", rendered)
+
+    def test_resume_reconfirms_every_component_in_the_saved_plan(self):
+        with tempfile.TemporaryDirectory() as directory:
+            state = Path(directory) / "release.json"
+            state.write_text(json.dumps({
+                "versions": {"desktop-client": "1.2.3", "main-web": "2.3.4"},
+                "explicit_components": ["desktop-client"],
+                "completed": [],
+                "outputs": {},
+            }))
+            captured = {}
+            original_print_plan = PIPELINE.print_plan
+
+            def capture_plan(selected, versions, args, state_path):
+                captured["explicit"] = args.explicit_components
+                original_print_plan(selected, versions, args, state_path)
+
+            with contextlib.redirect_stdout(io.StringIO()), patch.object(PIPELINE, "print_plan", side_effect=capture_plan):
+                self.assertEqual(PIPELINE.main(["--resume", str(state), "--dry-run"]), 0)
+            self.assertEqual(captured["explicit"], {"desktop-client", "main-web"})
 
     def test_migrations_are_append_only_against_origin_main(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -192,6 +344,36 @@ class ReleasePipelineTests(unittest.TestCase):
                     "openleash-cloud-client-api",
                     expected_version="1.2.4",
                 )
+
+    def test_dashboard_components_are_available_in_the_programmatic_release(self):
+        selected = PIPELINE.parse_selection(
+            ["cloud-dashboard-api=0.1.6", "cloud-dashboard-web=0.1.5"],
+            None,
+        )
+        self.assertEqual(selected["cloud-dashboard-api"], "0.1.6")
+        self.assertEqual(selected["cloud-dashboard-web"], "0.1.5")
+        self.assertLess(
+            PIPELINE.ORDER.index("cloud-dashboard-api"),
+            PIPELINE.ORDER.index("cloud-dashboard-web"),
+        )
+
+    def test_release_wide_tests_run_before_any_component_prepare(self):
+        source = SCRIPT.read_text(encoding="utf-8")
+        self.assertLess(
+            source.index('journal.run("release-wide-tests"'),
+            source.index('journal.run(f"{key}:prepare"'),
+        )
+
+    def test_cloud_postgres_gate_runs_from_public_root(self):
+        component = PIPELINE.COMPONENTS["cloud-client-api"]
+        self.assertEqual(
+            PIPELINE.component_command_cwd(component, ("node", "scripts/test-cloud-postgres-upgrades.mjs")),
+            PIPELINE.ROOT,
+        )
+        self.assertEqual(
+            PIPELINE.component_command_cwd(component, ("npm", "test")),
+            component.path,
+        )
 
     def test_terminal_release_does_not_publish_an_unbuilt_windows_link(self):
         commands = []

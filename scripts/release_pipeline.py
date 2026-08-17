@@ -30,7 +30,19 @@ from typing import Any, Callable
 ROOT = Path(__file__).resolve().parents[1]
 STATE_DIR = Path.home() / ".openleash-release"
 DEFAULT_CLOUD_API = "https://api.openleash.com"
+DEFAULT_DASHBOARD_API = "https://cloud-dashboard-api-689989240806.us-central1.run.app"
+DEFAULT_DASHBOARD_WEB = "https://dashboard.openleash.com"
 DEFAULT_MAIN_WEB = "https://openleash.com"
+DEFAULT_GCP_PROJECT = "cloud-497307"
+DEFAULT_GCP_REGION = "us-central1"
+DEFAULT_MAIN_WEB_SERVICE = "main-web"
+ACTIVE_STATE_PATH: Path | None = None
+TRANSIENT_GIT_ERROR_PATTERN = re.compile(
+    r"(?:HTTP\s+(?:429|500|502|503|504)|RPC failed|expected flush after ref listing|"
+    r"early EOF|connection (?:reset|timed out)|could not resolve host|"
+    r"TLS connection|remote end hung up)",
+    re.IGNORECASE,
+)
 
 
 @dataclass(frozen=True)
@@ -68,9 +80,23 @@ COMPONENTS: dict[str, Component] = {
         (
             ("npm", "test"),
             ("npm", "run", "typecheck"),
+            ("npm", "run", "billing:check"),
             ("node", "scripts/test-cloud-postgres-upgrades.mjs"),
         ),
         (("npm", "run", "build"),),
+    ),
+    "cloud-dashboard-api": Component(
+        "cloud-dashboard-api", ROOT / "apps/cloud-dashboard-api", "open-leash/cloud-dashboard-api", "cloud",
+        (
+            ("npm", "test"),
+            ("npm", "run", "typecheck"),
+        ),
+        (("npm", "run", "build"),),
+    ),
+    "cloud-dashboard-web": Component(
+        "cloud-dashboard-web", ROOT / "apps/cloud-dashboard-web", "open-leash/cloud-dashboard-web", "web",
+        (),
+        (("docker", "build", "--no-cache", "-t", "openleash/cloud-dashboard-web:release-gate", "."),),
     ),
     "desktop-client": Component(
         "desktop-client", ROOT / "apps/desktop-client", "open-leash/desktop-client", "desktop",
@@ -97,12 +123,23 @@ COMPONENTS: dict[str, Component] = {
     ),
 }
 
-ORDER = ("shared", "client-api", "local-proxy", "cloud-client-api", "desktop-client", "main-web")
+ORDER = (
+    "shared",
+    "client-api",
+    "local-proxy",
+    "cloud-client-api",
+    "cloud-dashboard-api",
+    "desktop-client",
+    "cloud-dashboard-web",
+    "main-web",
+)
 MENU_COMPONENTS = (
     ("desktop-client", "Desktop app", "Build the Mac/Windows client and update the website"),
     ("client-api", "Personal client API", "Publish the Personal Open Source backend, desktop, and website"),
     ("local-proxy", "Local proxy", "Publish the agent proxy, desktop, and website"),
     ("cloud-client-api", "Cloud client API", "Migrate and deploy the hosted client API"),
+    ("cloud-dashboard-api", "Business dashboard API", "Deploy organization signup, billing, and administration"),
+    ("cloud-dashboard-web", "Business dashboard", "Deploy the hosted CISO and billing dashboard"),
     ("shared", "Shared contracts", "Publish shared contracts for explicitly selected consumers"),
     ("main-web", "Main website", "Deploy the website and verify live install.sh"),
 )
@@ -112,6 +149,10 @@ ALIASES = {
     "apps/local-proxy": "local-proxy",
     "apps/cloud-client-api": "cloud-client-api",
     "cloud-api": "cloud-client-api",
+    "apps/cloud-dashboard-api": "cloud-dashboard-api",
+    "dashboard-api": "cloud-dashboard-api",
+    "apps/cloud-dashboard-web": "cloud-dashboard-web",
+    "dashboard-web": "cloud-dashboard-web",
     "apps/desktop-client": "desktop-client",
     "desktop": "desktop-client",
     "apps/main-web": "main-web",
@@ -155,6 +196,7 @@ class Journal:
 
 
 def main(argv: list[str] | None = None) -> int:
+    global ACTIVE_STATE_PATH
     raw_arguments = list(sys.argv[1:] if argv is None else argv)
     if not raw_arguments or raw_arguments == ["--menu"]:
         raw_arguments = interactive_release_arguments()
@@ -173,7 +215,12 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--database-url", help="Explicit production Postgres URL for --migration-target custom.")
     parser.add_argument("--cloud-source-only", action="store_true", help="Push cloud-client-api source but do not migrate, deploy, or verify production.")
     parser.add_argument("--cloud-api-url", default=DEFAULT_CLOUD_API)
+    parser.add_argument("--dashboard-api-url", default=DEFAULT_DASHBOARD_API)
+    parser.add_argument("--dashboard-web-url", default=DEFAULT_DASHBOARD_WEB)
     parser.add_argument("--main-web-url", default=DEFAULT_MAIN_WEB)
+    parser.add_argument("--gcp-project", default=DEFAULT_GCP_PROJECT)
+    parser.add_argument("--gcp-region", default=DEFAULT_GCP_REGION)
+    parser.add_argument("--main-web-service", default=DEFAULT_MAIN_WEB_SERVICE)
     parser.add_argument("--rollout", type=int, default=100, help="Desktop stable update rollout percentage.")
     parser.add_argument("--timeout", type=int, default=1800, help="Maximum seconds for each remote workflow/deployment gate.")
     args = parser.parse_args(raw_arguments)
@@ -191,7 +238,9 @@ def main(argv: list[str] | None = None) -> int:
         document = json.loads(args.resume.resolve().read_text(encoding="utf-8"))
         requested = {key: str(value) for key, value in document["versions"].items()}
         args.desktop_channel = str(document.get("desktop_channel", args.desktop_channel))
-        explicit_components = set(document.get("explicit_components", requested))
+        # Resuming reconfirms the complete immutable plan stored in the journal,
+        # including required surfaces that were originally added automatically.
+        explicit_components = set(requested)
         state_path = args.resume.resolve()
     else:
         requested = parse_selection(args.apps, args.version)
@@ -210,7 +259,12 @@ def main(argv: list[str] | None = None) -> int:
             "config": {
                 "cloud_source_only": args.cloud_source_only,
                 "cloud_api_url": args.cloud_api_url,
+                "dashboard_api_url": args.dashboard_api_url,
+                "dashboard_web_url": args.dashboard_web_url,
                 "main_web_url": args.main_web_url,
+                "gcp_project": args.gcp_project,
+                "gcp_region": args.gcp_region,
+                "main_web_service": args.main_web_service,
                 "migration_target": args.migration_target,
                 "rollout": args.rollout,
             },
@@ -218,11 +272,19 @@ def main(argv: list[str] | None = None) -> int:
             "outputs": {},
         }
 
+    ACTIVE_STATE_PATH = state_path
+    args.release_state_path = state_path
+
     if args.resume:
         config = document.get("config", {})
         args.cloud_source_only = bool(config.get("cloud_source_only", args.cloud_source_only))
         args.cloud_api_url = str(config.get("cloud_api_url", args.cloud_api_url))
+        args.dashboard_api_url = str(config.get("dashboard_api_url", args.dashboard_api_url))
+        args.dashboard_web_url = str(config.get("dashboard_web_url", args.dashboard_web_url))
         args.main_web_url = str(config.get("main_web_url", args.main_web_url))
+        args.gcp_project = str(config.get("gcp_project", args.gcp_project))
+        args.gcp_region = str(config.get("gcp_region", args.gcp_region))
+        args.main_web_service = str(config.get("main_web_service", args.main_web_service))
         args.migration_target = str(config.get("migration_target", args.migration_target))
         args.rollout = int(config.get("rollout", args.rollout))
 
@@ -237,6 +299,7 @@ def main(argv: list[str] | None = None) -> int:
     journal.save()
     journal.run("preflight", lambda: preflight(selected, requested, args))
     journal.run("product-contract", lambda: run_command(("npm", "run", "test:flows"), ROOT))
+    journal.run("release-wide-tests", lambda: run_release_wide_tests(selected))
 
     released: dict[str, dict[str, str]] = dict(journal.document.setdefault("released", {}))
     for key in selected:
@@ -285,6 +348,22 @@ def main(argv: list[str] | None = None) -> int:
                 args.timeout,
             ),
         )
+    if "cloud-dashboard-api" in selected:
+        dashboard_api_version = requested["cloud-dashboard-api"]
+        journal.run(
+            "cloud-dashboard-api:live-health",
+            lambda: wait_for_json_health(
+                f"{args.dashboard_api_url.rstrip('/')}/cloud/admin/health",
+                "openleash-cloud-dashboard-api",
+                dashboard_api_version,
+                args.timeout,
+            ),
+        )
+    if "cloud-dashboard-web" in selected:
+        journal.run(
+            "cloud-dashboard-web:live-health",
+            lambda: wait_for_web_health(args.dashboard_web_url, args.timeout),
+        )
     if "main-web" in selected:
         desktop_version = requested.get("desktop-client")
         journal.run(
@@ -332,8 +411,8 @@ def interactive_release_arguments(input_fn: Callable[[str], str] = input) -> lis
 
     arguments: list[str] = []
     for key in ORDER:
-        if key in requested:
-            arguments.extend(("--app", f"{key}={requested[key]}"))
+        if key in expanded:
+            arguments.extend(("--app", f"{key}={expanded[key]}"))
 
     if "desktop-client" in expanded:
         print("\nDesktop channel:")
@@ -489,23 +568,40 @@ def print_dry_run_stages(selected: list[str], args: argparse.Namespace) -> None:
         print(f"  {number}. production migration status and exact-version live cloud health")
         number += 1
     if "main-web" in selected:
-        print(f"  {number}. live main-web install.sh download/checksum verification")
+        print(f"  {number}. direct Google Cloud main-web deploy and live install.sh download/checksum verification")
     if "desktop-client" in selected and args.desktop_channel == "terminal":
         print("  - macOS artifacts use the release-gated Terminal installer workflow")
 
 
 def preflight(selected: list[str], versions: dict[str, str], args: argparse.Namespace) -> dict[str, Any]:
     required = {"git", "node", "npm", "gh", "curl"}
-    if any(key in selected for key in ("client-api", "cloud-client-api", "desktop-client", "main-web")):
+    if any(key in selected for key in ("client-api", "cloud-client-api", "cloud-dashboard-web", "desktop-client", "main-web")):
         required.add("docker")
     if "local-proxy" in selected:
         required.add("cargo")
+    if "main-web" in selected:
+        required.add("gcloud")
     missing = sorted(tool for tool in required if not shutil.which(tool))
     if missing:
         raise RuntimeError(f"Missing release tools: {', '.join(missing)}")
     if "desktop-client" in selected and platform.system() != "Darwin":
         raise RuntimeError("The local desktop release gate must run on macOS.")
     run_command(("gh", "auth", "status"), ROOT)
+    if "main-web" in selected:
+        active_gcp_account = capture((
+            "gcloud", "auth", "list", "--filter=status:ACTIVE", "--format=value(account)",
+        ), ROOT).strip()
+        if not active_gcp_account:
+            raise RuntimeError("main-web releases require an authenticated Google Cloud account")
+        service = capture((
+            "gcloud", "run", "services", "describe", args.main_web_service,
+            f"--project={args.gcp_project}", f"--region={args.gcp_region}",
+            "--format=value(metadata.name)",
+        ), ROOT).strip()
+        if service != args.main_web_service:
+            raise RuntimeError(
+                f"Google Cloud service {args.main_web_service!r} was not found in {args.gcp_project}/{args.gcp_region}"
+            )
     checked: dict[str, str] = {}
     if "client-api" in selected:
         git(ROOT, "fetch", "origin", "main")
@@ -575,6 +671,8 @@ def prepare_component(component: Component, version: str, released: dict[str, di
         shared = released.get("shared") or current_release_identity(COMPONENTS["shared"])
         client = released.get("client-api") or current_release_identity(COMPONENTS["client-api"])
         pin_cloud_dependencies(shared, client)
+    elif component.key == "cloud-dashboard-web":
+        run_command(("python3", "scripts/vendor-dashboard-web.py"), component.path)
     elif component.key == "desktop-client" and "shared" in released:
         pin_desktop_shared(released["shared"]["version"])
     bump_component_version(component, version)
@@ -595,11 +693,26 @@ def run_component_gates(component: Component) -> None:
     if component.key in {"client-api", "desktop-client", "main-web"}:
         run_command(("npm", "run", "test:flows"), ROOT)
     for command in component.test_commands:
-        cwd = component.path if component.key == "cloud-client-api" and command[0] == "npm" else ROOT
-        run_command(command, cwd)
+        run_command(command, component_command_cwd(component, command))
     for command in component.build_commands:
-        cwd = component.path if component.key == "cloud-client-api" and command[0] == "npm" else ROOT
-        run_command(command, cwd)
+        run_command(command, component_command_cwd(component, command))
+
+
+def run_release_wide_tests(selected: list[str]) -> dict[str, str]:
+    """Run every selected test gate before the first remote mutation."""
+    for key in selected:
+        component = COMPONENTS[key]
+        for command in component.test_commands:
+            run_command(command, component_command_cwd(component, command))
+    return {"status": "passed"}
+
+
+def component_command_cwd(component: Component, command: tuple[str, ...]) -> Path:
+    if component.key == "cloud-dashboard-web":
+        return component.path
+    if component.key.startswith("cloud-") and command[0] == "npm":
+        return component.path
+    return ROOT
 
 
 def commit_component(component: Component, version: str) -> str:
@@ -647,12 +760,71 @@ def publish_component(component: Component, version: str, commit: str, args: arg
                 "--rollout", str(args.rollout), "--api", args.cloud_api_url,
             ), ROOT)
         return {"release": f"https://github.com/{component.github}/releases/tag/v{version}"}
+    if component.key == "main-web":
+        return deploy_main_web_to_gcp(component, commit, args)
     if component.kind in {"cloud", "web"}:
-        if component.kind == "cloud" and args.cloud_source_only:
+        if component.key == "cloud-client-api" and args.cloud_source_only:
             return {"source_only": "true"}
         wait_for_checks(component.github, commit, args.timeout, required_app="Google Cloud Build")
         return {"deployed_commit": commit}
     return {"tag": f"v{version}"}
+
+
+def deploy_main_web_to_gcp(component: Component, commit: str, args: argparse.Namespace) -> dict[str, str]:
+    """Build local main-web source and deploy its immutable image directly to Google Cloud."""
+    repository = (
+        f"{args.gcp_region}-docker.pkg.dev/{args.gcp_project}/"
+        f"cloud-run-source-deploy/{args.main_web_service}/{args.main_web_service}"
+    )
+    image_tag = f"{repository}:{commit}"
+    run_command((
+        "gcloud", "builds", "submit", ".",
+        f"--project={args.gcp_project}", "--region=global",
+        f"--tag={image_tag}", "--quiet",
+    ), component.path)
+    digest = capture((
+        "gcloud", "artifacts", "docker", "images", "describe", image_tag,
+        f"--project={args.gcp_project}", "--format=value(image_summary.digest)",
+    ), ROOT).strip()
+    if not re.fullmatch(r"sha256:[a-f0-9]{64}", digest):
+        raise RuntimeError(f"Google Artifact Registry returned an invalid main-web digest: {digest!r}")
+    image = f"{repository}@{digest}"
+    run_command((
+        "gcloud", "run", "services", "update", args.main_web_service,
+        f"--project={args.gcp_project}", f"--region={args.gcp_region}",
+        "--platform=managed", f"--image={image}",
+        f"--update-labels=managed-by=leash-release,commit-sha={commit}",
+        "--quiet",
+    ), ROOT)
+    service = json.loads(capture((
+        "gcloud", "run", "services", "describe", args.main_web_service,
+        f"--project={args.gcp_project}", f"--region={args.gcp_region}",
+        "--format=json",
+    ), ROOT))
+    labels = service.get("metadata", {}).get("labels", {})
+    containers = (
+        service.get("spec", {})
+        .get("template", {})
+        .get("spec", {})
+        .get("containers", [])
+    )
+    deployed_image = containers[0].get("image", "") if containers else ""
+    traffic = service.get("status", {}).get("traffic") or []
+    if labels.get("commit-sha") != commit:
+        raise RuntimeError("Google Cloud Run did not report the released main-web commit label")
+    if digest not in deployed_image:
+        raise RuntimeError(f"Google Cloud Run did not retain the immutable main-web image: {deployed_image!r}")
+    if not any(entry.get("latestRevision") and entry.get("percent") == 100 for entry in traffic):
+        raise RuntimeError("Google Cloud Run main-web is not serving 100 percent from its latest revision")
+    revision = str(service.get("status", {}).get("latestReadyRevisionName") or "")
+    if not revision:
+        raise RuntimeError("Google Cloud Run did not report a ready main-web revision")
+    return {
+        "deployed_commit": commit,
+        "image": image,
+        "image_digest": digest,
+        "revision": revision,
+    }
 
 
 def wait_for_workflow(repo: str, workflow: str, commit: str, timeout: int) -> None:
@@ -673,8 +845,7 @@ def wait_for_workflow(repo: str, workflow: str, commit: str, timeout: int) -> No
 def wait_for_checks(repo: str, commit: str, timeout: int, required_app: str | None = None) -> None:
     deadline = time.time() + timeout
     while time.time() < deadline:
-        payload = json.loads(capture(("gh", "api", f"repos/{repo}/commits/{commit}/check-runs"), ROOT))
-        checks = payload.get("check_runs") or []
+        checks = load_check_runs(repo, commit)
         if required_app:
             checks = [check for check in checks if check.get("app", {}).get("name") == required_app]
         if checks and all(check.get("status") == "completed" for check in checks):
@@ -684,6 +855,57 @@ def wait_for_checks(repo: str, commit: str, timeout: int, required_app: str | No
             return
         time.sleep(5)
     raise RuntimeError(f"Timed out waiting for deployment checks on {repo}@{commit}")
+
+
+def load_check_runs(repo: str, commit: str) -> list[dict[str, Any]]:
+    """Read commit checks, falling back to GraphQL when GitHub's REST API is degraded."""
+    try:
+        payload = json.loads(capture(("gh", "api", f"repos/{repo}/commits/{commit}/check-runs"), ROOT))
+        return list(payload.get("check_runs") or [])
+    except subprocess.CalledProcessError as rest_error:
+        owner, name = repo.split("/", 1)
+        query = """
+        query($owner: String!, $name: String!, $oid: GitObjectID!) {
+          repository(owner: $owner, name: $name) {
+            object(oid: $oid) {
+              ... on Commit {
+                statusCheckRollup {
+                  contexts(first: 100) {
+                    nodes {
+                      ... on CheckRun {
+                        name status conclusion
+                        checkSuite { app { name } }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+        """
+        try:
+            payload = json.loads(capture((
+                "gh", "api", "graphql", "-f", f"query={query}",
+                "-F", f"owner={owner}", "-F", f"name={name}", "-F", f"oid={commit}",
+            ), ROOT))
+        except subprocess.CalledProcessError:
+            raise rest_error
+        repository = payload.get("data", {}).get("repository") or {}
+        commit_object = repository.get("object") or {}
+        rollup = commit_object.get("statusCheckRollup") or {}
+        contexts = rollup.get("contexts") or {}
+        nodes = contexts.get("nodes") or []
+        return [
+            {
+                **node,
+                "status": str(node.get("status", "")).lower(),
+                "conclusion": str(node.get("conclusion", "")).lower(),
+                "app": node.get("checkSuite", {}).get("app", {}),
+            }
+            for node in nodes
+            if node.get("name")
+        ]
 
 
 def wait_for_ghcr_digest(repository: str, version: str, timeout: int) -> str:
@@ -752,13 +974,9 @@ def replace_client_api_pin_text(source: str, value: str) -> str:
 
 
 def pin_local_proxy(version: str, digest: str) -> dict[str, str]:
-    image = f"ghcr.io/open-leash/local-proxy:{version}@{digest}"
-    for file in (
-        ROOT / "apps/desktop-client/src/proxy-manager.ts",
-        ROOT / "apps/desktop-client/src/proxy-manager.test.ts",
-    ):
-        replace_regex(file, r"ghcr\.io/open-leash/local-proxy:[0-9A-Za-z.+-]+@sha256:[a-f0-9]{64}", image)
-    return {"image": image}
+    version_file = ROOT / "apps/desktop-client/local-proxy.version"
+    version_file.write_text(f"{version}\n", encoding="utf-8")
+    return {"version": version, "container_digest": digest}
 
 
 def pin_shared_dependency(repo: Path, version: str, commit: str) -> None:
@@ -831,10 +1049,13 @@ def smoke_personal_image(version: str, digest: str) -> dict[str, str]:
 
 def run_cloud_migrations(args: argparse.Namespace, action: str) -> dict[str, str]:
     command = ["python3", "migrate.py", "--target", args.migration_target, "--scope", "all", f"--{action}", "--yes"]
+    state_path = Path(getattr(args, "release_state_path", ACTIVE_STATE_PATH or STATE_DIR / "manual-release.json"))
+    log_dir = state_path.parent / "migration-logs" / state_path.stem
+    command.extend(("--log-dir", str(log_dir)))
     if args.database_url:
         command.extend(("--database-url", args.database_url))
     run_command(tuple(command), ROOT)
-    return {"target": args.migration_target, "action": action}
+    return {"target": args.migration_target, "action": action, "log_dir": str(log_dir)}
 
 
 def resolve_migration_database(args: argparse.Namespace) -> str:
@@ -896,6 +1117,25 @@ def wait_for_live_installer(main_web_url: str, expected_version: str | None, tim
             last_error = error
             time.sleep(5)
     raise RuntimeError(f"Timed out waiting for the live installer: {last_error}")
+
+
+def wait_for_web_health(url: str, timeout: int) -> dict[str, str]:
+    deadline = time.time() + timeout
+    last_error: Exception | None = None
+    while time.time() < deadline:
+        try:
+            request = urllib.request.Request(
+                f"{url.rstrip('/')}?release_verify={int(time.time())}",
+                headers={"User-Agent": "leash-release-pipeline", "Cache-Control": "no-cache"},
+            )
+            with urllib.request.urlopen(request, timeout=60) as response:
+                if response.status != 200:
+                    raise RuntimeError(f"Unexpected HTTP {response.status} from {url}")
+                return {"url": response.geturl(), "status": str(response.status)}
+        except (RuntimeError, urllib.error.URLError) as error:
+            last_error = error
+            time.sleep(5)
+    raise RuntimeError(f"Timed out waiting for dashboard web: {last_error}")
 
 
 def verify_json_health(url: str, service: str, expected_version: str | None = None) -> dict[str, Any]:
@@ -997,9 +1237,40 @@ def capture(command: tuple[str, ...] | list[str], cwd: Path) -> str:
 
 
 def git(repo: Path, *arguments: str, check: bool = True) -> str:
-    completed = subprocess.run(["git", *arguments], cwd=repo, text=True, capture_output=True)
+    command = ["git", *arguments]
+    retryable = bool(arguments and arguments[0] in {"fetch", "ls-remote"})
+    attempts = 3 if retryable else 1
+    completed: subprocess.CompletedProcess[str] | None = None
+    for attempt in range(1, attempts + 1):
+        completed = subprocess.run(command, cwd=repo, text=True, capture_output=True)
+        if completed.returncode == 0:
+            return completed.stdout
+        diagnostic = f"{completed.stdout}\n{completed.stderr}"
+        if (
+            not check
+            or attempt == attempts
+            or not TRANSIENT_GIT_ERROR_PATTERN.search(diagnostic)
+        ):
+            break
+        delay = attempt
+        print(
+            f"[release:retry] transient GitHub failure during {' '.join(command)}; "
+            f"retrying in {delay}s ({attempt + 1}/{attempts})",
+            file=sys.stderr,
+        )
+        time.sleep(delay)
+    assert completed is not None
     if check and completed.returncode != 0:
-        raise subprocess.CalledProcessError(completed.returncode, ["git", *arguments], completed.stdout, completed.stderr)
+        if completed.stdout:
+            print(completed.stdout.rstrip(), file=sys.stderr)
+        if completed.stderr:
+            print(completed.stderr.rstrip(), file=sys.stderr)
+        raise subprocess.CalledProcessError(
+            completed.returncode,
+            command,
+            completed.stdout,
+            completed.stderr,
+        )
     return completed.stdout
 
 
@@ -1024,4 +1295,9 @@ if __name__ == "__main__":
         raise SystemExit(main())
     except (RuntimeError, subprocess.CalledProcessError, urllib.error.URLError) as error:
         print(f"\n[release] failed: {error}", file=sys.stderr)
+        if ACTIVE_STATE_PATH and ACTIVE_STATE_PATH.exists():
+            print(
+                f"[release] resume safely with: ./release.py --production --resume {ACTIVE_STATE_PATH} --ship --yes",
+                file=sys.stderr,
+            )
         raise SystemExit(1)

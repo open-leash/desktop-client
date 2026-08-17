@@ -4,6 +4,13 @@
 the complete path from selected source repositories to published containers,
 desktop downloads, cloud deployments, and the live website installer.
 
+Production hosting has one authority: **Google Cloud**. `openleash.com`, APIs,
+databases, and other running services deploy only there. GitHub remains the
+source-control system and the download host for desktop release artifacts; it
+is not a website or API deployment target. The production conductor uploads
+the already tested `main-web` source directly to Google Cloud Build, deploys an
+immutable Artifact Registry digest to Cloud Run, and verifies the live site.
+
 For the guided menu, just run:
 
 ```bash
@@ -48,8 +55,8 @@ user on stale binaries:
 - `client-api` adds `desktop-client` and `main-web`, because the Personal Open
   Source installer and desktop-embedded Compose definition must receive the new
   immutable image digest.
-- `local-proxy` adds `desktop-client` and `main-web`, because the proxy image is
-  compiled into the desktop client.
+- `local-proxy` adds `desktop-client` and `main-web`, because the tagged native
+  proxy source is compiled and bundled into each desktop release.
 - `desktop-client` adds `main-web`, because `install.sh` and the signed-in
   download surface must point to the published desktop release.
 - `cloud-client-api` remains explicit. Private Cloud changes are never inferred
@@ -72,8 +79,9 @@ The production pipeline executes this graph in order:
 6. Pull the published image and run a real clean Personal Open Source database
    migration twice, bootstrap, eight-Feature registry check, API startup, and
    health check.
-7. Test/publish `local-proxy` when selected and pin its immutable digest into
-   desktop source.
+7. Test/publish `local-proxy` when selected and pin its immutable release tag
+   for the desktop workflows. Each macOS and Windows desktop build compiles and
+   packages the native proxy executable.
 8. For `cloud-client-api`, pin exact public dependency commits, test core and
    cloud migrations, back up production, apply core then cloud migrations,
    deploy, re-check migration status, and require `/cloud/health` to report the
@@ -81,9 +89,10 @@ The production pipeline executes this graph in order:
 9. Build and test desktop, including native ABI, packaged shared runtime,
    clean-install, running/read-only upgrade, stale launch-job, and atomic install
    gates. The GitHub macOS/Windows workflows remain the artifact authority.
-10. Deploy `main-web`, wait for its production check, fetch the live
-    `https://openleash.com/install.sh`, and make it download and checksum the
-    exact published installer and DMG.
+10. Upload the tested `main-web` source directly to Google Cloud Build, deploy
+    its immutable Artifact Registry digest to Cloud Run, require 100% traffic
+    on the new revision, fetch the live `https://openleash.com/install.sh`, and
+    make it download and checksum the exact published installer and DMG.
 
 No stage is marked complete until its command succeeds. State is written
 atomically under `~/.openleash-release/` and contains the original commits,
@@ -110,6 +119,16 @@ Before a live `cloud-client-api` push, production follows this exact order:
 read-only status → schema backup → core migrations → cloud migrations
 → source push/deploy → read-only status → live health
 ```
+
+Every non-dry-run migration command writes a plain-text audit log. Production
+release logs live under
+`~/.openleash-release/migration-logs/<release-state-name>/`. Personal Open
+Source upgrades retain their logs in
+`~/.openleash/individual-open-source/migration-logs/`. Each log records the
+redacted database target, the applied/pending state before and after, migration
+file checksums, the exact SQL selected for execution, command output, timestamps,
+and the final outcome. Database credentials and sensitive SQL parameter values
+are never written to these logs.
 
 Configure one of `OPENLEASH_GCP_DATABASE_URL`,
 `OPENLEASH_CLOUD_SQL_DATABASE_URL`, `CLOUD_SQL_DATABASE_URL`, or
