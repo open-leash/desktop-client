@@ -7,9 +7,15 @@ const required = [
   ["canonical flows", "docs/USER_FLOWS.md", /personal[\s\S]*Features/i],
   ["desktop personal choice", "apps/desktop-client/src/window.html", /Personal Open Source/],
   ["desktop Feature setup", "apps/desktop-client/src/window.html", /built-in Features/],
-  ["web Feature catalog", "apps/main-web/app/features/page.tsx", /Leash Features/],
   ["mobile personal sign-in", "apps/mobile-client/lib/main.dart", /personal Leash Cloud account/],
 ];
+if (fs.existsSync("apps/main-web/package.json")) {
+  required.push([
+    "web Feature catalog",
+    "apps/main-web/app/features/page.tsx",
+    /Leash Features/,
+  ]);
+}
 const forbidden = [
   ["dashboard workspace", "package.json", /apps\/dashboard-(?:api|web)/],
   ["organization dashboard onboarding", "apps/main-web/app/account/AccountClient.tsx", /Opening your dashboard|Leash Work/],
