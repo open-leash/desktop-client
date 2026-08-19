@@ -963,6 +963,7 @@
       let selectedAnswers = new Map();
       let expandTimer;
       let pointerInsideIsland = false;
+      let pointerInsideVerificationOverride = null;
       let installAnimation;
       const $ = (id) => document.getElementById(id);
       const island = $("island"), cap = $("cap"), glyph = $("glyph"), status = $("status"), eyebrow = $("eyebrow"), title = $("title"), count = $("count"), capAgents = $("capAgents"), capMetric = $("capMetric"), notchRail = $("notchRail"), notchAgents = $("notchAgents"), notchMetric = $("notchMetric"), compactProgress = $("compactProgress"), compactProgressFill = $("compactProgressFill");
@@ -1317,7 +1318,11 @@
       };
       window.dismissOpenLeashNotice = () => { island.classList.add("leaving"); island.classList.remove("expanded"); resize(); };
       window.expandOpenLeashIsland = () => setExpanded(true);
-      window.setOpenLeashPointerInsideForVerification = (inside) => { pointerInsideIsland = Boolean(inside); };
+      window.setOpenLeashPointerInsideForVerification = (inside) => {
+        pointerInsideVerificationOverride = Boolean(inside);
+        pointerInsideIsland = pointerInsideVerificationOverride;
+        return pointerInsideIsland;
+      };
       window.advanceInstallSuccessForVerification = () => actions.querySelector('[data-action="install-next"]')?.click();
       window.clickSocialXForVerification = () => socialFollow.querySelector('[data-social="x"]')?.click();
       window.clickSocialLinkedInForVerification = () => socialFollow.querySelector('[data-social="linkedin"]')?.click();
@@ -1795,8 +1800,14 @@
         bridge.resolve(current.id, resolution, resolution === "deny" ? guidance.value : "", remember.checked ? 300000 : 0);
       });
       cap.addEventListener("click", (event) => { if (!event.target.closest("button")) setExpanded(!island.classList.contains("expanded")); });
-      island.addEventListener("pointerenter", () => { pointerInsideIsland = true; bridge.setNoticePointerInside?.(true); });
-      island.addEventListener("pointerleave", () => { pointerInsideIsland = false; bridge.setNoticePointerInside?.(false); });
+      island.addEventListener("pointerenter", () => {
+        if (pointerInsideVerificationOverride === null) pointerInsideIsland = true;
+        bridge.setNoticePointerInside?.(true);
+      });
+      island.addEventListener("pointerleave", () => {
+        if (pointerInsideVerificationOverride === null) pointerInsideIsland = false;
+        bridge.setNoticePointerInside?.(false);
+      });
       notchRail.addEventListener("click", () => { if (island.classList.contains("activity-mode")) setExpanded(true); });
       $("toggle").addEventListener("click", () => setExpanded(!island.classList.contains("expanded")));
       $("close").addEventListener("click", () => currentKind === "activity" ? setExpanded(false) : requestDismiss());

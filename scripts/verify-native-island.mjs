@@ -237,6 +237,9 @@ try {
     );
   }
   send({ type: "pointerInside" });
+  const pointerInside = await waitFor("pointerInsideResult");
+  assert.equal(pointerInside.applied, true, "hover verification command was not applied by the island renderer");
+  assert.equal(pointerInside.inside, true, "hover verification command applied the wrong pointer state");
   send({ type: "show", payload: {
     kind: "activity",
     agentName: "OpenLeash",
@@ -253,6 +256,9 @@ try {
   assert.equal(hoveredUpdate.layout.pointerInsideIsland, true, "hover verification did not reach the island renderer");
   assert.equal(hoveredUpdate.layout.expanded, true, "an activity refresh collapsed the island while the pointer was inside");
   send({ type: "pointerOutside" });
+  const pointerOutside = await waitFor("pointerInsideResult");
+  assert.equal(pointerOutside.applied, true, "pointer-leave verification command was not applied by the island renderer");
+  assert.equal(pointerOutside.inside, false, "pointer-leave verification command applied the wrong pointer state");
   send({ type: "clickSessionMascot" });
   const jump = await waitFor("action");
   assert.equal(jump.action, "jump", "clicking a mascot did not request a session jump");

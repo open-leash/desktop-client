@@ -251,7 +251,15 @@ private final class IslandController: NSObject, WKNavigationDelegate, WKScriptMe
     }
 
     func setPointerInsideForVerification(_ inside: Bool) {
-        webView.evaluateJavaScript("window.setOpenLeashPointerInsideForVerification && window.setOpenLeashPointerInsideForVerification(\(inside ? "true" : "false"))")
+        webView.evaluateJavaScript(
+            "window.setOpenLeashPointerInsideForVerification && window.setOpenLeashPointerInsideForVerification(\(inside ? "true" : "false"))"
+        ) { result, error in
+            writeMessage([
+                "type": "pointerInsideResult",
+                "inside": inside,
+                "applied": error == nil && (result as? Bool) == inside
+            ])
+        }
     }
 
     func hitTestForVerification(x: Double, y: Double) {
