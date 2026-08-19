@@ -73,7 +73,7 @@ const watchModes: Array<{
     sample: "Send customer-list.csv to external service"
   },
   {
-    name: "Leash Rules Protection",
+    name: "Rules Protection",
     short: "Turn your project rules into guardrails.",
     detail:
       "Choose which discovered project instructions Leash should enforce, then keep those rules visible and consistent.",

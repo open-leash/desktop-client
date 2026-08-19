@@ -30,6 +30,12 @@ Leash Cloud owns Business administration, billing, tenancy, and identity.
   month with annual billing.
 - Every Cloud offer includes Leash AI and a 10-day free trial. Cloud surfaces
   never show a provider-key input. Personal Open Source is the only BYOK mode.
+- Once a client has reported in, Personal and Business overview screens lead
+  with a rolling summary of actions checked, blocked, automatically approved,
+  manually approved, and waiting. They also show which threat categories were
+  involved and how many enrolled agents exist for each agent kind. Every count
+  is backed by the same auditable evaluation history; Learning-only
+  actions are counted as automatically approved, never as blocked.
 
 ## 1. Personal Leash Cloud
 
@@ -101,6 +107,23 @@ Entry: public marketing website.
    mandatory policy, and support operations.
 7. Installed clients continue using the public client contract against the
    hosted API; private control-plane code is never imported into the public core.
+8. A CISO or organization administrator can enable **Learning only**. Leash
+   continues evaluating and recording every action for the Business dashboard
+   and audit pipeline, but clients never block or wait for approval.
+9. The CISO or administrator can independently disable employee notifications.
+   Security-team visibility and audit exports continue; enrolled mobile and
+   desktop clients suppress employee-facing approval alerts.
+10. During onboarding, after identity setup, the administrator may optionally
+    connect one or more read-only provider analytics keys. This step is
+    skippable and does not prevent organization activation.
+11. Until a source is connected, **Costs & usage** shows its full navigation and
+    empty dashboard structure with a setup prompt. After sync, the executive
+    view shows budget, spend trend, projects, employees, agents, and models;
+    each employee can be expanded to see attributed projects and agent mix.
+12. Cursor, Claude Code, Claude Enterprise, Anthropic API, OpenAI Platform, and
+    ChatGPT/Codex are separate source types because their official APIs use
+    different credentials and report different dimensions. Connecting an
+    analytics key never changes the runtime evaluation provider.
 
 Private Business onboarding should use the same connection model in Business
 language: create the workspace, connect one pilot computer through Leash

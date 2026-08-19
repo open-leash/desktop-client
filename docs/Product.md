@@ -42,6 +42,10 @@ Price: **Free**.
 - Leash AI is included; Cloud never asks for or accepts a customer model-provider key.
 - A 10-day free trial starts at first Cloud sign-in with no card required.
 - Cloud keeps protection, approvals, history, and settings available across devices.
+- The connected Personal overview leads with a rolling activity summary: actions
+  checked, attacks or sensitive actions blocked, automatic approvals, manual
+  approvals, pending decisions, the leading threat categories, and enrolled
+  agent counts grouped by kind.
 - Hosted tenancy, billing, abuse controls, production credentials, signing,
   support, and operations live in private Leash Cloud code.
 - Public code exposes provider interfaces and personal client contracts; it does
@@ -57,6 +61,25 @@ Price: **$8 per month**.
   billing, identity, mandatory policy, support, and operations remain private
   Leash Cloud systems.
 - Leash AI and the CISO-style Business dashboard are included.
+- The Business dashboard leads with the same rolling outcome, threat-category,
+  and agent-kind summary across the organization so security leaders can see
+  what Leash stopped and what it allowed without opening individual events.
+- Private Business settings provide two independent organization controls:
+  **Learning only** keeps evaluation, proxying, audit history, and security-team
+  visibility active while allowing actions that otherwise would be blocked or
+  held for approval; **Employee notifications** may be disabled without
+  suppressing dashboard activity or audit exports.
+- Private Business cost intelligence groups organization AI spend by provider,
+  agent, model, employee, and project. Provider-native project IDs are
+  authoritative; when a provider supplies user-level cost but no project,
+  Leash may label the row from same-day enrolled-agent activity and clearly
+  marks that label as inferred.
+- Cost sources are optional, read-only administration/analytics credentials,
+  separate from Leash AI evaluation credentials. A Business organization may
+  connect multiple Cursor teams, Claude Platform or Claude Enterprise
+  organizations, OpenAI Platform organizations, and ChatGPT/Codex workspaces.
+  The empty cost dashboard remains visible before setup and directs an
+  administrator to the skippable connection step.
 - A 10-day free trial covers up to 2 employees; adding more employees requires
   a paid subscription.
 - Public clients and the public core do not import or expose the private
@@ -130,12 +153,12 @@ the public product.
 
 Rules discovered from `CLAUDE.md`, `AGENTS.md`, and other agent instruction
 files are suggestions. The user explicitly selects which discovered rules
-Leash Rules should enforce.
+Rules Protection should enforce.
 
-The canonical customer-facing Feature names are **Leash Project Protection**,
-**Leash Code Protection**, **Leash Private Data Protection**, **Leash Password
-Protection**, **Leash Hidden Instructions Protection**, **Leash Connected Apps
-Protection**, **Leash Rules**, and **Leash AI Cost Saver**. Public copy uses
+The canonical customer-facing Feature names are **Destructive Protection**,
+**Code Protection**, **Private Data Protection**, **Password Protection**,
+**Prompt Injection Protection**, **Connected Apps Protection**, **Rules
+Protection**, and **Token Saver**. Public copy uses
 these names consistently. Stable slugs and IDs remain implementation details
 for compatibility and are not used as marketing names.
 
@@ -172,6 +195,13 @@ enforcement capabilities.
 Hooks and proxy events describing the same action are deduplicated before
 Feature execution. Feature handlers use declared event capabilities rather than
 guessing from the agent name.
+
+The public client API accepts a typed runtime-policy provider from a private
+Business deployment. The public core does not store or administer organization
+policy. When the provider returns learning mode, the original evaluation and
+Feature outcomes remain durable while the effective agent response is `allow`;
+an `ask` outcome is marked resolved by the organization mode so no request is
+left waiting. Notification delivery consults the same provider independently.
 
 The cross-platform Rust `local-proxy` is separate from Feature execution. It
 submits normalized requests to `client-api`, which runs enabled Features in
