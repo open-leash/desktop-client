@@ -79,6 +79,7 @@ def build_modes() -> dict[str, Mode]:
     })
     main_web = Command("main-web", ["npm", "run", "dev", "-w", "@openleash/main-web"], {
         **base, "OPENLEASH_MAIN_WEB_PORT": "9305", "NEXT_PUBLIC_CLOUD_CLIENT_API_URL": "http://127.0.0.1:9318",
+        "NEXT_PUBLIC_DASHBOARD_URL": "http://localhost:9302",
     })
     return {
         "individual-open-source": Mode(

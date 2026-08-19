@@ -79,6 +79,8 @@ class RunnerTests(unittest.TestCase):
         self.assertNotIn("desktop-client", {process.name for process in mode.processes})
         client_api = next(process for process in mode.processes if process.name == "client-api")
         self.assertEqual(client_api.env["OPENLEASH_MOBILE_DEV_AUTH"], "0")
+        main_web = next(process for process in mode.processes if process.name == "main-web")
+        self.assertEqual(main_web.env["NEXT_PUBLIC_DASHBOARD_URL"], "http://localhost:9302")
 
     def test_local_env_only_passes_oauth_credentials_to_public_processes(self):
         with (
