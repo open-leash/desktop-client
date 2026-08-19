@@ -159,6 +159,7 @@ def main() -> int:
             args.dry_run,
             disable_updates=True,
             fresh_install=True,
+            rebuild=True,
         )
     if selected == "cleanup":
         if args.dry_run:
@@ -759,7 +760,17 @@ def launch_packaged_desktop(
     dry_run: bool = False,
     disable_updates: bool = False,
     fresh_install: bool = False,
+    rebuild: bool = False,
 ) -> int:
+    if rebuild:
+        build_command = ["npm", "run", "dist:windows" if sys.platform == "win32" else "dist:personal"]
+        print(f"[leash:packaged-desktop] rebuilding current source: {' '.join(build_command)}")
+        if not dry_run:
+            try:
+                subprocess.run(build_command, cwd=ROOT, env=merged_env(), check=True)
+            except subprocess.CalledProcessError as error:
+                print(f"[leash] Packaged desktop build failed with code {error.returncode}.", file=sys.stderr)
+                return error.returncode
     app_path = requested_path.expanduser().resolve() if requested_path else None
     if app_path is None:
         candidates = packaged_desktop_candidates()
@@ -823,7 +834,7 @@ def choose_mode() -> str:
     print(
         "1. Personal Open Source\n"
         "2. Leash Cloud development\n"
-        "3. Newest built macOS release (release/personal)\n"
+        "3. Rebuild and open the newest macOS release (release/personal)\n"
         "C. Delete all local Leash data"
     )
     answer = input("Choose [default 1]: ").strip()

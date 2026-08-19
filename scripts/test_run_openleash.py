@@ -57,6 +57,7 @@ class RunnerTests(unittest.TestCase):
             False,
             disable_updates=True,
             fresh_install=True,
+            rebuild=True,
         )
 
     def test_packaged_desktop_dry_run_opens_release_bundle_without_development_services(self):
