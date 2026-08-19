@@ -158,7 +158,7 @@ def main() -> int:
             None,
             args.dry_run,
             disable_updates=True,
-            fresh_install=True,
+            fresh_install=False,
             rebuild=True,
         )
     if selected == "cleanup":
