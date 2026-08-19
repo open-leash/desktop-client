@@ -16,6 +16,17 @@ or multi-tenant administration. Leash may operate private cloud systems for
 hosted accounts, billing, operations, and Business Cloud administration, but
 those systems are not part of this repository or its public API surface.
 
+The desktop settings surface and the signed-in user's web dashboard are two
+clients of the same per-user product. They should converge on the same personal
+overview, agent status, Features, approvals, history, notifications, and
+user-editable settings. A Business employee sees their own Leash activity in
+Desktop exactly as a Personal user does, with organization policy applied by
+the hosted API. An organization administrator also sees only their own user
+surface in Desktop; having an administrator role never unlocks local
+organization controls. Organization-wide people, policy, identity, billing,
+cost-source, audit-export, and CISO/CIO views are available only in the private
+web dashboard.
+
 ## Product offers
 
 ### Personal, Free (BYOK)
@@ -84,6 +95,12 @@ Price: **$8 per month**.
   a paid subscription.
 - Public clients and the public core do not import or expose the private
   Business control plane.
+- Business Desktop remains a per-user client. It may explain that a setting is
+  managed by the organization, but it never exposes employee rosters,
+  organization analytics, provider administration keys, directory sync,
+  billing, organization policy editing, or other administrator actions. Even
+  an organization administrator uses the private web dashboard for those
+  actions.
 - Built-in Features still execute through the typed `client-api` registry. A
   Business plan does not create a third-party Feature or arbitrary-code path.
 

@@ -36,6 +36,14 @@ Leash Cloud owns Business administration, billing, tenancy, and identity.
   involved and how many enrolled agents exist for each agent kind. Every count
   is backed by the same auditable evaluation history; Learning-only
   actions are counted as automatically approved, never as blocked.
+- Desktop settings and the signed-in user's web dashboard are parallel
+  per-user surfaces. Their Overview, agents, Features, approvals, history,
+  notifications, and user settings should use the same client contracts and
+  present the same information wherever the platform allows.
+- A Business employee sees only their own Leash activity and settings on their
+  computer. An administrator who opens Desktop still receives this same
+  employee/user view. Organization administration is web-only and never
+  appears because the local user has an administrator role.
 
 ## 1. Personal Leash Cloud
 
@@ -124,6 +132,12 @@ Entry: public marketing website.
     ChatGPT/Codex are separate source types because their official APIs use
     different credentials and report different dimensions. Connecting an
     analytics key never changes the runtime evaluation provider.
+13. Every enrolled employee, including an administrator, gets the same
+    per-user Desktop surface as Personal Cloud: their own overview, agents,
+    Features, approvals, history, notifications, and permitted user settings.
+    Organization rosters, aggregate activity and spend, identity sync,
+    organization policy, admin API keys, billing, and audit administration are
+    available only in the private web dashboard.
 
 Private Business onboarding should use the same connection model in Business
 language: create the workspace, connect one pilot computer through Leash
@@ -148,8 +162,11 @@ Leash release.
 
 ## Surface ownership
 
-- `desktop-client`: setup, always-on tray, optional Island, local helper API, hook/proxy management,
-  personal Features, approvals, questions, and updates.
+- `desktop-client`: setup, always-on tray, optional Island, local helper API,
+  hook/proxy management, and the signed-in person's Overview, agents, Features,
+  approvals, questions, history, notifications, permitted settings, and
+  updates. Business membership changes effective policy, not the scope of the
+  local interface; Desktop never becomes an organization-admin console.
 - `mobile-client`: personal approvals, questions, activity, and settings.
 - `main-web`: marketing, downloads, Personal Cloud entry, Business pricing, and
   the private-cloud Business handoff.
@@ -175,5 +192,8 @@ in personal setup, personal settings, or the personal Feature list.
   pull, the flow is wrong.
 - If personal open source uses a duplicate desktop enforcement database instead
   of `client-api` and Postgres, the flow is wrong.
+- If an organization role exposes employee rosters, aggregate organization
+  analytics, identity sync, billing, provider admin keys, or organization
+  policy editing in Desktop, the flow is wrong.
 - If a question/approval cannot resolve the exact originating request, the flow
   is wrong.
