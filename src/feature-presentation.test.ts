@@ -50,9 +50,9 @@ test("setup showcases Features without installation controls", () => {
   assert.match(renderer, /\.setupFeatureGrid\s*\{[\s\S]*?grid-template-columns: repeat\(2, minmax\(0, 1fr\)\)/);
 });
 
-test("desktop groups built-in Features into Protections and Costs", () => {
-  assert.match(renderer, /\{ id: "protection", label: "Protections"/);
-  assert.match(renderer, /\{ id: "cost", label: "Costs"/);
+test("desktop groups built-in Features into plain-language Safety and Save money sections", () => {
+  assert.match(renderer, /\{ id: "protection", label: "Safety"/);
+  assert.match(renderer, /\{ id: "cost", label: "Save money"/);
   assert.doesNotMatch(renderer, /\{ id: "security", label: "Security"/);
 });
 
@@ -63,5 +63,17 @@ test("setup explains Features in consumer language", () => {
   assert.match(renderer, /Meet the built-in Features Leash turns on automatically/);
   assert.match(renderer, /Protection, already switched on/);
   assert.match(renderer, /Leash is the antivirus for AI/);
-  assert.match(renderer, /Complete protection from day one/);
+  assert.match(renderer, /Leash starts protecting you right away/);
+  assert.match(renderer, /When should Leash warn you\?/);
+  assert.match(renderer, /Most code changes/);
+  assert.doesNotMatch(renderer, /Minimum Code Characters|Notification Risk Threshold/);
+});
+
+test("Feature settings keep technical controls behind a plain Advanced layer", () => {
+  assert.match(renderer, /<summary>Advanced settings<\/summary>/);
+  assert.match(renderer, /The recommended values are safe to keep/);
+  assert.match(renderer, /Exact warning score \(0–100\)/);
+  assert.match(renderer, /Evaluation model override/);
+  assert.match(renderer, /const advancedOnlySettingKeys = new Set/);
+  assert.match(renderer, /const advancedExactSettingKeys = new Set/);
 });

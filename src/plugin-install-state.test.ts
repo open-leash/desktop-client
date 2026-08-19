@@ -37,7 +37,7 @@ test("renderer derives installed and available lists from active plugin state", 
   );
   assert.match(installState, /plugin\?\.settings\?\.enabled === true/);
   assert.doesNotMatch(installState, /plugin\?\.settings\?\.installedVersion/);
-  assert.match(renderer, /<span class="navLabel">Available Features<\/span>/);
+  assert.match(renderer, /<span class="navLabel">More from Leash<\/span>/);
 });
 
 test("fresh setup selects every runtime-available Feature by default", () => {

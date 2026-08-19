@@ -1744,6 +1744,23 @@
         display: grid;
         gap: 18px;
       }
+      .advancedSettings {
+        margin-top: 4px;
+        border-top: 1px solid var(--line);
+        padding-top: 16px;
+      }
+      .advancedSettings summary {
+        width: fit-content;
+        cursor: pointer;
+        color: var(--ink);
+        font-size: 14px;
+        font-weight: 900;
+      }
+      .advancedSettings > p {
+        max-width: 62ch;
+        margin: 7px 0 16px;
+        font-size: 13px;
+      }
       .pluginDetailHeader {
         display: flex;
         justify-content: space-between;
@@ -4530,7 +4547,7 @@
           <div class="navSection">
             <button type="button" data-view="plugin-marketplace" class="${view === "plugin-marketplace" ? "active" : ""}">
               ${categoryIcon("all")}
-              <span class="navLabel">Available Features</span>
+              <span class="navLabel">More from Leash</span>
               <span class="navCount">${escapeHtml(String(availablePlugins().length))}</span>
             </button>
           </div>
@@ -4600,8 +4617,8 @@
       }
 
       function categoryLabel(id) {
-        if (id === "protection") return "Protections";
-        if (id === "cost") return "Costs";
+        if (id === "protection") return "Safety";
+        if (id === "cost") return "Save money";
         if (id === "visibility") return "Visibility";
         if (id === "other") return "Other";
         return "All";
@@ -6404,10 +6421,10 @@
               <svg viewBox="0 0 32 32"><path d="M16 3.5 26 7v7.5c0 6.4-4 11.2-10 13.5-6-2.3-10-7.1-10-13.5V7z"></path><path d="m11 15 3.1 3.2 6.9-7"></path></svg>
             </span>
             <div>
-              <strong>Complete protection from day one</strong>
-              <p>Every built-in Feature is ready from the first command, with clear controls available later in Leash.</p>
+              <strong>Leash starts protecting you right away</strong>
+              <p>Every safety check below turns on automatically. You can change any of them later.</p>
             </div>
-            <span class="setupProtectionCount">${escapeHtml(String(plugins.length))} Features on</span>
+            <span class="setupProtectionCount">${escapeHtml(String(plugins.length))} safety checks on</span>
           </div>
           <div class="setupFeatureGrid">
             ${plugins.map((plugin) => {
@@ -6437,7 +6454,7 @@
         const plugins = query
           ? categoryFiltered.filter((plugin) => pluginSearchText(plugin).includes(query))
           : categoryFiltered;
-        if (allPlugins.length === 0) return `<div class="card empty">Leash could not load your protection choices. Try again in a moment.</div>`;
+        if (allPlugins.length === 0) return `<div class="card empty">Leash could not load your safety choices. Try again in a moment.</div>`;
         const categories = pluginCategorySummary(allPlugins);
         return `
           <div class="pluginCategoryFilters">
@@ -6449,7 +6466,7 @@
             `).join("")}
           </div>
           <div class="pluginMarketplaceTools">
-            <input id="pluginMarketplaceSearch" value="${escapeHtml(setupPluginSearch)}" placeholder="Search protections and cost controls...">
+            <input id="pluginMarketplaceSearch" value="${escapeHtml(setupPluginSearch)}" placeholder="Search safety and savings...">
             <span>${plugins.length} of ${categoryFiltered.length} shown</span>
           </div>
           <div class="cardList">
@@ -6479,7 +6496,7 @@
                   </span>
                 </article>
               `;
-            }).join("") || `<div class="card empty">No protections or cost controls match this filter.</div>`}
+            }).join("") || `<div class="card empty">No safety or savings options match this filter.</div>`}
           </div>
         `;
       }
@@ -6519,8 +6536,8 @@
         }
         return [
           { id: "all", label: "All", count: counts.get("all") || 0 },
-          { id: "protection", label: "Protections", count: counts.get("protection") || 0 },
-          { id: "cost", label: "Costs", count: counts.get("cost") || 0 },
+          { id: "protection", label: "Safety", count: counts.get("protection") || 0 },
+          { id: "cost", label: "Save money", count: counts.get("cost") || 0 },
           { id: "visibility", label: "Visibility", count: counts.get("visibility") || 0 },
           { id: "other", label: "Other", count: counts.get("other") || 0 }
         ].filter((item) => item.id === "all" || item.count > 0);
@@ -6587,7 +6604,7 @@
       }
 
       function pluginSettingsFields(plugin, config) {
-        const fields = pluginSettingDefinitions(plugin, config);
+        const fields = pluginSettingDefinitions(plugin, config).filter((field) => !isAdvancedOnlySetting(field.key));
         if (fields.length === 0) return `<p>No initial settings needed.</p>`;
         return fields.map((field) => pluginSettingField(plugin, config, field)).join("");
       }
@@ -6609,10 +6626,32 @@
         }));
       }
 
+      const advancedOnlySettingKeys = new Set(["model", "minimumChars", "protectRecent", "ccrEnabled", "ccrTtlSeconds", "policySet"]);
+      const advancedExactSettingKeys = new Set(["notificationRiskThreshold", "suspiciousRiskThreshold", "minimumCodeCharacters"]);
+
+      function isAdvancedOnlySetting(key) {
+        return advancedOnlySettingKeys.has(key);
+      }
+
+      function hasAdvancedExactControl(key) {
+        return advancedExactSettingKeys.has(key);
+      }
+
       function pluginSettingField(plugin, config, field) {
         const value = config[field.key] ?? field.defaultValue;
         const schema = field.schema || {};
         const label = settingLabel(field.key);
+        const numberOptions = friendlyNumberOptions(field.key);
+        if (numberOptions.length) {
+          return `
+            <div class="fieldRow">
+              <strong>${escapeHtml(label)}</strong>
+              <select data-plugin-setting="${escapeHtml(plugin.id)}" data-setting-key="${escapeHtml(field.key)}" data-setting-kind="number-choice">
+                ${numberOptions.map((option) => `<option value="${option.value}" ${Number(value) === option.value ? "selected" : ""}>${escapeHtml(option.label)}</option>`).join("")}
+              </select>
+            </div>
+          `;
+        }
         if (Array.isArray(schema.enum)) {
           return `
             <div class="fieldRow">
@@ -6681,9 +6720,35 @@
       }
 
       function settingLabel(value) {
-        if (value === "allow") return "Ignore";
-        if (value === "ask") return "Ask me";
-        if (value === "block") return "Stop it";
+        const labels = {
+          action: "If AI tries to share private information",
+          categories: "What should Leash keep private?",
+          destructiveAction: "Deleting or destroying things",
+          databaseMutationAction: "Changing your database",
+          broadFilesystemAction: "Changing lots of files at once",
+          secretFileAction: "Opening password or sign-in files",
+          envDumpAction: "Showing saved passwords or access keys",
+          exfiltrationAction: "Sending private information somewhere else",
+          suspiciousRiskThreshold: "How cautious should Leash be?",
+          notificationRiskThreshold: "When should Leash warn you?",
+          minimumCodeCharacters: "Which code changes should Leash check?",
+          redactSecrets: "Hide private values in Leash history",
+          rules: "Your rules",
+          level: "How much should Leash save?",
+          conciseResponse: "Ask AI for shorter answers",
+          pii: "Personal information",
+          phi: "Health information",
+          tokens: "Sign-in codes",
+          keys: "Computer access keys",
+          credentials: "Passwords and sign-in details",
+          allow: "Let it continue",
+          ask: "Ask me first",
+          block: "Stop it",
+          light: "Save a little",
+          standard: "Balanced",
+          maximum: "Save the most"
+        };
+        if (labels[value]) return labels[value];
         return String(value || "")
           .replace(/[_-]+/g, " ")
           .replace(/([a-z0-9])([A-Z])/g, "$1 $2")
@@ -6846,6 +6911,10 @@
             .split(/\r?\n/g)
             .map((line) => line.replace(/^[-*]\s+/, "").trim())
             .filter(Boolean);
+          return;
+        }
+        if (input.dataset.settingKind === "number-choice") {
+          config[key] = Number(input.value || 0);
           return;
         }
         if (input.type === "checkbox") {
@@ -7052,7 +7121,7 @@
             <span>${escapeHtml(pluginStatusLabel(plugin))}</span>
           </div>
           <div class="pluginDetailTabs" role="tablist" aria-label="${escapeHtml(pluginName(plugin))} sections">
-            <button type="button" data-plugin-detail-tab="insights" class="${pluginDetailTab === "insights" ? "active" : ""}">Insights</button>
+            <button type="button" data-plugin-detail-tab="insights" class="${pluginDetailTab === "insights" ? "active" : ""}">At a glance</button>
             <button type="button" data-plugin-detail-tab="outcomes" class="${pluginDetailTab === "outcomes" ? "active" : ""}">History <span>${escapeHtml(String(outcomes.length))}</span></button>
             <button type="button" data-plugin-detail-tab="settings" class="${pluginDetailTab === "settings" ? "active" : ""}">Settings</button>
           </div>
@@ -7061,14 +7130,14 @@
             <div class="card">
               <div class="fieldRow">
                 <div>
-                  <strong>Insights</strong>
-                  <p>Signals and trends reported by this Feature for your account.</p>
+                  <strong>At a glance</strong>
+                  <p>What Leash has checked or stopped for you.</p>
                 </div>
                 <span class="tag good">${escapeHtml(String(outcomes.length))}</span>
               </div>
-              ${outcomes.length === 0 ? `<div class="empty" style="margin-top:14px">No insights reported yet.</div>` : `
+              ${outcomes.length === 0 ? `<div class="empty" style="margin-top:14px">Nothing to report yet. Leash is watching.</div>` : `
                 <div class="pluginInsightGrid" style="margin-top:14px">
-                  <article class="pluginInsightMetric"><strong>${escapeHtml(String(outcomes.length))}</strong><span>Total outcomes</span></article>
+                  <article class="pluginInsightMetric"><strong>${escapeHtml(String(outcomes.length))}</strong><span>Times checked</span></article>
                   <article class="pluginInsightMetric"><strong>${escapeHtml(String(blocked))}</strong><span>Blocked</span></article>
                   <article class="pluginInsightMetric"><strong>${escapeHtml(String(needsReview))}</strong><span>Needs review</span></article>
                 </div>
@@ -7079,13 +7148,13 @@
             <div class="card">
               <div class="fieldRow">
                 <div>
-                  <strong>Recent history</strong>
-                  <p>What this protection noticed, which agent was involved, and what happened next.</p>
+                  <strong>What happened recently</strong>
+                  <p>What Leash noticed, which AI tool was involved, and what happened next.</p>
                 </div>
                 <span class="tag good">${escapeHtml(String(outcomes.length))}</span>
               </div>
               <div class="cardList" style="margin-top:14px">
-                ${outcomes.map((outcome) => pluginOutcomeCard(outcome)).join("") || `<div class="empty">No outcomes reported yet.</div>`}
+                ${outcomes.map((outcome) => pluginOutcomeCard(outcome)).join("") || `<div class="empty">Nothing has needed your attention yet.</div>`}
               </div>
             </div>
             ` : ""}
@@ -7093,8 +7162,8 @@
             <div class="card">
               <div class="pluginDetailHeader">
                 <div>
-                  <strong>Settings</strong>
-                  <p>${installed ? "Configuration applied to your account." : "Enable this Feature before editing settings."}</p>
+                  <strong>What should Leash do?</strong>
+                  <p>${installed ? "The recommended choices are already selected." : "Turn this on before changing how it works."}</p>
                 </div>
                 <span class="tag ${locked ? "" : "good"}">${escapeHtml(locked ? "locked" : "editable")}</span>
               </div>
@@ -7373,7 +7442,20 @@
         const config = effectivePluginConfig(plugin);
         const fields = pluginSettingDefinitions(plugin, config);
         if (fields.length === 0) return `<div class="empty">No settings exposed.</div>`;
-        return fields.map((field) => pluginDetailSettingField(plugin, config, field)).join("");
+        const basic = fields.filter((field) => !isAdvancedOnlySetting(field.key));
+        const advanced = fields.filter((field) => isAdvancedOnlySetting(field.key) || hasAdvancedExactControl(field.key));
+        return `
+          ${basic.map((field) => pluginDetailSettingField(plugin, config, field)).join("")}
+          ${advanced.length ? `
+            <details class="advancedSettings">
+              <summary>Advanced settings</summary>
+              <p>Exact controls for people who want to tune how Leash works. The recommended values are safe to keep.</p>
+              <div class="pluginDetailSettings">
+                ${advanced.map((field) => pluginDetailSettingField(plugin, config, field, true)).join("")}
+              </div>
+            </details>
+          ` : ""}
+        `;
       }
 
       const profileAgentKinds = [
@@ -7477,12 +7559,12 @@
         }).filter((rule) => rule.text);
       }
 
-      function pluginDetailSettingField(plugin, config, field) {
+      function pluginDetailSettingField(plugin, config, field, advanced = false) {
         const value = config[field.key] ?? field.defaultValue;
         const schema = field.schema || {};
         const disabled = plugin.organizationPolicy?.configLocked ? "disabled" : "";
-        const label = settingLabel(field.key);
-        const hint = pluginSettingHint(field.key);
+        const label = advanced ? advancedSettingLabel(field.key) : settingLabel(field.key);
+        const hint = advanced ? advancedSettingHint(field.key) : pluginSettingHint(field.key);
         const head = `
           <div class="pluginDetailSettingHead">
             <strong>${escapeHtml(label)}</strong>
@@ -7499,6 +7581,22 @@
                   <label>
                     <input data-plugin-detail-setting="${escapeHtml(plugin.id)}" data-setting-key="${escapeHtml(field.key)}" type="radio" name="plugin-detail-${escapeHtml(plugin.id)}-${escapeHtml(field.key)}" value="${option}" ${action === option ? "checked" : ""} ${disabled}>
                     <span>${escapeHtml(settingLabel(option))}</span>
+                  </label>
+                `).join("")}
+              </div>
+            </div>
+          `;
+        }
+        const numberOptions = advanced ? [] : friendlyNumberOptions(field.key);
+        if (numberOptions.length) {
+          return `
+            <div class="pluginDetailSetting">
+              ${head}
+              <div class="segmented" style="grid-template-columns: repeat(${numberOptions.length}, minmax(0, 1fr))">
+                ${numberOptions.map((option) => `
+                  <label>
+                    <input data-plugin-detail-setting="${escapeHtml(plugin.id)}" data-setting-key="${escapeHtml(field.key)}" data-setting-kind="number-choice" type="radio" name="plugin-detail-${escapeHtml(plugin.id)}-${escapeHtml(field.key)}" value="${option.value}" ${Number(value) === option.value ? "checked" : ""} ${disabled}>
+                    ${escapeHtml(option.label)}
                   </label>
                 `).join("")}
               </div>
@@ -7589,16 +7687,64 @@
       }
 
       function pluginSettingHint(key) {
-        if (key === "action" || key.endsWith("Action")) return "Ignore records it, Ask me pauses for you, and Stop it blocks it automatically.";
-        if (key === "categories") return "Sensitive data types this Feature should inspect.";
-        if (key === "level") return "How aggressively prompts are compressed.";
-        if (key === "conciseResponse") return "Ask the model to keep responses tighter.";
-        if (key === "model") return "Optional model override. Leave blank for the default.";
-        if (key === "suspiciousRiskThreshold") return "Higher values reduce Leash Prompt Injection Protection alerts.";
-        if (key === "policySet") return "Policy group used by this evaluator.";
-        if (key === "redactSecrets") return "Hide secrets in Connected Tools history.";
-        if (key === "rules") return "Choose whether each boundary is recorded, sent to you, or stopped automatically.";
+        if (key === "action" || key.endsWith("Action")) return "Let it continue records what happened. Ask me first pauses AI for your choice. Stop it blocks the action.";
+        if (key === "categories") return "Choose the information you never want AI to share by mistake.";
+        if (key === "level") return "Higher savings remove more repeated text before it is sent to AI.";
+        if (key === "conciseResponse") return "Shorter answers can also lower your AI bill.";
+        if (key === "suspiciousRiskThreshold" || key === "notificationRiskThreshold") return "Balanced is recommended. Choose Warn me more if you prefer extra caution.";
+        if (key === "minimumCodeCharacters") return "Most code changes is recommended. Tiny snippets are less useful to check.";
+        if (key === "redactSecrets") return "Private values will not appear in the history you see in Leash.";
+        if (key === "rules") return "Write each boundary in normal language, then choose whether Leash should ask you or stop AI.";
         return "";
+      }
+
+      function advancedSettingLabel(key) {
+        const labels = {
+          model: "Evaluation model override",
+          minimumChars: "Minimum conversation characters",
+          protectRecent: "Recent messages kept unchanged",
+          ccrEnabled: "Repeated-context reuse",
+          ccrTtlSeconds: "Repeated-context reuse time (seconds)",
+          policySet: "Evaluation policy set",
+          notificationRiskThreshold: "Exact warning score (0–100)",
+          suspiciousRiskThreshold: "Exact hidden-instruction score (0–100)",
+          minimumCodeCharacters: "Exact minimum code size (characters)"
+        };
+        return labels[key] || settingLabel(key);
+      }
+
+      function advancedSettingHint(key) {
+        const hints = {
+          model: "Leave blank to use the model selected by Leash.",
+          minimumChars: "Shorter conversations are left unchanged.",
+          protectRecent: "Number of recent messages Leash always keeps as written.",
+          ccrEnabled: "Reuse previously checked repeated text when possible.",
+          ccrTtlSeconds: "How long reused text remains valid.",
+          policySet: "Optional named rule set used by the evaluator.",
+          notificationRiskThreshold: "Lower scores create more warnings. Default: 70.",
+          suspiciousRiskThreshold: "Lower scores flag more hidden instructions. Default: 50.",
+          minimumCodeCharacters: "Code shorter than this is not checked. Default: 80."
+        };
+        return hints[key] || "";
+      }
+
+      function friendlyNumberOptions(key) {
+        if (key === "notificationRiskThreshold") return [
+          { value: 45, label: "Warn me more" },
+          { value: 70, label: "Balanced" },
+          { value: 85, label: "Only strong warnings" }
+        ];
+        if (key === "suspiciousRiskThreshold") return [
+          { value: 35, label: "Warn me more" },
+          { value: 50, label: "Balanced" },
+          { value: 70, label: "Only strong warnings" }
+        ];
+        if (key === "minimumCodeCharacters") return [
+          { value: 40, label: "Every code change" },
+          { value: 80, label: "Most code changes" },
+          { value: 250, label: "Only larger changes" }
+        ];
+        return [];
       }
 
       function normalizeProtectionAction(value) {
@@ -7737,6 +7883,10 @@
                 };
               })
               .filter((item) => item.text);
+            return;
+          }
+          if (input.dataset.settingKind === "number-choice") {
+            if (input.type !== "radio" || input.checked) config[key] = Number(input.value || 0);
             return;
           }
           if (input.type === "radio") {
