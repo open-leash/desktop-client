@@ -2,8 +2,8 @@
   {
     "id": "openleash.blast-radius",
     "slug": "blast-radius",
-    "name": "Leash Destructive Protection",
-    "description": "Stops agents before they delete files, damage databases, or break important systems.",
+    "name": "Leash Project Protection",
+    "description": "Stops AI before it deletes files, damages your database, or breaks your project.",
     "category": "protection",
     "iconText": "💥",
     "showcaseOrder": 1
@@ -12,7 +12,7 @@
     "id": "openleash.code-scanner",
     "slug": "code-scanner",
     "name": "Leash Code Protection",
-    "description": "Reviews AI-generated code for security weaknesses before they become a problem.",
+    "description": "Checks the code AI writes and warns you when it could make your app unsafe.",
     "category": "protection",
     "iconText": "☣️",
     "showcaseOrder": 2
@@ -21,7 +21,7 @@
     "id": "openleash.dlp",
     "slug": "data-leakage-prevention",
     "name": "Leash Private Data Protection",
-    "description": "Keeps passwords, personal information, and other sensitive data from being shared by mistake.",
+    "description": "Stops AI from accidentally sharing passwords, personal information, or private files.",
     "category": "protection",
     "iconText": "🤫",
     "showcaseOrder": 3
@@ -29,8 +29,8 @@
   {
     "id": "openleash.sensitive-access",
     "slug": "sensitive-access",
-    "name": "Leash Secret Protection",
-    "description": "Warns you when an agent tries to open passwords, private keys, or other secret files.",
+    "name": "Leash Password Protection",
+    "description": "Asks before AI opens password files, sign-in details, or other private access information.",
     "category": "protection",
     "iconText": "🔐",
     "showcaseOrder": 4
@@ -38,8 +38,8 @@
   {
     "id": "openleash.skill-scanner",
     "slug": "skill-scanner",
-    "name": "Leash Prompt Injection Protection",
-    "description": "Checks agent instructions for hidden or suspicious behavior before it can spread.",
+    "name": "Leash Hidden Instructions Protection",
+    "description": "Finds hidden instructions that try to make AI do something you did not ask it to do.",
     "category": "protection",
     "iconText": "🕵️",
     "showcaseOrder": 5
@@ -47,8 +47,8 @@
   {
     "id": "openleash.mcp-scanner",
     "slug": "mcp-scanner",
-    "name": "Leash Tool Protection",
-    "description": "Scans the outside tools and services your agents can use and shows what they do.",
+    "name": "Leash Connected Apps Protection",
+    "description": "Shows which outside apps and tools AI can use and warns you when something changes.",
     "category": "protection",
     "iconText": "📡",
     "showcaseOrder": 6
@@ -56,8 +56,8 @@
   {
     "id": "openleash.rules-enforcer",
     "slug": "rules-enforcer",
-    "name": "Leash Rules Protection",
-    "description": "Makes agents follow the boundaries you choose and asks before they cross one.",
+    "name": "Leash Rules",
+    "description": "Makes AI follow the project rules you choose and asks before it crosses one.",
     "category": "protection",
     "iconText": "📏",
     "showcaseOrder": 7
@@ -65,8 +65,8 @@
   {
     "id": "openleash.prompt-compression",
     "slug": "token-saver",
-    "name": "Leash Token Saver",
-    "description": "Reduces repeated context so agents use fewer paid AI tokens without losing important details.",
+    "name": "Leash AI Cost Saver",
+    "description": "Cuts repeated text so your AI bill is lower without removing the important parts.",
     "category": "cost",
     "iconText": "✂️",
     "showcaseOrder": 8

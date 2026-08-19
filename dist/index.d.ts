@@ -160,8 +160,8 @@ export declare function firstPartyFeature(slug: string, _version: string, option
 export declare const FIRST_PARTY_PLUGIN_MANIFESTS: ({
     id: string;
     slug: string;
-    name: "Leash Token Saver";
-    description: "Reduces repeated context so agents use fewer paid AI tokens without losing important details.";
+    name: "Leash AI Cost Saver";
+    description: "Cuts repeated text so your AI bill is lower without removing the important parts.";
     repositoryUrl: string;
     version: string;
     publisher: string;
@@ -246,8 +246,8 @@ export declare const FIRST_PARTY_PLUGIN_MANIFESTS: ({
 } | {
     id: string;
     slug: string;
-    name: "Leash Prompt Injection Protection";
-    description: "Checks agent instructions for hidden or suspicious behavior before it can spread.";
+    name: "Leash Hidden Instructions Protection";
+    description: "Finds hidden instructions that try to make AI do something you did not ask it to do.";
     repositoryUrl: string;
     version: string;
     publisher: string;
@@ -288,7 +288,7 @@ export declare const FIRST_PARTY_PLUGIN_MANIFESTS: ({
     id: string;
     slug: string;
     name: "Leash Private Data Protection";
-    description: "Keeps passwords, personal information, and other sensitive data from being shared by mistake.";
+    description: "Stops AI from accidentally sharing passwords, personal information, or private files.";
     repositoryUrl: string;
     version: string;
     publisher: string;
@@ -361,8 +361,8 @@ export declare const FIRST_PARTY_PLUGIN_MANIFESTS: ({
 } | {
     id: string;
     slug: string;
-    name: "Leash Secret Protection";
-    description: "Warns you when an agent tries to open passwords, private keys, or other secret files.";
+    name: "Leash Password Protection";
+    description: "Asks before AI opens password files, sign-in details, or other private access information.";
     repositoryUrl: string;
     version: string;
     publisher: string;
@@ -432,8 +432,8 @@ export declare const FIRST_PARTY_PLUGIN_MANIFESTS: ({
 } | {
     id: string;
     slug: string;
-    name: "Leash Destructive Protection";
-    description: "Stops agents before they delete files, damage databases, or break important systems.";
+    name: "Leash Project Protection";
+    description: "Stops AI before it deletes files, damages your database, or breaks your project.";
     repositoryUrl: string;
     version: string;
     publisher: string;
@@ -503,8 +503,8 @@ export declare const FIRST_PARTY_PLUGIN_MANIFESTS: ({
 } | {
     id: string;
     slug: string;
-    name: "Leash Rules Protection";
-    description: "Makes agents follow the boundaries you choose and asks before they cross one.";
+    name: "Leash Rules";
+    description: "Makes AI follow the project rules you choose and asks before it crosses one.";
     repositoryUrl: string;
     version: string;
     publisher: string;
@@ -583,8 +583,8 @@ export declare const FIRST_PARTY_PLUGIN_MANIFESTS: ({
 } | {
     id: string;
     slug: string;
-    name: "Leash Tool Protection";
-    description: "Scans the outside tools and services your agents can use and shows what they do.";
+    name: "Leash Connected Apps Protection";
+    description: "Shows which outside apps and tools AI can use and warns you when something changes.";
     repositoryUrl: string;
     version: string;
     publisher: string;
