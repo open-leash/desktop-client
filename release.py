@@ -168,7 +168,7 @@ APP_PROFILES = {
 
 def main() -> int:
     arguments = sys.argv[1:]
-    if "--production" in arguments or not arguments:
+    if "--production" in arguments or "--resume" in arguments or not arguments:
         from scripts.release_pipeline import main as production_release_main
 
         return production_release_main([argument for argument in arguments if argument != "--production"])

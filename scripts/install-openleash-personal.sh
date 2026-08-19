@@ -434,7 +434,7 @@ random_secret() {
 }
 
 write_individual_open_source_runtime() {
-  mkdir -p "$OPENLEASH_BACKEND_DIR/backups"
+  mkdir -p "$OPENLEASH_BACKEND_DIR/backups" "$OPENLEASH_BACKEND_DIR/migration-logs"
   if [[ ! -f "$OPENLEASH_BACKEND_DIR/.env" ]]; then
     cat > "$OPENLEASH_BACKEND_DIR/.env" <<EOF
 OPENLEASH_IMAGE_REGISTRY=$OPENLEASH_IMAGE_REGISTRY
@@ -485,6 +485,7 @@ services:
   migrate:
     image: ${OPENLEASH_IMAGE_REGISTRY:-ghcr.io/open-leash}/client-api:${OPENLEASH_VERSION:-0.37.0@sha256:caa0f268c62e5cf2cf29076877a8b6ca3caf00ddedc8c5229e10df8c929661db}
     profiles: ["setup"]
+    user: "0:0"
     environment:
       DATABASE_URL: postgres://${OPENLEASH_POSTGRES_USER:-openleash}:${OPENLEASH_POSTGRES_PASSWORD:-openleash}@postgres:5432/${OPENLEASH_POSTGRES_DB:-openleash}
       OPENLEASH_DEV_TOKEN: ${OPENLEASH_DEV_TOKEN:-}
@@ -492,6 +493,9 @@ services:
       OPENLEASH_DEV_ORG_SLUG: individual-open-source
       OPENLEASH_DEV_ORG_NAME: Individual Open Source
       OPENLEASH_DEPLOYMENT_MODE: individual-open-source
+      OPENLEASH_MIGRATION_LOG_DIR: /var/log/openleash
+    volumes:
+      - ./migration-logs:/var/log/openleash
     command: ["node", "apps/client-api/dist/migrate.js", "--apply"]
     depends_on:
       postgres:

@@ -39,7 +39,9 @@ Price: **Free**.
 ### Personal, Leash Cloud
 
 - Desktop, web, and mobile use the Leash-hosted personal `client-api` surface.
-- Leash-managed evaluation may be offered.
+- Leash AI is included; Cloud never asks for or accepts a customer model-provider key.
+- A 10-day free trial starts at first Cloud sign-in with no card required.
+- Cloud keeps protection, approvals, history, and settings available across devices.
 - Hosted tenancy, billing, abuse controls, production credentials, signing,
   support, and operations live in private Leash Cloud code.
 - Public code exposes provider interfaces and personal client contracts; it does
@@ -54,6 +56,9 @@ Price: **$8 per month**.
 - Business clients use Leash Cloud; organization administration, tenancy,
   billing, identity, mandatory policy, support, and operations remain private
   Leash Cloud systems.
+- Leash AI and the CISO-style Business dashboard are included.
+- A 10-day free trial covers up to 2 employees; adding more employees requires
+  a paid subscription.
 - Public clients and the public core do not import or expose the private
   Business control plane.
 - Built-in Features still execute through the typed `client-api` registry. A
@@ -124,15 +129,32 @@ policy, when offered, is a private Leash Cloud overlay and is not implemented by
 the public product.
 
 Rules discovered from `CLAUDE.md`, `AGENTS.md`, and other agent instruction
-files are suggestions. The user explicitly selects which discovered rules the
-Leash Rules Protection Feature should enforce.
+files are suggestions. The user explicitly selects which discovered rules
+Leash Rules should enforce.
 
-The canonical customer-facing Feature names are **Leash Destructive
-Protection**, **Leash Code Protection**, **Leash Private Data Protection**,
-**Leash Secret Protection**, **Leash Prompt Injection Protection**, **Leash
-Tool Protection**, **Leash Rules Protection**, and **Leash Token Saver**. Public
-copy uses these names consistently. Stable slugs and IDs remain implementation
-details for compatibility and are not used as marketing names.
+The canonical customer-facing Feature names are **Leash Project Protection**,
+**Leash Code Protection**, **Leash Private Data Protection**, **Leash Password
+Protection**, **Leash Hidden Instructions Protection**, **Leash Connected Apps
+Protection**, **Leash Rules**, and **Leash AI Cost Saver**. Public copy uses
+these names consistently. Stable slugs and IDs remain implementation details
+for compatibility and are not used as marketing names.
+
+Normal product screens use outcome language that a first-time AI user can
+understand. They explain what AI tried to do, what could happen, and what Leash
+did. Internal terms such as prompt injection, MCP, exfiltration, risk threshold,
+SSRF, CSRF, token compression, policy evaluation, and stable Feature IDs belong
+only in optional technical details, diagnostics, logs, or developer docs. Raw
+engine scores are not normal settings: present them as plain choices such as
+**Warn me more**, **Balanced**, and **Only strong warnings** while preserving
+their numeric values in the API contract.
+
+Every configurable Feature uses progressive disclosure. The first layer shows
+plain recommended choices and describes their real-world effect. A clearly
+labeled, collapsed **Advanced settings** section may expose exact scores, model
+overrides, timing and reuse values, policy sets, and other controls needed by a
+technical operator. Advanced settings remain discoverable, but opening them does
+not replace the plain explanation, recommended default, or description of what
+changing the value will do.
 
 ## Agent event pipeline
 
@@ -154,7 +176,9 @@ guessing from the agent name.
 The cross-platform Rust `local-proxy` is separate from Feature execution. It
 submits normalized requests to `client-api`, which runs enabled Features in
 process, persists outcomes, and returns the decision. It never invokes a Feature
-directly.
+directly. The desktop package bundles and runs the native proxy executable;
+Personal and Business Cloud customers do not need Docker. Personal Open Source
+may still use Docker to package Postgres and its local `client-api`.
 
 A user may pause monitoring for one exact conversation for at most 30 minutes.
 The pause stays visible and resumable and never becomes a global fail-open mode.

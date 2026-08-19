@@ -44,6 +44,10 @@ const nativeIslandLottie = path.join(
   app,
   "Contents/Resources/app.asar.unpacked/apps/desktop-client/dist/lottie.min.js",
 );
+const nativeProxy = path.join(
+  app,
+  "Contents/Resources/local-proxy/openleash-local-proxy",
+);
 
 for (const required of [
   executable,
@@ -56,9 +60,16 @@ for (const required of [
   nativeIslandCodexMascot,
   nativeIslandFireworks,
   nativeIslandLottie,
+  nativeProxy,
 ]) {
   if (!fs.existsSync(required)) throw new Error(`Missing packaged file: ${required}`);
 }
+
+const proxyResult = spawnSync(nativeProxy, ["--help"], { encoding: "utf8" });
+if (proxyResult.status !== 0 || !/openleash-local-proxy/i.test(`${proxyResult.stdout}\n${proxyResult.stderr}`)) {
+  throw new Error("Packaged native local proxy could not execute");
+}
+console.log("packaged native local proxy ok");
 
 const expectedVersion = JSON.parse(
   fs.readFileSync(path.join(root, "apps/desktop-client/package.json"), "utf8"),
@@ -67,6 +78,18 @@ const packagedMetadata = JSON.parse(extractFile(packagedApp, "package.json").toS
 if (packagedMetadata.version !== expectedVersion) {
   throw new Error(`Packaged desktop version ${packagedMetadata.version} does not match ${expectedVersion}`);
 }
+
+const packagedWindow = extractFile(
+  packagedApp,
+  "apps/desktop-client/dist/window.html",
+).toString("utf8");
+if (packagedWindow.includes("Leash Cloud starts free with your provider")) {
+  throw new Error("Packaged Cloud setup still offers the retired customer-provider flow");
+}
+if (!packagedWindow.includes("Cloud uses Leash AI for every safety decision")) {
+  throw new Error("Packaged Cloud setup does not contain the managed Leash AI flow");
+}
+console.log("packaged Cloud setup uses Leash AI without a provider choice");
 
 const noticeHtml = fs.readFileSync(nativeIslandHtml, "utf8");
 if (noticeHtml.includes("__OPENLEASH_FIREWORKS_DATA__")) {

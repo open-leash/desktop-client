@@ -20,11 +20,19 @@ export async function startIsolatedPostgres(prefix) {
 
     const deadline = Date.now() + 30_000;
     while (Date.now() < deadline) {
-      const ready = await run("docker", ["exec", name, "pg_isready", "-U", "openleash", "-d", "openleash"], true);
+      const ready = await run(
+        "docker",
+        ["exec", name, "psql", "-U", "openleash", "-d", "openleash", "-v", "ON_ERROR_STOP=1", "-c", "select 1"],
+        true,
+      );
       if (ready.code === 0) break;
       await new Promise((resolve) => setTimeout(resolve, 250));
     }
-    const finalReady = await run("docker", ["exec", name, "pg_isready", "-U", "openleash", "-d", "openleash"], true);
+    const finalReady = await run(
+      "docker",
+      ["exec", name, "psql", "-U", "openleash", "-d", "openleash", "-v", "ON_ERROR_STOP=1", "-c", "select 1"],
+      true,
+    );
     if (finalReady.code !== 0) throw new Error(`Isolated Postgres ${name} did not become ready.`);
 
     const portResult = await run("docker", ["port", name, "5432/tcp"], true);

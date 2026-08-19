@@ -10,6 +10,7 @@
     "apps/docs-web",
     "apps/flow-viewer",
     "apps/main-web",
+    "apps/new-web-design2",
     "apps/provider-puller",
     "packages/shared"
   ],

@@ -31,6 +31,8 @@ asarUnpack:
 extraResources:
   - from: scripts/install-openleash-personal.sh
     to: install-openleash-personal.sh
+  - from: apps/desktop-client/build/local-proxy
+    to: local-proxy
 mac:
   identity: null
   icon: apps/desktop-client/src/openleash-icon.png

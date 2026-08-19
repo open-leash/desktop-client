@@ -21,6 +21,7 @@ services:
   migrate:
     image: ${OPENLEASH_IMAGE_REGISTRY:-ghcr.io/open-leash}/client-api:${OPENLEASH_VERSION:-0.36.35@sha256:c32da810050c2ea9df0da9651f0d7552308e821d78ca39b6a980f737e4b4b8ac}
     profiles: ["setup"]
+    user: "0:0"
     environment:
       DATABASE_URL: postgres://${OPENLEASH_POSTGRES_USER:-openleash}:${OPENLEASH_POSTGRES_PASSWORD:-openleash}@postgres:5432/${OPENLEASH_POSTGRES_DB:-openleash}
       OPENLEASH_DEV_TOKEN: ${OPENLEASH_DEV_TOKEN:-}
@@ -28,6 +29,9 @@ services:
       OPENLEASH_DEV_ORG_SLUG: individual-open-source
       OPENLEASH_DEV_ORG_NAME: Personal Open Source
       OPENLEASH_DEPLOYMENT_MODE: individual-open-source
+      OPENLEASH_MIGRATION_LOG_DIR: /var/log/openleash
+    volumes:
+      - ./migration-logs:/var/log/openleash
     command: ["node", "apps/client-api/dist/migrate.js", "--apply"]
     depends_on:
       postgres:

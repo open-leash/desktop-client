@@ -65,3 +65,6 @@ openleash-dangerous-action-rules.json
 # Local/private environment overlays.
 .env.local
 .env.*.local
+
+# Local payment credentials.
+assets/lm

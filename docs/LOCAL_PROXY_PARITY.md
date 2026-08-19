@@ -46,13 +46,13 @@ Headroom’s live-zone compressor, auth-mode compression policy, tool/schema sor
 
 Headroom’s native AWS Bedrock SigV4/EventStream and Vertex ADC credential acquisition are provider credential adapters, not generic reverse-proxy behavior. Leash currently configures Claude Code through the Anthropic HTTP protocol and Codex through the OpenAI Responses protocol. Vertex bearer-auth publisher routes can be forwarded with `OPENLEASH_VERTEX_UPSTREAM`. Native Bedrock interception must not be presented as supported until Leash adds an explicit AWS credential/signing adapter and a desktop agent configuration that can safely select it.
 
-The parity contract is guarded by Rust unit tests, `scripts/test-local-proxy.mjs`, Docker builds, Clippy with warnings denied, and the repository product/deployment smoke suites.
+The parity contract is guarded by Rust unit tests, `scripts/test-local-proxy.mjs`, native desktop packaging checks, optional container builds, Clippy with warnings denied, and the repository product/deployment smoke suites.
 
 ## Platform and real-agent verification
 
 - The proxy binary uses Rust/Axum/Tokio without Unix-only request-path behavior. Ctrl-C works everywhere; SIGTERM draining is additionally enabled on Unix.
-- The shipped container is bound to loopback only. `host.docker.internal:host-gateway` is declared explicitly so host-local `client-api` works on Linux Docker Engine as well as Docker Desktop on macOS and Windows.
-- Home-directory adapters use Node platform paths and reversible backups. Docker is the supported runtime on all three desktop platforms.
+- The desktop-bundled native proxy binds to loopback only and talks directly to the configured `client-api`. It does not require Docker Desktop or Docker Engine.
+- Home-directory adapters use Node platform paths and reversible backups. The packaged Rust executable is the supported customer runtime on macOS and Windows; container packaging remains available for infrastructure use.
 - `scripts/test-installed-agents-through-proxy.mjs` launches installed Claude, Codex, and OpenCode CLIs against controlled local provider simulators. It requires every launched agent to traverse the real Rust proxy and produce correctly attributed normalized events, without using provider credentials or changing persistent agent configuration.
 - `OPENLEASH_SMOKE_REAL_PLUGIN_AGENTS=1 node scripts/smoke-product-logic.mjs` runs those installed CLIs through the real Rust proxy, real `client-api`, Postgres, and core plugin runtime. It verifies Claude DLP denial with zero protected-prompt provider delivery, OpenCode token-saver rewriting with marker preservation, Codex sensitive-access denial, persisted plugin run IDs/statuses, and Claude sensitive-access approval in both human allow and deny branches. Concurrent duplicate packets are coalesced onto one in-flight evaluation.
 - OpenClaw is exercised through its hook pack today. Full provider interception remains dependent on an OpenClaw runtime plugin because OpenClaw resolves several provider URLs in gateway memory; writing guessed persistent URLs would be unsafe.

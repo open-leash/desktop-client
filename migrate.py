@@ -2,11 +2,13 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import os
 import shlex
 import subprocess
 import sys
 from dataclasses import dataclass
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Iterable
 
@@ -14,6 +16,11 @@ from typing import Iterable
 ROOT = Path(__file__).resolve().parent
 LOCAL_DATABASE_URL = "postgres://openleash:openleash@localhost:9543/openleash"
 DOTENV: dict[str, str] = {}
+DEFAULT_MIGRATION_LOG_DIR = Path.home() / ".openleash" / "migration-logs"
+MIGRATION_DIRECTORIES = {
+    "core": ROOT / "apps" / "client-api" / "infra" / "postgres" / "migrations",
+    "cloud": ROOT / "apps" / "cloud-client-api" / "infra" / "postgres" / "migrations",
+}
 
 
 @dataclass(frozen=True)
@@ -22,6 +29,21 @@ class Step:
     args: list[str]
     cwd: Path = ROOT
     env: dict[str, str] | None = None
+
+
+@dataclass
+class MigrationAuditLog:
+    path: Path | None
+
+    def write(self, message: str = "") -> None:
+        if self.path is None:
+            return
+        with self.path.open("a", encoding="utf-8") as handle:
+            handle.write(f"{message}\n")
+
+    def section(self, title: str) -> None:
+        self.write()
+        self.write(f"===== {title} =====")
 
 
 def main() -> int:
@@ -39,6 +61,7 @@ def main() -> int:
     parser.add_argument("--start-local-db", action="store_true", help="Start local docker-compose Postgres before running local migrations.")
     parser.add_argument("--dry-run", action="store_true", help="Print commands without running them.")
     parser.add_argument("--yes", action="store_true", help="Skip confirmation prompts.")
+    parser.add_argument("--log-dir", help="Directory for the durable plain-text migration audit log.")
     args = parser.parse_args()
 
     if args.database_url and not args.target:
@@ -56,19 +79,75 @@ def main() -> int:
         print("[migrate] choose --status, --backup, --apply, or --backup-apply", file=sys.stderr)
         return 2
 
-    print_migration_header(choice.target, database_url, scopes, action, choice.dry_run)
+    audit = create_migration_audit_log(choice, database_url, scopes, action)
+    if audit.path:
+        os.environ["OPENLEASH_MIGRATION_LOG_DIR"] = str(audit.path.parent)
+    print_migration_header(
+        choice.target,
+        database_url,
+        scopes,
+        action,
+        choice.dry_run,
+        audit.path,
+    )
     if not choice.yes and action in {"apply", "backup-apply"} and not confirm("Run database-changing migrations?", default=False):
+        audit.section("OUTCOME")
+        audit.write("status: CANCELLED")
+        audit.write(f"finished_at: {datetime.now(timezone.utc).isoformat()}")
         print("Cancelled.")
         return 130
 
-    if choice.start_local_db or choice.target == "local":
-        run_step(Step("postgres", ["docker", "compose", "up", "-d", "--wait", "postgres"]), choice.dry_run)
+    try:
+        if choice.start_local_db or choice.target == "local":
+            run_step(
+                Step("postgres", ["docker", "compose", "up", "-d", "--wait", "postgres"]),
+                choice.dry_run,
+                audit,
+            )
 
-    for scope in scopes:
-        for step in migration_steps(scope, action, database_url):
-            run_step(step, choice.dry_run)
+        for scope in scopes:
+            if action == "status":
+                audit.section(f"{scope.upper()} CURRENT STATE")
+                run_step(migration_steps(scope, "status", database_url)[0], choice.dry_run, audit)
+                continue
 
+            audit.section(f"{scope.upper()} BEFORE")
+            before = run_step(
+                migration_steps(scope, "status", database_url)[0],
+                choice.dry_run,
+                audit,
+            )
+            if action in {"apply", "backup-apply"}:
+                log_pending_migration_sql(scope, before, audit, dry_run=choice.dry_run)
+            else:
+                audit.section(f"{scope.upper()} SQL TO EXECUTE")
+                audit.write("None. This run only creates a schema backup.")
+
+            audit.section(f"{scope.upper()} EXECUTION")
+            for step in migration_steps(scope, action, database_url):
+                run_step(step, choice.dry_run, audit)
+
+            audit.section(f"{scope.upper()} AFTER")
+            run_step(
+                migration_steps(scope, "status", database_url)[0],
+                choice.dry_run,
+                audit,
+            )
+    except BaseException as error:
+        audit.section("OUTCOME")
+        audit.write(f"status: FAILED")
+        audit.write(f"finished_at: {datetime.now(timezone.utc).isoformat()}")
+        audit.write(f"error: {type(error).__name__}: {error}")
+        if audit.path:
+            print(f"[migrate] audit log: {audit.path}", file=sys.stderr)
+        raise
+
+    audit.section("OUTCOME")
+    audit.write("status: DRY RUN" if choice.dry_run else "status: SUCCESS")
+    audit.write(f"finished_at: {datetime.now(timezone.utc).isoformat()}")
     print("[migrate] complete.")
+    if audit.path:
+        print(f"[migrate] audit log: {audit.path}")
     return 0
 
 
@@ -171,7 +250,14 @@ def resolve_database_url(target: str, explicit: str | None) -> str:
     raise SystemExit("[migrate] custom target needs --database-url.")
 
 
-def print_migration_header(target: str, database_url: str, scopes: list[str], action: str, dry_run: bool) -> None:
+def print_migration_header(
+    target: str,
+    database_url: str,
+    scopes: list[str],
+    action: str,
+    dry_run: bool,
+    audit_path: Path | None,
+) -> None:
     replay = ["python3", "migrate.py", "--target", target, "--scope", "all" if scopes == ["core", "cloud"] else scopes[0], f"--{action}"]
     if target == "custom":
         replay.extend(["--database-url", redact_database_url(database_url)])
@@ -184,16 +270,94 @@ def print_migration_header(target: str, database_url: str, scopes: list[str], ac
     print(f"  - Scope: {', '.join(scopes)}")
     print(f"  - Action: {action}")
     print(f"  - Dry run: {'yes' if dry_run else 'no'}")
+    print(f"  - Audit log: {audit_path if audit_path else 'not written during dry run'}")
     print(f"Command: {format_command(replay)}")
     sys.stdout.flush()
 
 
-def run_step(step: Step, dry_run: bool) -> None:
-    print(f"[migrate:{step.name}] {format_command_with_env(step)}")
+def run_step(step: Step, dry_run: bool, audit: MigrationAuditLog) -> str:
+    rendered = f"[migrate:{step.name}] {format_command_with_env(step)}"
+    print(rendered)
+    audit.write(rendered)
     sys.stdout.flush()
     if dry_run:
+        audit.write("[migrate] dry run: command not executed")
+        return ""
+    process = subprocess.Popen(
+        step.args,
+        cwd=step.cwd,
+        env=merged_env(step.env or {}),
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        bufsize=1,
+    )
+    output: list[str] = []
+    assert process.stdout is not None
+    for line in process.stdout:
+        print(line, end="")
+        output.append(line)
+        audit.write(line.rstrip("\n"))
+    process.stdout.close()
+    return_code = process.wait()
+    combined = "".join(output)
+    if return_code != 0:
+        raise subprocess.CalledProcessError(return_code, step.args, output=combined)
+    return combined
+
+
+def create_migration_audit_log(
+    args: argparse.Namespace,
+    database_url: str,
+    scopes: list[str],
+    action: str,
+) -> MigrationAuditLog:
+    if args.dry_run:
+        return MigrationAuditLog(None)
+    configured = args.log_dir or env_value("OPENLEASH_MIGRATION_LOG_DIR")
+    directory = Path(configured).expanduser() if configured else DEFAULT_MIGRATION_LOG_DIR
+    directory.mkdir(parents=True, exist_ok=True)
+    stamp = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S-%fZ")
+    scope_label = "-".join(scopes)
+    path = directory / f"migration-{stamp}-{args.target}-{scope_label}-{action}.log"
+    audit = MigrationAuditLog(path)
+    audit.write("Leash PostgreSQL migration audit")
+    audit.write(f"started_at: {datetime.now(timezone.utc).isoformat()}")
+    audit.write(f"target: {args.target}")
+    audit.write(f"database: {redact_database_url(database_url)}")
+    audit.write(f"scope: {', '.join(scopes)}")
+    audit.write(f"action: {action}")
+    audit.write("credentials: redacted; sensitive SQL parameter values are not logged")
+    return audit
+
+
+def log_pending_migration_sql(
+    scope: str,
+    status_output: str,
+    audit: MigrationAuditLog,
+    *,
+    dry_run: bool,
+) -> None:
+    directory = MIGRATION_DIRECTORIES[scope]
+    files = sorted(directory.glob("[0-9]*.sql"))
+    pending_ids = {
+        line.split()[1]
+        for line in status_output.splitlines()
+        if line.startswith("pending  ") and len(line.split()) >= 2
+    }
+    selected = files if dry_run else [path for path in files if path.stem in pending_ids]
+    audit.section(f"{scope.upper()} SQL {'CANDIDATES' if dry_run else 'TO EXECUTE'}")
+    if dry_run:
+        audit.write("Database status was not queried; these files are candidates, not confirmed pending migrations.")
+    if not selected:
+        audit.write("No pending migration SQL.")
         return
-    subprocess.run(step.args, cwd=step.cwd, env=merged_env(step.env or {}), check=True)
+    for migration in selected:
+        sql = migration.read_text(encoding="utf-8")
+        checksum = hashlib.sha256(sql.encode("utf-8")).hexdigest()
+        audit.write(f"----- BEGIN {migration.name} sha256={checksum} -----")
+        audit.write(sql.rstrip("\n"))
+        audit.write(f"----- END {migration.name} -----")
 
 
 def choose_option(question: str, options: list[tuple[str, str, object]], default: int = 1) -> tuple[str, str, object]:
