@@ -23,7 +23,10 @@ COMPOSE = ["docker", "compose", "--project-name", "openleash-dev"]
 PERSONAL_TOKEN = "individual-open-source-token"
 PACKAGED_DESKTOP_DIR = ROOT / "release" / "personal"
 LOCAL_CLOUD_API_URL = "http://127.0.0.1:9318"
-PACKAGED_LOCAL_CLOUD_USER_DATA = ROOT / "apps" / "desktop-client" / ".dev" / "packaged-local-cloud"
+PACKAGED_LOCAL_CLOUD_USER_DATA = (
+    ROOT / "apps" / "desktop-client" / ".dev" / "packaged-local-cloud"
+)
+LOCAL_LEASH_SERVICE_PORTS = (9305, 9317, 9318, 9340)
 
 
 @dataclass(frozen=True)
@@ -532,6 +535,7 @@ def process_group_is_running(process_group: int) -> bool:
 def cleanup_local_leash(remove_data: bool) -> None:
     print("[leash] stopping local services")
     stop_dev_processes()
+    stop_listeners_on_ports(LOCAL_LEASH_SERVICE_PORTS)
     stop_installed_app_processes()
     cleanup_installed_app_integrations()
     stop_installed_app_processes()
@@ -874,6 +878,7 @@ def local_state_paths() -> tuple[Path, ...]:
         user_home / "Applications" / "OpenLeash.app",
         ROOT / "apps" / "desktop-client" / ".dev" / "Leash.app",
         ROOT / "apps" / "desktop-client" / ".dev" / "OpenLeash.app",
+        PACKAGED_LOCAL_CLOUD_USER_DATA,
         Path("/tmp/openleash-startup.log"),
         Path("/tmp/openleash-launch.log"),
         TRACE_FILE,
@@ -916,11 +921,17 @@ def remove_path(target: Path) -> None:
 
 
 def print_cleanup_dry_run() -> None:
-    print("[leash:dry-run] stop desktop, API, flow viewer, proxy, and all Leash containers")
+    print(
+        "[leash:dry-run] stop desktop, local Cloud website/API, flow viewer, "
+        "proxy, and all Leash containers"
+    )
     print("[leash:dry-run] docker compose down -v --remove-orphans")
     print("[leash:dry-run] restore proxy configuration and uninstall all agent hooks")
     print("[leash:dry-run] remove login items, launch agents, protocol/app registrations, Docker images, volumes, and networks")
-    print("[leash:dry-run] delete local binaries, client state, settings, caches, logs, and installed app copies")
+    print(
+        "[leash:dry-run] delete local binaries, client state, settings, caches, "
+        "logs, installed app copies, and the packaged local-Cloud profile"
+    )
 
 
 def packaged_desktop_candidates(release_dir: Path = PACKAGED_DESKTOP_DIR) -> list[Path]:

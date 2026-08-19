@@ -193,6 +193,25 @@ class RunnerTests(unittest.TestCase):
         self.assertIn("/usr/local/bin/openleash", targets)
         self.assertIn("/opt/homebrew/bin/leash", targets)
         self.assertTrue(any(path.endswith("/apps/desktop-client/.dev/OpenLeash.app") for path in targets))
+        self.assertIn(str(RUNNER.PACKAGED_LOCAL_CLOUD_USER_DATA), targets)
+
+    def test_full_cleanup_stops_packaged_local_cloud_services(self):
+        with (
+            patch.object(RUNNER, "stop_dev_processes"),
+            patch.object(RUNNER, "stop_listeners_on_ports") as stop_listeners,
+            patch.object(RUNNER, "stop_installed_app_processes"),
+            patch.object(RUNNER, "cleanup_installed_app_integrations"),
+            patch.object(RUNNER, "remove_macos_registrations"),
+            patch.object(RUNNER, "discover_local_leash_containers", return_value=[]),
+            patch.object(RUNNER, "discover_local_leash_volumes", return_value=[]),
+            patch.object(RUNNER, "discover_local_leash_networks", return_value=[]),
+            patch.object(RUNNER, "discover_local_leash_image_ids", return_value=[]),
+            patch.object(RUNNER, "local_state_paths", return_value=()),
+            patch.object(RUNNER.subprocess, "run"),
+        ):
+            RUNNER.cleanup_local_leash(remove_data=True)
+
+        stop_listeners.assert_called_once_with(RUNNER.LOCAL_LEASH_SERVICE_PORTS)
 
     def test_full_cleanup_recognizes_all_leash_images(self):
         self.assertTrue(RUNNER.is_local_leash_image_repository("ghcr.io/open-leash/client-api"))
