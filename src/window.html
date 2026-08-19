@@ -2925,6 +2925,12 @@
       }
       .overviewAgentsHead h2 { font-size: 24px; }
       .overviewAgentsHead p { margin-top: 4px; font-size: 13px; }
+      .overviewDeviceRow {
+        display: flex;
+        justify-content: flex-end;
+        margin-top: 24px;
+      }
+      .overviewDeviceRow + .overviewActivitySnapshot { margin-top: 14px; }
       .overviewDevice {
         display: grid;
         grid-template-columns: 64px minmax(0, 1fr) auto;
@@ -3007,6 +3013,7 @@
         .overviewThreatRow { grid-template-columns: 1fr; gap: 6px; }
         .overviewThreatResults { justify-content: flex-start; }
         .overviewAgentsHead { align-items: flex-start; flex-direction: column; }
+        .overviewDeviceRow { justify-content: stretch; }
         .overviewDevice { width: 100%; min-width: 0; }
         .pluginDetailControls { justify-content: flex-start; }
         .pluginDetailTabs { grid-template-columns: repeat(3, minmax(0, 1fr)); width: 100%; }
@@ -5232,6 +5239,7 @@
             <div class="headActions">${notificationCenterHtml()}${headerIdentityHtml()}</div>
           </div>
           ${cloudTrialBannerHtml()}
+          <div class="overviewDeviceRow">${overviewDeviceHtml()}</div>
           ${overviewActivitySnapshotHtml(activitySummary, inventory)}
         `;
         bindNotificationCenter();
@@ -6454,7 +6462,6 @@
           </div>
           <section class="card overviewAgentsHead">
             <div><h2>Your agents</h2><p>Open an agent to review its history, or switch monitoring on and off.</p></div>
-            ${overviewDeviceHtml()}
           </section>
           <div class="overviewAgentGrid">
             ${inventory.map((agent) => {

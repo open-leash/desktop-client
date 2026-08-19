@@ -84,9 +84,12 @@ test("desktop Overview focuses on monitored activity and Agents owns enablement"
   assert.match(renderer, /Synced \$\{escapeHtml\(synced\)\}/);
   assert.match(renderer, /agent \? agentIcon\(agent\)/);
   const overview = renderer.slice(renderer.indexOf("function renderOverview()"), renderer.indexOf("function cloudTrialBannerHtml()"));
+  assert.match(overview, /overviewDeviceRow/);
+  assert.match(overview, /overviewDeviceHtml\(\)/);
   assert.doesNotMatch(overview, /overviewAgentGrid|data-overview-agent/);
   const agents = renderer.slice(renderer.indexOf("function renderAgents()"), renderer.indexOf("function renderUsage()"));
   assert.match(agents, /overviewAgentGrid/);
+  assert.doesNotMatch(agents, /overviewDeviceHtml\(\)/);
   assert.match(agents, /bindAgentMonitoringSwitches\(renderAgents\)/);
   assert.match(renderer, /id="backOverview">Agents<\/button>/);
   assert.match(copyAssets, /copyDeviceImages\(\)/);
