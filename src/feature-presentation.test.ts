@@ -93,6 +93,20 @@ test("desktop Overview focuses on monitored activity and Agents owns enablement"
   assert.match(copyAssets, /windows-desktop\.png/);
 });
 
+test("Feature details use a consistent status switch, Summary, and audit history", () => {
+  const detail = renderer.slice(renderer.indexOf("function renderPluginDetail()"), renderer.indexOf("function renderPluginRuleImport()"));
+  assert.match(detail, /role="switch" aria-checked=/);
+  assert.match(detail, /data-feature-state/);
+  assert.match(detail, />Summary<\/button>/);
+  assert.match(detail, /Protection activity/);
+  assert.match(detail, /Actions monitored/);
+  assert.match(detail, /Passed safely/);
+  assert.match(detail, /pluginAuditColumns/);
+  assert.match(detail, /Protection history/);
+  assert.match(detail, /pluginSettingsSurface/);
+  assert.doesNotMatch(detail, /At a glance|Built into Leash/);
+});
+
 test("setup explains Features in consumer language", () => {
   assert.match(renderer, /\{ id: "features", title: "Your protection"/);
   assert.match(renderer, /const currentId = current\.id \|\| current\.title\.toLowerCase\(\)/);

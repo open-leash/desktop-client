@@ -1694,23 +1694,24 @@
         margin-top: 24px;
       }
       .pluginDetailTabs {
-        display: inline-flex;
-        flex-wrap: wrap;
-        gap: 6px;
-        width: fit-content;
-        margin-top: 18px;
-        padding: 6px;
+        display: grid;
+        grid-template-columns: repeat(3, minmax(120px, 1fr));
+        gap: 4px;
+        width: min(100%, 560px);
+        margin-top: 24px;
+        padding: 5px;
         border: 1px solid var(--line);
-        border-radius: 999px;
-        background: var(--soft);
+        border-radius: 14px;
+        background: #e9edf4;
       }
       .pluginDetailTabs button {
         display: inline-flex;
         align-items: center;
         gap: 7px;
-        min-height: 36px;
+        justify-content: center;
+        min-height: 42px;
         border: 0;
-        border-radius: 999px;
+        border-radius: 10px;
         padding: 0 13px;
         background: transparent;
         color: var(--ink-2);
@@ -1721,8 +1722,8 @@
       }
       .pluginDetailTabs button.active {
         background: #fff;
-        color: var(--ink);
-        box-shadow: var(--shadow-sm);
+        color: var(--accent);
+        box-shadow: 0 3px 12px rgba(16, 19, 24, .1);
       }
       .pluginDetailTabs span {
         display: inline-grid;
@@ -1799,6 +1800,165 @@
         font-size: 25px;
       }
       .pluginDetailTitle h1 { margin: 0; }
+      .pluginDetailTitleCopy { display: grid; gap: 3px; }
+      .pluginVersion {
+        color: var(--muted);
+        font: 850 10px/1.2 ui-monospace, SFMono-Regular, Menlo, monospace;
+        letter-spacing: .06em;
+        text-transform: uppercase;
+      }
+      .pluginDetailControls {
+        display: flex;
+        align-items: center;
+        justify-content: flex-end;
+        flex-wrap: wrap;
+        gap: 10px;
+      }
+      .featureStatusControl {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) 42px;
+        align-items: center;
+        gap: 12px;
+        min-width: 184px;
+        min-height: 58px;
+        padding: 9px 11px 9px 14px;
+        border: 1px solid #d9dee8;
+        border-radius: 14px;
+        background: #fff;
+        color: var(--ink);
+        text-align: left;
+        box-shadow: 0 8px 24px -20px rgba(16, 19, 24, .5);
+      }
+      .featureStatusControl > span { display: grid; gap: 3px; }
+      .featureStatusControl small { color: var(--muted); font-size: 10px; font-weight: 850; }
+      .featureStatusControl strong { font-size: 14px; }
+      .featureStatusControl i {
+        position: relative;
+        width: 42px;
+        height: 24px;
+        border-radius: 999px;
+        background: #cfd5df;
+        transition: background 160ms ease;
+      }
+      .featureStatusControl i::after {
+        content: "";
+        position: absolute;
+        top: 3px;
+        left: 3px;
+        width: 18px;
+        height: 18px;
+        border-radius: 50%;
+        background: #fff;
+        box-shadow: 0 2px 7px rgba(16, 19, 24, .22);
+        transition: transform 160ms ease;
+      }
+      .featureStatusControl.active { border-color: #b7dfd1; background: #f1fbf7; }
+      .featureStatusControl.active i { background: #118a69; }
+      .featureStatusControl.active i::after { transform: translateX(18px); }
+      .featureStatusControl:hover { border-color: var(--accent); }
+      .featureStatusControl.busy { opacity: .65; cursor: wait; }
+      .pluginDetailSurface {
+        min-width: 0;
+        padding: 20px;
+        border: 1px solid #dfe3ea;
+        border-radius: 18px;
+        background: #f4f6fa;
+      }
+      .pluginSummaryHead,
+      .pluginAuditHead {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 16px;
+        margin-bottom: 16px;
+      }
+      .pluginSummaryHead h2,
+      .pluginAuditHead h2 { margin: 3px 0 0; font-size: 22px; }
+      .pluginSummaryHead p,
+      .pluginAuditHead p { margin-top: 4px; font-size: 13px; }
+      .pluginSummaryMetrics {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 10px;
+      }
+      .pluginSummaryMetric {
+        display: grid;
+        gap: 5px;
+        padding: 16px;
+        border: 1px solid #dde2ea;
+        border-radius: 14px;
+        background: #fff;
+      }
+      .pluginSummaryMetric strong { font-size: 28px; line-height: 1; }
+      .pluginSummaryMetric b { font-size: 12px; }
+      .pluginSummaryMetric small { color: var(--muted); font-size: 10px; }
+      .pluginSummaryMetric.blocked strong { color: #bd2d3f; }
+      .pluginSummaryMetric.passed strong { color: #0b8466; }
+      .pluginSummaryMetric.review strong { color: #9a6700; }
+      .pluginSummaryLatest {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 14px;
+        margin-top: 12px;
+        padding: 14px 16px;
+        border: 1px solid #dde2ea;
+        border-radius: 14px;
+        background: #fff;
+      }
+      .pluginSummaryLatest span { min-width: 0; }
+      .pluginSummaryLatest strong,
+      .pluginSummaryLatest small { display: block; }
+      .pluginSummaryLatest small { margin-top: 4px; color: var(--muted); }
+      .pluginAuditTable {
+        overflow: hidden;
+        border: 1px solid #dfe3ea;
+        border-radius: 14px;
+        background: #fff;
+      }
+      .pluginAuditColumns,
+      .pluginAuditRow {
+        display: grid;
+        grid-template-columns: 122px minmax(130px, .7fr) minmax(220px, 1.6fr) 112px 18px;
+        align-items: center;
+        gap: 12px;
+      }
+      .pluginAuditColumns {
+        min-height: 38px;
+        padding: 0 14px;
+        border-bottom: 1px solid #dfe3ea;
+        background: #edf0f5;
+        color: var(--muted);
+        font-size: 9px;
+        font-weight: 950;
+        letter-spacing: .08em;
+        text-transform: uppercase;
+      }
+      .pluginAuditRow {
+        width: 100%;
+        min-height: 66px;
+        padding: 10px 14px;
+        border: 0;
+        border-bottom: 1px solid #e7eaf0;
+        background: #fff;
+        color: inherit;
+        text-align: left;
+      }
+      .pluginAuditRow:last-child { border-bottom: 0; }
+      .pluginAuditRow:hover { background: #f7f8fb; }
+      .pluginAuditRow > span { min-width: 0; }
+      .pluginAuditTime strong,
+      .pluginAuditTime small,
+      .pluginAuditAction strong,
+      .pluginAuditAction small { display: block; }
+      .pluginAuditTime strong { font-size: 11px; }
+      .pluginAuditTime small,
+      .pluginAuditAction small { margin-top: 3px; color: var(--muted); font-size: 9px; }
+      .pluginAuditAgent { display: flex; align-items: center; gap: 8px; }
+      .pluginAuditAgent .agentIcon { width: 30px; height: 30px; flex: 0 0 30px; }
+      .pluginAuditAgent strong,
+      .pluginAuditAction strong { overflow: hidden; font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
+      .pluginSettingsSurface { background: #f1f3f7; }
       .pluginDetailSetting {
         display: grid;
         gap: 10px;
@@ -2837,6 +2997,9 @@
       @media (max-width: 1040px) {
         .overviewOutcomeMetrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
         .overviewSnapshotDetails { grid-template-columns: 1fr; }
+        .pluginSummaryMetrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+        .pluginAuditColumns,
+        .pluginAuditRow { grid-template-columns: 100px minmax(110px, .7fr) minmax(180px, 1.5fr) 100px 16px; }
       }
       @media (max-width: 760px) {
         .overviewActivitySnapshot { padding: 14px; }
@@ -2845,6 +3008,15 @@
         .overviewThreatResults { justify-content: flex-start; }
         .overviewAgentsHead { align-items: flex-start; flex-direction: column; }
         .overviewDevice { width: 100%; min-width: 0; }
+        .pluginDetailControls { justify-content: flex-start; }
+        .pluginDetailTabs { grid-template-columns: repeat(3, minmax(0, 1fr)); width: 100%; }
+        .pluginSummaryMetrics { grid-template-columns: 1fr; }
+        .pluginAuditColumns { display: none; }
+        .pluginAuditRow { grid-template-columns: 90px minmax(0, 1fr) 16px; }
+        .pluginAuditAgent { display: none; }
+        .pluginAuditAction { grid-column: 2; }
+        .pluginAuditRow > .tag { grid-column: 2; width: fit-content; }
+        .pluginAuditRow > .historyChevron { grid-column: 3; grid-row: 1 / span 2; }
       }
       .subhead {
         margin-top: 10px;
@@ -7494,67 +7666,68 @@
         const locked = false;
         const blocked = outcomes.filter((outcome) => String(outcome.decision || outcome.status || "").toLowerCase().includes("block")).length;
         const needsReview = outcomes.filter((outcome) => String(outcome.status || "").toLowerCase().includes("review")).length;
+        const passed = Math.max(0, outcomes.length - blocked - needsReview);
+        const latestOutcome = outcomes[0];
         root.innerHTML = `
           <div class="head">
             <div>
               <button id="backPlugins" class="secondary">Back</button>
               <div class="pluginDetailTitle">
                 <span class="agentIcon">${pluginIconHtml(plugin)}</span>
-                <h1>${escapeHtml(pluginName(plugin))}</h1>
+                <span class="pluginDetailTitleCopy">
+                  <span class="pluginVersion">Version ${escapeHtml(plugin.version || plugin.settings?.installedVersion || plugin.settings?.availableVersion || "1.0.0")}</span>
+                  <h1>${escapeHtml(pluginName(plugin))}</h1>
+                </span>
               </div>
               <p>${escapeHtml(pluginValueLine(plugin))}</p>
             </div>
-            <div class="actions">
+            <div class="pluginDetailControls">
               <span class="pluginCategoryTag ${categoryClass}">${categoryIcon(categoryId)} ${escapeHtml(categoryLabel(categoryId))}</span>
-              <button id="togglePluginInstall" class="${installed ? "secondary" : "primary"}" title="${escapeHtml(plugin.settings?.runtimeError || "")}" ${plugin.settings?.runtimeAvailable === false ? "disabled" : ""}>${escapeHtml(plugin.settings?.runtimeAvailable === false ? "Unavailable here" : installed ? "Enabled" : "Enable")}</button>
+              <button id="togglePluginInstall" class="featureStatusControl ${installed ? "active" : ""}" type="button" role="switch" aria-checked="${installed ? "true" : "false"}" title="${escapeHtml(plugin.settings?.runtimeError || (installed ? "Turn this protection off" : "Turn this protection on"))}" ${plugin.settings?.runtimeAvailable === false ? "disabled" : ""}>
+                <span><small>Protection</small><strong data-feature-state>${escapeHtml(plugin.settings?.runtimeAvailable === false ? "Unavailable" : installed ? "Enabled" : "Disabled")}</strong></span>
+                <i aria-hidden="true"></i>
+              </button>
             </div>
           </div>
           <div id="pluginDetailPageStatus" class="detailSettingStatus">${escapeHtml(plugin.settings?.runtimeError || "")}</div>
-          <div class="eventMeta" style="margin-top:12px">
-            <span class="pluginMetaPill">Built into Leash</span>
-            <span>v${escapeHtml(plugin.version || "0.0.0")}</span>
-            <span>${escapeHtml(pluginStatusLabel(plugin))}</span>
-          </div>
           <div class="pluginDetailTabs" role="tablist" aria-label="${escapeHtml(pluginName(plugin))} sections">
-            <button type="button" data-plugin-detail-tab="insights" class="${pluginDetailTab === "insights" ? "active" : ""}">At a glance</button>
+            <button type="button" data-plugin-detail-tab="insights" class="${pluginDetailTab === "insights" ? "active" : ""}">Summary</button>
             <button type="button" data-plugin-detail-tab="outcomes" class="${pluginDetailTab === "outcomes" ? "active" : ""}">History <span>${escapeHtml(String(outcomes.length))}</span></button>
             <button type="button" data-plugin-detail-tab="settings" class="${pluginDetailTab === "settings" ? "active" : ""}">Settings</button>
           </div>
           <div class="pluginDetailGrid">
             ${pluginDetailTab === "insights" ? `
-            <div class="card">
-              <div class="fieldRow">
-                <div>
-                  <strong>At a glance</strong>
-                  <p>What Leash has checked or stopped for you.</p>
-                </div>
-                <span class="tag good">${escapeHtml(String(outcomes.length))}</span>
+            <section class="pluginDetailSurface">
+              <div class="pluginSummaryHead">
+                <div><span class="overviewKicker">Last 30 days</span><h2>Protection activity</h2><p>How ${escapeHtml(pluginName(plugin))} handled monitored agent actions.</p></div>
+                <span class="tag ${installed ? "good" : ""}">${installed ? "Active" : "Off"}</span>
               </div>
-              ${outcomes.length === 0 ? `<div class="empty" style="margin-top:14px">Nothing to report yet. Leash is watching.</div>` : `
-                <div class="pluginInsightGrid" style="margin-top:14px">
-                  <article class="pluginInsightMetric"><strong>${escapeHtml(String(outcomes.length))}</strong><span>Times checked</span></article>
-                  <article class="pluginInsightMetric"><strong>${escapeHtml(String(blocked))}</strong><span>Blocked</span></article>
-                  <article class="pluginInsightMetric"><strong>${escapeHtml(String(needsReview))}</strong><span>Needs review</span></article>
-                </div>
-              `}
-            </div>
+              <div class="pluginSummaryMetrics">
+                <article class="pluginSummaryMetric"><strong>${escapeHtml(String(outcomes.length))}</strong><b>Actions monitored</b><small>Evaluated by this protection</small></article>
+                <article class="pluginSummaryMetric blocked"><strong>${escapeHtml(String(blocked))}</strong><b>Threats blocked</b><small>Stopped before continuing</small></article>
+                <article class="pluginSummaryMetric passed"><strong>${escapeHtml(String(passed))}</strong><b>Passed safely</b><small>Continued uninterrupted</small></article>
+                <article class="pluginSummaryMetric review"><strong>${escapeHtml(String(needsReview))}</strong><b>Needs review</b><small>Waiting for a decision</small></article>
+              </div>
+              <div class="pluginSummaryLatest">
+                <span><strong>${latestOutcome ? escapeHtml(latestOutcome.title || "Latest monitored action") : "No activity recorded yet"}</strong><small>${latestOutcome ? escapeHtml(latestOutcome.summary || "Leash recorded this action.") : "Leash is active and new actions will appear here."}</small></span>
+                <b class="tag ${latestOutcome ? "good" : ""}">${latestOutcome ? escapeHtml(humanTimestamp(latestOutcome.occurredAt || latestOutcome.createdAt)) : "Monitoring"}</b>
+              </div>
+            </section>
             ` : ""}
             ${pluginDetailTab === "outcomes" ? `
-            <div class="card">
-              <div class="fieldRow">
-                <div>
-                  <strong>What happened recently</strong>
-                  <p>What Leash noticed, which AI tool was involved, and what happened next.</p>
-                </div>
+            <section class="pluginDetailSurface">
+              <div class="pluginAuditHead">
+                <div><span class="overviewKicker">Audit trail</span><h2>Protection history</h2><p>Every action evaluated by this protection, newest first.</p></div>
                 <span class="tag good">${escapeHtml(String(outcomes.length))}</span>
               </div>
-              <div class="cardList" style="margin-top:14px">
-                ${outcomes.map((outcome) => pluginOutcomeCard(outcome)).join("") || `<div class="empty">Nothing has needed your attention yet.</div>`}
+              <div class="pluginAuditTable">
+                <div class="pluginAuditColumns"><span>Time</span><span>Agent</span><span>Action</span><span>Result</span><span></span></div>
+                ${outcomes.map((outcome) => pluginOutcomeCard(outcome)).join("") || `<div class="empty">No monitored actions for this protection yet.</div>`}
               </div>
-            </div>
+            </section>
             ` : ""}
             ${pluginDetailTab === "settings" ? `
-            <div class="card">
+            <section class="pluginDetailSurface pluginSettingsSurface">
               <div class="pluginDetailHeader">
                 <div>
                   <strong>What should Leash do?</strong>
@@ -7570,7 +7743,7 @@
                 <span id="pluginDetailSaveStatus" class="detailSettingStatus"></span>
                 <button id="savePluginDetailSettings" class="primary" ${locked || !installed ? "disabled" : ""}>Save settings</button>
               </div>
-            </div>
+            </section>
             ` : ""}
           </div>
         `;
@@ -7605,7 +7778,9 @@
           toggleInstall.onclick = async () => {
             if (installed && !confirm(`Turn off ${pluginName(plugin)} for this account?`)) return;
             toggleInstall.disabled = true;
-            toggleInstall.textContent = installed ? "Turning off..." : "Enabling...";
+            toggleInstall.classList.add("busy");
+            const stateLabel = toggleInstall.querySelector("[data-feature-state]");
+            if (stateLabel) stateLabel.textContent = installed ? "Turning off…" : "Turning on…";
             const result = await window.openleash.savePluginSettings({
               pluginId: plugin.id,
               enabled: !installed,
@@ -7617,7 +7792,8 @@
               const status = document.getElementById("pluginDetailSaveStatus") || document.getElementById("pluginDetailPageStatus");
               if (status) status.textContent = result?.error || "Could not update Feature.";
               toggleInstall.disabled = false;
-              toggleInstall.textContent = installed ? "Enabled" : "Enable";
+              toggleInstall.classList.remove("busy");
+              if (stateLabel) stateLabel.textContent = installed ? "Enabled" : "Disabled";
               return;
             }
             state.plugins = (state.plugins || []).map((item) => item.id === plugin.id
@@ -7783,25 +7959,18 @@
       function pluginOutcomeCard(outcome) {
         const severity = String(outcome.severity || "info").toLowerCase();
         const statusClass = severity === "critical" || severity === "high" || outcome.status === "blocked" ? "bad" : outcome.status === "resolved" || outcome.status === "allowed" ? "good" : "";
-        const context = [outcome.agent?.name, outcome.context?.toolName, outcome.context?.projectPath ? projectTag(outcome.context.projectPath) : ""].filter(Boolean).join(" · ");
+        const agentName = outcome.agent?.name || outcome.agent?.kind || "AI agent";
+        const context = [outcome.context?.toolName, outcome.context?.projectPath ? projectTag(outcome.context.projectPath) : ""].filter(Boolean).join(" · ");
         const when = outcome.occurredAt || outcome.createdAt;
         const evidence = (outcome.evidence || []).find((item) => item?.value)?.value || "";
         return `
-          <article class="card pluginHistoryCard" data-plugin-history-outcome="${escapeHtml(outcome.id)}" tabindex="0" role="button">
-            <div class="fieldRow">
-              <div>
-                <strong>${escapeHtml(outcome.title || "Feature history")}</strong>
-                <p>${escapeHtml(outcome.summary || context || "")}</p>
-              </div>
-              <span class="tag ${statusClass}">${escapeHtml(outcome.status || severity)}</span>
-            </div>
-            <div class="eventMeta" style="margin-top:10px">
-              <span>${escapeHtml(humanTimestamp(when))}</span>
-              <span>${escapeHtml(friendlyExactTimestamp(when))}</span>
-              ${context ? `<span>${escapeHtml(context)}</span>` : ""}
-            </div>
-            ${evidence ? `<div class="evidenceLine" style="margin-top:10px"><small>What it touched</small><code>${escapeHtml(truncate(evidence, 160))}</code></div>` : ""}
-          </article>
+          <button type="button" class="pluginAuditRow pluginHistoryCard" data-plugin-history-outcome="${escapeHtml(outcome.id)}">
+            <span class="pluginAuditTime"><strong>${escapeHtml(humanTimestamp(when))}</strong><small>${escapeHtml(friendlyExactTimestamp(when))}</small></span>
+            <span class="pluginAuditAgent"><span class="agentIcon">${agentIcon({ displayName: agentName, icon: iconNameForAgent(agentName), kind: outcome.agent?.kind })}</span><strong>${escapeHtml(agentName)}</strong></span>
+            <span class="pluginAuditAction"><strong>${escapeHtml(outcome.title || "Monitored action")}</strong><small>${escapeHtml(outcome.summary || context || evidence || "Recorded by Leash")}</small></span>
+            <span class="tag ${statusClass}">${escapeHtml(outcome.status || severity)}</span>
+            <span class="historyChevron">›</span>
+          </button>
         `;
       }
 
