@@ -823,6 +823,19 @@ if (singleInstanceLock) app
     }
     await localServer.start();
     startupLog("local server started");
+    const launchRemoteApiUrl = readCliValue(
+      process.argv.slice(1),
+      "--remote-api-url",
+    );
+    if (launchRemoteApiUrl) {
+      const normalizedLaunchRemoteApiUrl = normalizeRemoteApiUrl(
+        launchRemoteApiUrl,
+      );
+      localServer.updateRemoteApiUrl(normalizedLaunchRemoteApiUrl);
+      startupLog(
+        `remote API target overridden for this launch: ${normalizedLaunchRemoteApiUrl}`,
+      );
+    }
     if (localServer.setupComplete) {
       await configureLocalAgent();
       await installLeashCli();
