@@ -11,7 +11,7 @@ export declare const LEASH_FEATURE_PRESENTATIONS: {
     readonly "blast-radius": {
         readonly id: "openleash.blast-radius";
         readonly slug: "blast-radius";
-        readonly name: "Leash Project Protection";
+        readonly name: "Destructive Protection";
         readonly description: "Stops AI before it deletes files, damages your database, or breaks your project.";
         readonly category: "protection";
         readonly iconText: "💥";
@@ -20,7 +20,7 @@ export declare const LEASH_FEATURE_PRESENTATIONS: {
     readonly "code-scanner": {
         readonly id: "openleash.code-scanner";
         readonly slug: "code-scanner";
-        readonly name: "Leash Code Protection";
+        readonly name: "Code Protection";
         readonly description: "Checks the code AI writes and warns you when it could make your app unsafe.";
         readonly category: "protection";
         readonly iconText: "☣️";
@@ -29,7 +29,7 @@ export declare const LEASH_FEATURE_PRESENTATIONS: {
     readonly "data-leakage-prevention": {
         readonly id: "openleash.dlp";
         readonly slug: "data-leakage-prevention";
-        readonly name: "Leash Private Data Protection";
+        readonly name: "Private Data Protection";
         readonly description: "Stops AI from accidentally sharing passwords, personal information, or private files.";
         readonly category: "protection";
         readonly iconText: "🤫";
@@ -38,7 +38,7 @@ export declare const LEASH_FEATURE_PRESENTATIONS: {
     readonly "sensitive-access": {
         readonly id: "openleash.sensitive-access";
         readonly slug: "sensitive-access";
-        readonly name: "Leash Password Protection";
+        readonly name: "Secret Protection";
         readonly description: "Asks before AI opens password files, sign-in details, or other private access information.";
         readonly category: "protection";
         readonly iconText: "🔐";
@@ -47,7 +47,7 @@ export declare const LEASH_FEATURE_PRESENTATIONS: {
     readonly "skill-scanner": {
         readonly id: "openleash.skill-scanner";
         readonly slug: "skill-scanner";
-        readonly name: "Leash Hidden Instructions Protection";
+        readonly name: "Prompt Injection Protection";
         readonly description: "Finds hidden instructions that try to make AI do something you did not ask it to do.";
         readonly category: "protection";
         readonly iconText: "🕵️";
@@ -56,7 +56,7 @@ export declare const LEASH_FEATURE_PRESENTATIONS: {
     readonly "mcp-scanner": {
         readonly id: "openleash.mcp-scanner";
         readonly slug: "mcp-scanner";
-        readonly name: "Leash Connected Apps Protection";
+        readonly name: "Tool Protection";
         readonly description: "Shows which outside apps and tools AI can use and warns you when something changes.";
         readonly category: "protection";
         readonly iconText: "📡";
@@ -65,7 +65,7 @@ export declare const LEASH_FEATURE_PRESENTATIONS: {
     readonly "rules-enforcer": {
         readonly id: "openleash.rules-enforcer";
         readonly slug: "rules-enforcer";
-        readonly name: "Leash Rules";
+        readonly name: "Rules Protection";
         readonly description: "Makes AI follow the project rules you choose and asks before it crosses one.";
         readonly category: "protection";
         readonly iconText: "📏";
@@ -74,7 +74,7 @@ export declare const LEASH_FEATURE_PRESENTATIONS: {
     readonly "token-saver": {
         readonly id: "openleash.prompt-compression";
         readonly slug: "token-saver";
-        readonly name: "Leash AI Cost Saver";
+        readonly name: "Token Saver";
         readonly description: "Cuts repeated text so your AI bill is lower without removing the important parts.";
         readonly category: "cost";
         readonly iconText: "✂️";
@@ -85,7 +85,7 @@ export type LeashFeatureSlug = keyof typeof LEASH_FEATURE_PRESENTATIONS;
 export declare function leashFeaturePresentation(value: string | undefined | null): {
     readonly id: "openleash.blast-radius";
     readonly slug: "blast-radius";
-    readonly name: "Leash Project Protection";
+    readonly name: "Destructive Protection";
     readonly description: "Stops AI before it deletes files, damages your database, or breaks your project.";
     readonly category: "protection";
     readonly iconText: "💥";
@@ -93,7 +93,7 @@ export declare function leashFeaturePresentation(value: string | undefined | nul
 } | {
     readonly id: "openleash.code-scanner";
     readonly slug: "code-scanner";
-    readonly name: "Leash Code Protection";
+    readonly name: "Code Protection";
     readonly description: "Checks the code AI writes and warns you when it could make your app unsafe.";
     readonly category: "protection";
     readonly iconText: "☣️";
@@ -101,7 +101,7 @@ export declare function leashFeaturePresentation(value: string | undefined | nul
 } | {
     readonly id: "openleash.dlp";
     readonly slug: "data-leakage-prevention";
-    readonly name: "Leash Private Data Protection";
+    readonly name: "Private Data Protection";
     readonly description: "Stops AI from accidentally sharing passwords, personal information, or private files.";
     readonly category: "protection";
     readonly iconText: "🤫";
@@ -109,7 +109,7 @@ export declare function leashFeaturePresentation(value: string | undefined | nul
 } | {
     readonly id: "openleash.sensitive-access";
     readonly slug: "sensitive-access";
-    readonly name: "Leash Password Protection";
+    readonly name: "Secret Protection";
     readonly description: "Asks before AI opens password files, sign-in details, or other private access information.";
     readonly category: "protection";
     readonly iconText: "🔐";
@@ -117,7 +117,7 @@ export declare function leashFeaturePresentation(value: string | undefined | nul
 } | {
     readonly id: "openleash.skill-scanner";
     readonly slug: "skill-scanner";
-    readonly name: "Leash Hidden Instructions Protection";
+    readonly name: "Prompt Injection Protection";
     readonly description: "Finds hidden instructions that try to make AI do something you did not ask it to do.";
     readonly category: "protection";
     readonly iconText: "🕵️";
@@ -125,7 +125,7 @@ export declare function leashFeaturePresentation(value: string | undefined | nul
 } | {
     readonly id: "openleash.mcp-scanner";
     readonly slug: "mcp-scanner";
-    readonly name: "Leash Connected Apps Protection";
+    readonly name: "Tool Protection";
     readonly description: "Shows which outside apps and tools AI can use and warns you when something changes.";
     readonly category: "protection";
     readonly iconText: "📡";
@@ -133,7 +133,7 @@ export declare function leashFeaturePresentation(value: string | undefined | nul
 } | {
     readonly id: "openleash.rules-enforcer";
     readonly slug: "rules-enforcer";
-    readonly name: "Leash Rules";
+    readonly name: "Rules Protection";
     readonly description: "Makes AI follow the project rules you choose and asks before it crosses one.";
     readonly category: "protection";
     readonly iconText: "📏";
@@ -141,7 +141,7 @@ export declare function leashFeaturePresentation(value: string | undefined | nul
 } | {
     readonly id: "openleash.prompt-compression";
     readonly slug: "token-saver";
-    readonly name: "Leash AI Cost Saver";
+    readonly name: "Token Saver";
     readonly description: "Cuts repeated text so your AI bill is lower without removing the important parts.";
     readonly category: "cost";
     readonly iconText: "✂️";
@@ -150,7 +150,7 @@ export declare function leashFeaturePresentation(value: string | undefined | nul
 export declare const LEASH_FEATURE_SHOWCASE: ({
     readonly id: "openleash.blast-radius";
     readonly slug: "blast-radius";
-    readonly name: "Leash Project Protection";
+    readonly name: "Destructive Protection";
     readonly description: "Stops AI before it deletes files, damages your database, or breaks your project.";
     readonly category: "protection";
     readonly iconText: "💥";
@@ -158,7 +158,7 @@ export declare const LEASH_FEATURE_SHOWCASE: ({
 } | {
     readonly id: "openleash.code-scanner";
     readonly slug: "code-scanner";
-    readonly name: "Leash Code Protection";
+    readonly name: "Code Protection";
     readonly description: "Checks the code AI writes and warns you when it could make your app unsafe.";
     readonly category: "protection";
     readonly iconText: "☣️";
@@ -166,7 +166,7 @@ export declare const LEASH_FEATURE_SHOWCASE: ({
 } | {
     readonly id: "openleash.dlp";
     readonly slug: "data-leakage-prevention";
-    readonly name: "Leash Private Data Protection";
+    readonly name: "Private Data Protection";
     readonly description: "Stops AI from accidentally sharing passwords, personal information, or private files.";
     readonly category: "protection";
     readonly iconText: "🤫";
@@ -174,7 +174,7 @@ export declare const LEASH_FEATURE_SHOWCASE: ({
 } | {
     readonly id: "openleash.sensitive-access";
     readonly slug: "sensitive-access";
-    readonly name: "Leash Password Protection";
+    readonly name: "Secret Protection";
     readonly description: "Asks before AI opens password files, sign-in details, or other private access information.";
     readonly category: "protection";
     readonly iconText: "🔐";
@@ -182,7 +182,7 @@ export declare const LEASH_FEATURE_SHOWCASE: ({
 } | {
     readonly id: "openleash.skill-scanner";
     readonly slug: "skill-scanner";
-    readonly name: "Leash Hidden Instructions Protection";
+    readonly name: "Prompt Injection Protection";
     readonly description: "Finds hidden instructions that try to make AI do something you did not ask it to do.";
     readonly category: "protection";
     readonly iconText: "🕵️";
@@ -190,7 +190,7 @@ export declare const LEASH_FEATURE_SHOWCASE: ({
 } | {
     readonly id: "openleash.mcp-scanner";
     readonly slug: "mcp-scanner";
-    readonly name: "Leash Connected Apps Protection";
+    readonly name: "Tool Protection";
     readonly description: "Shows which outside apps and tools AI can use and warns you when something changes.";
     readonly category: "protection";
     readonly iconText: "📡";
@@ -198,7 +198,7 @@ export declare const LEASH_FEATURE_SHOWCASE: ({
 } | {
     readonly id: "openleash.rules-enforcer";
     readonly slug: "rules-enforcer";
-    readonly name: "Leash Rules";
+    readonly name: "Rules Protection";
     readonly description: "Makes AI follow the project rules you choose and asks before it crosses one.";
     readonly category: "protection";
     readonly iconText: "📏";
@@ -206,7 +206,7 @@ export declare const LEASH_FEATURE_SHOWCASE: ({
 } | {
     readonly id: "openleash.prompt-compression";
     readonly slug: "token-saver";
-    readonly name: "Leash AI Cost Saver";
+    readonly name: "Token Saver";
     readonly description: "Cuts repeated text so your AI bill is lower without removing the important parts.";
     readonly category: "cost";
     readonly iconText: "✂️";

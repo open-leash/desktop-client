@@ -160,7 +160,7 @@ export declare function firstPartyFeature(slug: string, _version: string, option
 export declare const FIRST_PARTY_PLUGIN_MANIFESTS: ({
     id: string;
     slug: string;
-    name: "Leash AI Cost Saver";
+    name: "Token Saver";
     description: "Cuts repeated text so your AI bill is lower without removing the important parts.";
     repositoryUrl: string;
     version: string;
@@ -246,7 +246,7 @@ export declare const FIRST_PARTY_PLUGIN_MANIFESTS: ({
 } | {
     id: string;
     slug: string;
-    name: "Leash Hidden Instructions Protection";
+    name: "Prompt Injection Protection";
     description: "Finds hidden instructions that try to make AI do something you did not ask it to do.";
     repositoryUrl: string;
     version: string;
@@ -287,7 +287,7 @@ export declare const FIRST_PARTY_PLUGIN_MANIFESTS: ({
 } | {
     id: string;
     slug: string;
-    name: "Leash Private Data Protection";
+    name: "Private Data Protection";
     description: "Stops AI from accidentally sharing passwords, personal information, or private files.";
     repositoryUrl: string;
     version: string;
@@ -361,7 +361,7 @@ export declare const FIRST_PARTY_PLUGIN_MANIFESTS: ({
 } | {
     id: string;
     slug: string;
-    name: "Leash Password Protection";
+    name: "Secret Protection";
     description: "Asks before AI opens password files, sign-in details, or other private access information.";
     repositoryUrl: string;
     version: string;
@@ -432,7 +432,7 @@ export declare const FIRST_PARTY_PLUGIN_MANIFESTS: ({
 } | {
     id: string;
     slug: string;
-    name: "Leash Project Protection";
+    name: "Destructive Protection";
     description: "Stops AI before it deletes files, damages your database, or breaks your project.";
     repositoryUrl: string;
     version: string;
@@ -503,7 +503,7 @@ export declare const FIRST_PARTY_PLUGIN_MANIFESTS: ({
 } | {
     id: string;
     slug: string;
-    name: "Leash Rules";
+    name: "Rules Protection";
     description: "Makes AI follow the project rules you choose and asks before it crosses one.";
     repositoryUrl: string;
     version: string;
@@ -583,7 +583,7 @@ export declare const FIRST_PARTY_PLUGIN_MANIFESTS: ({
 } | {
     id: string;
     slug: string;
-    name: "Leash Connected Apps Protection";
+    name: "Tool Protection";
     description: "Shows which outside apps and tools AI can use and warns you when something changes.";
     repositoryUrl: string;
     version: string;
@@ -1178,11 +1178,42 @@ export type EvaluationResponse = {
     decision: "allow" | "deny" | "ask";
     decisionId: string;
     summary: string;
+    /** The recorded decision before a Business learning-only policy allowed execution. */
+    observedDecision?: "deny" | "ask";
+    runtimePolicy?: BusinessRuntimePolicy;
     resolutionGuidance?: string;
     /** Agent-native interaction data returned after a human answers in an OpenLeash client. */
     resolutionPayload?: Record<string, unknown>;
     question?: string;
     results: PolicyDecision[];
+};
+/** Business-only organization controls supplied by the private cloud control plane. */
+export type BusinessRuntimePolicy = {
+    enforcementMode: "enforce" | "learning";
+    notifyEmployees: boolean;
+    updatedAt?: string | null;
+};
+export type DashboardActivitySummary = {
+    rangeDays: number;
+    totals: {
+        checked: number;
+        blocked: number;
+        automaticallyApproved: number;
+        manuallyApproved: number;
+        waiting: number;
+    };
+    threats: Array<{
+        name: string;
+        total: number;
+        blocked: number;
+        automaticallyApproved: number;
+        manuallyApproved: number;
+    }>;
+    agentKinds: Array<{
+        kind: string;
+        name: string;
+        count: number;
+    }>;
 };
 export type OpenLeashAttentionEvent = {
     schemaVersion: "2026-07-19.v1";
@@ -1328,6 +1359,7 @@ export type MobileStateResponse = {
     clientConfig: {
         approvalNotifications: boolean;
         managedByOrganization: boolean;
+        runtimePolicy?: BusinessRuntimePolicy;
     };
 };
 export type OpenLeashClientSyncEvent = {

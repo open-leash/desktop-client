@@ -2,7 +2,7 @@ export const LEASH_FEATURE_PRESENTATIONS = {
     "blast-radius": {
         "id": "openleash.blast-radius",
         "slug": "blast-radius",
-        "name": "Leash Project Protection",
+        "name": "Destructive Protection",
         "description": "Stops AI before it deletes files, damages your database, or breaks your project.",
         "category": "protection",
         "iconText": "💥",
@@ -11,7 +11,7 @@ export const LEASH_FEATURE_PRESENTATIONS = {
     "code-scanner": {
         "id": "openleash.code-scanner",
         "slug": "code-scanner",
-        "name": "Leash Code Protection",
+        "name": "Code Protection",
         "description": "Checks the code AI writes and warns you when it could make your app unsafe.",
         "category": "protection",
         "iconText": "☣️",
@@ -20,7 +20,7 @@ export const LEASH_FEATURE_PRESENTATIONS = {
     "data-leakage-prevention": {
         "id": "openleash.dlp",
         "slug": "data-leakage-prevention",
-        "name": "Leash Private Data Protection",
+        "name": "Private Data Protection",
         "description": "Stops AI from accidentally sharing passwords, personal information, or private files.",
         "category": "protection",
         "iconText": "🤫",
@@ -29,7 +29,7 @@ export const LEASH_FEATURE_PRESENTATIONS = {
     "sensitive-access": {
         "id": "openleash.sensitive-access",
         "slug": "sensitive-access",
-        "name": "Leash Password Protection",
+        "name": "Secret Protection",
         "description": "Asks before AI opens password files, sign-in details, or other private access information.",
         "category": "protection",
         "iconText": "🔐",
@@ -38,7 +38,7 @@ export const LEASH_FEATURE_PRESENTATIONS = {
     "skill-scanner": {
         "id": "openleash.skill-scanner",
         "slug": "skill-scanner",
-        "name": "Leash Hidden Instructions Protection",
+        "name": "Prompt Injection Protection",
         "description": "Finds hidden instructions that try to make AI do something you did not ask it to do.",
         "category": "protection",
         "iconText": "🕵️",
@@ -47,7 +47,7 @@ export const LEASH_FEATURE_PRESENTATIONS = {
     "mcp-scanner": {
         "id": "openleash.mcp-scanner",
         "slug": "mcp-scanner",
-        "name": "Leash Connected Apps Protection",
+        "name": "Tool Protection",
         "description": "Shows which outside apps and tools AI can use and warns you when something changes.",
         "category": "protection",
         "iconText": "📡",
@@ -56,7 +56,7 @@ export const LEASH_FEATURE_PRESENTATIONS = {
     "rules-enforcer": {
         "id": "openleash.rules-enforcer",
         "slug": "rules-enforcer",
-        "name": "Leash Rules",
+        "name": "Rules Protection",
         "description": "Makes AI follow the project rules you choose and asks before it crosses one.",
         "category": "protection",
         "iconText": "📏",
@@ -65,7 +65,7 @@ export const LEASH_FEATURE_PRESENTATIONS = {
     "token-saver": {
         "id": "openleash.prompt-compression",
         "slug": "token-saver",
-        "name": "Leash AI Cost Saver",
+        "name": "Token Saver",
         "description": "Cuts repeated text so your AI bill is lower without removing the important parts.",
         "category": "cost",
         "iconText": "✂️",
