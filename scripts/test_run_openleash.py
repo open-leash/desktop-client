@@ -45,7 +45,7 @@ class RunnerTests(unittest.TestCase):
         with patch("builtins.input", return_value="3"):
             self.assertEqual(RUNNER.choose_mode(), "local-release")
 
-    def test_latest_local_release_simulates_a_clean_install(self):
+    def test_latest_local_release_preserves_existing_setup(self):
         with (
             patch.object(sys, "argv", ["run.py"]),
             patch("builtins.input", return_value="3"),
@@ -56,7 +56,7 @@ class RunnerTests(unittest.TestCase):
             None,
             False,
             disable_updates=True,
-            fresh_install=True,
+            fresh_install=False,
             rebuild=True,
         )
 

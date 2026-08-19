@@ -86,10 +86,10 @@ const packagedWindow = extractFile(
 if (packagedWindow.includes("Leash Cloud starts free with your provider")) {
   throw new Error("Packaged Cloud setup still offers the retired customer-provider flow");
 }
-if (!packagedWindow.includes("Cloud uses Leash AI for every safety decision")) {
-  throw new Error("Packaged Cloud setup does not contain the managed Leash AI flow");
+if (!packagedWindow.includes("Select agents to manage.")) {
+  throw new Error("Packaged setup does not contain the agent-selection flow");
 }
-console.log("packaged Cloud setup uses Leash AI without a provider choice");
+console.log("packaged setup reaches agent selection without the retired provider page");
 
 const noticeHtml = fs.readFileSync(nativeIslandHtml, "utf8");
 if (noticeHtml.includes("__OPENLEASH_FIREWORKS_DATA__")) {
