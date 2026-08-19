@@ -38,3 +38,10 @@ test("Business is preserved and restricted to Leash Cloud", () => {
   assert.doesNotMatch(html, /setupAudience = "individual";\s*if \(setupClientMode === "personal"\)/);
   assert.match(html, /setupAudience === "individual" \? connectionChoice\("custom"/);
 });
+
+test("Cloud headers identify the signed-in person", () => {
+  assert.match(html, /function headerIdentityHtml\(\)/);
+  assert.match(html, /state\.clientMode === "cloud" \? String\(state\.remoteUser \|\| ""\)\.trim\(\) : ""/);
+  assert.match(html, /class="cloudAccountUser"/);
+  assert.match(html, /\$\{notificationCenterHtml\(\)\}\$\{headerIdentityHtml\(\)\}/);
+});

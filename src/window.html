@@ -1465,10 +1465,27 @@
       }
       .headActions {
         display: flex;
-        align-items: center;
+        align-items: flex-start;
         gap: 10px;
         flex-wrap: wrap;
         justify-content: flex-end;
+      }
+      .cloudAccount {
+        display: grid;
+        justify-items: end;
+        gap: 5px;
+        min-width: 0;
+      }
+      .cloudAccountUser {
+        max-width: 220px;
+        overflow: hidden;
+        color: var(--muted);
+        font-size: 12px;
+        font-weight: 800;
+        line-height: 1.2;
+        text-align: right;
+        text-overflow: ellipsis;
+        white-space: nowrap;
       }
       .notificationCenter { position: relative; }
       .notificationButton {
@@ -3386,6 +3403,11 @@
         return `<span class="tag good">${escapeHtml(modeLabel())}</span>`;
       }
 
+      function headerIdentityHtml() {
+        const remoteUser = state.clientMode === "cloud" ? String(state.remoteUser || "").trim() : "";
+        return `<span class="cloudAccount">${modeTag()}${remoteUser ? `<small class="cloudAccountUser" title="${escapeHtml(remoteUser)}">${escapeHtml(remoteUser)}</small>` : ""}</span>`;
+      }
+
       function isSetupLocked() {
         return !state.setupComplete || state.mode === "setup";
       }
@@ -4658,7 +4680,7 @@
         root.innerHTML = `
           <div class="head">
             <div><h1>Overview</h1><p>${unread.length ? `${unread.length} new ${unread.length === 1 ? "update" : "updates"} from your agents.` : "See what your protected AI agents are doing."}</p></div>
-            <div class="headActions">${notificationCenterHtml()}${modeTag()}</div>
+            <div class="headActions">${notificationCenterHtml()}${headerIdentityHtml()}</div>
           </div>
           ${cloudTrialBannerHtml()}
           <div class="overviewAgentGrid">
@@ -4849,7 +4871,7 @@
         root.innerHTML = `
           <div class="head">
             <div><h1>History</h1><p>What Leash checked, stopped, or sent to you for a decision.</p></div>
-            <div class="headActions">${notificationCenterHtml()}${modeTag()}</div>
+            <div class="headActions">${notificationCenterHtml()}${headerIdentityHtml()}</div>
           </div>
           <div class="history">
             ${historyItems.map(historyCardHtml).join("") || `<div class="empty">No history yet.</div>`}
@@ -4945,7 +4967,7 @@
           <div class="head">
             <div><h1>Log</h1><p>Feature run records and local event metadata from this computer.</p></div>
             <div class="headActions">
-              ${modeTag()}
+              ${headerIdentityHtml()}
             </div>
           </div>
           <div class="debugTools">
@@ -5185,7 +5207,7 @@
         root.innerHTML = `
           <div class="head">
             <div><h1>MCP</h1><p>Model Context Protocol servers used by local agents.</p></div>
-            ${modeTag()}
+            ${headerIdentityHtml()}
           </div>
           <div class="detailGrid">
             <div class="card">
@@ -5243,7 +5265,7 @@
         root.innerHTML = `
           <div class="head">
             <div><h1>Skills</h1><p>Agent skills discovered in user and project skill folders.</p></div>
-            ${modeTag()}
+            ${headerIdentityHtml()}
           </div>
           <div class="history">
             ${skills.map((skill) => `
@@ -6971,7 +6993,7 @@
         root.innerHTML = `
           <div class="head">
             <div><h1>${escapeHtml(title)}</h1><p>Enabled built-in Features and the outcomes they report to Leash.</p></div>
-            ${modeTag()}
+            ${headerIdentityHtml()}
           </div>
           <div class="grid">
             ${filtered.map((plugin) => {
@@ -7020,7 +7042,7 @@
         root.innerHTML = `
           <div class="head">
             <div><h1>Built-in Features</h1><p>Enable first-party capabilities included with this Leash release.</p></div>
-            ${modeTag()}
+            ${headerIdentityHtml()}
           </div>
           <div class="card">
             <div class="pluginCategoryFilters">
