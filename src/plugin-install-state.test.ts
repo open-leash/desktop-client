@@ -19,6 +19,16 @@ test("pending attention refreshes account plugin state instead of using the loca
   );
 });
 
+test("dashboard activity is cleared when the desktop tenant session changes", () => {
+  const main = readFileSync(path.join(__dirname, "main.ts"), "utf8");
+  const fetchStart = main.indexOf("async function fetchTrayState()");
+  const fetchEnd = main.indexOf("async function fetchLocalTrayState()", fetchStart);
+  const fetchSource = main.slice(fetchStart, fetchEnd);
+  assert.match(fetchSource, /const activitySummaryKey = `\$\{remoteApiUrl\}\\0\$\{remoteToken\}`/);
+  assert.match(fetchSource, /if \(latestActivitySummaryKey !== activitySummaryKey\) \{\s*latestActivitySummary = undefined;/);
+  assert.match(fetchSource, /if \(!remoteApiUrl \|\| !remoteToken\) \{\s*latestActivitySummary = undefined;/);
+});
+
 test("renderer derives installed and available lists from active plugin state", () => {
   const renderer = readFileSync(path.join(__dirname, "window.html"), "utf8");
   const installedStart = renderer.indexOf("function installedPlugins()");

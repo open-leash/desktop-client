@@ -2568,6 +2568,236 @@
         gap: 16px;
         margin-top: 24px;
       }
+      .overviewActivitySnapshot {
+        display: grid;
+        gap: 14px;
+        margin-top: 24px;
+        padding: 20px;
+        border: 1px solid rgba(17, 17, 17, .1);
+        border-radius: 22px;
+        background: linear-gradient(145deg, rgba(255, 255, 255, .98), rgba(244, 246, 255, .92));
+        box-shadow: 0 18px 48px -38px rgba(45, 22, 231, .55);
+      }
+      .overviewSnapshotHead h2 {
+        margin: 3px 0 0;
+        font-size: 30px;
+        letter-spacing: -.04em;
+      }
+      .overviewSnapshotHead p {
+        margin-top: 4px;
+        font-size: 13px;
+      }
+      .overviewKicker {
+        color: var(--accent);
+        font-size: 10px;
+        font-weight: 900;
+        letter-spacing: .14em;
+        text-transform: uppercase;
+      }
+      .overviewOutcomeMetrics {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 10px;
+      }
+      .overviewOutcomeMetric {
+        min-width: 0;
+        display: grid;
+        grid-template-columns: 38px minmax(0, 1fr);
+        align-items: start;
+        gap: 11px;
+        padding: 15px;
+        border: 1px solid rgba(17, 17, 17, .08);
+        border-radius: 16px;
+        background: #fff;
+      }
+      .overviewOutcomeMetric > span {
+        width: 38px;
+        height: 38px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 12px;
+      }
+      .overviewOutcomeMetric svg {
+        width: 19px;
+        height: 19px;
+        fill: none;
+        stroke: currentColor;
+        stroke-width: 2;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+      }
+      .overviewOutcomeMetric > div {
+        min-width: 0;
+        display: grid;
+        gap: 2px;
+      }
+      .overviewOutcomeMetric strong {
+        font-size: 27px;
+        line-height: 1;
+        letter-spacing: -.04em;
+      }
+      .overviewOutcomeMetric b {
+        margin-top: 3px;
+        font-size: 12px;
+        line-height: 1.2;
+      }
+      .overviewOutcomeMetric small {
+        color: var(--muted);
+        font-size: 10px;
+        line-height: 1.25;
+      }
+      .overviewOutcomeMetric.blocked > span { background: #ffe7e9; color: #bd202b; }
+      .overviewOutcomeMetric.automatic > span { background: #e5f7ef; color: #087b69; }
+      .overviewOutcomeMetric.manual > span { background: #ece9ff; color: #3a27d6; }
+      .overviewOutcomeMetric.waiting > span { background: #fff1cf; color: #8a5a00; }
+      .overviewSnapshotDetails {
+        display: grid;
+        grid-template-columns: minmax(0, 1.45fr) minmax(230px, .75fr);
+        gap: 10px;
+      }
+      .overviewThreatSummary,
+      .overviewAgentMix {
+        min-width: 0;
+        padding: 17px;
+        border: 1px solid rgba(17, 17, 17, .08);
+        border-radius: 16px;
+        background: rgba(255, 255, 255, .92);
+      }
+      .overviewSnapshotCardHead {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 14px;
+      }
+      .overviewSnapshotCardHead h3 { margin: 0; font-size: 15px; }
+      .overviewSnapshotCardHead p { margin-top: 3px; font-size: 11px; }
+      .overviewSnapshotMark {
+        width: 34px;
+        height: 34px;
+        display: grid;
+        place-items: center;
+        flex: 0 0 34px;
+        border-radius: 11px;
+        background: var(--accent-soft);
+        color: var(--accent);
+        font-size: 17px;
+      }
+      .overviewThreatList,
+      .overviewAgentMixList { display: grid; gap: 12px; margin-top: 16px; }
+      .overviewThreatRow {
+        display: grid;
+        grid-template-columns: minmax(110px, .8fr) minmax(80px, 1fr) minmax(150px, auto);
+        align-items: center;
+        gap: 10px;
+      }
+      .overviewThreatName {
+        min-width: 0;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+      }
+      .overviewThreatName strong {
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        font-size: 12px;
+      }
+      .overviewThreatName span { color: var(--muted); font-size: 11px; font-weight: 850; }
+      .overviewThreatBar { height: 7px; overflow: hidden; border-radius: 999px; background: #eeedf2; }
+      .overviewThreatBar span { display: block; height: 100%; border-radius: inherit; background: linear-gradient(90deg, var(--accent), #8a6cff); }
+      .overviewThreatResults { display: flex; justify-content: flex-end; flex-wrap: wrap; gap: 5px; }
+      .overviewThreatResults span { padding: 4px 6px; border-radius: 999px; font-size: 9px; font-weight: 850; white-space: nowrap; }
+      .overviewThreatResults .blocked { background: #ffe7e9; color: #a91e29; }
+      .overviewThreatResults .automatic { background: #e5f7ef; color: #087b69; }
+      .overviewThreatResults .manual { background: #ece9ff; color: #3a27d6; }
+      .overviewAgentMixList > div {
+        display: grid;
+        grid-template-columns: 36px minmax(0, 1fr) auto;
+        align-items: center;
+        gap: 10px;
+      }
+      .overviewAgentMixIcon {
+        width: 36px;
+        height: 36px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        overflow: hidden;
+        border-radius: 11px;
+        background: #eef2ff;
+        color: #3727ce;
+        font-weight: 850;
+      }
+      .overviewAgentMixIcon img { width: 23px; height: 23px; object-fit: contain; }
+      .overviewAgentMixList > div > span:nth-child(2) { min-width: 0; display: grid; gap: 2px; }
+      .overviewAgentMixList strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; }
+      .overviewAgentMixList small { color: var(--muted); font-size: 10px; }
+      .overviewAgentMixList b {
+        min-width: 27px;
+        height: 27px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 999px;
+        background: #ece9ff;
+        color: #3a27d6;
+        font-size: 11px;
+      }
+      .overviewSnapshotEmpty {
+        min-height: 112px;
+        display: grid;
+        place-content: center;
+        justify-items: center;
+        gap: 5px;
+        color: #159c77;
+        text-align: center;
+      }
+      .overviewSnapshotEmpty span { max-width: 260px; color: var(--muted); font-size: 11px; }
+      .overviewAgentsHead {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 18px;
+        margin-top: 18px;
+        padding: 18px 20px;
+      }
+      .overviewAgentsHead h2 { font-size: 24px; }
+      .overviewAgentsHead p { margin-top: 4px; font-size: 13px; }
+      .overviewDevice {
+        display: grid;
+        grid-template-columns: 42px minmax(0, 1fr) auto;
+        align-items: center;
+        gap: 10px;
+        min-width: 270px;
+        padding: 10px 12px;
+        border: 1px solid var(--line);
+        border-radius: 14px;
+        background: #fff;
+      }
+      .overviewDeviceArt {
+        width: 42px;
+        height: 42px;
+        display: grid;
+        place-items: center;
+        border-radius: 12px;
+        background: #eaf6f2;
+        color: #138269;
+      }
+      .overviewDeviceArt svg { width: 27px; height: 27px; fill: none; stroke: currentColor; stroke-width: 1.7; }
+      .overviewDevice strong,
+      .overviewDevice small { display: block; }
+      .overviewDevice small { margin-top: 2px; color: var(--muted); font-size: 10px; }
+      .overviewDeviceSync {
+        padding: 6px 9px;
+        border-radius: 999px;
+        background: #eaf6f2;
+        color: #0c8067;
+        font-size: 10px;
+        font-weight: 850;
+        white-space: nowrap;
+      }
       .overviewAgentGrid {
         display: grid;
         grid-template-columns: repeat(auto-fit, minmax(176px, 1fr));
@@ -2606,6 +2836,18 @@
       .overviewAgentTile small {
         display: block;
         margin-top: 2px;
+      }
+      @media (max-width: 1040px) {
+        .overviewOutcomeMetrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+        .overviewSnapshotDetails { grid-template-columns: 1fr; }
+      }
+      @media (max-width: 760px) {
+        .overviewActivitySnapshot { padding: 14px; }
+        .overviewOutcomeMetrics { grid-template-columns: 1fr; }
+        .overviewThreatRow { grid-template-columns: 1fr; gap: 6px; }
+        .overviewThreatResults { justify-content: flex-start; }
+        .overviewAgentsHead { align-items: flex-start; flex-direction: column; }
+        .overviewDevice { width: 100%; min-width: 0; }
       }
       .subhead {
         margin-top: 10px;
@@ -4674,15 +4916,151 @@
         });
       }
 
+      function overviewActivitySummary(inventory) {
+        const remote = state.activitySummary;
+        if (remote?.totals && Array.isArray(remote.threats) && Array.isArray(remote.agentKinds)) {
+          return {
+            rangeDays: Math.max(1, Number(remote.rangeDays) || 30),
+            totals: {
+              checked: Math.max(0, Number(remote.totals.checked) || 0),
+              blocked: Math.max(0, Number(remote.totals.blocked) || 0),
+              automaticallyApproved: Math.max(0, Number(remote.totals.automaticallyApproved) || 0),
+              manuallyApproved: Math.max(0, Number(remote.totals.manuallyApproved) || 0),
+              waiting: Math.max(0, Number(remote.totals.waiting) || 0)
+            },
+            threats: remote.threats.map((item) => ({
+              name: String(item.name || "Other threats"),
+              total: Math.max(0, Number(item.total) || 0),
+              blocked: Math.max(0, Number(item.blocked) || 0),
+              automaticallyApproved: Math.max(0, Number(item.automaticallyApproved) || 0),
+              manuallyApproved: Math.max(0, Number(item.manuallyApproved) || 0)
+            })).slice(0, 8),
+            agentKinds: remote.agentKinds.map((item) => ({
+              kind: String(item.kind || "unknown"),
+              name: String(item.name || item.kind || "AI agent"),
+              count: Math.max(0, Number(item.count) || 0)
+            })).filter((item) => item.count > 0)
+          };
+        }
+
+        const history = Array.isArray(state.history) ? state.history : [];
+        const totals = { checked: history.length, blocked: 0, automaticallyApproved: 0, manuallyApproved: 0, waiting: 0 };
+        const threats = new Map();
+        for (const item of history) {
+          const decision = String(item.decision || "").toLowerCase();
+          const resolution = String(item.resolution || "").toLowerCase();
+          const learningModeApproval = resolution === "allow" && item.resolved_by === "organization-learning-mode";
+          const blocked = resolution === "deny" || decision === "deny" || decision === "blocked";
+          const automatic = decision === "allow" || learningModeApproval;
+          const manual = decision === "ask" && resolution === "allow" && !learningModeApproval;
+          const waiting = decision === "ask" && !resolution;
+          if (blocked) totals.blocked += 1;
+          if (automatic) totals.automaticallyApproved += 1;
+          if (manual) totals.manuallyApproved += 1;
+          if (waiting) totals.waiting += 1;
+          const names = new Set((item.triggered_policies || []).map((policy) => String(policy.category || policy.policy_name || "Other threats").trim()).filter(Boolean));
+          for (const name of names) {
+            const threat = threats.get(name) || { name, total: 0, blocked: 0, automaticallyApproved: 0, manuallyApproved: 0 };
+            threat.total += 1;
+            if (blocked) threat.blocked += 1;
+            if (automatic) threat.automaticallyApproved += 1;
+            if (manual) threat.manuallyApproved += 1;
+            threats.set(name, threat);
+          }
+        }
+        return {
+          rangeDays: 30,
+          totals,
+          threats: [...threats.values()].sort((a, b) => b.total - a.total || a.name.localeCompare(b.name)).slice(0, 8),
+          agentKinds: inventory.filter((item) => item.installed).map((item) => ({ kind: item.kind, name: item.displayName, count: 1 }))
+        };
+      }
+
+      function overviewMetricHtml(tone, value, label, detail, icon) {
+        return `
+          <div class="overviewOutcomeMetric ${tone}">
+            <span aria-hidden="true">${icon}</span>
+            <div><strong>${Number(value || 0).toLocaleString()}</strong><b>${label}</b><small>${detail}</small></div>
+          </div>
+        `;
+      }
+
+      function overviewActivitySnapshotHtml(summary, inventory) {
+        const maxThreatCount = Math.max(1, ...summary.threats.map((item) => item.total));
+        const shieldIcon = `<svg viewBox="0 0 24 24"><path d="M12 3 19 6v5c0 4.7-2.9 8.1-7 10-4.1-1.9-7-5.3-7-10V6l7-3Z"/><path d="m9 12 2 2 4-4"/></svg>`;
+        const boltIcon = `<svg viewBox="0 0 24 24"><path d="m13 2-8 12h7l-1 8 8-12h-7l1-8Z"/></svg>`;
+        const personIcon = `<svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21c1-5 4-7 8-7s7 2 8 7"/></svg>`;
+        const bellIcon = `<svg viewBox="0 0 24 24"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9Z"/><path d="M10 21h4"/></svg>`;
+        return `
+          <section class="overviewActivitySnapshot" aria-label="Activity in the last ${summary.rangeDays} days">
+            <div class="overviewSnapshotHead">
+              <span class="overviewKicker">Last ${summary.rangeDays} days</span>
+              <h2>What Leash handled</h2>
+              <p>${summary.totals.checked.toLocaleString()} agent actions checked across your connected tools.</p>
+            </div>
+            <div class="overviewOutcomeMetrics">
+              ${overviewMetricHtml("blocked", summary.totals.blocked, "Threats blocked", "Stopped before continuing", shieldIcon)}
+              ${overviewMetricHtml("automatic", summary.totals.automaticallyApproved, "Automatically approved", "No response needed", boltIcon)}
+              ${overviewMetricHtml("manual", summary.totals.manuallyApproved, "Manually approved", "Approved by you", personIcon)}
+              ${overviewMetricHtml("waiting", summary.totals.waiting, "Waiting", "Needs a decision", bellIcon)}
+            </div>
+            <div class="overviewSnapshotDetails">
+              <section class="overviewThreatSummary">
+                <div class="overviewSnapshotCardHead"><div><h3>Threats and sensitive actions</h3><p>What triggered Leash and how it ended.</p></div><span class="overviewSnapshotMark" aria-hidden="true">⌁</span></div>
+                ${summary.threats.length ? `<div class="overviewThreatList">${summary.threats.map((threat) => `
+                  <div class="overviewThreatRow">
+                    <div class="overviewThreatName"><strong title="${escapeHtml(threat.name)}">${escapeHtml(threat.name)}</strong><span>${threat.total.toLocaleString()}</span></div>
+                    <div class="overviewThreatBar" aria-hidden="true"><span style="width:${Math.max(7, (threat.total / maxThreatCount) * 100)}%"></span></div>
+                    <div class="overviewThreatResults">
+                      ${threat.blocked ? `<span class="blocked">${threat.blocked} blocked</span>` : ""}
+                      ${threat.automaticallyApproved ? `<span class="automatic">${threat.automaticallyApproved} automatic</span>` : ""}
+                      ${threat.manuallyApproved ? `<span class="manual">${threat.manuallyApproved} manual</span>` : ""}
+                    </div>
+                  </div>
+                `).join("")}</div>` : `<div class="overviewSnapshotEmpty"><strong>No threats recorded</strong><span>Leash will group them here when a safety rule triggers.</span></div>`}
+              </section>
+              <section class="overviewAgentMix">
+                <div class="overviewSnapshotCardHead"><div><h3>Agents by kind</h3><p>Connected agent installations seen recently.</p></div><span class="overviewSnapshotMark" aria-hidden="true">✦</span></div>
+                ${summary.agentKinds.length ? `<div class="overviewAgentMixList">${summary.agentKinds.map((item) => {
+                  const agent = inventory.find((candidate) => candidate.kind === item.kind);
+                  return `<div><span class="overviewAgentMixIcon">${agent ? agentIcon(agent) : escapeHtml(item.name.slice(0, 1).toUpperCase())}</span><span><strong>${escapeHtml(item.name)}</strong><small>${item.count === 1 ? "1 agent" : `${item.count} agents`}</small></span><b>${item.count}</b></div>`;
+                }).join("")}</div>` : `<div class="overviewSnapshotEmpty"><strong>No agents connected</strong><span>Agent counts appear after Leash connects to your tools.</span></div>`}
+              </section>
+            </div>
+          </section>
+        `;
+      }
+
+      function overviewDeviceHtml() {
+        const platform = String(navigator.platform || navigator.userAgent || "").toLowerCase();
+        const label = platform.includes("win") ? "This Windows PC" : platform.includes("mac") ? "This Mac" : "This computer";
+        const recent = (state.agents || []).map((agent) => Date.parse(agent.last_seen_at || agent.activity_at || "")).filter(Number.isFinite).sort((a, b) => b - a)[0];
+        const ageSeconds = recent ? Math.max(0, Math.floor((Date.now() - recent) / 1000)) : 0;
+        const synced = ageSeconds < 60 ? "just now" : ageSeconds < 3600 ? `${Math.floor(ageSeconds / 60)}m ago` : ageSeconds < 86400 ? `${Math.floor(ageSeconds / 3600)}h ago` : `${Math.floor(ageSeconds / 86400)}d ago`;
+        return `
+          <div class="overviewDevice">
+            <span class="overviewDeviceArt" aria-hidden="true"><svg viewBox="0 0 32 32"><rect x="6" y="5" width="20" height="15" rx="2"/><path d="M3 24h26l-2 3H5l-2-3Z"/></svg></span>
+            <span><strong>${label}</strong><small>Leash Desktop</small></span>
+            <span class="overviewDeviceSync">Synced ${escapeHtml(synced)}</span>
+          </div>
+        `;
+      }
+
       function renderOverview() {
         const inventory = overviewAgentInventory();
         const unread = unreadHistoryItems();
+        const activitySummary = overviewActivitySummary(inventory);
         root.innerHTML = `
           <div class="head">
             <div><h1>Overview</h1><p>${unread.length ? `${unread.length} new ${unread.length === 1 ? "update" : "updates"} from your agents.` : "See what your protected AI agents are doing."}</p></div>
             <div class="headActions">${notificationCenterHtml()}${headerIdentityHtml()}</div>
           </div>
           ${cloudTrialBannerHtml()}
+          ${overviewActivitySnapshotHtml(activitySummary, inventory)}
+          <section class="card overviewAgentsHead">
+            <div><h2>Your agents</h2><p>See which AI agents are protected and open one to review its history.</p></div>
+            ${overviewDeviceHtml()}
+          </section>
           <div class="overviewAgentGrid">
             ${inventory.map((agent) => {
               const unreadCount = unread.filter((item) => historyAgentKind(item) === agent.kind).length;

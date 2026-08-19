@@ -294,6 +294,25 @@ type RemoteMobileState = {
 
 type PluginOutcome = OpenLeashOutcomeRecord;
 
+type DashboardActivitySummary = {
+  rangeDays: number;
+  totals: {
+    checked: number;
+    blocked: number;
+    automaticallyApproved: number;
+    manuallyApproved: number;
+    waiting: number;
+  };
+  threats: Array<{
+    name: string;
+    total: number;
+    blocked: number;
+    automaticallyApproved: number;
+    manuallyApproved: number;
+  }>;
+  agentKinds: Array<{ kind: string; name: string; count: number }>;
+};
+
 type PublicPluginListing = Record<string, unknown> & {
   id?: string;
   slug?: string;
@@ -401,6 +420,8 @@ let latestSessionMetrics: SessionMetrics = {};
 let latestPlugins: PluginCatalogItem[] = [];
 let latestOutcomes: PluginOutcome[] = [];
 let latestViewModel: OpenLeashClientViewModel | undefined;
+let latestActivitySummary: DashboardActivitySummary | undefined;
+let latestActivitySummaryKey = "";
 let monitoringManagedByOrganization = false;
 let latestAttentionEvents: AttentionEvent[] = [];
 let latestIslandContributions: PluginIslandContribution[] = [];
@@ -957,6 +978,7 @@ ipcMain.handle("openleash:list", () => ({
     latestPlugins.length > 0 ? latestPlugins : (localServer?.plugins ?? []),
   outcomes: latestOutcomes,
   viewModel: latestViewModel,
+  activitySummary: latestActivitySummary,
   pending: latestPending,
   agents: latestAgents,
   sessionMetrics: latestSessionMetrics,
@@ -1830,6 +1852,7 @@ ipcMain.handle(
       plugins: latestPlugins,
       outcomes: latestOutcomes,
       viewModel: latestViewModel,
+      activitySummary: latestActivitySummary,
       pending: latestPending,
       agents: latestAgents,
       sessionMetrics: latestSessionMetrics,
@@ -2428,6 +2451,7 @@ async function poll() {
       plugins: latestPlugins,
       outcomes: latestOutcomes,
       viewModel: latestViewModel,
+      activitySummary: latestActivitySummary,
       pending: latestPending,
       agents: latestAgents,
       sessionMetrics: latestSessionMetrics,
@@ -2594,7 +2618,16 @@ async function fetchTrayState(): Promise<
 
   const remoteApiUrl = localServer.remoteApiUrl;
   const remoteToken = localServer.effectiveToken;
-  if (!remoteApiUrl || !remoteToken) return localState;
+  if (!remoteApiUrl || !remoteToken) {
+    latestActivitySummary = undefined;
+    latestActivitySummaryKey = "";
+    return localState;
+  }
+  const activitySummaryKey = `${remoteApiUrl}\0${remoteToken}`;
+  if (latestActivitySummaryKey !== activitySummaryKey) {
+    latestActivitySummary = undefined;
+    latestActivitySummaryKey = activitySummaryKey;
+  }
 
   try {
     const notifications = await fetchRemoteNotifications(
@@ -3083,20 +3116,20 @@ async function fetchRemotePluginOutcomes(
   remoteToken: string,
 ) {
   try {
-    const url = new URL("/v1/outcomes", remoteApiUrl);
-    url.searchParams.set("limit", "12");
+    const url = new URL("/v1/client/overview", remoteApiUrl);
     const response = await fetch(url, {
       headers: {
         authorization: `Bearer ${remoteToken}`,
-        ...apiVersionHeaders("authAccountOutcomes"),
       },
     });
     if (!response.ok) return latestOutcomes;
     const body = (await response.json()) as {
       outcomes?: PluginOutcome[];
       viewModel?: OpenLeashClientViewModel;
+      activitySummary?: DashboardActivitySummary;
     };
     latestViewModel = body.viewModel ?? latestViewModel;
+    latestActivitySummary = body.activitySummary ?? latestActivitySummary;
     return Array.isArray(body.outcomes) ? body.outcomes : latestOutcomes;
   } catch {
     return latestOutcomes;

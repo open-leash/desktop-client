@@ -67,6 +67,21 @@ test("desktop groups built-in Features into plain-language Safety and Cost contr
   assert.doesNotMatch(renderer, /\{ id: "security", label: "Security"/);
 });
 
+test("desktop Overview mirrors the web dashboard activity and agent summary", () => {
+  assert.match(renderer, /function overviewActivitySummary\(inventory\)/);
+  assert.match(renderer, /function overviewActivitySnapshotHtml\(summary, inventory\)/);
+  assert.match(renderer, /What Leash handled/);
+  assert.match(renderer, /Threats blocked/);
+  assert.match(renderer, /Automatically approved/);
+  assert.match(renderer, /Manually approved/);
+  assert.match(renderer, /Threats and sensitive actions/);
+  assert.match(renderer, /Agents by kind/);
+  assert.match(renderer, /class="card overviewAgentsHead"/);
+  assert.match(renderer, /function overviewDeviceHtml\(\)/);
+  assert.match(renderer, /Synced \$\{escapeHtml\(synced\)\}/);
+  assert.match(renderer, /agent \? agentIcon\(agent\)/);
+});
+
 test("setup explains Features in consumer language", () => {
   assert.match(renderer, /\{ id: "features", title: "Your protection"/);
   assert.match(renderer, /const currentId = current\.id \|\| current\.title\.toLowerCase\(\)/);
