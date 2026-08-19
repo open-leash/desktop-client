@@ -31,11 +31,16 @@ Leash Cloud owns Business administration, billing, tenancy, and identity.
 - Every Cloud offer includes Leash AI and a 10-day free trial. Cloud surfaces
   never show a provider-key input. Personal Open Source is the only BYOK mode.
 - Once a client has reported in, Personal and Business overview screens lead
-  with a rolling summary of actions checked, blocked, automatically approved,
-  manually approved, and waiting. They also show which threat categories were
-  involved and how many enrolled agents exist for each agent kind. Every count
-  is backed by the same auditable evaluation history; Learning-only
-  actions are counted as automatically approved, never as blocked.
+  with a rolling summary of actions monitored, threats blocked, actions that
+  passed safely, actions approved by a person, and actions waiting for review.
+  They also show which threat categories were involved and how many enrolled
+  agents exist for each agent kind. Every count is backed by the same auditable
+  evaluation history; Learning-only actions count as passed safely, never as
+  blocked.
+- Agent enablement and per-agent history live on a dedicated Agents page next
+  to Overview. Connected devices use platform-specific artwork and show their
+  last successful sync time rather than exposing raw hostnames as the primary
+  identity.
 - Desktop settings and the signed-in user's web dashboard are parallel
   per-user surfaces. Their Overview, agents, Features, approvals, history,
   notifications, and user settings should use the same client contracts and
