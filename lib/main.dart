@@ -565,7 +565,11 @@ class _LeashHomeState extends State<LeashHome> {
           _historyPage = 1;
         }
       });
-      if (showNotifications) {
+      final clientConfig = data['clientConfig'];
+      final approvalNotifications = clientConfig is Map
+          ? clientConfig['approvalNotifications'] != false
+          : true;
+      if (showNotifications && approvalNotifications) {
         await _showNewAttentionNotifications(data);
       }
     } catch (_) {
