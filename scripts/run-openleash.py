@@ -6,6 +6,7 @@ import os
 import plistlib
 import shutil
 import signal
+import socket
 import subprocess
 import sys
 import tempfile
@@ -21,6 +22,8 @@ TRACE_FILE = ROOT / "output" / "openleash-flow.ndjson"
 COMPOSE = ["docker", "compose", "--project-name", "openleash-dev"]
 PERSONAL_TOKEN = "individual-open-source-token"
 PACKAGED_DESKTOP_DIR = ROOT / "release" / "personal"
+LOCAL_CLOUD_API_URL = "http://127.0.0.1:9318"
+PACKAGED_LOCAL_CLOUD_USER_DATA = ROOT / "apps" / "desktop-client" / ".dev" / "packaged-local-cloud"
 
 
 @dataclass(frozen=True)
@@ -90,6 +93,33 @@ def build_modes() -> dict[str, Mode]:
     }
 
 
+def build_packaged_local_cloud_mode(dev_auth: bool = False) -> Mode:
+    development = build_modes()["public-cloud"]
+    processes: list[Command] = []
+    for process in development.processes:
+        if process.name == "desktop-client":
+            continue
+        if process.name == "client-api":
+            processes.append(Command(
+                process.name,
+                process.args,
+                {
+                    **(process.env or {}),
+                    "OPENLEASH_MOBILE_DEV_AUTH": "1" if dev_auth else "0",
+                },
+                process.cwd,
+            ))
+            continue
+        processes.append(process)
+    return Mode(
+        "local-cloud-release",
+        "Packaged Leash with local Cloud",
+        "Release desktop connected to the local Cloud client API, website, Postgres, and flow viewer.",
+        tuple(processes),
+        development.urls,
+    )
+
+
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Run the personal Leash development stack.")
     parser.add_argument(
@@ -100,6 +130,7 @@ def parse_args() -> argparse.Namespace:
             "public-cloud",
             "leash-cloud",
             "local-release",
+            "local-cloud-release",
             "cleanup",
         ],
     )
@@ -159,8 +190,11 @@ def main() -> int:
             args.dry_run,
             disable_updates=True,
             fresh_install=False,
+            preserve_settings=True,
             rebuild=True,
         )
+    if selected == "local-cloud-release":
+        return run_packaged_local_cloud(args)
     if selected == "cleanup":
         if args.dry_run:
             print_cleanup_dry_run()
@@ -216,7 +250,75 @@ def main() -> int:
     return 0
 
 
-def startup_commands(mode: Mode, clean_slate: bool, desktop_only: bool) -> list[Command]:
+def run_packaged_local_cloud(args: argparse.Namespace) -> int:
+    mode = build_packaged_local_cloud_mode(dev_auth=args.dev_auth and not args.real_oauth)
+    print(f"\nMode: {mode.label}\nDescription: {mode.description}")
+    print(f"Desktop Cloud target: {LOCAL_CLOUD_API_URL}")
+    print("Authentication: development shortcut" if args.dev_auth and not args.real_oauth else "Authentication: configured local OAuth providers")
+    commands = startup_commands(mode, False, False, build_desktop=False)
+    if args.dry_run:
+        for command in commands:
+            print(f"[leash:{command.name}] {' '.join(command.args)}")
+        return launch_packaged_desktop(
+            None,
+            True,
+            disable_updates=True,
+            fresh_install=False,
+            preserve_settings=True,
+            rebuild=True,
+            remote_api_url=LOCAL_CLOUD_API_URL,
+            cloud_dev_auth=args.dev_auth and not args.real_oauth,
+            user_data_dir=PACKAGED_LOCAL_CLOUD_USER_DATA,
+        )
+    if not args.yes and not confirm("Start packaged local Cloud testing?", True):
+        return 1
+
+    TRACE_FILE.parent.mkdir(parents=True, exist_ok=True)
+    stop_dev_processes()
+    stop_listeners_on_ports((9305, 9318, 9340))
+    children: list[subprocess.Popen[str]] = []
+    try:
+        for command in commands:
+            if command.name.startswith("run-"):
+                children.append(start_process(Command(command.name[4:], command.args, command.env, command.cwd)))
+            else:
+                run_step(command)
+        wait_for_urls(mode.urls, children)
+        launch_status = launch_packaged_desktop(
+            None,
+            False,
+            disable_updates=True,
+            fresh_install=False,
+            preserve_settings=True,
+            rebuild=True,
+            remote_api_url=LOCAL_CLOUD_API_URL,
+            cloud_dev_auth=args.dev_auth and not args.real_oauth,
+            user_data_dir=PACKAGED_LOCAL_CLOUD_USER_DATA,
+        )
+        if launch_status != 0:
+            return launch_status
+        print("\nPackaged local Cloud is ready. Press Ctrl+C to stop the local services; Postgres data stays available.")
+        while children:
+            for child in children:
+                if child.poll() is not None:
+                    raise RuntimeError(f"A Leash process exited with code {child.returncode}")
+            time.sleep(0.5)
+    except KeyboardInterrupt:
+        pass
+    except (RuntimeError, subprocess.CalledProcessError) as error:
+        print(f"[leash] error: {error}", file=sys.stderr)
+        return 1
+    finally:
+        stop_children(children)
+    return 0
+
+
+def startup_commands(
+    mode: Mode,
+    clean_slate: bool,
+    desktop_only: bool,
+    build_desktop: bool = True,
+) -> list[Command]:
     commands: list[Command] = []
     if clean_slate:
         commands.append(Command("clean-slate", [sys.executable, str(Path(__file__).resolve()), "--clean", "--yes"]))
@@ -229,13 +331,17 @@ def startup_commands(mode: Mode, clean_slate: bool, desktop_only: bool) -> list[
             Command("bootstrap-personal", ["node", "apps/client-api/dist/bootstrap-personal.js", "--name", "Personal Leash", "--slug", "individual-open-source", "--mode", "private"], {"DATABASE_URL": DATABASE_URL}),
             Command("verify-features", ["npx", "tsx", "--test", "src/plugins/feature-runtime.test.ts"], None, ROOT / "apps" / "client-api"),
         ])
-    commands.append(Command("desktop-build", ["npm", "run", "build", "-w", "@openleash/desktop-client"]))
+    if build_desktop:
+        commands.append(Command("desktop-build", ["npm", "run", "build", "-w", "@openleash/desktop-client"]))
     processes = tuple(process for process in mode.processes if not desktop_only or process.name == "desktop-client")
     commands.extend(Command(f"run-{process.name}", process.args, process.env, process.cwd) for process in processes)
     return commands
 
 
 def run_step(command: Command) -> None:
+    if command.name == "postgres" and tcp_ready("127.0.0.1", 9543):
+        print("[leash:postgres] existing local Postgres is ready on port 9543")
+        return
     print(f"[leash:{command.name}] {' '.join(command.args)}")
     subprocess.run(command.args, cwd=command.cwd, env=merged_env(command.env), check=True)
 
@@ -248,8 +354,56 @@ def start_process(command: Command) -> subprocess.Popen[str]:
 def merged_env(extra: dict[str, str] | None = None) -> dict[str, str]:
     env = os.environ.copy()
     env.pop("ELECTRON_RUN_AS_NODE", None)
+    for key, value in root_env().items():
+        if is_local_oauth_env_key(key):
+            env.setdefault(key, value)
     env.update(extra or {})
     return env
+
+
+def root_env() -> dict[str, str]:
+    path = ROOT / ".env"
+    if not path.is_file():
+        return {}
+    values: dict[str, str] = {}
+    for raw_line in path.read_text(encoding="utf-8").splitlines():
+        line = raw_line.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        key, value = line.split("=", 1)
+        key = key.strip().removeprefix("export ").strip()
+        value = value.strip()
+        if len(value) >= 2 and value[0] == value[-1] and value[0] in {"'", '"'}:
+            value = value[1:-1]
+        if key:
+            values[key] = value
+    return values
+
+
+def is_local_oauth_env_key(key: str) -> bool:
+    return key.startswith((
+        "OPENLEASH_GOOGLE_",
+        "OPENLEASH_MICROSOFT_",
+        "OPENLEASH_GITHUB_",
+    )) or key in {
+        "GOOGLE_CLIENT_ID",
+        "GOOGLE_CLIENT_SECRET",
+        "MICROSOFT_CLIENT_ID",
+        "MICROSOFT_CLIENT_SECRET",
+        "AZURE_CLIENT_ID",
+        "AZURE_CLIENT_SECRET",
+        "AZURE_TENANT_ID",
+        "GITHUB_CLIENT_ID",
+        "GITHUB_CLIENT_SECRET",
+    }
+
+
+def tcp_ready(host: str, port: int, timeout: float = 0.5) -> bool:
+    try:
+        with socket.create_connection((host, port), timeout=timeout):
+            return True
+    except OSError:
+        return False
 
 
 def wait_for_urls(urls: tuple[tuple[str, str], ...], children: list[subprocess.Popen[str]], timeout: int = 150) -> None:
@@ -288,8 +442,91 @@ def stop_children(children: list[subprocess.Popen[str]]) -> None:
 
 
 def stop_dev_processes() -> None:
-    for pattern in ("electron apps/desktop-client", "apps/flow-viewer/server.mjs", "tsx src/server.ts"):
+    for pattern in (
+        "electron apps/desktop-client",
+        "apps/flow-viewer/server.mjs",
+        "tsx src/server.ts",
+        "tsx watch src/server.ts",
+        "tsx/dist/cli.mjs watch src/server.ts",
+        "next dev -p 9305",
+    ):
         subprocess.run(["pkill", "-TERM", "-f", pattern], check=False, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+
+
+def stop_listeners_on_ports(ports: tuple[int, ...]) -> None:
+    if shutil.which("lsof") is None:
+        return
+    pids: set[int] = set()
+    for port in ports:
+        result = subprocess.run(
+            ["lsof", "-tiTCP:" + str(port), "-sTCP:LISTEN"],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        pids.update(
+            int(value)
+            for value in result.stdout.splitlines()
+            if value.strip().isdigit()
+        )
+    current_group = os.getpgrp()
+    process_groups: set[int] = set()
+    direct_pids: set[int] = set()
+    for pid in pids:
+        try:
+            process_group = os.getpgid(pid)
+        except ProcessLookupError:
+            continue
+        if process_group != current_group:
+            process_groups.add(process_group)
+        else:
+            direct_pids.add(pid)
+    for process_group in sorted(process_groups):
+        try:
+            os.killpg(process_group, signal.SIGTERM)
+        except ProcessLookupError:
+            continue
+    for pid in sorted(direct_pids):
+        try:
+            os.kill(pid, signal.SIGTERM)
+        except ProcessLookupError:
+            continue
+    deadline = time.time() + 5
+    while (process_groups or direct_pids) and time.time() < deadline:
+        process_groups = {
+            process_group
+            for process_group in process_groups
+            if process_group_is_running(process_group)
+        }
+        direct_pids = {pid for pid in direct_pids if process_is_running(pid)}
+        if process_groups or direct_pids:
+            time.sleep(0.1)
+    for process_group in sorted(process_groups):
+        try:
+            os.killpg(process_group, signal.SIGKILL)
+        except ProcessLookupError:
+            continue
+    for pid in sorted(direct_pids):
+        try:
+            os.kill(pid, signal.SIGKILL)
+        except ProcessLookupError:
+            continue
+
+
+def process_is_running(pid: int) -> bool:
+    try:
+        os.kill(pid, 0)
+        return True
+    except ProcessLookupError:
+        return False
+
+
+def process_group_is_running(process_group: int) -> bool:
+    try:
+        os.killpg(process_group, 0)
+        return True
+    except ProcessLookupError:
+        return False
 
 
 def cleanup_local_leash(remove_data: bool) -> None:
@@ -721,14 +958,29 @@ def packaged_desktop_command(
     app_path: Path,
     disable_updates: bool = False,
     fresh_install: bool = False,
+    preserve_settings: bool = False,
+    remote_api_url: str | None = None,
+    cloud_dev_auth: bool = False,
+    user_data_dir: Path | None = None,
 ) -> list[str]:
     app_args: list[str] = ["--show-window"]
+    if user_data_dir:
+        app_args.append(f"--user-data-dir={user_data_dir}")
     if disable_updates:
         app_args.extend(["--update-mode", "disabled"])
     if fresh_install:
         app_args.append("--fresh-install")
+    elif preserve_settings:
+        app_args.append("--keep-settings")
+    if remote_api_url:
+        app_args.extend(["--remote-api-url", remote_api_url])
     if sys.platform == "darwin" and app_path.suffix.lower() == ".app":
         executable = app_path / "Contents" / "MacOS" / "Leash"
+        cloud_environment = [
+            "OPENLEASH_CLIENT_MODE=cloud",
+            f"OPENLEASH_CLOUD_API_URL={remote_api_url}",
+            f"OPENLEASH_MOBILE_DEV_AUTH={'1' if cloud_dev_auth else '0'}",
+        ] if remote_api_url else []
         return [
             "launchctl",
             "submit",
@@ -738,6 +990,7 @@ def packaged_desktop_command(
             "/usr/bin/env",
             "-u",
             "ELECTRON_RUN_AS_NODE",
+            *cloud_environment,
             str(executable),
             *app_args,
         ]
@@ -755,12 +1008,46 @@ def packaged_desktop_is_ready(app_path: Path) -> bool:
     return process.returncode == 0 and http_ready("http://127.0.0.1:9317/health")
 
 
+def stop_packaged_desktop_process(app_path: Path) -> None:
+    if sys.platform != "darwin":
+        return
+    executable = app_path / "Contents" / "MacOS" / "Leash"
+    pattern = f"^{executable}"
+    subprocess.run(
+        ["pkill", "-TERM", "-f", pattern],
+        check=False,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+    )
+    deadline = time.time() + 8
+    while time.time() < deadline:
+        running = subprocess.run(
+            ["pgrep", "-f", pattern],
+            check=False,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        ).returncode == 0
+        if not running:
+            return
+        time.sleep(0.1)
+    subprocess.run(
+        ["pkill", "-KILL", "-f", pattern],
+        check=False,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+    )
+
+
 def launch_packaged_desktop(
     requested_path: Path | None,
     dry_run: bool = False,
     disable_updates: bool = False,
     fresh_install: bool = False,
+    preserve_settings: bool = False,
     rebuild: bool = False,
+    remote_api_url: str | None = None,
+    cloud_dev_auth: bool = False,
+    user_data_dir: Path | None = None,
 ) -> int:
     if rebuild:
         build_command = ["npm", "run", "dist:windows" if sys.platform == "win32" else "dist:personal"]
@@ -781,7 +1068,15 @@ def launch_packaged_desktop(
         print(f"[leash] No packaged desktop app was found{missing}.", file=sys.stderr)
         print(f"[leash] Build it first with: {build_command}", file=sys.stderr)
         return 1
-    command = packaged_desktop_command(app_path, disable_updates, fresh_install)
+    command = packaged_desktop_command(
+        app_path,
+        disable_updates,
+        fresh_install,
+        preserve_settings,
+        remote_api_url,
+        cloud_dev_auth,
+        user_data_dir,
+    )
     print(f"[leash:packaged-desktop] newest built app: {app_path}")
     if fresh_install:
         print("[leash] Opening this local release artifact as a clean installation with automatic updates disabled.")
@@ -792,10 +1087,17 @@ def launch_packaged_desktop(
     if dry_run:
         print(f"[leash:dry-run] {' '.join(command)}")
         return 0
+    if user_data_dir:
+        user_data_dir.mkdir(parents=True, exist_ok=True)
     if fresh_install:
         cleanup_local_leash(remove_data=True)
-    env = os.environ.copy()
-    env.pop("ELECTRON_RUN_AS_NODE", None)
+    env = merged_env({
+        **({
+            "OPENLEASH_CLIENT_MODE": "cloud",
+            "OPENLEASH_CLOUD_API_URL": remote_api_url,
+            "OPENLEASH_MOBILE_DEV_AUTH": "1" if cloud_dev_auth else "0",
+        } if remote_api_url else {}),
+    })
     try:
         if sys.platform == "darwin":
             subprocess.run(
@@ -804,6 +1106,7 @@ def launch_packaged_desktop(
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.DEVNULL,
             )
+            stop_packaged_desktop_process(app_path)
             completed = subprocess.run(command, cwd=ROOT, env=env, check=False)
             if completed.returncode != 0:
                 return completed.returncode
@@ -835,6 +1138,7 @@ def choose_mode() -> str:
         "1. Personal Open Source\n"
         "2. Leash Cloud development\n"
         "3. Rebuild and open the newest macOS release (release/personal)\n"
+        "4. Rebuild packaged desktop with the local Leash Cloud stack\n"
         "C. Delete all local Leash data"
     )
     answer = input("Choose [default 1]: ").strip()
@@ -842,6 +1146,8 @@ def choose_mode() -> str:
         return "cleanup"
     if answer in {"3"} or answer.lower() in {"app", "desktop", "packaged", "release"}:
         return "local-release"
+    if answer in {"4"} or answer.lower() in {"local-cloud", "packaged-cloud", "cloud-release"}:
+        return "local-cloud-release"
     return "public-cloud" if answer == "2" else "individual-open-source"
 
 

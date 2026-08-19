@@ -45,6 +45,10 @@ class RunnerTests(unittest.TestCase):
         with patch("builtins.input", return_value="3"):
             self.assertEqual(RUNNER.choose_mode(), "local-release")
 
+    def test_menu_exposes_packaged_local_cloud_choice(self):
+        with patch("builtins.input", return_value="4"):
+            self.assertEqual(RUNNER.choose_mode(), "local-cloud-release")
+
     def test_latest_local_release_preserves_existing_setup(self):
         with (
             patch.object(sys, "argv", ["run.py"]),
@@ -57,8 +61,36 @@ class RunnerTests(unittest.TestCase):
             False,
             disable_updates=True,
             fresh_install=False,
+            preserve_settings=True,
             rebuild=True,
         )
+
+    def test_packaged_local_cloud_choice_runs_the_release_stack(self):
+        with (
+            patch.object(sys, "argv", ["run.py"]),
+            patch("builtins.input", return_value="4"),
+            patch.object(RUNNER, "run_packaged_local_cloud", return_value=0) as run,
+        ):
+            self.assertEqual(RUNNER.main(), 0)
+        run.assert_called_once()
+
+    def test_packaged_local_cloud_mode_uses_real_oauth_and_no_dev_desktop(self):
+        mode = RUNNER.build_packaged_local_cloud_mode()
+        self.assertNotIn("desktop-client", {process.name for process in mode.processes})
+        client_api = next(process for process in mode.processes if process.name == "client-api")
+        self.assertEqual(client_api.env["OPENLEASH_MOBILE_DEV_AUTH"], "0")
+
+    def test_local_env_only_passes_oauth_credentials_to_public_processes(self):
+        with (
+            patch.dict(RUNNER.os.environ, {}, clear=True),
+            patch.object(RUNNER, "root_env", return_value={
+                "OPENLEASH_GOOGLE_CLIENT_ID": "google-client",
+                "OPENAI_ADMIN_API_KEY": "must-not-leak",
+            }),
+        ):
+            environment = RUNNER.merged_env()
+        self.assertEqual(environment["OPENLEASH_GOOGLE_CLIENT_ID"], "google-client")
+        self.assertNotIn("OPENAI_ADMIN_API_KEY", environment)
 
     def test_packaged_desktop_dry_run_opens_release_bundle_without_development_services(self):
         packaged_app = Path("/tmp/Leash.app")
@@ -98,12 +130,28 @@ class RunnerTests(unittest.TestCase):
                 ],
             )
 
+    def test_packaged_local_cloud_command_targets_local_api_and_keeps_settings(self):
+        with patch.object(RUNNER.sys, "platform", "darwin"):
+            command = RUNNER.packaged_desktop_command(
+                Path("/release/personal/mac-arm64/Leash.app"),
+                disable_updates=True,
+                preserve_settings=True,
+                remote_api_url="http://127.0.0.1:9318",
+                user_data_dir=Path("/tmp/leash-local-cloud"),
+            )
+        self.assertIn("OPENLEASH_CLOUD_API_URL=http://127.0.0.1:9318", command)
+        self.assertIn("--keep-settings", command)
+        self.assertIn("--remote-api-url", command)
+        self.assertEqual(command[command.index("--remote-api-url") + 1], "http://127.0.0.1:9318")
+        self.assertIn("--user-data-dir=/tmp/leash-local-cloud", command)
+
     def test_local_release_cleans_state_and_waits_for_health(self):
         packaged_app = Path("/release/personal/mac-arm64/Leash.app")
         with (
             patch.object(RUNNER.sys, "platform", "darwin"),
             patch.object(Path, "exists", return_value=True),
             patch.object(RUNNER, "cleanup_local_leash") as cleanup,
+            patch.object(RUNNER, "stop_packaged_desktop_process"),
             patch.object(RUNNER, "packaged_desktop_is_ready", return_value=True),
             patch.object(RUNNER.subprocess, "run", return_value=subprocess.CompletedProcess([], 0)),
         ):
