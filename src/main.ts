@@ -283,6 +283,7 @@ type RemoteMobileState = {
   islandContributions?: PluginIslandContribution[];
   clientConfig?: {
     managedByOrganization?: boolean;
+    approvalNotifications?: boolean;
   };
   sessionMonitoringPauses?: Array<{
     agentKind?: string;
@@ -3279,8 +3280,10 @@ function mapRemoteMobileState(state: RemoteMobileState): {
     expiresAt: string;
   }>;
 } {
+  const employeeNotificationsEnabled =
+    state.clientConfig?.approvalNotifications !== false;
   return {
-    pending: (state.pendingApprovals ?? []).map((item) => ({
+    pending: (employeeNotificationsEnabled ? state.pendingApprovals ?? [] : []).map((item) => ({
       id: item.id,
       question: item.question,
       summary: item.summary ?? item.question ?? "Leash approval needed.",
@@ -3324,7 +3327,7 @@ function mapRemoteMobileState(state: RemoteMobileState): {
         friendlyAction(agent.event_name, agent.tool_name),
     })),
     sessionMetrics: mapRemoteSessionMetrics(state.sessionMetrics),
-    attentionEvents: Array.isArray(state.attentionEvents)
+    attentionEvents: employeeNotificationsEnabled && Array.isArray(state.attentionEvents)
       ? state.attentionEvents
       : [],
     islandContributions: Array.isArray(state.islandContributions)

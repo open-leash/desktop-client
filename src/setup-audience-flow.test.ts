@@ -25,10 +25,10 @@ test("Personal Open Source requires an AI provider before agents are installed",
   assert.match(html, /api-docs\.deepseek\.com\/api\/deepseek-api/);
 });
 
-test("Cloud includes Leash AI and never shows a provider choice", () => {
-  assert.match(html, /Leash AI is included/);
-  assert.match(html, /10 days free/);
-  assert.match(html, /individualOpenSource \? `/);
+test("Cloud skips the provider page while Open Source requires it", () => {
+  assert.doesNotMatch(html, /\{ title: "Leash AI"/);
+  assert.doesNotMatch(html, /currentId === "leash ai"/);
+  assert.match(html, /currentId === "ai provider"/);
   assert.doesNotMatch(html, /name="evaluationPackage"/);
   assert.doesNotMatch(html, /Upgrade to Leash AI<\/a>/);
 });

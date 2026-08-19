@@ -3566,7 +3566,6 @@
                 { title: "Account", subtitle: "Choose Personal or Business." },
                 { title: "Connect", subtitle: "Pick how Leash runs." },
                 { title: "Sign in", subtitle: "Sign in to Leash Cloud." },
-                { title: "Leash AI", subtitle: "Managed safety evaluation is included with Cloud." },
                 { title: "Agents", subtitle: "Choose agents to protect." },
                 ...pluginSteps
               ]
@@ -3574,7 +3573,6 @@
                 { title: "Account", subtitle: "Choose Personal or Business." },
                 { title: "Connect", subtitle: "Connect this computer to Leash Business." },
                 { title: "Sign in", subtitle: "Sign in to Leash Business." },
-                { title: "Leash AI", subtitle: "Managed safety evaluation is included with Cloud." },
                 { title: "Agents", subtitle: "Choose agents to protect." },
                 ...pluginSteps
               ];
@@ -3740,36 +3738,27 @@
                 </div>
               </section>
             ` : ""}
-            ${currentId === "ai provider" || currentId === "leash ai" ? `
+            ${currentId === "ai provider" ? `
               <section class="setupSection">
-                <h2>${individualOpenSource ? "Connect your AI provider" : "Leash AI is included"}</h2>
-                <p>${individualOpenSource
-                  ? "Personal Open Source uses your provider to understand agent actions and decide when to allow, ask, or stop. A provider key is required."
-                  : "Cloud uses Leash AI for every safety decision. No provider key is needed, and your 10-day trial starts when you sign in."}</p>
-                ${individualOpenSource ? `
-                  <div class="card">
-                    <strong>Your AI provider</strong>
-                    <p>Leash sends the relevant action details to this provider for a safety decision. Your key is stored by your selected Leash backend and is not shared with your agents.</p>
-                    <div class="fieldRow" style="margin-top:14px">
-                      <strong>Provider</strong>
-                      <select id="apiProvider">
-                        <option value="openai" ${setupProvider === "openai" ? "selected" : ""}>OpenAI</option>
-                        <option value="anthropic" ${setupProvider === "anthropic" ? "selected" : ""}>Anthropic</option>
-                        <option value="deepseek" ${setupProvider === "deepseek" ? "selected" : ""}>DeepSeek</option>
-                      </select>
-                    </div>
-                    <div class="fieldRow" style="margin-top:12px">
-                      <strong>API key</strong>
-                      <input id="apiKey" type="password" autocomplete="off" value="${escapeHtml(setupApiKey)}" placeholder="Paste your provider API key">
-                    </div>
-                    <a id="providerKeyHelp" class="secondary" style="display:inline-flex;margin-top:12px;text-decoration:none" href="#">How to create a ${escapeHtml(setupProvider === "anthropic" ? "Anthropic" : setupProvider === "deepseek" ? "DeepSeek" : "OpenAI")} API key</a>
+                <h2>Connect your AI provider</h2>
+                <p>Personal Open Source uses your provider to understand agent actions and decide when to allow, ask, or stop. A provider key is required.</p>
+                <div class="card">
+                  <strong>Your AI provider</strong>
+                  <p>Leash sends the relevant action details to this provider for a safety decision. Your key is stored by your selected Leash backend and is not shared with your agents.</p>
+                  <div class="fieldRow" style="margin-top:14px">
+                    <strong>Provider</strong>
+                    <select id="apiProvider">
+                      <option value="openai" ${setupProvider === "openai" ? "selected" : ""}>OpenAI</option>
+                      <option value="anthropic" ${setupProvider === "anthropic" ? "selected" : ""}>Anthropic</option>
+                      <option value="deepseek" ${setupProvider === "deepseek" ? "selected" : ""}>DeepSeek</option>
+                    </select>
                   </div>
-                ` : `
-                  <div class="card">
-                    <div class="fieldRow"><div><strong>Leash AI</strong><p>Purpose-built, fully managed safety evaluation across desktop, web, and mobile.</p></div><span class="tag good">Included</span></div>
-                    <div class="notice" style="margin-top:12px">10 days free${orgCloud ? ", for up to 2 employees" : ""}. No card or AI provider key required.</div>
+                  <div class="fieldRow" style="margin-top:12px">
+                    <strong>API key</strong>
+                    <input id="apiKey" type="password" autocomplete="off" value="${escapeHtml(setupApiKey)}" placeholder="Paste your provider API key">
                   </div>
-                `}
+                  <a id="providerKeyHelp" class="secondary" style="display:inline-flex;margin-top:12px;text-decoration:none" href="#">How to create a ${escapeHtml(setupProvider === "anthropic" ? "Anthropic" : setupProvider === "deepseek" ? "DeepSeek" : "OpenAI")} API key</a>
+                </div>
                 <div id="providerSetupError" class="error">${escapeHtml(setupRemoteError)}</div>
               </section>
             ` : ""}
@@ -4618,7 +4607,7 @@
 
       function categoryLabel(id) {
         if (id === "protection") return "Safety";
-        if (id === "cost") return "Save money";
+        if (id === "cost") return "Cost control";
         if (id === "visibility") return "Visibility";
         if (id === "other") return "Other";
         return "All";
@@ -6335,7 +6324,7 @@
 
       function featureNameFromIdentifier(value) {
         const compatibilityName = canonicalPluginSlug(value);
-        return featurePresentations[compatibilityName]?.name || settingLabel(compatibilityName) || "Leash Feature";
+        return featurePresentations[compatibilityName]?.name || settingLabel(compatibilityName) || "Feature";
       }
 
       function featurePresentation(plugin) {
@@ -6347,7 +6336,7 @@
         if (presentation) return presentation.name;
         const supplied = String(plugin.displayName || plugin.name || "").trim();
         if (supplied && !/^(?:openleash[._-])?[a-z0-9]+(?:[._-][a-z0-9]+)+$/i.test(supplied)) return supplied;
-        return settingLabel(pluginCompatibilityName(plugin)) || "Leash Feature";
+        return (settingLabel(pluginCompatibilityName(plugin)) || "Feature").replace(/^Leash\s+/i, "");
       }
 
       function pluginPackageName(plugin) {
@@ -6537,7 +6526,7 @@
         return [
           { id: "all", label: "All", count: counts.get("all") || 0 },
           { id: "protection", label: "Safety", count: counts.get("protection") || 0 },
-          { id: "cost", label: "Save money", count: counts.get("cost") || 0 },
+          { id: "cost", label: "Cost control", count: counts.get("cost") || 0 },
           { id: "visibility", label: "Visibility", count: counts.get("visibility") || 0 },
           { id: "other", label: "Other", count: counts.get("other") || 0 }
         ].filter((item) => item.id === "all" || item.count > 0);

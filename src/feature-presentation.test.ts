@@ -24,6 +24,17 @@ test("one canonical presentation supplies every built-in Feature surface", () =>
   assert.equal(canonicalPresentations.length, 8);
   assert.equal(new Set(canonicalPresentations.map((feature) => feature.id)).size, 8);
   assert.equal(new Set(canonicalPresentations.map((feature) => feature.name)).size, 8);
+  assert.deepEqual(canonicalPresentations.map((feature) => feature.name), [
+    "Destructive Protection",
+    "Code Protection",
+    "Private Data Protection",
+    "Secret Protection",
+    "Prompt Injection Protection",
+    "Tool Protection",
+    "Rules Protection",
+    "Token Saver",
+  ]);
+  assert.equal(canonicalPresentations.some((feature) => /^Leash\b/.test(feature.name)), false);
   if (mobilePresentations) {
     for (const feature of canonicalPresentations) {
       assert.match(mobilePresentations, new RegExp(escapeRegExp(feature.name)));
@@ -50,9 +61,9 @@ test("setup showcases Features without installation controls", () => {
   assert.match(renderer, /\.setupFeatureGrid\s*\{[\s\S]*?grid-template-columns: repeat\(2, minmax\(0, 1fr\)\)/);
 });
 
-test("desktop groups built-in Features into plain-language Safety and Save money sections", () => {
+test("desktop groups built-in Features into plain-language Safety and Cost control sections", () => {
   assert.match(renderer, /\{ id: "protection", label: "Safety"/);
-  assert.match(renderer, /\{ id: "cost", label: "Save money"/);
+  assert.match(renderer, /\{ id: "cost", label: "Cost control"/);
   assert.doesNotMatch(renderer, /\{ id: "security", label: "Security"/);
 });
 
