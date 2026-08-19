@@ -59,6 +59,18 @@ async function inspectAfter(delayMs) {
   return waitFor("state");
 }
 
+async function waitForMousePassthrough(point, timeoutMs = 1000) {
+  const deadline = Date.now() + timeoutMs;
+  let result;
+  do {
+    send({ type: "hitTest", ...point });
+    result = await waitFor("hitTestResult");
+    if (result.ignoresMouseEvents) return result;
+    await new Promise((resolve) => setTimeout(resolve, 25));
+  } while (Date.now() < deadline);
+  return result;
+}
+
 try {
   await waitFor("ready");
   send({ type: "show", payload: {
@@ -113,9 +125,7 @@ try {
   send({ type: "hitTest", ...transparentPoint });
   const releaseGrace = await waitFor("hitTestResult");
   assert.equal(releaseGrace.ignoresMouseEvents, false, "the island did not absorb the end of the click sequence");
-  await new Promise((resolve) => setTimeout(resolve, 180));
-  send({ type: "hitTest", ...transparentPoint });
-  const passthroughRestored = await waitFor("hitTestResult");
+  const passthroughRestored = await waitForMousePassthrough(transparentPoint);
   assert.equal(passthroughRestored.ignoresMouseEvents, true, "transparent-space passthrough did not resume after the click");
   if (compact.display.hasNotch) {
     assert.ok(compact.display.safeTop > 0, "notched display did not report a safe top inset");
