@@ -45,3 +45,12 @@ test("Cloud headers identify the signed-in person", () => {
   assert.match(html, /class="cloudAccountUser"/);
   assert.match(html, /\$\{notificationCenterHtml\(\)\}\$\{headerIdentityHtml\(\)\}/);
 });
+
+test("Business membership never turns Desktop into an organization admin console", () => {
+  assert.doesNotMatch(html, />Employees</);
+  assert.doesNotMatch(html, />Identity sync</);
+  assert.doesNotMatch(html, />Costs &amp; usage</);
+  assert.doesNotMatch(html, />Admin API keys</);
+  assert.doesNotMatch(html, />Organization policy</);
+  assert.doesNotMatch(html, />Billing administration</);
+});
