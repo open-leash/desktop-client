@@ -67,19 +67,30 @@ test("desktop groups built-in Features into plain-language Safety and Cost contr
   assert.doesNotMatch(renderer, /\{ id: "security", label: "Security"/);
 });
 
-test("desktop Overview mirrors the web dashboard activity and agent summary", () => {
+test("desktop Overview focuses on monitored activity and Agents owns enablement", () => {
   assert.match(renderer, /function overviewActivitySummary\(inventory\)/);
   assert.match(renderer, /function overviewActivitySnapshotHtml\(summary, inventory\)/);
-  assert.match(renderer, /What Leash handled/);
+  assert.match(renderer, /Actions monitored/);
   assert.match(renderer, /Threats blocked/);
-  assert.match(renderer, /Automatically approved/);
-  assert.match(renderer, /Manually approved/);
+  assert.match(renderer, /Passed safely/);
+  assert.match(renderer, /Approved by you/);
+  assert.doesNotMatch(renderer, /Automatically approved/);
   assert.match(renderer, /Threats and sensitive actions/);
   assert.match(renderer, /Agents by kind/);
+  assert.match(renderer, /\{ view: "agents", label: "Agents" \}/);
   assert.match(renderer, /class="card overviewAgentsHead"/);
   assert.match(renderer, /function overviewDeviceHtml\(\)/);
+  assert.match(renderer, /<img src="devices\/\$\{device\.image\}"/);
   assert.match(renderer, /Synced \$\{escapeHtml\(synced\)\}/);
   assert.match(renderer, /agent \? agentIcon\(agent\)/);
+  const overview = renderer.slice(renderer.indexOf("function renderOverview()"), renderer.indexOf("function cloudTrialBannerHtml()"));
+  assert.doesNotMatch(overview, /overviewAgentGrid|data-overview-agent/);
+  const agents = renderer.slice(renderer.indexOf("function renderAgents()"), renderer.indexOf("function renderUsage()"));
+  assert.match(agents, /overviewAgentGrid/);
+  assert.match(agents, /bindAgentMonitoringSwitches\(renderAgents\)/);
+  assert.match(renderer, /id="backOverview">Agents<\/button>/);
+  assert.match(copyAssets, /copyDeviceImages\(\)/);
+  assert.match(copyAssets, /windows-desktop\.png/);
 });
 
 test("setup explains Features in consumer language", () => {

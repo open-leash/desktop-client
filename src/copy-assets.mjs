@@ -39,6 +39,7 @@ await fs.copyFile(path.join("src", "question.mp3"), path.join("dist", "question.
 await fs.copyFile(path.join("..", "..", "node_modules", "lottie-web", "build", "player", "lottie.min.js"), path.join("dist", "lottie.min.js"));
 await copyIntroVideo();
 await copyWelcomeAgentIcons();
+await copyDeviceImages();
 await fs.mkdir(path.join("dist", "agent-icons"), { recursive: true });
 
 async function copyWorkspaceRuntimeDependencies() {
@@ -159,4 +160,28 @@ async function assertWelcomeAgentIcons() {
     "windsurf.svg"
   ];
   await Promise.all(required.map((file) => fs.access(path.join("dist", "agents", file))));
+}
+
+async function copyDeviceImages() {
+  const candidates = [
+    path.join("src", "devices"),
+    path.join("..", "main-web", "public", "devices"),
+    path.join("..", "..", "assets", "devices")
+  ];
+  for (const candidate of candidates) {
+    try {
+      await fs.rm(path.join("dist", "devices"), { recursive: true, force: true });
+      await fs.cp(candidate, path.join("dist", "devices"), { recursive: true });
+      await Promise.all([
+        "macbook.png",
+        "windows-desktop.png",
+        "iphone.png",
+        "android.png"
+      ].map((file) => fs.access(path.join("dist", "devices", file))));
+      return;
+    } catch {
+      // Try the next shared device-art location.
+    }
+  }
+  throw new Error("Desktop device artwork is missing; packaging requires Mac, Windows, iPhone, and Android images.");
 }

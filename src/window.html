@@ -2767,7 +2767,7 @@
       .overviewAgentsHead p { margin-top: 4px; font-size: 13px; }
       .overviewDevice {
         display: grid;
-        grid-template-columns: 42px minmax(0, 1fr) auto;
+        grid-template-columns: 64px minmax(0, 1fr) auto;
         align-items: center;
         gap: 10px;
         min-width: 270px;
@@ -2777,15 +2777,12 @@
         background: #fff;
       }
       .overviewDeviceArt {
-        width: 42px;
-        height: 42px;
+        width: 64px;
+        height: 48px;
         display: grid;
         place-items: center;
-        border-radius: 12px;
-        background: #eaf6f2;
-        color: #138269;
       }
-      .overviewDeviceArt svg { width: 27px; height: 27px; fill: none; stroke: currentColor; stroke-width: 1.7; }
+      .overviewDeviceArt img { width: 100%; height: 100%; object-fit: contain; }
       .overviewDevice strong,
       .overviewDevice small { display: block; }
       .overviewDevice small { margin-top: 2px; color: var(--muted); font-size: 10px; }
@@ -4762,7 +4759,8 @@
 
       function renderNavigation() {
         const primaryItems = [
-          { view: "overview", label: "Overview" }
+          { view: "overview", label: "Overview" },
+          { view: "agents", label: "Agents" }
         ];
         const secondaryItems = [
           { view: "history", label: "History" },
@@ -4995,14 +4993,14 @@
           <section class="overviewActivitySnapshot" aria-label="Activity in the last ${summary.rangeDays} days">
             <div class="overviewSnapshotHead">
               <span class="overviewKicker">Last ${summary.rangeDays} days</span>
-              <h2>What Leash handled</h2>
-              <p>${summary.totals.checked.toLocaleString()} agent actions checked across your connected tools.</p>
+              <h2>Actions monitored</h2>
+              <p>Leash evaluated ${summary.totals.checked.toLocaleString()} agent actions across your connected tools.</p>
             </div>
             <div class="overviewOutcomeMetrics">
               ${overviewMetricHtml("blocked", summary.totals.blocked, "Threats blocked", "Stopped before continuing", shieldIcon)}
-              ${overviewMetricHtml("automatic", summary.totals.automaticallyApproved, "Automatically approved", "No response needed", boltIcon)}
-              ${overviewMetricHtml("manual", summary.totals.manuallyApproved, "Manually approved", "Approved by you", personIcon)}
-              ${overviewMetricHtml("waiting", summary.totals.waiting, "Waiting", "Needs a decision", bellIcon)}
+              ${overviewMetricHtml("automatic", summary.totals.automaticallyApproved, "Passed safely", "Continued without interruption", boltIcon)}
+              ${overviewMetricHtml("manual", summary.totals.manuallyApproved, "Approved by you", "Allowed after your review", personIcon)}
+              ${overviewMetricHtml("waiting", summary.totals.waiting, "Waiting for you", "Needs a decision", bellIcon)}
             </div>
             <div class="overviewSnapshotDetails">
               <section class="overviewThreatSummary">
@@ -5013,8 +5011,8 @@
                     <div class="overviewThreatBar" aria-hidden="true"><span style="width:${Math.max(7, (threat.total / maxThreatCount) * 100)}%"></span></div>
                     <div class="overviewThreatResults">
                       ${threat.blocked ? `<span class="blocked">${threat.blocked} blocked</span>` : ""}
-                      ${threat.automaticallyApproved ? `<span class="automatic">${threat.automaticallyApproved} automatic</span>` : ""}
-                      ${threat.manuallyApproved ? `<span class="manual">${threat.manuallyApproved} manual</span>` : ""}
+                      ${threat.automaticallyApproved ? `<span class="automatic">${threat.automaticallyApproved} passed</span>` : ""}
+                      ${threat.manuallyApproved ? `<span class="manual">${threat.manuallyApproved} approved</span>` : ""}
                     </div>
                   </div>
                 `).join("")}</div>` : `<div class="overviewSnapshotEmpty"><strong>No threats recorded</strong><span>Leash will group them here when a safety rule triggers.</span></div>`}
@@ -5033,14 +5031,20 @@
 
       function overviewDeviceHtml() {
         const platform = String(navigator.platform || navigator.userAgent || "").toLowerCase();
-        const label = platform.includes("win") ? "This Windows PC" : platform.includes("mac") ? "This Mac" : "This computer";
+        const device = platform.includes("iphone") || /\bios\b/.test(platform)
+          ? { label: "This iPhone", image: "iphone.png" }
+          : platform.includes("android")
+            ? { label: "This Android phone", image: "android.png" }
+            : platform.includes("win")
+              ? { label: "This Windows PC", image: "windows-desktop.png" }
+              : { label: "This MacBook", image: "macbook.png" };
         const recent = (state.agents || []).map((agent) => Date.parse(agent.last_seen_at || agent.activity_at || "")).filter(Number.isFinite).sort((a, b) => b - a)[0];
         const ageSeconds = recent ? Math.max(0, Math.floor((Date.now() - recent) / 1000)) : 0;
         const synced = ageSeconds < 60 ? "just now" : ageSeconds < 3600 ? `${Math.floor(ageSeconds / 60)}m ago` : ageSeconds < 86400 ? `${Math.floor(ageSeconds / 3600)}h ago` : `${Math.floor(ageSeconds / 86400)}d ago`;
         return `
           <div class="overviewDevice">
-            <span class="overviewDeviceArt" aria-hidden="true"><svg viewBox="0 0 32 32"><rect x="6" y="5" width="20" height="15" rx="2"/><path d="M3 24h26l-2 3H5l-2-3Z"/></svg></span>
-            <span><strong>${label}</strong><small>Leash Desktop</small></span>
+            <span class="overviewDeviceArt" aria-hidden="true"><img src="devices/${device.image}" alt=""></span>
+            <span><strong>${device.label}</strong><small>Leash Desktop</small></span>
             <span class="overviewDeviceSync">Synced ${escapeHtml(synced)}</span>
           </div>
         `;
@@ -5057,38 +5061,8 @@
           </div>
           ${cloudTrialBannerHtml()}
           ${overviewActivitySnapshotHtml(activitySummary, inventory)}
-          <section class="card overviewAgentsHead">
-            <div><h2>Your agents</h2><p>See which AI agents are protected and open one to review its history.</p></div>
-            ${overviewDeviceHtml()}
-          </section>
-          <div class="overviewAgentGrid">
-            ${inventory.map((agent) => {
-              const unreadCount = unread.filter((item) => historyAgentKind(item) === agent.kind).length;
-              return `
-              <article data-overview-agent-card="${escapeHtml(agent.kind)}" class="card overviewAgentTile ${agent.installed ? agent.protected ? "protected" : "" : "missing"}">
-                ${unreadCount ? `<b class="agentUnreadBadge" aria-label="${unreadCount} new notifications">${unreadCount}</b>` : ""}
-                <span class="agentIcon ${agent.installed ? "" : "muted"}">${agentIcon(agent)}</span>
-                <span>
-                  <strong>${escapeHtml(agent.displayName)}</strong>
-                  <small>${escapeHtml(agent.detail)}</small>
-                </span>
-                ${agent.installed && agent.supportsInstall !== false ? `<span class="switch overviewAgentSwitch"><input data-overview-agent="${escapeHtml(agent.kind)}" type="checkbox" ${agent.desiredMonitored ? "checked" : ""}><span></span></span>` : ""}
-              </article>
-            `}).join("")}
-          </div>
         `;
         bindNotificationCenter();
-        root.querySelectorAll("[data-overview-agent-card]").forEach((card) => {
-          card.onclick = (event) => {
-            if (event.target.closest("[data-overview-agent]")) return;
-            selectedAgentHistoryKind = card.dataset.overviewAgentCard || "";
-            view = "agent-history";
-            notificationMenuOpen = false;
-            renderView();
-            void loadHistoryPage(1, selectedAgentHistoryKind, true);
-          };
-        });
-        bindOverviewAgentSwitches();
       }
 
       function cloudTrialBannerHtml() {
@@ -5109,7 +5083,7 @@
         return Number.isFinite(date.getTime()) ? date.toLocaleDateString(undefined, { month: "long", day: "numeric", year: "numeric" }) : "soon";
       }
 
-      function bindOverviewAgentSwitches() {
+      function bindAgentMonitoringSwitches(rerender) {
         root.querySelectorAll("[data-overview-agent]").forEach((input) => {
           input.onchange = async () => {
             const next = Boolean(input.checked);
@@ -5122,7 +5096,7 @@
               state.localProtections = result.localProtections;
             }
             input.disabled = false;
-            renderOverview();
+            rerender();
           };
         });
       }
@@ -5215,7 +5189,7 @@
         root.innerHTML = `
           <div class="head">
             <div><h1>${escapeHtml(agent?.displayName || "AI agent")}</h1><p>${unreadCount ? `${unreadCount} new ${unreadCount === 1 ? "update" : "updates"}.` : "Everything Leash checked for this agent."}</p></div>
-            <div class="headActions">${notificationCenterHtml()}<button type="button" class="secondary" id="backOverview">Overview</button></div>
+            <div class="headActions">${notificationCenterHtml()}<button type="button" class="secondary" id="backOverview">Agents</button></div>
           </div>
           <div class="history">
             ${historyItems.map(historyCardHtml).join("") || `<div class="empty">No history from this agent yet.</div>`}
@@ -5225,7 +5199,7 @@
         `;
         document.getElementById("backOverview").onclick = () => {
           notificationMenuOpen = false;
-          view = "overview";
+          view = "agents";
           renderView();
         };
         root.querySelectorAll("[data-event]").forEach((row) => {
@@ -6299,11 +6273,31 @@
       function renderAgents() {
         const agents = state.agents || [];
         const metrics = state.sessionMetrics || {};
+        const inventory = overviewAgentInventory();
+        const unread = unreadHistoryItems();
         root.innerHTML = `
           <div class="head">
-            <div><h1>Agents</h1><p>Software, sessions, MCP usage, and recent agent work.</p></div>
-            <span class="tag good">${agents.length} tracked</span>
+            <div><h1>Agents</h1><p>Choose which AI agents Leash monitors and review their recent work.</p></div>
+            <div class="headActions">${notificationCenterHtml()}${headerIdentityHtml()}</div>
           </div>
+          <section class="card overviewAgentsHead">
+            <div><h2>Your agents</h2><p>Open an agent to review its history, or switch monitoring on and off.</p></div>
+            ${overviewDeviceHtml()}
+          </section>
+          <div class="overviewAgentGrid">
+            ${inventory.map((agent) => {
+              const unreadCount = unread.filter((item) => historyAgentKind(item) === agent.kind).length;
+              return `
+                <article data-overview-agent-card="${escapeHtml(agent.kind)}" class="card overviewAgentTile ${agent.installed ? agent.protected ? "protected" : "" : "missing"}">
+                  ${unreadCount ? `<b class="agentUnreadBadge" aria-label="${unreadCount} new notifications">${unreadCount}</b>` : ""}
+                  <span class="agentIcon ${agent.installed ? "" : "muted"}">${agentIcon(agent)}</span>
+                  <span><strong>${escapeHtml(agent.displayName)}</strong><small>${escapeHtml(agent.detail)}</small></span>
+                  ${agent.installed && agent.supportsInstall !== false ? `<span class="switch overviewAgentSwitch"><input data-overview-agent="${escapeHtml(agent.kind)}" type="checkbox" ${agent.desiredMonitored ? "checked" : ""}><span></span></span>` : ""}
+                </article>
+              `;
+            }).join("")}
+          </div>
+          <div class="subhead"><h2>Recent agent work</h2><p>Sessions, MCP usage, and activity reported by your installed agents.</p></div>
           <div class="sessionStats">
             ${sessionStat("Today", metrics.today)}
             ${sessionStat("24 hours", metrics.last24h)}
@@ -6345,6 +6339,18 @@
             }).join("") || `<div class="card empty">No agents have reported sessions yet.</div>`}
           </div>
         `;
+        bindNotificationCenter();
+        root.querySelectorAll("[data-overview-agent-card]").forEach((card) => {
+          card.onclick = (event) => {
+            if (event.target.closest("[data-overview-agent]")) return;
+            selectedAgentHistoryKind = card.dataset.overviewAgentCard || "";
+            view = "agent-history";
+            notificationMenuOpen = false;
+            renderView();
+            void loadHistoryPage(1, selectedAgentHistoryKind, true);
+          };
+        });
+        bindAgentMonitoringSwitches(renderAgents);
         root.querySelectorAll("[data-session]").forEach((row) => {
           row.onclick = () => {
             selectedAgentSessionId = row.dataset.session;
