@@ -176,6 +176,8 @@ class _LeashHomeState extends State<LeashHome> {
   String? _pendingExchangeRedirectUri;
   Map<String, dynamic>? _bootstrap;
   Map<String, dynamic>? _state;
+  Map<String, dynamic>? _billing;
+  bool _trialEndedNotified = false;
   final Set<String> _notifiedApprovalIds = {};
   final Set<String> _notifiedAttentionIds = {};
   bool _loadedAttentionOnce = false;
@@ -254,6 +256,7 @@ class _LeashHomeState extends State<LeashHome> {
       }
       await _registerDevice();
       await _refreshState(showNotifications: true);
+      await _refreshBilling(showNotification: true);
       _startPolling();
       _startLiveEvents();
     }
@@ -445,6 +448,7 @@ class _LeashHomeState extends State<LeashHome> {
       await _save();
       await _registerDevice();
       await _refreshState(showNotifications: true);
+      await _refreshBilling(showNotification: true);
       _startPolling();
       _startLiveEvents();
     } catch (error) {
@@ -477,10 +481,10 @@ class _LeashHomeState extends State<LeashHome> {
 
   void _startPolling() {
     _poller?.cancel();
-    _poller = Timer.periodic(
-      const Duration(seconds: 15),
-      (_) => _refreshState(showNotifications: true),
-    );
+    _poller = Timer.periodic(const Duration(seconds: 15), (_) {
+      unawaited(_refreshState(showNotifications: true));
+      unawaited(_refreshBilling(showNotification: true));
+    });
   }
 
   void _startLiveEvents() {
@@ -569,6 +573,36 @@ class _LeashHomeState extends State<LeashHome> {
     }
   }
 
+  Future<void> _refreshBilling({bool showNotification = false}) async {
+    if (!_signedIn || _customApi) return;
+    try {
+      final response = await http.get(
+        Uri.parse('$_apiUrl/auth/account/billing'),
+        headers: {'authorization': 'Bearer $_token'},
+      );
+      if (response.statusCode >= 400) return;
+      final data = jsonDecode(response.body) as Map<String, dynamic>;
+      setStateSafe(() => _billing = data);
+      final trial = data['trial'];
+      if (showNotification &&
+          data['upgradeRequired'] == true &&
+          trial is Map &&
+          trial['expired'] == true &&
+          !_trialEndedNotified) {
+        _trialEndedNotified = true;
+        await widget.notifications.showAttention({
+          'id': 'leash-cloud-trial-ended',
+          'kind': 'trial_ended',
+          'title': 'Your Leash Cloud trial ended',
+          'body': 'Upgrade to keep Leash AI protection active.',
+          'state': 'waiting',
+        }, null);
+      }
+    } catch (_) {
+      // Billing status is supplementary; approvals keep refreshing.
+    }
+  }
+
   Future<void> _loadOlderHistory() async {
     if (_historyLoading || !_historyHasMore) return;
     setStateSafe(() {
@@ -593,7 +627,9 @@ class _LeashHomeState extends State<LeashHome> {
             .map((item) => item['id']?.toString())
             .whereType<String>()
             .toSet();
-        _historyItems.addAll(next.where((item) => ids.add(item['id']?.toString() ?? '')));
+        _historyItems.addAll(
+          next.where((item) => ids.add(item['id']?.toString() ?? '')),
+        );
         _historyPage = nextPage;
         _historyHasMore = (data['pagination'] as Map?)?['hasMore'] == true;
         _historyVisibleCount = _historyItems.length;
@@ -768,6 +804,8 @@ class _LeashHomeState extends State<LeashHome> {
     _stopLiveEvents();
     _token = null;
     _state = null;
+    _billing = null;
+    _trialEndedNotified = false;
     await _save();
     setStateSafe(() {});
   }
@@ -965,6 +1003,7 @@ class _LeashHomeState extends State<LeashHome> {
                   children: [
                     _LogoHeader(
                       signedIn: _signedIn,
+                      trialLabel: _trialSettingsLabel(),
                       notificationSounds: _notificationSounds,
                       onNotificationSoundsChanged: _setNotificationSounds,
                       onSignOut: _signOut,
@@ -975,6 +1014,8 @@ class _LeashHomeState extends State<LeashHome> {
                     ),
                     SizedBox(height: _signedIn ? 20 : 18),
                     if (_error != null) _ErrorBanner(message: _error!),
+                    if (_signedIn && _billing?['trial'] is Map)
+                      _CloudTrialCard(billing: _billing!),
                     if (_busy) const LinearProgressIndicator(minHeight: 3),
                     if (!_signedIn) ..._wizard() else ..._approvalHome(),
                   ],
@@ -985,6 +1026,18 @@ class _LeashHomeState extends State<LeashHome> {
         ),
       ),
     );
+  }
+
+  String? _trialSettingsLabel() {
+    final trial = _billing?['trial'];
+    if (trial is! Map) return null;
+    if (_billing?['upgradeRequired'] == true) {
+      return 'Cloud trial ended — upgrade required';
+    }
+    if (trial['active'] == true) {
+      return 'Cloud trial: ${trial['daysRemaining']} days left';
+    }
+    return null;
   }
 
   List<Widget> _wizard() {
@@ -1317,10 +1370,13 @@ class _LeashHomeState extends State<LeashHome> {
                 ],
               ),
       ),
-      if (_historyHasMore || allVisibleHistory.length > visibleHistory.length) ...[
+      if (_historyHasMore ||
+          allVisibleHistory.length > visibleHistory.length) ...[
         const SizedBox(height: 10),
         _SecondaryButton(
-          label: _historyLoading ? 'Loading older history' : 'Load older history',
+          label: _historyLoading
+              ? 'Loading older history'
+              : 'Load older history',
           onPressed: _historyLoading
               ? null
               : allVisibleHistory.length > visibleHistory.length
@@ -1386,7 +1442,7 @@ class _PluginHomeSection extends StatelessWidget {
       children: [
         Row(
           children: [
-            const Expanded(child: _SectionTitle('Features')),
+            const Expanded(child: _SectionTitle('Safety and savings')),
             OutlinedButton.icon(
               onPressed: onAddPlugins,
               icon: const Icon(Icons.add_rounded, size: 18),
@@ -1398,7 +1454,7 @@ class _PluginHomeSection extends StatelessWidget {
         _Panel(
           child: plugins.isEmpty
               ? const Text(
-                  'No Features are enabled yet.',
+                  'Leash safety checks are not available yet.',
                   style: TextStyle(
                     color: _OlTheme.dim,
                     fontWeight: FontWeight.w700,
@@ -1507,7 +1563,7 @@ class _PluginRow extends StatelessWidget {
                   ),
                   const SizedBox(height: 3),
                   Text(
-                    '$outcomeCount outcomes',
+                    '$outcomeCount times checked',
                     style: const TextStyle(
                       color: _OlTheme.dim,
                       fontWeight: FontWeight.w700,
@@ -1559,7 +1615,7 @@ class _PluginMarketplacePageState extends State<_PluginMarketplacePage> {
     return Scaffold(
       backgroundColor: _OlTheme.bg,
       appBar: AppBar(
-        title: const Text('Available Features'),
+        title: const Text('More from Leash'),
         backgroundColor: _OlTheme.bg,
         foregroundColor: _OlTheme.ink,
         elevation: 0,
@@ -1571,7 +1627,7 @@ class _PluginMarketplacePageState extends State<_PluginMarketplacePage> {
             TextField(
               decoration: InputDecoration(
                 prefixIcon: const Icon(Icons.search_rounded),
-                hintText: 'Search Features',
+                hintText: 'Search safety and savings',
                 filled: true,
                 fillColor: _OlTheme.surface,
                 border: OutlineInputBorder(
@@ -1602,7 +1658,7 @@ class _PluginMarketplacePageState extends State<_PluginMarketplacePage> {
             if (plugins.isEmpty)
               const _Panel(
                 child: Text(
-                  'No Features match this search.',
+                  'Nothing matches this search.',
                   style: TextStyle(
                     color: _OlTheme.dim,
                     fontWeight: FontWeight.w700,
@@ -1736,7 +1792,7 @@ class _PluginDetailPageState extends State<_PluginDetailPage> {
                       final remove = await showDialog<bool>(
                         context: context,
                         builder: (context) => AlertDialog(
-                          title: const Text('Turn off Feature?'),
+                          title: const Text('Turn this off?'),
                           content: Text(
                             'Turn off ${_pluginName(widget.plugin)} for this account?',
                           ),
@@ -1796,7 +1852,10 @@ class _PluginDetailPageState extends State<_PluginDetailPage> {
             const SizedBox(height: 16),
             SegmentedButton<String>(
               segments: [
-                const ButtonSegment(value: 'insights', label: Text('Insights')),
+                const ButtonSegment(
+                  value: 'insights',
+                  label: Text('At a glance'),
+                ),
                 ButtonSegment(
                   value: 'outcomes',
                   label: Text('History ${widget.outcomes.length}'),
@@ -1857,7 +1916,7 @@ class _PluginInsightsPanel extends StatelessWidget {
           Expanded(
             child: _DashboardMetric(
               value: '${outcomes.length}',
-              label: 'outcomes',
+              label: 'times checked',
             ),
           ),
           const SizedBox(width: 10),
@@ -1884,7 +1943,7 @@ class _PluginOutcomesPanel extends StatelessWidget {
     return _Panel(
       child: outcomes.isEmpty
           ? const Text(
-              'No outcomes reported yet.',
+              'Nothing has needed your attention yet.',
               style: TextStyle(
                 color: _OlTheme.dim,
                 fontWeight: FontWeight.w700,
@@ -1922,20 +1981,28 @@ class _PluginSettingsPanel extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final keys = _pluginSettingKeys(plugin, config);
+    final basicKeys = keys
+        .where((key) => !_isAdvancedOnlySetting(key))
+        .toList();
+    final advancedKeys = keys
+        .where(
+          (key) => _isAdvancedOnlySetting(key) || _hasAdvancedExactControl(key),
+        )
+        .toList();
     return _Panel(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          if (keys.isEmpty)
+          if (basicKeys.isEmpty)
             const Text(
-              'No setup required.',
+              'Leash handles this automatically. No setup is needed.',
               style: TextStyle(
                 color: _OlTheme.dim,
                 fontWeight: FontWeight.w700,
               ),
             )
           else
-            ...keys.map(
+            ...basicKeys.map(
               (key) => Padding(
                 padding: const EdgeInsets.only(bottom: 12),
                 child: _PluginSettingControl(
@@ -1946,6 +2013,33 @@ class _PluginSettingsPanel extends StatelessWidget {
                   onChanged: (value) => onChanged(key, value),
                 ),
               ),
+            ),
+          if (advancedKeys.isNotEmpty)
+            ExpansionTile(
+              tilePadding: EdgeInsets.zero,
+              childrenPadding: const EdgeInsets.only(top: 8),
+              title: const Text(
+                'Advanced settings',
+                style: TextStyle(fontWeight: FontWeight.w900),
+              ),
+              subtitle: const Text(
+                'Exact controls for people who want to tune how Leash works.',
+              ),
+              children: advancedKeys
+                  .map(
+                    (key) => Padding(
+                      padding: const EdgeInsets.only(bottom: 12),
+                      child: _PluginSettingControl(
+                        settingKey: key,
+                        label: _advancedSettingLabel(key),
+                        value: config[key],
+                        enabled: enabled,
+                        advanced: true,
+                        onChanged: (value) => onChanged(key, value),
+                      ),
+                    ),
+                  )
+                  .toList(),
             ),
           const SizedBox(height: 8),
           FilledButton(
@@ -1965,17 +2059,52 @@ class _PluginSettingControl extends StatelessWidget {
     required this.value,
     required this.enabled,
     required this.onChanged,
+    this.advanced = false,
   });
 
   final String settingKey;
   final String label;
   final dynamic value;
   final bool enabled;
+  final bool advanced;
   final ValueChanged<dynamic> onChanged;
 
   @override
   Widget build(BuildContext context) {
-    final hint = _pluginSettingHint(settingKey);
+    final hint = advanced
+        ? _advancedSettingHint(settingKey)
+        : _pluginSettingHint(settingKey);
+    final numberOptions = advanced
+        ? const <Map<String, Object>>[]
+        : _friendlyNumberOptions(settingKey);
+    if (numberOptions.isNotEmpty) {
+      final current = value is num ? value.toInt() : int.tryParse('$value');
+      final selected = numberOptions.any((option) => option['value'] == current)
+          ? current
+          : numberOptions.first['value'] as int;
+      return DropdownButtonFormField<int>(
+        initialValue: selected,
+        decoration: InputDecoration(
+          labelText: label,
+          helperText: hint.isEmpty ? null : hint,
+          helperMaxLines: 3,
+          border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+        ),
+        items: numberOptions
+            .map(
+              (option) => DropdownMenuItem<int>(
+                value: option['value'] as int,
+                child: Text(option['label'] as String),
+              ),
+            )
+            .toList(),
+        onChanged: enabled
+            ? (next) {
+                if (next != null) onChanged(next);
+              }
+            : null,
+      );
+    }
     if (settingKey == 'action' || settingKey.endsWith('Action')) {
       const options = ['allow', 'ask', 'block'];
       final selected = _normalizeProtectionAction(value);
@@ -1986,22 +2115,37 @@ class _PluginSettingControl extends StatelessWidget {
           Text(label, style: const TextStyle(fontWeight: FontWeight.w900)),
           const SizedBox(height: 3),
           const Text(
-            'Ignore records it, Ask me pauses for you, and Stop it blocks it automatically.',
-            style: TextStyle(color: _OlTheme.dim, fontSize: 12, fontWeight: FontWeight.w700),
+            'Let it continue records what happened. Ask me first pauses AI for your choice. Stop it blocks the action.',
+            style: TextStyle(
+              color: _OlTheme.dim,
+              fontSize: 12,
+              fontWeight: FontWeight.w700,
+            ),
           ),
           Slider(
             value: index.toDouble(),
             min: 0,
             max: 2,
             divisions: 2,
-            onChanged: enabled ? (next) => onChanged(options[next.round()]) : null,
+            onChanged: enabled
+                ? (next) => onChanged(options[next.round()])
+                : null,
           ),
           const Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text('Ignore', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800)),
-              Text('Ask me', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800)),
-              Text('Stop it', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800)),
+              Text(
+                'Let it continue',
+                style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800),
+              ),
+              Text(
+                'Ask me first',
+                style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800),
+              ),
+              Text(
+                'Stop it',
+                style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800),
+              ),
             ],
           ),
         ],
@@ -2034,19 +2178,91 @@ class _PluginSettingControl extends StatelessWidget {
         helperMaxLines: 2,
         border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
       ),
-      onChanged: onChanged,
+      onChanged: (next) {
+        if (value is int) {
+          onChanged(int.tryParse(next) ?? value);
+        } else if (value is double) {
+          onChanged(double.tryParse(next) ?? value);
+        } else {
+          onChanged(next);
+        }
+      },
     );
   }
 }
 
 String _pluginSettingHint(String key) {
-  if (key == 'suspiciousRiskThreshold') {
-    return 'Lower values warn you more often. Higher values warn only about stronger risks.';
+  if (key == 'action' || key.endsWith('Action')) {
+    return 'Choose whether AI continues, pauses for you, or is stopped.';
+  }
+  if (key == 'suspiciousRiskThreshold' || key == 'notificationRiskThreshold') {
+    return 'Balanced is recommended. Choose Warn me more if you prefer extra caution.';
+  }
+  if (key == 'minimumCodeCharacters') {
+    return 'Most code changes is recommended. Tiny snippets are less useful to check.';
   }
   if (key == 'redactSecrets') {
-    return 'Keeps private values out of the history shown in Leash.';
+    return 'Private values will not appear in the history you see in Leash.';
   }
   return '';
+}
+
+String _advancedSettingLabel(String key) {
+  const labels = <String, String>{
+    'model': 'Evaluation model override',
+    'minimumChars': 'Minimum conversation characters',
+    'protectRecent': 'Recent messages kept unchanged',
+    'ccrEnabled': 'Repeated-context reuse',
+    'ccrTtlSeconds': 'Repeated-context reuse time (seconds)',
+    'policySet': 'Evaluation policy set',
+    'notificationRiskThreshold': 'Exact warning score (0–100)',
+    'suspiciousRiskThreshold': 'Exact hidden-instruction score (0–100)',
+    'minimumCodeCharacters': 'Exact minimum code size (characters)',
+  };
+  return labels[key] ?? _settingLabel(key);
+}
+
+String _advancedSettingHint(String key) {
+  const hints = <String, String>{
+    'model': 'Leave blank to use the model selected by Leash.',
+    'minimumChars': 'Shorter conversations are left unchanged.',
+    'protectRecent': 'Number of recent messages Leash always keeps as written.',
+    'ccrEnabled': 'Reuse previously checked repeated text when possible.',
+    'ccrTtlSeconds': 'How long reused text remains valid.',
+    'policySet': 'Optional named rule set used by the evaluator.',
+    'notificationRiskThreshold':
+        'Lower scores create more warnings. Default: 70.',
+    'suspiciousRiskThreshold':
+        'Lower scores flag more hidden instructions. Default: 50.',
+    'minimumCodeCharacters':
+        'Code shorter than this is not checked. Default: 80.',
+  };
+  return hints[key] ?? '';
+}
+
+List<Map<String, Object>> _friendlyNumberOptions(String key) {
+  if (key == 'notificationRiskThreshold') {
+    return const [
+      {'value': 45, 'label': 'Warn me more'},
+      {'value': 70, 'label': 'Balanced'},
+      {'value': 85, 'label': 'Only strong warnings'},
+    ];
+  }
+  if (key == 'suspiciousRiskThreshold') {
+    return const [
+      {'value': 35, 'label': 'Warn me more'},
+      {'value': 50, 'label': 'Balanced'},
+      {'value': 70, 'label': 'Only strong warnings'},
+    ];
+  }
+  if (key == 'minimumCodeCharacters') {
+    return const [
+      {'value': 40, 'label': 'Every code change'},
+      {'value': 80, 'label': 'Most code changes'},
+      {'value': 250, 'label': 'Only larger changes'},
+    ];
+  }
+  return const [];
 }
 
 class _PluginIcon extends StatelessWidget {
@@ -2120,17 +2336,20 @@ int _comparePlugins(Map left, Map right) {
     order[_pluginCategory(right)] ?? 9,
   );
   if (categoryOrder != 0) return categoryOrder;
-  return _pluginName(left).toLowerCase().compareTo(
-    _pluginName(right).toLowerCase(),
-  );
+  return _pluginName(
+    left,
+  ).toLowerCase().compareTo(_pluginName(right).toLowerCase());
 }
 
 String _pluginName(Map plugin) {
   final compatibilityName = _pluginCompatibilityName(plugin);
   final canonicalName = leashFeaturePresentations[compatibilityName]?['name'];
   if (canonicalName != null) return canonicalName;
-  final supplied = plugin['displayName']?.toString() ?? plugin['name']?.toString();
-  if (supplied != null && supplied.trim().isNotEmpty && !supplied.contains('-')) {
+  final supplied =
+      plugin['displayName']?.toString() ?? plugin['name']?.toString();
+  if (supplied != null &&
+      supplied.trim().isNotEmpty &&
+      !supplied.contains('-')) {
     return supplied.trim();
   }
   return _readableFeatureName(compatibilityName);
@@ -2138,13 +2357,17 @@ String _pluginName(Map plugin) {
 
 String _pluginCompatibilityName(Map plugin) {
   final marketplace = plugin['marketplace'];
-  final raw = plugin['slug']?.toString() ??
+  final raw =
+      plugin['slug']?.toString() ??
       (marketplace is Map ? marketplace['slug']?.toString() : null) ??
       plugin['packageId']?.toString() ??
       plugin['id']?.toString().split('.').last ??
       plugin['name']?.toString() ??
       'feature';
-  final normalized = raw.replaceFirst(RegExp(r'^openleash[._-]'), '').trim().toLowerCase();
+  final normalized = raw
+      .replaceFirst(RegExp(r'^openleash[._-]'), '')
+      .trim()
+      .toLowerCase();
   const aliases = {
     'blast radius': 'blast-radius',
     'prompt-compression': 'token-saver',
@@ -2166,7 +2389,10 @@ String _readableFeatureName(String value) {
 }
 
 String _pluginDescription(Map plugin) {
-  final canonicalDescription = leashFeaturePresentations[_pluginCompatibilityName(plugin)]?['description'];
+  final canonicalDescription =
+      leashFeaturePresentations[_pluginCompatibilityName(
+        plugin,
+      )]?['description'];
   if (canonicalDescription != null) return canonicalDescription;
   final marketplace = plugin['marketplace'];
   return (marketplace is Map
@@ -2236,8 +2462,8 @@ String _pluginCategory(Map plugin) {
 }
 
 String _categoryLabel(String category) {
-  if (category == 'security') return 'Protections';
-  if (category == 'cost') return 'Costs';
+  if (category == 'security') return 'Safety';
+  if (category == 'cost') return 'Save money';
   if (category == 'observability') return 'Visibility';
   if (category == 'utility') return 'Other';
   return 'All';
@@ -2287,10 +2513,57 @@ List<String> _pluginSettingKeys(Map plugin, Map<String, dynamic> config) {
   return keys.toList()..sort();
 }
 
+const _advancedOnlySettingKeys = {
+  'model',
+  'minimumChars',
+  'protectRecent',
+  'ccrEnabled',
+  'ccrTtlSeconds',
+  'policySet',
+};
+
+const _advancedExactSettingKeys = {
+  'notificationRiskThreshold',
+  'suspiciousRiskThreshold',
+  'minimumCodeCharacters',
+};
+
+bool _isAdvancedOnlySetting(String key) =>
+    _advancedOnlySettingKeys.contains(key);
+
+bool _hasAdvancedExactControl(String key) =>
+    _advancedExactSettingKeys.contains(key);
+
 String _settingLabel(String value) {
-  if (value == 'allow') return 'Ignore';
-  if (value == 'ask') return 'Ask me';
-  if (value == 'block') return 'Stop it';
+  const labels = <String, String>{
+    'action': 'If AI tries to share private information',
+    'categories': 'What should Leash keep private?',
+    'destructiveAction': 'Deleting or destroying things',
+    'databaseMutationAction': 'Changing your database',
+    'broadFilesystemAction': 'Changing lots of files at once',
+    'secretFileAction': 'Opening password or sign-in files',
+    'envDumpAction': 'Showing saved passwords or access keys',
+    'exfiltrationAction': 'Sending private information somewhere else',
+    'suspiciousRiskThreshold': 'How cautious should Leash be?',
+    'notificationRiskThreshold': 'When should Leash warn you?',
+    'minimumCodeCharacters': 'Which code changes should Leash check?',
+    'redactSecrets': 'Hide private values in Leash history',
+    'rules': 'Your rules',
+    'level': 'How much should Leash save?',
+    'conciseResponse': 'Ask AI for shorter answers',
+    'pii': 'Personal information',
+    'phi': 'Health information',
+    'tokens': 'Sign-in codes',
+    'keys': 'Computer access keys',
+    'credentials': 'Passwords and sign-in details',
+    'allow': 'Let it continue',
+    'ask': 'Ask me first',
+    'block': 'Stop it',
+    'light': 'Save a little',
+    'standard': 'Balanced',
+    'maximum': 'Save the most',
+  };
+  if (labels.containsKey(value)) return labels[value]!;
   final spaced = value
       .replaceAll(RegExp(r'[_-]+'), ' ')
       .replaceAllMapped(
@@ -2313,19 +2586,28 @@ String _normalizeProtectionAction(dynamic value) {
 
 Map<String, dynamic> _pluginOutcomeHistoryItem(Map outcome) {
   final agent = outcome['agent'] is Map ? outcome['agent'] as Map : const {};
-  final context = outcome['context'] is Map ? outcome['context'] as Map : const {};
-  final subject = outcome['subject'] is Map ? outcome['subject'] as Map : const {};
-  final decision = '${outcome['decision'] ?? outcome['status'] ?? 'allow'}'.toLowerCase();
+  final context = outcome['context'] is Map
+      ? outcome['context'] as Map
+      : const {};
+  final subject = outcome['subject'] is Map
+      ? outcome['subject'] as Map
+      : const {};
+  final decision = '${outcome['decision'] ?? outcome['status'] ?? 'allow'}'
+      .toLowerCase();
   final resolution = RegExp(r'block|stop|deny').hasMatch(decision)
       ? 'deny'
       : RegExp(r'ask|question|review|waiting|pending').hasMatch(decision)
       ? 'ask'
       : 'allow';
-  final evidence = ((outcome['evidence'] as List?) ?? const []).whereType<Map>().toList();
+  final evidence = ((outcome['evidence'] as List?) ?? const [])
+      .whereType<Map>()
+      .toList();
   return {
     'id': outcome['id'],
     'summary': outcome['title'] ?? 'Leash checked an agent action',
-    'question': outcome['summary'] ?? 'Leash recorded this agent action so you can understand what happened.',
+    'question':
+        outcome['summary'] ??
+        'Leash recorded this agent action so you can understand what happened.',
     'resolution': resolution,
     'decision': resolution,
     'agent_name': agent['name'] ?? agent['kind'] ?? 'AI agent',
@@ -2334,11 +2616,15 @@ Map<String, dynamic> _pluginOutcomeHistoryItem(Map outcome) {
     'tool_name': context['toolName'] ?? '',
     'event_name': context['eventName'] ?? '',
     'created_at': outcome['occurredAt'] ?? outcome['createdAt'],
-    'triggered_policies': evidence.map((item) => {
-      'policy_name': item['label'] ?? 'What Leash noticed',
-      'explanation': item['value'] ?? 'Recorded',
-      'evidence': [item['value'] ?? 'Recorded'],
-    }).toList(),
+    'triggered_policies': evidence
+        .map(
+          (item) => {
+            'policy_name': item['label'] ?? 'What Leash noticed',
+            'explanation': item['value'] ?? 'Recorded',
+            'evidence': [item['value'] ?? 'Recorded'],
+          },
+        )
+        .toList(),
     'payload': {
       if (outcome['details'] is Map) ...(outcome['details'] as Map),
       'source': outcome['source'],
@@ -2610,6 +2896,66 @@ bool _supportsAgentGuidance(String? agentKind) {
   }.contains(agentKind);
 }
 
+class _CloudTrialCard extends StatelessWidget {
+  const _CloudTrialCard({required this.billing});
+
+  final Map<String, dynamic> billing;
+
+  @override
+  Widget build(BuildContext context) {
+    final trial = billing['trial'] as Map;
+    final expired = billing['upgradeRequired'] == true;
+    final days = trial['daysRemaining'] ?? 0;
+    return Container(
+      margin: const EdgeInsets.only(bottom: 14),
+      padding: const EdgeInsets.all(15),
+      decoration: BoxDecoration(
+        color: expired ? const Color(0xffffeeee) : const Color(0xfff1efff),
+        border: Border.all(
+          color: expired ? const Color(0xffef9aa5) : const Color(0xffc8bcff),
+        ),
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: Row(
+        children: [
+          Icon(
+            expired ? Icons.warning_amber_rounded : Icons.cloud_done_outlined,
+            color: expired ? const Color(0xffa21f2e) : _OlTheme.accent,
+          ),
+          const SizedBox(width: 11),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  expired
+                      ? 'Your Leash Cloud trial ended'
+                      : '$days days left in your Cloud trial',
+                  style: const TextStyle(fontWeight: FontWeight.w800),
+                ),
+                Text(
+                  expired
+                      ? 'Upgrade to keep Leash AI protection active.'
+                      : 'Leash AI is included during your trial.',
+                  style: const TextStyle(color: _OlTheme.dim),
+                ),
+              ],
+            ),
+          ),
+          if (expired)
+            TextButton(
+              onPressed: () => launchUrl(
+                Uri.parse('https://openleash.com/account'),
+                mode: LaunchMode.externalApplication,
+              ),
+              child: const Text('Upgrade'),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
 class ApprovalContextLine {
   const ApprovalContextLine({required this.role, required this.content});
 
@@ -2620,6 +2966,7 @@ class ApprovalContextLine {
 class _LogoHeader extends StatelessWidget {
   const _LogoHeader({
     required this.signedIn,
+    required this.trialLabel,
     required this.notificationSounds,
     required this.onNotificationSoundsChanged,
     required this.onSignOut,
@@ -2629,6 +2976,7 @@ class _LogoHeader extends StatelessWidget {
   });
 
   final bool signedIn;
+  final String? trialLabel;
   final bool notificationSounds;
   final ValueChanged<bool> onNotificationSoundsChanged;
   final VoidCallback onSignOut;
@@ -2677,6 +3025,22 @@ class _LogoHeader extends StatelessWidget {
               if (value == 'delete-account') onDeleteAccount();
             },
             itemBuilder: (context) => [
+              if (trialLabel != null)
+                PopupMenuItem(
+                  enabled: false,
+                  child: Row(
+                    children: [
+                      const Icon(Icons.cloud_outlined, size: 20),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Text(
+                          trialLabel!,
+                          style: const TextStyle(fontWeight: FontWeight.w700),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
               PopupMenuItem(
                 value: 'notification-sounds',
                 child: Row(
@@ -3953,10 +4317,11 @@ class _EventDetailPage extends StatelessWidget {
         _projectNameFromAny(item['project_name'] ?? item['projectName']) ??
         _projectNameFromAny(item['project_path'] ?? item['projectPath']) ??
         'No project';
-    final rawCreatedAt = item['created_at'] ??
-          item['createdAt'] ??
-          item['activity_at'] ??
-          item['activityAt'];
+    final rawCreatedAt =
+        item['created_at'] ??
+        item['createdAt'] ??
+        item['activity_at'] ??
+        item['activityAt'];
     final createdAt = _formatHistoryDateTime(rawCreatedAt);
     final relativeCreatedAt = _relativeTime(rawCreatedAt);
     final policies =

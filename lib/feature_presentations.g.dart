@@ -3,43 +3,43 @@
 
 const leashFeaturePresentations = <String, Map<String, String>>{
   'blast-radius': {
-    'name': 'Leash Destructive Protection',
+    'name': 'Leash Project Protection',
     'description':
-        'Stops agents before they delete files, damage databases, or break important systems.',
+        'Stops AI before it deletes files, damages your database, or breaks your project.',
   },
   'code-scanner': {
     'name': 'Leash Code Protection',
     'description':
-        'Reviews AI-generated code for security weaknesses before they become a problem.',
+        'Checks the code AI writes and warns you when it could make your app unsafe.',
   },
   'data-leakage-prevention': {
     'name': 'Leash Private Data Protection',
     'description':
-        'Keeps passwords, personal information, and other sensitive data from being shared by mistake.',
+        'Stops AI from accidentally sharing passwords, personal information, or private files.',
   },
   'sensitive-access': {
-    'name': 'Leash Secret Protection',
+    'name': 'Leash Password Protection',
     'description':
-        'Warns you when an agent tries to open passwords, private keys, or other secret files.',
+        'Asks before AI opens password files, sign-in details, or other private access information.',
   },
   'skill-scanner': {
-    'name': 'Leash Prompt Injection Protection',
+    'name': 'Leash Hidden Instructions Protection',
     'description':
-        'Checks agent instructions for hidden or suspicious behavior before it can spread.',
+        'Finds hidden instructions that try to make AI do something you did not ask it to do.',
   },
   'mcp-scanner': {
-    'name': 'Leash Tool Protection',
+    'name': 'Leash Connected Apps Protection',
     'description':
-        'Scans the outside tools and services your agents can use and shows what they do.',
+        'Shows which outside apps and tools AI can use and warns you when something changes.',
   },
   'rules-enforcer': {
-    'name': 'Leash Rules Protection',
+    'name': 'Leash Rules',
     'description':
-        'Makes agents follow the boundaries you choose and asks before they cross one.',
+        'Makes AI follow the project rules you choose and asks before it crosses one.',
   },
   'token-saver': {
-    'name': 'Leash Token Saver',
+    'name': 'Leash AI Cost Saver',
     'description':
-        'Reduces repeated context so agents use fewer paid AI tokens without losing important details.',
+        'Cuts repeated text so your AI bill is lower without removing the important parts.',
   },
 };
