@@ -149,6 +149,8 @@ try {
   assert.equal(socialFollow.layout.socialFollowVisible, true, "social follow step did not appear after installation confirmation");
   assert.equal(socialFollow.layout.socialCardCount, 2, "social follow step did not show both social destinations");
   assert.equal(socialFollow.layout.socialLogoCount, 2, "social follow cards did not render their official logos");
+  assert.equal(socialFollow.layout.socialHeading, "Stay protected and informed", "social follow step did not explain its safety value");
+  assert.equal(socialFollow.layout.socialDescription, "Follow Leash for security alerts, new protections and agent updates.", "social follow step did not describe the updates users will receive");
   send({ type: "clickSocialX" });
   const socialAction = await waitFor("action");
   assert.equal(socialAction.action, "island-command", "social follow card did not use the island command bridge");

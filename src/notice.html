@@ -915,8 +915,8 @@
           <div class="restart-error" id="restartError" hidden></div>
         </div>
         <div class="social-follow" id="socialFollow" hidden>
-          <h2>Help us improve</h2>
-          <p>Follow us on X and LinkedIn for product updates, tips, and new releases.</p>
+          <h2>Stay protected and informed</h2>
+          <p>Follow Leash for security alerts, new protections and agent updates.</p>
           <div class="social-options">
             <button type="button" class="social-card x" data-social="x" aria-label="Follow Leash on X">
               <span class="social-logo" aria-hidden="true">
@@ -1269,6 +1269,8 @@
           restartButtonVisible: Boolean(actions.querySelector('[data-action="restart-agents"]')),
           socialCardCount: socialFollow.querySelectorAll("[data-social]").length,
           socialLogoCount: socialFollow.querySelectorAll(".social-logo svg").length,
+          socialHeading: socialFollow.querySelector("h2")?.textContent ?? "",
+          socialDescription: socialFollow.querySelector("p")?.textContent ?? "",
           installNextVisible: Boolean(actions.querySelector('[data-action="install-next"]')),
           sessionCount: sessionList.querySelectorAll(".session-card").length,
           sessionSectionLabel: sessionSectionLabel.textContent,
@@ -1495,7 +1497,7 @@
         installSuccess.hidden = true;
         restartAgents.hidden = true;
         socialFollow.hidden = false;
-        title.textContent = "Help us improve";
+        title.textContent = "Stay protected and informed";
         actions.innerHTML = "";
         actions.className = "actions single";
         actions.append(button("Done", "primary", "dismiss"));
