@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Leash flow-viewer</title>
+    <link rel="icon" href="favicon.png" type="image/png" />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <header>
+      <div class="brand">
+        <img class="mark" src="favicon.png" alt="" />
+        <div>
+          <strong>flow-viewer</strong><small>local-proxy observability</small>
+        </div>
+      </div>
+      <div class="live">
+        <i></i><span id="connection">Live</span><span id="updated"></span>
+      </div>
+    </header>
+    <main>
+      <aside>
+        <div class="aside-title">Agents</div>
+        <button class="agent active" data-agent="all">
+          <span>All activity</span><b id="allCount">0</b>
+        </button>
+        <div id="agents"></div>
+        <div class="aside-title secondary">Origin</div>
+        <label class="check"
+          ><input type="checkbox" data-source value="local_proxy" checked /> 🛡️
+          local-proxy</label
+        >
+        <label class="check"
+          ><input type="checkbox" data-source value="api_hook" checked /> 🪝 API
+          hook</label
+        >
+        <label class="check"
+          ><input type="checkbox" data-source value="provider_puller" checked />
+          ☁️ Provider puller</label
+        >
+        <div class="aside-title secondary">Outcome</div>
+        <label class="check"
+          ><input type="checkbox" data-outcome value="allow" checked />
+          Allowed</label
+        >
+        <label class="check"
+          ><input type="checkbox" data-outcome value="ask" checked />
+          Approval</label
+        >
+        <label class="check"
+          ><input type="checkbox" data-outcome value="deny" checked />
+          Blocked</label
+        >
+        <label class="check"
+          ><input type="checkbox" data-outcome value="pending" checked /> In
+          progress</label
+        >
+      </aside>
+      <section class="workspace">
+        <div class="toolbar">
+          <div>
+            <h1>Agent traffic</h1>
+            <p>From interception to final policy outcome</p>
+          </div>
+          <div class="tools">
+            <input
+              id="search"
+              placeholder="Search prompts, tools, agents…"
+            /><button id="pause">Pause</button>
+            <button id="clear" class="danger">Clear</button>
+          </div>
+        </div>
+        <div class="stats" id="stats"></div>
+        <div class="content-grid">
+          <div class="conversations">
+            <div class="section-head">
+              <span>Conversations</span><small id="conversationCount"></small>
+            </div>
+            <div id="conversationList"></div>
+          </div>
+          <div class="details" id="details">
+            <div class="empty">
+              <div class="empty-icon">↗</div>
+              <h2>Select a conversation</h2>
+              <p>
+                Inspect messages, normalization, plugins, decisions, and
+                complete payloads.
+              </p>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+    <script type="module" src="app.js"></script>
+  </body>
+</html>
