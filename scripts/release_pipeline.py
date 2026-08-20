@@ -685,8 +685,12 @@ def prepare_component(component: Component, version: str, released: dict[str, di
         shared = released.get("shared") or current_release_identity(COMPONENTS["shared"])
         client = released.get("client-api") or current_release_identity(COMPONENTS["client-api"])
         pin_cloud_dependencies(shared, client)
+    elif component.key == "cloud-dashboard-api":
+        client = released.get("client-api") or current_release_identity(COMPONENTS["client-api"])
+        pin_dashboard_api_dependency(client)
     elif component.key == "cloud-dashboard-web":
-        run_command(("python3", "scripts/vendor-dashboard-web.py"), component.path)
+        shared = released.get("shared") or current_release_identity(COMPONENTS["shared"])
+        pin_dashboard_web_dependency(shared)
     elif component.key == "desktop-client" and "shared" in released:
         pin_desktop_shared(released["shared"]["version"])
     bump_component_version(component, version)
@@ -995,10 +999,8 @@ def pin_local_proxy(version: str, digest: str) -> dict[str, str]:
     return {"version": version, "container_digest": digest}
 
 
-def pin_shared_dependency(repo: Path, version: str, commit: str) -> None:
+def pin_shared_dependency(repo: Path, version: str, _commit: str) -> None:
     update_json_dependency(repo / "package.json", "@openleash/shared", version)
-    dockerfile = repo / "Dockerfile"
-    replace_regex(dockerfile, r"ARG OPENLEASH_SHARED_REF=[a-f0-9]{40}", f"ARG OPENLEASH_SHARED_REF={commit}")
 
 
 def pin_cloud_dependencies(shared: dict[str, str], client: dict[str, str]) -> None:
@@ -1006,10 +1008,32 @@ def pin_cloud_dependencies(shared: dict[str, str], client: dict[str, str]) -> No
     update_json_dependency(repo / "package.json", "@openleash/shared", shared["version"])
     update_json_dependency(repo / "package.json", "@openleash/client-api", client["version"])
     dockerfile = repo / "Dockerfile"
-    replace_regex(dockerfile, r"ARG OPENLEASH_SHARED_REF=[a-f0-9]{40}", f"ARG OPENLEASH_SHARED_REF={shared['commit']}")
-    replace_regex(dockerfile, r"ARG OPENLEASH_CLIENT_API_REF=[a-f0-9]{40}", f"ARG OPENLEASH_CLIENT_API_REF={client['commit']}")
-    replace_regex(dockerfile, r"value\.dependencies\['@openleash/shared'\]='[^']+'", f"value.dependencies['@openleash/shared']='{shared['version']}'")
-    replace_regex(dockerfile, r"value\.dependencies\['@openleash/client-api'\]='[^']+'", f"value.dependencies['@openleash/client-api']='{client['version']}'")
+    replace_regex(dockerfile, r"ARG OPENLEASH_CORE_REF=[a-f0-9]{40}", f"ARG OPENLEASH_CORE_REF={client['commit']}")
+
+
+def pin_dashboard_api_dependency(client: dict[str, str]) -> None:
+    repo = COMPONENTS["cloud-dashboard-api"].path
+    update_json_dependency(repo / "package.json", "@openleash/client-api", client["version"])
+    replace_regex(
+        repo / "Dockerfile",
+        r"ARG OPENLEASH_CORE_REF=[a-f0-9]{40}",
+        f"ARG OPENLEASH_CORE_REF={client['commit']}",
+    )
+
+
+def pin_dashboard_web_dependency(shared: dict[str, str]) -> None:
+    repo = COMPONENTS["cloud-dashboard-web"].path
+    for dockerfile in (repo / "Dockerfile", repo / "vendor/dashboard-web/Dockerfile"):
+        replace_regex(
+            dockerfile,
+            r"ARG OPENLEASH_CORE_REF=[a-f0-9]{40}",
+            f"ARG OPENLEASH_CORE_REF={shared['commit']}",
+        )
+    replace_regex(
+        repo / "Dockerfile",
+        r"value\.dependencies\['@openleash/shared'\]='[^']+'",
+        f"value.dependencies['@openleash/shared']='{shared['version']}'",
+    )
 
 
 def pin_desktop_shared(version: str) -> None:
