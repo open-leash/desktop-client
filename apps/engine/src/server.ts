@@ -5736,7 +5736,7 @@ app.post("/admin/deployment-tokens", async (req, res, next) => {
       req.body.tenantUrl ?? process.env.OPENLEASH_TENANT_URL ?? "openleash.com",
     ).trim();
     if (!tenantUrl) {
-      return res.status(400).json({ error: "A client API URL is required." });
+      return res.status(400).json({ error: "A Leash Engine URL is required." });
     }
     if (mode === "private") {
       try {
@@ -5744,7 +5744,7 @@ app.post("/admin/deployment-tokens", async (req, res, next) => {
         if (!["http:", "https:"].includes(parsedTenantUrl.protocol)) throw new Error("unsupported protocol");
       } catch {
         return res.status(400).json({
-          error: "Private Cloud enrollment requires the full reachable client API URL, including https://.",
+          error: "Private Cloud enrollment requires the full reachable Leash Engine URL, including https://.",
         });
       }
     }
@@ -13201,7 +13201,7 @@ export async function startOpenLeashApi(
   const surface = options.surface ?? apiSurface;
   const port = Number(options.port ?? process.env.OPENLEASH_API_PORT ?? 9318);
   return runningApp.listen(port, () => {
-    console.log(`Leash client API listening on http://localhost:${port}`);
+    console.log(`Leash Engine listening on http://localhost:${port}`);
   });
 }
 

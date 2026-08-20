@@ -4,11 +4,11 @@ import fs from "node:fs";
 const checks = [
   ["desktop installer", "scripts/install-openleash-personal.sh"],
   ["desktop packaging", "electron-builder.personal.yml"],
-  ["desktop package", "apps/desktop-client/package.json"],
-  ["client API image", "apps/client-api/Dockerfile"],
+  ["desktop package", "apps/desktop/package.json"],
+  ["Engine image", "apps/engine/Dockerfile"],
   ["personal open-source compose", "deploy/docker/individual-open-source.compose.yml"],
-  ["Feature registry", "apps/client-api/src/plugins/feature-runtime.ts"],
-  ["Feature runtime tests", "apps/client-api/src/plugins/feature-runtime.test.ts"],
+  ["Feature registry", "apps/engine/src/plugins/feature-runtime.ts"],
+  ["Feature runtime tests", "apps/engine/src/plugins/feature-runtime.test.ts"],
   ["deployment guide", "docs/DEPLOYMENT.md"],
   ["mode runner", "scripts/run-openleash.py"],
 ];
@@ -16,9 +16,9 @@ const checks = [
 const contentChecks = [
   ["installer supports Personal Open Source", "scripts/install-openleash-personal.sh", /--open-source/],
   ["runner supports Personal Open Source", "scripts/run-openleash.py", /individual-open-source/],
-  ["Features execute in process", "apps/client-api/src/plugins/feature-runtime.ts", /BUILTIN_FEATURE_HANDLERS/],
+  ["Features execute in process", "apps/engine/src/plugins/feature-runtime.ts", /BUILTIN_FEATURE_HANDLERS/],
   ["manifests declare built-in runtime", "packages/shared/src/index.ts", /runtime:\s*"builtin"/],
-  ["client API exposes its personal port", "apps/client-api/Dockerfile", /EXPOSE\s+9318(?:\s|$)/],
+  ["Engine exposes its personal port", "apps/engine/Dockerfile", /EXPOSE\s+9318(?:\s|$)/],
   ["personal compose excludes dashboards", "deploy/docker/individual-open-source.compose.yml", /services:/],
 ];
 
@@ -46,7 +46,7 @@ for (const [label, file, pattern] of forbidden) {
 }
 
 const rootPackage = JSON.parse(fs.readFileSync("package.json", "utf8"));
-const desktopPackage = JSON.parse(fs.readFileSync("apps/desktop-client/package.json", "utf8"));
+const desktopPackage = JSON.parse(fs.readFileSync("apps/desktop/package.json", "utf8"));
 if (rootPackage.version !== desktopPackage.version) failures.push("root and desktop versions differ");
 if (failures.length) {
   console.error("Deployment readiness failed:");

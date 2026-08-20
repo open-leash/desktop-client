@@ -19,30 +19,28 @@ from schema_tools import CLIENTS, client_target, env_value
 
 ROOT = Path(__file__).resolve().parent
 APP_REPOS = [
-    ROOT / "apps" / "client-api",
-    ROOT / "apps" / "desktop-client",
-    ROOT / "apps" / "docs-web",
+    ROOT,
     ROOT / "apps" / "flow-viewer",
     ROOT / "apps" / "local-proxy",
-    ROOT / "apps" / "main-web",
-    ROOT / "apps" / "mobile-client",
+    ROOT / "apps" / "provider-sync-worker",
+    ROOT / "apps" / "mobile",
     ROOT / "packages" / "shared",
 ]
 PRIVATE_REPOS: list[Path] = []
 PLUGIN_REPOS: list[Path] = []
 POSTGRES_MIGRATIONS = ROOT / "infra" / "postgres" / "migrations"
-CLIENT_API_POSTGRES_SCHEMA = ROOT / "apps" / "client-api" / "infra" / "postgres" / "schema.sql"
-CLIENT_API_POSTGRES_MIGRATIONS = ROOT / "apps" / "client-api" / "infra" / "postgres" / "migrations"
+CLIENT_API_POSTGRES_SCHEMA = ROOT / "apps" / "engine" / "infra" / "postgres" / "schema.sql"
+CLIENT_API_POSTGRES_MIGRATIONS = ROOT / "apps" / "engine" / "infra" / "postgres" / "migrations"
 POSTGRES_SCHEMA = CLIENT_API_POSTGRES_SCHEMA
 RELEASE_NOTES = ROOT / "release-notes"
 
 APP_TO_SNAPSHOT = {
-    "apps/client-api": ["client-api"],
-    "apps/desktop-client": ["desktop-client"],
-    "apps/mobile-client": [],
+    "apps/engine": ["client-api"],
+    "apps/desktop": ["desktop-client"],
+    "apps/mobile": [],
 }
 POSTGRES_APPS = {
-    "apps/client-api",
+    "apps/engine",
 }
 PRODUCTION_MOBILE_API_URL = os.environ.get("OPENLEASH_RELEASE_MOBILE_API_URL", "https://api.openleash.com")
 DEFAULT_DESKTOP_DOWNLOAD_HOST = os.environ.get("OPENLEASH_DESKTOP_DOWNLOAD_HOST", "github").lower()
@@ -96,7 +94,7 @@ class ReleaseItem:
 
 
 APP_PROFILES = {
-    "apps/client-api": AppProfile(
+    "apps/engine": AppProfile(
         "Client API",
         "Postgres via deployment migration job",
         (
@@ -108,7 +106,7 @@ APP_PROFILES = {
         builds=(("npm", "run", "build", "-w", "@openleash/client-api"),),
         postgres=True,
     ),
-    "apps/desktop-client": AppProfile(
+    "apps/desktop": AppProfile(
         "Desktop Client",
         "Backend-required desktop client; local storage is cache/setup state only",
         (
@@ -146,7 +144,7 @@ APP_PROFILES = {
         tests=(("npm", "run", "typecheck", "-w", "@openleash/main-web"),),
         builds=(("npm", "run", "build", "-w", "@openleash/main-web"),),
     ),
-    "apps/mobile-client": AppProfile(
+    "apps/mobile": AppProfile(
         "Mobile Client",
         "No durable local DB schema yet; uses secure storage/cache and client-api",
         (
@@ -168,12 +166,11 @@ APP_PROFILES = {
 
 def main() -> int:
     arguments = sys.argv[1:]
-    if "--production" in arguments or "--resume" in arguments or not arguments:
+    if "--legacy" not in arguments:
         from scripts.release_pipeline import main as production_release_main
 
         return production_release_main([argument for argument in arguments if argument != "--production"])
-    if "--legacy" in arguments:
-        sys.argv = [sys.argv[0], *[argument for argument in arguments if argument != "--legacy"]]
+    sys.argv = [sys.argv[0], *[argument for argument in arguments if argument != "--legacy"]]
     parser = argparse.ArgumentParser(description="Interactive/app-aware Leash release conductor.")
     parser.add_argument("--version", help="Use this version for every selected app.")
     parser.add_argument("--app", action="append", default=[], help="Select app and optional version, e.g. desktop-client=0.36.0. Repeatable.")
@@ -311,7 +308,7 @@ def build_release_plan(args: argparse.Namespace, states: list[RepoState]) -> lis
 
 
 def align_release_plan_with_product(args: argparse.Namespace, items: list[ReleaseItem], states: list[RepoState]) -> list[ReleaseItem]:
-    if not any(item.state.name == "apps/desktop-client" for item in items):
+    if not any(item.state.name == "apps/desktop" for item in items):
         return items
     if any(item.state.name == "apps/main-web" for item in items):
         return items
@@ -373,7 +370,7 @@ def print_release_plan(items: list[ReleaseItem], do_commit: bool, do_push: bool,
         profile = profile_for(item)
         print(f"  - {item.state.name}: {current_version_label(item.state)} -> {item.version} ({item.tag})")
         print(f"    DB: {profile.persistence}")
-        if item.state.name == "apps/desktop-client":
+        if item.state.name == "apps/desktop":
             print(f"    Desktop downloads: {desktop_download_host}")
         for note in profile.release_notes:
             print(f"    - {note}")
@@ -470,7 +467,7 @@ def is_local_postgres_target(target: str) -> bool:
 
 
 def run_product_preparers(args: argparse.Namespace, items: list[ReleaseItem]) -> None:
-    desktop = next((item for item in items if item.state.name == "apps/desktop-client"), None)
+    desktop = next((item for item in items if item.state.name == "apps/desktop"), None)
     if desktop:
         run_release_command(
             ReleaseCommand(
@@ -485,7 +482,7 @@ def test_commands_for(items: list[ReleaseItem], args: argparse.Namespace) -> lis
     commands: list[ReleaseCommand] = []
     if any(profile_for(item).postgres for item in items):
         commands.append(ReleaseCommand("postgres-upgrade-fixtures", ("node", "scripts/test-postgres-upgrades.mjs")))
-    if any(item.state.name == "apps/desktop-client" for item in items):
+    if any(item.state.name == "apps/desktop" for item in items):
         commands.append(ReleaseCommand(
             "desktop-release-dependencies",
             ("npm", "run", "verify:release-dependencies", "-w", "@openleash/desktop-client"),
@@ -523,7 +520,7 @@ def build_commands_for(items: list[ReleaseItem], args: argparse.Namespace) -> li
 def mobile_test_commands(args: argparse.Namespace) -> list[ReleaseCommand]:
     if not args.dry_run:
         require_tool_for_plan("flutter", "Flutter is required to release mobile-client.")
-    mobile_dir = ROOT / "apps" / "mobile-client"
+    mobile_dir = ROOT / "apps" / "mobile"
     return [
         ReleaseCommand("mobile-flutter-analyze", ("flutter", "analyze"), cwd=mobile_dir),
         ReleaseCommand("mobile-flutter-test", ("flutter", "test"), cwd=mobile_dir),
@@ -533,7 +530,7 @@ def mobile_test_commands(args: argparse.Namespace) -> list[ReleaseCommand]:
 def mobile_build_commands(args: argparse.Namespace) -> list[ReleaseCommand]:
     if not args.dry_run:
         require_tool_for_plan("flutter", "Flutter is required to build mobile releases.")
-    mobile_dir = ROOT / "apps" / "mobile-client"
+    mobile_dir = ROOT / "apps" / "mobile"
     dart_define = f"--dart-define=OPENLEASH_CLOUD_API_URL={args.mobile_api_url}"
     commands: list[ReleaseCommand] = []
     if not args.skip_mobile_android:
@@ -680,7 +677,7 @@ def bump_versions(items: list[ReleaseItem], dry_run: bool) -> None:
             bump_pubspec(pubspec, item.version, dry_run)
         if cargo_toml.exists():
             bump_cargo_toml(cargo_toml, item.version, dry_run)
-        if item.state.name == "apps/desktop-client":
+        if item.state.name == "apps/desktop":
             bump_package_json(ROOT / "package.json", item.version, dry_run)
         bump_package_lock(item, dry_run)
 
@@ -716,14 +713,14 @@ def bump_package_lock(item: ReleaseItem, dry_run: bool) -> None:
         return
     data = json.loads(file.read_text(encoding="utf-8"))
     key = item.state.name
-    if item.state.name != "apps/desktop-client" and data.get("packages", {}).get(key) is None:
+    if item.state.name != "apps/desktop" and data.get("packages", {}).get(key) is None:
         return
     if dry_run:
         print(f"[release:version] would update package-lock for {item.state.name} to {item.version}")
         return
     if data.get("packages", {}).get(key) is not None:
         data["packages"][key]["version"] = item.version
-    if item.state.name == "apps/desktop-client":
+    if item.state.name == "apps/desktop":
         data["version"] = item.version
         if data.get("packages", {}).get("") is not None:
             data["packages"][""]["version"] = item.version

@@ -1,6 +1,12 @@
 {
   "name": "@openleash/shared",
   "version": "0.2.1",
+  "description": "Shared Leash Engine and client contracts.",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/open-leash/leash.git",
+    "directory": "packages/shared"
+  },
   "type": "module",
   "main": "dist/index.js",
   "types": "src/index.ts",

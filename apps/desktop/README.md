@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src="https://capsule-render.vercel.app/api?type=waving&color=0:F59E0B,45:10B981,100:111827&height=220&section=header&text=Desktop%20Client&fontSize=52&fontColor=ffffff&fontAlignY=38&desc=Backend-backed%20agent%20hooks%20and%20approvals.&descSize=18&descAlignY=58" width="100%" />
+<img src="https://capsule-render.vercel.app/api?type=waving&color=0:F59E0B,45:10B981,100:111827&height=220&section=header&text=Leash%20Desktop&fontSize=52&fontColor=ffffff&fontAlignY=38&desc=Engine-backed%20agent%20hooks%20and%20approvals.&descSize=18&descAlignY=58" width="100%" />
 
 <p>
   <img src="https://img.shields.io/badge/Electron-desktop-47848F?style=for-the-badge&logo=electron&logoColor=white" />
@@ -16,7 +16,7 @@
 
 ## ✨ What this app is
 
-`desktop-client` is the installed Leash client: tray app, local helper API, approval UI, hook installer, update checks, and deployment CLI.
+Leash Desktop is the installed client: tray app, local helper API, approval UI, hook installer, update checks, and deployment CLI. Its source lives at `apps/desktop` in the [Leash monorepo](https://github.com/open-leash/leash).
 
 The attention Island is an optional, non-activating, top-center overlay for the moments
 when an agent needs a person. Setup shows a real preview and asks whether to
@@ -52,7 +52,7 @@ OpenLeash compatibility hostname):
 https://api.openleash.com/v1/hooks/:agent/:event
 ```
 
-Personal Open Source installs use the locally running `client-api` URL. The desktop local API still exists for setup, tray state, OAuth callbacks, local cache, local development, and compatibility relay behavior. If the configured backend is unavailable, enforcement fails closed.
+Personal Open Source installs use the locally running Leash Engine URL. The desktop local API still exists for setup, tray state, OAuth callbacks, local cache, local development, and compatibility relay behavior. If the configured Engine is unavailable, enforcement fails closed.
 
 ---
 
@@ -60,7 +60,7 @@ Personal Open Source installs use the locally running `client-api` URL. The desk
 
 | Mode | Behavior |
 | --- | --- |
-| 🧑‍💻 Personal Open Source | Desktop uses the locally running public `client-api` and Postgres; hooks target that local API. |
+| 🧑‍💻 Personal Open Source | Desktop uses the locally running public Leash Engine and Postgres; hooks target that local API. |
 | ☁️ Leash Cloud | Hooks target Leash-hosted cloud APIs; desktop receives personal state and approvals from Leash Cloud. |
 
 ---
@@ -85,7 +85,7 @@ Direct app run:
 
 ```bash
 npm install
-npm run desktop-client
+npm run desktop
 ```
 
 CLI examples:

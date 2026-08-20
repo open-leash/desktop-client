@@ -2,7 +2,7 @@
 
 Leash has one public durable backend schema: Postgres owned by `client-api`. Desktop SQLite is a local cache/setup store and has its own upgrade fixtures.
 
-1. Update `infra/postgres/schema.sql` and the mirrored `apps/client-api` schema.
+1. Update `infra/postgres/schema.sql` and the mirrored `apps/engine` schema.
 2. Add an append-only numbered migration to both migration directories.
 3. Run `npm run schema:snapshot -- client-api desktop-client`.
 4. Run `npm run test:upgrade` against representative old fixtures.

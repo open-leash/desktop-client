@@ -1,4 +1,4 @@
-name: Publish container
+name: Publish Leash local proxy container
 
 on:
   workflow_dispatch:
@@ -9,7 +9,7 @@ on:
         default: 0.36.4
   push:
     tags:
-      - "v*"
+      - "local-proxy-v*"
 
 permissions:
   contents: read
@@ -32,7 +32,7 @@ jobs:
         shell: bash
         run: |
           if [[ "${GITHUB_REF_TYPE}" == "tag" ]]; then
-            echo "value=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+            echo "value=${GITHUB_REF_NAME#local-proxy-v}" >> "$GITHUB_OUTPUT"
           else
             echo "value=${{ inputs.version }}" >> "$GITHUB_OUTPUT"
           fi
@@ -46,7 +46,8 @@ jobs:
           fi
       - uses: docker/build-push-action@v6
         with:
-          context: .
+          context: apps/local-proxy
+          file: apps/local-proxy/Dockerfile
           platforms: linux/amd64,linux/arm64
           push: true
           provenance: true

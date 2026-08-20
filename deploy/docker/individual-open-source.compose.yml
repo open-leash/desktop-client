@@ -32,7 +32,7 @@ services:
       OPENLEASH_MIGRATION_LOG_DIR: /var/log/openleash
     volumes:
       - ./migration-logs:/var/log/openleash
-    command: ["node", "apps/client-api/dist/migrate.js", "--apply"]
+    command: ["node", "apps/engine/dist/migrate.js", "--apply"]
     depends_on:
       postgres:
         condition: service_healthy
@@ -42,7 +42,7 @@ services:
     profiles: ["setup"]
     environment:
       DATABASE_URL: postgres://${OPENLEASH_POSTGRES_USER:-openleash}:${OPENLEASH_POSTGRES_PASSWORD:-openleash}@postgres:5432/${OPENLEASH_POSTGRES_DB:-openleash}
-    command: ["node", "apps/client-api/dist/bootstrap-personal.js", "--name", "Personal Open Source", "--slug", "individual-open-source", "--mode", "private"]
+    command: ["node", "apps/engine/dist/bootstrap-personal.js", "--name", "Personal Open Source", "--slug", "individual-open-source", "--mode", "private"]
     depends_on:
       postgres:
         condition: service_healthy

@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 """Deterministic, resumable Leash production release pipeline.
 
-This module is invoked through ``python3 release.py --production``.  It owns
-the ordering between independent repositories; it does not use an LLM and it
-does not infer release scope from prose or git history.
+This module is invoked through ``python3 release.py --production``. Public
+runtime components share the Leash monorepo; private cloud and website
+components remain independent repositories. It does not use an LLM and it does
+not infer release scope from prose or git history.
 """
 
 from __future__ import annotations
@@ -57,12 +58,12 @@ class Component:
 
 COMPONENTS: dict[str, Component] = {
     "shared": Component(
-        "shared", ROOT / "packages/shared", "open-leash/shared", "tag",
+        "shared", ROOT / "packages/shared", "open-leash/leash", "tag",
         (("npm", "run", "typecheck", "-w", "@openleash/shared"),),
         (("npm", "run", "build", "-w", "@openleash/shared"),),
     ),
     "client-api": Component(
-        "client-api", ROOT / "apps/client-api", "open-leash/client-api", "container",
+        "client-api", ROOT / "apps/engine", "open-leash/leash", "container",
         (
             ("node", "scripts/test-postgres-upgrades.mjs"),
             ("npm", "run", "test", "-w", "@openleash/client-api"),
@@ -71,7 +72,7 @@ COMPONENTS: dict[str, Component] = {
         (("npm", "run", "build", "-w", "@openleash/client-api"),),
     ),
     "local-proxy": Component(
-        "local-proxy", ROOT / "apps/local-proxy", "open-leash/local-proxy", "container",
+        "local-proxy", ROOT / "apps/local-proxy", "open-leash/leash", "container",
         (("cargo", "test", "--manifest-path", "apps/local-proxy/Cargo.toml"),),
         (),
     ),
@@ -99,7 +100,7 @@ COMPONENTS: dict[str, Component] = {
         (("docker", "build", "--no-cache", "-t", "openleash/cloud-dashboard-web:release-gate", "."),),
     ),
     "desktop-client": Component(
-        "desktop-client", ROOT / "apps/desktop-client", "open-leash/desktop-client", "desktop",
+        "desktop-client", ROOT / "apps/desktop", "open-leash/leash", "desktop",
         (
             ("npm", "run", "verify:release-dependencies", "-w", "@openleash/desktop-client"),
             ("npm", "run", "test", "-w", "@openleash/desktop-client"),
@@ -135,7 +136,7 @@ ORDER = (
 )
 MENU_COMPONENTS = (
     ("desktop-client", "Desktop app", "Build the Mac/Windows client and update the website"),
-    ("client-api", "Personal client API", "Publish the Personal Open Source backend, desktop, and website"),
+    ("client-api", "Leash Engine", "Publish the Personal Open Source Engine, desktop, and website"),
     ("local-proxy", "Local proxy", "Publish the agent proxy, desktop, and website"),
     ("cloud-client-api", "Cloud client API", "Migrate and deploy the hosted client API"),
     ("cloud-dashboard-api", "Business dashboard API", "Deploy organization signup, billing, and administration"),
@@ -145,6 +146,8 @@ MENU_COMPONENTS = (
 )
 ALIASES = {
     "packages/shared": "shared",
+    "engine": "client-api",
+    "apps/engine": "client-api",
     "apps/client-api": "client-api",
     "apps/local-proxy": "local-proxy",
     "apps/cloud-client-api": "cloud-client-api",
@@ -153,11 +156,20 @@ ALIASES = {
     "dashboard-api": "cloud-dashboard-api",
     "apps/cloud-dashboard-web": "cloud-dashboard-web",
     "dashboard-web": "cloud-dashboard-web",
-    "apps/desktop-client": "desktop-client",
+    "apps/desktop": "desktop-client",
     "desktop": "desktop-client",
     "apps/main-web": "main-web",
     "web": "main-web",
 }
+
+DISPLAY_NAMES = {
+    "client-api": "engine",
+    "desktop-client": "desktop",
+}
+
+
+def display_name(key: str) -> str:
+    return DISPLAY_NAMES.get(key, key)
 
 
 class Journal:
@@ -203,7 +215,7 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         description="Deterministic Leash production release pipeline (tests, migrations, artifacts, deploys, live verification)."
     )
-    parser.add_argument("--app", "--component", action="append", dest="apps", default=[], help="Component and optional version, e.g. client-api=0.37.4. Repeatable.")
+    parser.add_argument("--app", "--component", action="append", dest="apps", default=[], help="Component and optional version, e.g. engine=0.37.4. Repeatable.")
     parser.add_argument("--version", help="Version for components that do not specify one explicitly.")
     parser.add_argument("--ship", action="store_true", help="Execute the complete commit, publish, deploy, and verify pipeline.")
     parser.add_argument("--dry-run", action="store_true", help="Print the complete ordered plan without changing local or remote state.")
@@ -407,7 +419,7 @@ def interactive_release_arguments(input_fn: Callable[[str], str] = input) -> lis
         if key not in expanded:
             continue
         suffix = "" if key in requested else " (added automatically)"
-        print(f"  - {key}: {component_version(COMPONENTS[key])} -> {expanded[key]}{suffix}")
+        print(f"  - {display_name(key)}: {component_version(COMPONENTS[key])} -> {expanded[key]}{suffix}")
 
     arguments: list[str] = []
     for key in ORDER:
@@ -545,7 +557,7 @@ def add_required_surfaces(selected: dict[str, str]) -> dict[str, str]:
 def print_plan(selected: list[str], versions: dict[str, str], args: argparse.Namespace, state_path: Path) -> None:
     print("Leash deterministic production release")
     for key in selected:
-        print(f"  - {key}: {component_version(COMPONENTS[key])} -> {versions[key]}")
+        print(f"  - {display_name(key)}: {component_version(COMPONENTS[key])} -> {versions[key]}")
     if "desktop-client" in selected:
         print(f"  - desktop channel: {args.desktop_channel}")
     if "cloud-client-api" in selected:
@@ -559,10 +571,10 @@ def print_dry_run_stages(selected: list[str], args: argparse.Namespace) -> None:
     print("  2. public product contract")
     number = 3
     for key in selected:
-        print(f"  {number}. {key}: prepare -> test/build -> commit -> push -> publish/deploy -> verify")
+        print(f"  {number}. {display_name(key)}: prepare -> test/build -> commit -> push -> publish/deploy -> verify")
         number += 1
         if key == "client-api":
-            print(f"  {number}. pin the published client-api digest; test the actual Personal Open Source image")
+            print(f"  {number}. pin the published Engine digest; test the actual Personal Open Source image")
             number += 1
     if "cloud-client-api" in selected and not args.cloud_source_only:
         print(f"  {number}. production migration status and exact-version live cloud health")
@@ -613,7 +625,7 @@ def preflight(selected: list[str], versions: dict[str, str], args: argparse.Name
             raise RuntimeError("Personal Open Source release pin files already have local edits; commit or restore them before release.")
     for key in selected:
         component = COMPONENTS[key]
-        if not (component.path / ".git").exists():
+        if not git(component.path, "rev-parse", "--is-inside-work-tree", check=False).strip() == "true":
             raise RuntimeError(f"Missing repository checkout: {component.path}")
         branch = git(component.path, "branch", "--show-current").strip()
         if branch != "main":
@@ -631,9 +643,10 @@ def preflight(selected: list[str], versions: dict[str, str], args: argparse.Name
             raise RuntimeError(
                 f"{key} was added automatically but already has local changes; select it explicitly to include them"
             )
-        remote_tag = git(component.path, "ls-remote", "--tags", "origin", f"refs/tags/v{versions[key]}").strip()
+        tag = component_tag(component, versions[key])
+        remote_tag = git(component.path, "ls-remote", "--tags", "origin", f"refs/tags/{tag}").strip()
         if remote_tag and not args.resume:
-            raise RuntimeError(f"{component.github} already has immutable tag v{versions[key]}; choose a new version or resume its state file")
+            raise RuntimeError(f"{component.github} already has immutable tag {tag}; choose a new version or resume its state file")
         checked[key] = git(component.path, "rev-parse", "HEAD").strip()
     if "client-api" in selected:
         validate_append_only_migrations(COMPONENTS["client-api"].path, Path("infra/postgres/migrations"))
@@ -729,15 +742,17 @@ def push_component(component: Component, version: str, args: argparse.Namespace)
     if component.kind == "desktop" and args.desktop_channel == "terminal":
         return {"commit": git(component.path, "rev-parse", "HEAD").strip()}
     ensure_tag(component, version)
-    git(component.path, "push", "origin", f"v{version}")
+    tag = component_tag(component, version)
+    git(component.path, "push", "origin", tag)
     if component.kind == "desktop" and args.desktop_channel == "stable":
         ensure_github_release(component.github, version, prerelease=False)
-    return {"tag": f"v{version}"}
+        return {"tag": tag}
 
 
 def publish_component(component: Component, version: str, commit: str, args: argparse.Namespace) -> dict[str, str]:
     if component.kind == "container":
-        wait_for_workflow(component.github, "publish-container.yml", commit, args.timeout)
+        workflow = "publish-engine.yml" if component.key == "client-api" else "publish-local-proxy.yml"
+        wait_for_workflow(component.github, workflow, commit, args.timeout)
         digest = wait_for_ghcr_digest(component.github.split("/", 1)[1], version, args.timeout)
         return {"digest": digest}
     if component.kind == "desktop":
@@ -954,7 +969,7 @@ def pin_client_api_consumers(version: str, digest: str) -> dict[str, str]:
     files = [
         ROOT / "scripts/install-openleash-personal.sh",
         ROOT / "deploy/docker/individual-open-source.compose.yml",
-        ROOT / "apps/desktop-client/src/main.ts",
+        ROOT / "apps/desktop/src/main.ts",
     ]
     for file in files:
         source = file.read_text(encoding="utf-8")
@@ -974,7 +989,7 @@ def replace_client_api_pin_text(source: str, value: str) -> str:
 
 
 def pin_local_proxy(version: str, digest: str) -> dict[str, str]:
-    version_file = ROOT / "apps/desktop-client/local-proxy.version"
+    version_file = ROOT / "apps/desktop/local-proxy.version"
     version_file.write_text(f"{version}\n", encoding="utf-8")
     return {"version": version, "container_digest": digest}
 
@@ -1163,7 +1178,11 @@ def wait_for_json_health(url: str, service: str, expected_version: str, timeout:
 
 def current_release_identity(component: Component) -> dict[str, str]:
     commit = git(component.path, "rev-parse", "origin/main").strip()
-    package_text = git(component.path, "show", "origin/main:package.json", check=False)
+    top_level = Path(git(component.path, "rev-parse", "--show-toplevel").strip()).resolve()
+    package_path = "package.json"
+    if top_level == ROOT.resolve() and component.path.resolve() != ROOT.resolve():
+        package_path = f"{component.path.resolve().relative_to(ROOT.resolve()).as_posix()}/package.json"
+    package_text = git(component.path, "show", f"origin/main:{package_path}", check=False)
     version = str(json.loads(package_text)["version"]) if package_text.strip() else component_version(component)
     return {"version": version, "commit": commit}
 
@@ -1203,7 +1222,7 @@ def semver_core(version: str) -> tuple[int, int, int]:
 
 
 def ensure_tag(component: Component, version: str) -> None:
-    tag = f"v{version}"
+    tag = component_tag(component, version)
     current = git(component.path, "rev-parse", "HEAD").strip()
     existing = git(component.path, "rev-list", "-n", "1", tag, check=False).strip()
     if existing:
@@ -1211,6 +1230,13 @@ def ensure_tag(component: Component, version: str) -> None:
             raise RuntimeError(f"{component.github} {tag} already points to {existing}, not {current}")
         return
     git(component.path, "tag", "-a", tag, "-m", f"Release {component.key} {version}")
+
+
+def component_tag(component: Component, version: str) -> str:
+    if component.key == "desktop-client" or component.key.startswith("cloud-") or component.key == "main-web":
+        return f"v{version}"
+    prefix = "engine" if component.key == "client-api" else component.key
+    return f"{prefix}-v{version}"
 
 
 def ensure_github_release(repo: str, version: str, prerelease: bool) -> None:

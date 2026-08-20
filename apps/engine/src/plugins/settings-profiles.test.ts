@@ -105,7 +105,7 @@ test("normalizes project roots and applies project profiles to nested working di
     enabled: true,
     config: { rules: [] },
     userProfiles: profiles,
-    projectPath: "/Users/max/Code/OpenLeash/apps/client-api",
+    projectPath: "/Users/max/Code/OpenLeash/apps/engine",
   }).effectiveProfileIds[0], "user:project-rules");
   assert.deepEqual(resolvePluginSettingProfiles({
     enabled: true,

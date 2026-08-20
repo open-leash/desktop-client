@@ -1,4 +1,4 @@
-name: Publish container
+name: Publish Leash Engine container
 
 on:
   workflow_dispatch:
@@ -9,7 +9,7 @@ on:
         default: 0.36.4
   push:
     tags:
-      - "v*"
+      - "engine-v*"
 
 permissions:
   contents: read
@@ -35,7 +35,7 @@ jobs:
         shell: bash
         run: |
           if [[ "${GITHUB_REF_TYPE}" == "tag" ]]; then
-            echo "value=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+            echo "value=${GITHUB_REF_NAME#engine-v}" >> "$GITHUB_OUTPUT"
           else
             echo "value=${{ inputs.version }}" >> "$GITHUB_OUTPUT"
           fi
@@ -56,6 +56,7 @@ jobs:
         uses: docker/build-push-action@v6
         with:
           context: .
+          file: apps/engine/Dockerfile
           load: true
           tags: openleash/client-api:scan
       - name: Scan release image
@@ -70,6 +71,7 @@ jobs:
         uses: docker/build-push-action@v6
         with:
           context: .
+          file: apps/engine/Dockerfile
           platforms: linux/amd64,linux/arm64
           push: true
           provenance: mode=max

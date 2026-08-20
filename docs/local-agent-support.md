@@ -2,11 +2,11 @@
 
 Leash keeps local agent support in one registry:
 
-`apps/desktop-client/src/agent-registry.ts`
+`apps/desktop/src/agent-registry.ts`
 
 The shared Client CLI lives in:
 
-`apps/desktop-client/src/cli/hook.ts`
+`apps/desktop/src/cli/hook.ts`
 
 Current protectable agents:
 
@@ -67,7 +67,7 @@ To add a new agent, add an `AgentDefinition` with:
 
 - `kind`: stable machine id, for example `my-agent`
 - `displayName`: human name shown in the app
-- `icon`: matching SVG name in `apps/desktop-client/src/agent-icons`
+- `icon`: matching SVG name in `apps/desktop/src/agent-icons`
 - `detect`: returns whether the agent is installed and protected
 - `install`: optional setup function that writes the agent's approval/protection config
 

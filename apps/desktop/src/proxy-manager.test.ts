@@ -19,7 +19,7 @@ test("released desktop resolves the bundled native proxy without Docker", () => 
     localProxyBinaryCandidates({
       platform: "darwin",
       resourcesPath: "/Applications/Leash.app/Contents/Resources",
-      moduleDir: "/Applications/Leash.app/Contents/Resources/app.asar/apps/desktop-client/dist",
+      moduleDir: "/Applications/Leash.app/Contents/Resources/app.asar/apps/desktop/dist",
       override: "",
     }).slice(0, 1),
     ["/Applications/Leash.app/Contents/Resources/local-proxy/openleash-local-proxy"],

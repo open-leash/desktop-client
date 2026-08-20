@@ -6,30 +6,36 @@ import sharp from "sharp";
 const root = process.cwd();
 const source = path.join(root, "assets", "icon.png");
 const checkOnly = process.argv.includes("--check");
+const hasDocs = await exists(path.join(root, "apps", "docs-web"));
+const hasMainWeb = await exists(path.join(root, "apps", "main-web"));
 
 await fs.access(source);
 
 const pngTargets = new Map([
   ["assets/openleash-icon.png", 1024],
-  ["apps/desktop-client/src/openleash-icon.png", 1024],
-  ["apps/desktop-client/src/tray-icon.png", 64],
-  ["apps/docs-web/public/openleash-icon.png", 1024],
-  ["apps/docs-web/public/favicon.png", 64],
-  ["apps/main-web/public/openleash-icon.png", 1024],
-  ["apps/main-web/public/openleash-desktop-icon-v2.png", 1024],
-  ["apps/main-web/public/favicon.png", 64],
-  ["apps/main-web/public/apple-touch-icon.png", 180],
+  ["apps/desktop/src/openleash-icon.png", 1024],
+  ["apps/desktop/src/tray-icon.png", 64],
+  ...(hasDocs ? [
+    ["apps/docs-web/public/openleash-icon.png", 1024],
+    ["apps/docs-web/public/favicon.png", 64],
+  ] : []),
+  ...(hasMainWeb ? [
+    ["apps/main-web/public/openleash-icon.png", 1024],
+    ["apps/main-web/public/openleash-desktop-icon-v2.png", 1024],
+    ["apps/main-web/public/favicon.png", 64],
+    ["apps/main-web/public/apple-touch-icon.png", 180],
+  ] : []),
   ["apps/flow-viewer/public/favicon.png", 128],
-  ["apps/mobile-client/assets/openleash-icon.png", 1024],
-  ["apps/mobile-client/android/app/src/main/res/mipmap-mdpi/ic_launcher.png", 48],
-  ["apps/mobile-client/android/app/src/main/res/mipmap-hdpi/ic_launcher.png", 72],
-  ["apps/mobile-client/android/app/src/main/res/mipmap-xhdpi/ic_launcher.png", 96],
-  ["apps/mobile-client/android/app/src/main/res/mipmap-xxhdpi/ic_launcher.png", 144],
-  ["apps/mobile-client/android/app/src/main/res/mipmap-xxxhdpi/ic_launcher.png", 192],
+  ["apps/mobile/assets/openleash-icon.png", 1024],
+  ["apps/mobile/android/app/src/main/res/mipmap-mdpi/ic_launcher.png", 48],
+  ["apps/mobile/android/app/src/main/res/mipmap-hdpi/ic_launcher.png", 72],
+  ["apps/mobile/android/app/src/main/res/mipmap-xhdpi/ic_launcher.png", 96],
+  ["apps/mobile/android/app/src/main/res/mipmap-xxhdpi/ic_launcher.png", 144],
+  ["apps/mobile/android/app/src/main/res/mipmap-xxxhdpi/ic_launcher.png", 192],
 ]);
 
 const webpTargets = new Map([
-  ["apps/main-web/public/media/leash-mark.webp", 256],
+  ...(hasMainWeb ? [["apps/main-web/public/media/leash-mark.webp", 256]] : []),
 ]);
 
 for (const [relativePath, size] of pngTargets) {
@@ -42,7 +48,7 @@ for (const [relativePath, size] of webpTargets) {
 
 const iosIconDirectory = path.join(
   root,
-  "apps/mobile-client/ios/Runner/Assets.xcassets/AppIcon.appiconset",
+  "apps/mobile/ios/Runner/Assets.xcassets/AppIcon.appiconset",
 );
 const iosManifest = JSON.parse(
   await fs.readFile(path.join(iosIconDirectory, "Contents.json"), "utf8"),
@@ -92,4 +98,13 @@ async function writeWebpIcon(relativePath, size) {
   }
   await fs.mkdir(path.dirname(destination), { recursive: true });
   await fs.writeFile(destination, expected);
+}
+
+async function exists(target) {
+  try {
+    await fs.access(target);
+    return true;
+  } catch {
+    return false;
+  }
 }

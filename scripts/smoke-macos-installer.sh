@@ -10,7 +10,7 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 INSTALLER="${2:-$ROOT/scripts/install-openleash-personal.sh}"
 DMG="${1:-}"
 if [[ -z "$DMG" ]]; then
-  DMG="$(find "$ROOT/release/personal" "$ROOT/apps/desktop-client/release/macos" -maxdepth 1 -type f -name 'Leash-*-arm64.dmg' -print 2>/dev/null | sort -V | tail -n 1)"
+  DMG="$(find "$ROOT/release/personal" "$ROOT/apps/desktop/release/macos" -maxdepth 1 -type f -name 'Leash-*-arm64.dmg' -print 2>/dev/null | sort -V | tail -n 1)"
 fi
 [[ -f "$INSTALLER" ]] || { printf '%s\n' "Installer was not found: $INSTALLER" >&2; exit 1; }
 [[ -f "$DMG" ]] || { printf '%s\n' "DMG was not found: $DMG" >&2; exit 1; }
@@ -53,7 +53,7 @@ ELECTRON_RUN_AS_NODE=1 "$EXECUTABLE" -e '
   const resources = process.argv[1];
   const roots = [
     `${resources}/app.asar/dist`,
-    `${resources}/app.asar/apps/desktop-client/dist`,
+    `${resources}/app.asar/apps/desktop/dist`,
   ];
   const base = roots.find((candidate) => fs.existsSync(`${candidate}/plugin-catalog.js`));
   if (!base) throw new Error("Packaged desktop modules are missing.");

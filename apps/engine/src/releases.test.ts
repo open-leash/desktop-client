@@ -114,7 +114,7 @@ async function withGithubRelease(
     new Response(
       JSON.stringify({
         tag_name: "v0.37.2",
-        html_url: "https://github.com/open-leash/desktop-client/releases/tag/v0.37.2",
+        html_url: "https://github.com/open-leash/leash/releases/tag/v0.37.2",
         body: "A safer desktop release.",
         draft: false,
         prerelease: false,

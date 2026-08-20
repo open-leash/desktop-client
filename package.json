@@ -1,7 +1,7 @@
 {
   "name": "leash",
   "private": true,
-  "version": "0.37.5",
+  "version": "0.37.6",
   "description": "Leash protects personal AI coding agents with built-in security Features and clear local visibility.",
   "author": "Leash",
   "workspaces": [
@@ -27,7 +27,6 @@
     "dev:engine": "npm run dev -w @openleash/client-api",
     "dev:client-api": "npm run dev:engine",
     "dev:flow-viewer": "npm run dev -w @openleash/flow-viewer",
-    "dev:main-web": "npm run dev -w @openleash/main-web",
     "dev:mode:individual-open-source": "python3 run.py --mode individual-open-source",
     "dev:mode:cloud": "python3 run.py --mode public-cloud",
     "db:migrate": "npm run db:migrate -w @openleash/client-api --",

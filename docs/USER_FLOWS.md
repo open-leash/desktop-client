@@ -17,7 +17,7 @@ Leash Cloud owns Business administration, billing, tenancy, and identity.
 - Setup does not show organization, administrator, CISO, employee, directory,
   SSO, dashboard, marketplace, uploader, publisher, rating, or download-count
   choices.
-- Built-in Features execute in the `client-api` process. Setup verifies the
+- Built-in Features execute in the Leash Engine process. Setup verifies the
   Feature registry and handler self-tests without starting Feature containers.
 - Fresh setup enables every runtime-available built-in Feature. The Feature
   setup step is a read-only product showcase, not a protection picker.
@@ -85,7 +85,7 @@ There is no dashboard handoff or organization onboarding.
 Entry: local installer, CLI, or desktop setup.
 
 1. User chooses Personal Open Source.
-2. Installer starts the real local `client-api` and Postgres.
+2. Installer starts the real local Leash Engine and Postgres.
 3. User enters a supported LLM-provider key into the local backend.
 4. User selects agents to monitor.
 5. Setup installs hooks and configures the local proxy when needed.
@@ -118,7 +118,7 @@ Entry: public marketing website.
    is shown.
 6. Private Leash Cloud owns organization setup, tenancy, billing, identity,
    mandatory policy, and support operations.
-7. Installed clients continue using the public client contract against the
+7. Installed clients continue using the public Engine contract against the
    hosted API; private control-plane code is never imported into the public core.
 8. A CISO or organization administrator can enable **Learning only**. Leash
    continues evaluating and recording every action for the Business dashboard
@@ -167,17 +167,18 @@ Leash release.
 
 ## Surface ownership
 
-- `desktop-client`: setup, always-on tray, optional Island, local helper API,
+- `apps/desktop`: setup, always-on tray, optional Island, local helper API,
   hook/proxy management, and the signed-in person's Overview, agents, Features,
   approvals, questions, history, notifications, permitted settings, and
   updates. Business membership changes effective policy, not the scope of the
   local interface; Desktop never becomes an organization-admin console.
-- `mobile-client`: personal approvals, questions, activity, and settings.
-- `main-web`: marketing, downloads, Personal Cloud entry, Business pricing, and
-  the private-cloud Business handoff.
-- `client-api`: personal hooks, evaluation, Feature execution, enrollment,
+- `apps/mobile`: personal approvals, questions, activity, and settings.
+- Private `main-web`: marketing, downloads, Personal Cloud entry, Business
+  pricing, and the private-cloud Business handoff. It consumes public contracts
+  but is not stored in this repository.
+- Leash Engine: personal hooks, evaluation, Feature execution, enrollment,
   synchronization, and updates.
-- `docs-web`: public personal-product documentation.
+- Separate `docs-web` repository: public personal-product documentation.
 - `flow-viewer`: developer-owned read-only local pipeline tracing.
 
 No public surface owns organization administration, dashboards, billing
@@ -196,7 +197,7 @@ in personal setup, personal settings, or the personal Feature list.
 - If Feature execution requires a container, marketplace installation, or image
   pull, the flow is wrong.
 - If personal open source uses a duplicate desktop enforcement database instead
-  of `client-api` and Postgres, the flow is wrong.
+  of Leash Engine and Postgres, the flow is wrong.
 - If an organization role exposes employee rosters, aggregate organization
   analytics, identity sync, billing, provider admin keys, or organization
   policy editing in Desktop, the flow is wrong.

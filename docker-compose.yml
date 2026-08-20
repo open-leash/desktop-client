@@ -19,7 +19,8 @@ services:
 
   client-api:
     build:
-      context: apps/client-api
+      context: .
+      dockerfile: apps/engine/Dockerfile
     container_name: openleash-client-api
     environment:
       DATABASE_URL: postgres://openleash:openleash@postgres:5432/openleash

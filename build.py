@@ -74,8 +74,8 @@ def main() -> int:
     if mobile:
         if shutil.which("flutter"):
             steps.extend([
-                Step("mobile-analyze", ["flutter", "analyze"], cwd=ROOT / "apps" / "mobile-client"),
-                Step("mobile-android-debug", ["flutter", "build", "apk", "--debug"], cwd=ROOT / "apps" / "mobile-client"),
+                Step("mobile-analyze", ["flutter", "analyze"], cwd=ROOT / "apps" / "mobile"),
+                Step("mobile-android-debug", ["flutter", "build", "apk", "--debug"], cwd=ROOT / "apps" / "mobile"),
             ])
         else:
             steps.append(Step("mobile", ["true"], optional=True, reason="Flutter is not installed; mobile build skipped."))
@@ -113,8 +113,7 @@ def changed_targets() -> set[str]:
 
 def docker_targets() -> dict[str, dict[str, str]]:
     return {
-        "client-api": {"dockerfile": "apps/client-api/Dockerfile", "context": "apps/client-api"},
-        "docs-web": {"dockerfile": "apps/docs-web/Dockerfile", "context": "apps/docs-web"},
+        "client-api": {"dockerfile": "apps/engine/Dockerfile", "context": "."},
     }
 
 

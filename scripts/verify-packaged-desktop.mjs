@@ -18,31 +18,31 @@ const nativeModule = path.join(
 );
 const nativeIsland = path.join(
   app,
-  "Contents/Resources/app.asar.unpacked/apps/desktop-client/dist/openleash-island",
+  "Contents/Resources/app.asar.unpacked/apps/desktop/dist/openleash-island",
 );
 const nativeIslandHtml = path.join(
   app,
-  "Contents/Resources/app.asar.unpacked/apps/desktop-client/dist/notice.html",
+  "Contents/Resources/app.asar.unpacked/apps/desktop/dist/notice.html",
 );
 const nativeIslandClaudeIcon = path.join(
   app,
-  "Contents/Resources/app.asar.unpacked/apps/desktop-client/dist/agent-icons/claude.svg",
+  "Contents/Resources/app.asar.unpacked/apps/desktop/dist/agent-icons/claude.svg",
 );
 const nativeIslandOpenLeashIcon = path.join(
   app,
-  "Contents/Resources/app.asar.unpacked/apps/desktop-client/dist/openleash-icon.png",
+  "Contents/Resources/app.asar.unpacked/apps/desktop/dist/openleash-icon.png",
 );
 const nativeIslandCodexMascot = path.join(
   app,
-  "Contents/Resources/app.asar.unpacked/apps/desktop-client/dist/agent-mascots/codex-pet.webp",
+  "Contents/Resources/app.asar.unpacked/apps/desktop/dist/agent-mascots/codex-pet.webp",
 );
 const nativeIslandFireworks = path.join(
   app,
-  "Contents/Resources/app.asar.unpacked/apps/desktop-client/dist/Fireworks.json",
+  "Contents/Resources/app.asar.unpacked/apps/desktop/dist/Fireworks.json",
 );
 const nativeIslandLottie = path.join(
   app,
-  "Contents/Resources/app.asar.unpacked/apps/desktop-client/dist/lottie.min.js",
+  "Contents/Resources/app.asar.unpacked/apps/desktop/dist/lottie.min.js",
 );
 const nativeProxy = path.join(
   app,
@@ -72,7 +72,7 @@ if (proxyResult.status !== 0 || !/openleash-local-proxy/i.test(`${proxyResult.st
 console.log("packaged native local proxy ok");
 
 const expectedVersion = JSON.parse(
-  fs.readFileSync(path.join(root, "apps/desktop-client/package.json"), "utf8"),
+  fs.readFileSync(path.join(root, "apps/desktop/package.json"), "utf8"),
 ).version;
 const packagedMetadata = JSON.parse(extractFile(packagedApp, "package.json").toString("utf8"));
 if (packagedMetadata.version !== expectedVersion) {
@@ -81,8 +81,18 @@ if (packagedMetadata.version !== expectedVersion) {
 
 const packagedWindow = extractFile(
   packagedApp,
-  "apps/desktop-client/dist/window.html",
+  "apps/desktop/dist/window.html",
 ).toString("utf8");
+const packagedMain = extractFile(
+  packagedApp,
+  "apps/desktop/dist/main.js",
+).toString("utf8");
+if (packagedMain.includes('"apps", "desktop-client", "dist", "openleash-island"')) {
+  throw new Error("Packaged desktop still resolves the native Island through the retired desktop-client path");
+}
+if (!packagedMain.includes('"apps", "desktop", "dist", "openleash-island"')) {
+  throw new Error("Packaged desktop does not resolve the native Island through the monorepo desktop path");
+}
 if (packagedWindow.includes("Leash Cloud starts free with your provider")) {
   throw new Error("Packaged Cloud setup still offers the retired customer-provider flow");
 }
@@ -90,6 +100,7 @@ if (!packagedWindow.includes("Select agents to manage.")) {
   throw new Error("Packaged setup does not contain the agent-selection flow");
 }
 console.log("packaged setup reaches agent selection without the retired provider page");
+console.log("packaged native Island path matches the monorepo layout");
 
 const noticeHtml = fs.readFileSync(nativeIslandHtml, "utf8");
 if (noticeHtml.includes("__OPENLEASH_FIREWORKS_DATA__")) {
@@ -117,7 +128,7 @@ if (result.status !== 0) {
 
 const catalogModule = path.join(
   app,
-  "Contents/Resources/app.asar/apps/desktop-client/dist/plugin-catalog.js",
+  "Contents/Resources/app.asar/apps/desktop/dist/plugin-catalog.js",
 );
 const catalogResult = spawnSync(
   executable,

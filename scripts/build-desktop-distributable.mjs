@@ -6,7 +6,7 @@ import { fileURLToPath } from "node:url";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const desktopPackage = JSON.parse(
-  fs.readFileSync(path.join(root, "apps", "desktop-client", "package.json"), "utf8"),
+  fs.readFileSync(path.join(root, "apps", "desktop", "package.json"), "utf8"),
 );
 const version = String(desktopPackage.version ?? "").trim();
 if (!/^\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.-]+)?$/.test(version)) {

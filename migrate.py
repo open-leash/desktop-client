@@ -18,7 +18,7 @@ LOCAL_DATABASE_URL = "postgres://openleash:openleash@localhost:9543/openleash"
 DOTENV: dict[str, str] = {}
 DEFAULT_MIGRATION_LOG_DIR = Path.home() / ".openleash" / "migration-logs"
 MIGRATION_DIRECTORIES = {
-    "core": ROOT / "apps" / "client-api" / "infra" / "postgres" / "migrations",
+    "core": ROOT / "apps" / "engine" / "infra" / "postgres" / "migrations",
     "cloud": ROOT / "apps" / "cloud-client-api" / "infra" / "postgres" / "migrations",
 }
 

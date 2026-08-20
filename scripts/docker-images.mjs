@@ -6,7 +6,6 @@ import { spawnSync } from "node:child_process";
 const rootPackage = JSON.parse(fs.readFileSync("package.json", "utf8"));
 const args = process.argv.slice(2);
 const shouldPush = args.includes("--push");
-const includeWeb = args.includes("--include-web");
 const version = valueAfter("--version") ?? process.env.OPENLEASH_VERSION ?? rootPackage.version ?? "latest";
 const registry = stripTrailingSlash(valueAfter("--registry") ?? process.env.OPENLEASH_IMAGE_REGISTRY ?? "ghcr.io/open-leash");
 const platform = valueAfter("--platform") ?? process.env.OPENLEASH_DOCKER_PLATFORM;
@@ -19,34 +18,19 @@ const publicImages = [
     context: "apps/local-proxy"
   },
   {
-    name: "provider-puller",
-    dockerfile: "apps/provider-puller/Dockerfile",
-    context: "apps/provider-puller"
+    name: "provider-sync-worker",
+    aliases: ["provider-puller"],
+    dockerfile: "apps/provider-sync-worker/Dockerfile",
+    context: "apps/provider-sync-worker"
   },
   {
     name: "client-api",
-    dockerfile: "apps/client-api/Dockerfile",
-    context: "apps/client-api"
+    dockerfile: "apps/engine/Dockerfile",
+    context: "."
   }
 ];
 
-const webImages = [
-  {
-    name: "main-web",
-    dockerfile: "apps/main-web/Dockerfile",
-    context: "apps/main-web"
-  },
-  {
-    name: "docs-web",
-    dockerfile: "apps/docs-web/Dockerfile",
-    context: "apps/docs-web"
-  }
-];
-
-const images = [
-  ...publicImages,
-  ...(includeWeb ? webImages : [])
-];
+const images = publicImages;
 
 for (const image of images) {
   build(image);

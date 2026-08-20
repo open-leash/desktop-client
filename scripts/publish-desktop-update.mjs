@@ -6,14 +6,14 @@ const valueAfter = (flag) => {
   const index = process.argv.indexOf(flag);
   return index >= 0 ? process.argv[index + 1] : undefined;
 };
-const version = valueAfter("--version") ?? JSON.parse(fs.readFileSync("apps/desktop-client/package.json", "utf8")).version;
+const version = valueAfter("--version") ?? JSON.parse(fs.readFileSync("apps/desktop/package.json", "utf8")).version;
 const apiBase = (valueAfter("--api") ?? process.env.OPENLEASH_RELEASE_API_URL ?? "https://api.openleash.com").replace(/\/$/, "");
 const rolloutPercent = Number(valueAfter("--rollout") ?? 100);
 const dryRun = process.argv.includes("--dry-run");
 if (!/^\d+\.\d+\.\d+$/.test(version)) throw new Error("desktop version must be stable semver");
 if (!Number.isInteger(rolloutPercent) || rolloutPercent < 0 || rolloutPercent > 100) throw new Error("--rollout must be 0-100");
 
-const releaseResponse = await fetch(`https://api.github.com/repos/open-leash/desktop-client/releases/tags/v${version}`, {
+const releaseResponse = await fetch(`https://api.github.com/repos/open-leash/leash/releases/tags/v${version}`, {
   headers: { accept: "application/vnd.github+json", "user-agent": "openleash-release" },
 });
 if (!releaseResponse.ok) throw new Error(`GitHub release lookup returned ${releaseResponse.status}`);

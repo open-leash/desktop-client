@@ -46,7 +46,7 @@ fi
 
 printf '%s\n' "[personal-release-smoke] packaged Feature registry"
 docker run --rm "$IMAGE" node --input-type=module -e '
-  const registry = await import("/app/apps/client-api/dist/plugins/registry.js");
+  const registry = await import("/app/apps/engine/dist/plugins/registry.js");
   if (registry.firstPartyPluginManifests.length !== 8) {
     throw new Error(`Expected 8 built-in Features, found ${registry.firstPartyPluginManifests.length}`);
   }

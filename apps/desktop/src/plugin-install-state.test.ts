@@ -67,7 +67,7 @@ test("fresh setup selects every runtime-available Feature by default", () => {
 
   assert.equal(
     helpers.isDevelopmentDesktopRenderer(
-      "/Users/max/Code/OL2/apps/desktop-client/.dev/OpenLeash.app/Contents/Resources/app.asar/dist/window.html",
+      "/Users/max/Code/OL2/apps/desktop/.dev/OpenLeash.app/Contents/Resources/app.asar/dist/window.html",
     ),
     true,
   );

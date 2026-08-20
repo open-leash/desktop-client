@@ -75,7 +75,7 @@ type GithubRelease = {
   assets?: unknown;
 };
 
-const defaultGithubReleaseRepository = "open-leash/desktop-client";
+const defaultGithubReleaseRepository = "open-leash/leash";
 const defaultGithubReleaseCacheMs = 5 * 60 * 1000;
 let githubReleaseCache:
   | { expiresAt: number; release: GithubRelease }

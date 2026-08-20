@@ -6,12 +6,12 @@ electronVersion: 43.3.0
 npmRebuild: false
 forceCodeSigning: false
 extraMetadata:
-  main: apps/desktop-client/dist/main.js
+  main: apps/desktop/dist/main.js
 directories:
   output: release/personal
 files:
-  - apps/desktop-client/dist/**/*
-  - from: apps/desktop-client/node_modules/@openleash/shared
+  - apps/desktop/dist/**/*
+  - from: apps/desktop/node_modules/@openleash/shared
     to: node_modules/@openleash/shared
     filter:
       - "**/*"
@@ -21,21 +21,21 @@ files:
   - package.json
 asarUnpack:
   - node_modules/better-sqlite3/build/Release/*.node
-  - apps/desktop-client/dist/openleash-island
-  - apps/desktop-client/dist/notice.html
-  - apps/desktop-client/dist/openleash-icon.png
-  - apps/desktop-client/dist/Fireworks.json
-  - apps/desktop-client/dist/lottie.min.js
-  - apps/desktop-client/dist/agent-icons/**/*
-  - apps/desktop-client/dist/agent-mascots/**/*
+  - apps/desktop/dist/openleash-island
+  - apps/desktop/dist/notice.html
+  - apps/desktop/dist/openleash-icon.png
+  - apps/desktop/dist/Fireworks.json
+  - apps/desktop/dist/lottie.min.js
+  - apps/desktop/dist/agent-icons/**/*
+  - apps/desktop/dist/agent-mascots/**/*
 extraResources:
   - from: scripts/install-openleash-personal.sh
     to: install-openleash-personal.sh
-  - from: apps/desktop-client/build/local-proxy
+  - from: apps/desktop/build/local-proxy
     to: local-proxy
 mac:
   identity: null
-  icon: apps/desktop-client/src/openleash-icon.png
+  icon: apps/desktop/src/openleash-icon.png
   category: public.app-category.developer-tools
   target:
     - target: dmg
@@ -43,10 +43,10 @@ mac:
         - arm64
   hardenedRuntime: true
   notarize: false
-  entitlements: apps/desktop-client/build/entitlements.mac.plist
-  entitlementsInherit: apps/desktop-client/build/entitlements.mac.inherit.plist
+  entitlements: apps/desktop/build/entitlements.mac.plist
+  entitlementsInherit: apps/desktop/build/entitlements.mac.inherit.plist
 win:
-  icon: apps/desktop-client/src/openleash-icon.png
+  icon: apps/desktop/src/openleash-icon.png
   target:
     - target: nsis
       arch:

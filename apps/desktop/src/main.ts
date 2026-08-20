@@ -5805,7 +5805,7 @@ function noticeWorkArea(notice: DecisionNotice) {
 function nativeIslandExecutable() {
   const names = app.isPackaged
     ? [
-        path.join(process.resourcesPath, "app.asar.unpacked", "apps", "desktop-client", "dist", "openleash-island"),
+        path.join(process.resourcesPath, "app.asar.unpacked", "apps", "desktop", "dist", "openleash-island"),
         path.join(process.resourcesPath, "app.asar.unpacked", "dist", "openleash-island"),
       ]
     : [path.join(here, "openleash-island")];
@@ -6921,7 +6921,7 @@ services:
       OPENLEASH_DEV_ORG_SLUG: individual-open-source
       OPENLEASH_DEV_ORG_NAME: Individual Open Source
       OPENLEASH_DEPLOYMENT_MODE: individual-open-source
-    command: ["node", "apps/client-api/dist/migrate.js", "--apply"]
+    command: ["node", "apps/engine/dist/migrate.js", "--apply"]
     depends_on:
       postgres:
         condition: service_healthy
@@ -6931,7 +6931,7 @@ services:
     profiles: ["setup"]
     environment:
       DATABASE_URL: postgres://\${OPENLEASH_POSTGRES_USER:-openleash}:\${OPENLEASH_POSTGRES_PASSWORD:-openleash}@postgres:5432/\${OPENLEASH_POSTGRES_DB:-openleash}
-    command: ["node", "apps/client-api/dist/bootstrap-personal.js", "--name", "Individual Open Source", "--slug", "individual-open-source", "--mode", "private"]
+    command: ["node", "apps/engine/dist/bootstrap-personal.js", "--name", "Individual Open Source", "--slug", "individual-open-source", "--mode", "private"]
     depends_on:
       postgres:
         condition: service_healthy

@@ -75,7 +75,7 @@ Choose **Leash Cloud**.
 Then:
 
 ```bash
-cd apps/mobile-client
+cd apps/mobile
 flutter pub get
 flutter run
 ```

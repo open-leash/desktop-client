@@ -3,7 +3,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import Database from "better-sqlite3";
-import localServerModule from "../apps/desktop-client/src/local-server.ts";
+import localServerModule from "../apps/desktop/src/local-server.ts";
 
 const { LocalOpenLeashServer } = localServerModule;
 

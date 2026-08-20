@@ -31,7 +31,7 @@ try {
 }
 
 const proxyTagResponse = await fetch(
-  `https://api.github.com/repos/open-leash/local-proxy/git/ref/tags/v${proxyVersion}`,
+  `https://api.github.com/repos/open-leash/leash/git/ref/tags/local-proxy-v${proxyVersion}`,
   { headers: { accept: "application/vnd.github+json" } },
 );
 assert(proxyTagResponse.ok, `Native local-proxy tag v${proxyVersion} is not published`);

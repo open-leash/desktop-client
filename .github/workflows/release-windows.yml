@@ -13,29 +13,10 @@ jobs:
   windows-x64:
     runs-on: windows-latest
     steps:
-      - name: Checkout desktop client
+      - name: Checkout Leash monorepo
         uses: actions/checkout@v7
         with:
-          path: apps/desktop-client
-
-      - name: Checkout shared contracts
-        uses: actions/checkout@v7
-        with:
-          repository: open-leash/shared
-          ref: v0.2.1
-          path: packages/shared
-
-      - name: Read local proxy version
-        id: local-proxy-version
-        shell: bash
-        run: echo "version=$(cat apps/desktop-client/local-proxy.version)" >> "$GITHUB_OUTPUT"
-
-      - name: Checkout native local proxy
-        uses: actions/checkout@v7
-        with:
-          repository: open-leash/local-proxy
-          ref: v${{ steps.local-proxy-version.outputs.version }}
-          path: apps/local-proxy
+          fetch-depth: 0
 
       - name: Setup Node
         uses: actions/setup-node@v7
@@ -45,17 +26,15 @@ jobs:
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
 
-      - name: Create release workspace
+      - name: Install monorepo dependencies
         shell: pwsh
-        run: |
-          '{"private":true,"workspaces":["packages/*","apps/*"]}' | Set-Content -Encoding utf8 package.json
-          npm install
+        run: npm ci
 
       - name: Verify tag matches package version
         if: startsWith(github.ref, 'refs/tags/')
         shell: pwsh
         run: |
-          $packageVersion = node -p "require('./apps/desktop-client/package.json').version"
+          $packageVersion = node -p "require('./apps/desktop/package.json').version"
           if ("v$packageVersion" -ne "${{ github.ref_name }}") {
             throw "Tag ${{ github.ref_name }} does not match desktop package v$packageVersion"
           }
@@ -70,7 +49,7 @@ jobs:
           npm run build -w @openleash/desktop-client
 
       - name: Rebuild native dependency and package unsigned NSIS installer
-        working-directory: apps/desktop-client
+        working-directory: apps/desktop
         shell: pwsh
         env:
           CSC_IDENTITY_AUTO_DISCOVERY: "false"
@@ -81,7 +60,7 @@ jobs:
           node scripts/verify-packaged-windows.mjs
 
       - name: Create checksums
-        working-directory: apps/desktop-client/release/windows
+        working-directory: apps/desktop/release/windows
         shell: pwsh
         run: |
           Get-ChildItem -File | Where-Object { $_.Extension -in '.exe', '.blockmap' -or $_.Name -eq 'latest.yml' } | ForEach-Object {
@@ -94,14 +73,14 @@ jobs:
         with:
           name: Leash-Windows-x64-${{ github.ref_name }}
           path: |
-            apps/desktop-client/release/windows/*.exe
-            apps/desktop-client/release/windows/*.blockmap
-            apps/desktop-client/release/windows/latest.yml
-            apps/desktop-client/release/windows/SHA256SUMS-WINDOWS
+            apps/desktop/release/windows/*.exe
+            apps/desktop/release/windows/*.blockmap
+            apps/desktop/release/windows/latest.yml
+            apps/desktop/release/windows/SHA256SUMS-WINDOWS
 
       - name: Attach immutable assets to GitHub release
         if: startsWith(github.ref, 'refs/tags/')
-        working-directory: apps/desktop-client
+        working-directory: apps/desktop
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}

@@ -7,7 +7,8 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/open-leash/flow-viewer.git"
+    "url": "https://github.com/open-leash/leash.git",
+    "directory": "apps/flow-viewer"
   },
   "scripts": {
     "dev": "node --watch server.mjs",

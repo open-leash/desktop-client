@@ -5,7 +5,7 @@ import { fileURLToPath } from "node:url";
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const sourcePath = path.join(root, "packages/shared/feature-presentations.json");
 const tsPath = path.join(root, "packages/shared/src/feature-presentations.ts");
-const dartPath = path.join(root, "apps/mobile-client/lib/feature_presentations.g.dart");
+const dartPath = path.join(root, "apps/mobile/lib/feature_presentations.g.dart");
 const webPath = path.join(root, "apps/main-web/app/feature-presentations.generated.ts");
 const features = JSON.parse(fs.readFileSync(sourcePath, "utf8"));
 
@@ -74,7 +74,8 @@ export function leashFeaturePresentation(value: string | undefined | null) {
 }
 `;
 
-const outputs = [[tsPath, ts], [dartPath, dart], [webPath, web]];
+const outputs = [[tsPath, ts], [dartPath, dart]];
+if (fs.existsSync(path.dirname(webPath))) outputs.push([webPath, web]);
 if (process.argv.includes("--check")) {
   const stale = outputs.filter(([target, content]) => !fs.existsSync(target) || fs.readFileSync(target, "utf8") !== content);
   if (stale.length) {

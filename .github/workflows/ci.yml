@@ -15,16 +15,6 @@ jobs:
           fetch-depth: 0
           submodules: false
 
-      - name: Checkout public submodules
-        run: |
-          git submodule update --init --force \
-            apps/client-api \
-            apps/desktop-client \
-            apps/docs-web \
-            apps/local-proxy \
-            apps/mobile-client \
-            packages/shared
-
       - name: Setup Node
         uses: actions/setup-node@v7
         with:
@@ -42,6 +32,9 @@ jobs:
 
       - name: Build
         run: npm run build
+
+      - name: Engine image
+        run: docker build -f apps/engine/Dockerfile -t leash-engine:ci .
 
       - name: Upgrade tests
         run: npm run test:upgrade
@@ -62,3 +55,39 @@ jobs:
 
       - name: Product smoke
         run: npm run smoke:product:public
+
+  native-proxy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Test local proxy
+        run: cargo test --manifest-path apps/local-proxy/Cargo.toml
+
+  mobile:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Install mobile dependencies
+        working-directory: apps/mobile
+        run: flutter pub get
+
+      - name: Analyze mobile
+        working-directory: apps/mobile
+        run: flutter analyze
+
+      - name: Test mobile
+        working-directory: apps/mobile
+        run: flutter test

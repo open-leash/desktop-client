@@ -7,7 +7,7 @@ Security fixes are applied to the latest commit on the default branch.
 ## Reporting a vulnerability
 
 Please use GitHub's private vulnerability reporting for the
-[`open-leash/flow-viewer`](https://github.com/open-leash/flow-viewer) repository.
+[`open-leash/leash`](https://github.com/open-leash/leash) repository.
 Do not open a public issue containing a trace, prompt, credential, or exploit.
 
 ## Trace-data boundary

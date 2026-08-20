@@ -30,7 +30,7 @@ class ClientConfig:
     optional: bool = False
 
 
-POSTGRES_SCHEMA = ROOT / "apps" / "client-api" / "infra" / "postgres" / "schema.sql"
+POSTGRES_SCHEMA = ROOT / "apps" / "engine" / "infra" / "postgres" / "schema.sql"
 
 CLIENTS: dict[str, ClientConfig] = {
     "client-api": ClientConfig(

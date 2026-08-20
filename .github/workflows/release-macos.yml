@@ -13,36 +13,10 @@ jobs:
   macos-arm64:
     runs-on: macos-14
     steps:
-      - name: Checkout desktop client
+      - name: Checkout Leash monorepo
         uses: actions/checkout@v7
         with:
-          path: apps/desktop-client
-
-      - name: Checkout shared contracts
-        uses: actions/checkout@v7
-        with:
-          repository: open-leash/shared
-          ref: v0.2.1
-          path: packages/shared
-
-      - name: Read local proxy version
-        id: local-proxy-version
-        shell: bash
-        run: echo "version=$(cat apps/desktop-client/local-proxy.version)" >> "$GITHUB_OUTPUT"
-
-      - name: Checkout native local proxy
-        uses: actions/checkout@v7
-        with:
-          repository: open-leash/local-proxy
-          ref: v${{ steps.local-proxy-version.outputs.version }}
-          path: apps/local-proxy
-
-      - name: Checkout public release tooling
-        uses: actions/checkout@v7
-        with:
-          repository: open-leash/openleash
-          ref: main
-          path: platform
+          fetch-depth: 0
 
       - name: Setup Node
         uses: actions/setup-node@v7
@@ -52,20 +26,16 @@ jobs:
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
 
-      - name: Create release workspace
+      - name: Install monorepo dependencies
         shell: bash
-        run: |
-          set -euo pipefail
-          printf '%s\n' '{"private":true,"workspaces":["packages/*","apps/*"]}' > package.json
-          cp platform/scripts/install-openleash-personal.sh apps/desktop-client/scripts/install-openleash-personal.sh
-          npm install
+        run: npm ci
 
       - name: Verify tag matches package version
         if: startsWith(github.ref, 'refs/tags/')
         shell: bash
         run: |
           set -euo pipefail
-          package_version=$(node -p "require('./apps/desktop-client/package.json').version")
+          package_version=$(node -p "require('./apps/desktop/package.json').version")
           test "v$package_version" = "${{ github.ref_name }}"
 
       - name: Test and build
@@ -79,7 +49,7 @@ jobs:
 
       - name: Build unsigned development DMG
         if: ${{ !startsWith(github.ref, 'refs/tags/') }}
-        working-directory: apps/desktop-client
+        working-directory: apps/desktop
         shell: bash
         env:
           CSC_IDENTITY_AUTO_DISCOVERY: "false"
@@ -90,7 +60,7 @@ jobs:
 
       - name: Verify unsigned development package
         if: ${{ !startsWith(github.ref, 'refs/tags/') }}
-        working-directory: apps/desktop-client
+        working-directory: apps/desktop
         shell: bash
         run: |
           set -euo pipefail
@@ -118,7 +88,7 @@ jobs:
 
       - name: Build signed and notarized production DMG
         if: startsWith(github.ref, 'refs/tags/')
-        working-directory: apps/desktop-client
+        working-directory: apps/desktop
         shell: bash
         env:
           CSC_LINK: ${{ secrets.MAC_CSC_LINK }}
@@ -142,7 +112,7 @@ jobs:
 
       - name: Verify production signature and notarization
         if: startsWith(github.ref, 'refs/tags/')
-        working-directory: apps/desktop-client
+        working-directory: apps/desktop
         shell: bash
         run: |
           set -euo pipefail
@@ -156,20 +126,20 @@ jobs:
           xcrun stapler validate "$dmg_path"
 
       - name: Smoke-test fresh install and running-app upgrade
-        working-directory: apps/desktop-client
+        working-directory: apps/desktop
         shell: bash
         run: |
           set -euo pipefail
           dmg_path=$(find release/macos -maxdepth 1 -type f -name 'Leash-*.dmg' -print -quit)
           test -n "$dmg_path"
-          bash ../../platform/scripts/smoke-macos-installer.sh "$dmg_path" ../../platform/scripts/install-openleash-personal.sh
+          bash ../../scripts/smoke-macos-installer.sh "$dmg_path" ../../scripts/install-openleash-personal.sh
 
       - name: Create checksums
-        working-directory: apps/desktop-client/release/macos
+        working-directory: apps/desktop/release/macos
         shell: bash
         run: |
           set -euo pipefail
-          cp ../../scripts/install-openleash-personal.sh .
+          cp ../../../../scripts/install-openleash-personal.sh .
           chmod +x install-openleash-personal.sh
           shasum -a 256 Leash-*.dmg *.blockmap latest-mac.yml install-openleash-personal.sh > SHA256SUMS
 
@@ -178,15 +148,15 @@ jobs:
         with:
           name: Leash-macOS-arm64-${{ github.ref_name }}
           path: |
-            apps/desktop-client/release/macos/*.dmg
-            apps/desktop-client/release/macos/*.blockmap
-            apps/desktop-client/release/macos/latest-mac.yml
-            apps/desktop-client/release/macos/install-openleash-personal.sh
-            apps/desktop-client/release/macos/SHA256SUMS
+            apps/desktop/release/macos/*.dmg
+            apps/desktop/release/macos/*.blockmap
+            apps/desktop/release/macos/latest-mac.yml
+            apps/desktop/release/macos/install-openleash-personal.sh
+            apps/desktop/release/macos/SHA256SUMS
 
       - name: Attach immutable assets to GitHub release
         if: startsWith(github.ref, 'refs/tags/')
-        working-directory: apps/desktop-client
+        working-directory: apps/desktop
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}

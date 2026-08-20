@@ -126,7 +126,7 @@ async function runFixture(fixture) {
   });
 
   await verifyMigratedDatabase(fixture.name, databaseUrl);
-  await run("npx", ["tsx", "apps/client-api/src/bootstrap-personal.ts", "--name", "Personal Upgrade", "--slug", "personal-upgrade", "--mode", "private"], {
+  await run("npx", ["tsx", "apps/engine/src/bootstrap-personal.ts", "--name", "Personal Upgrade", "--slug", "personal-upgrade", "--mode", "private"], {
     DATABASE_URL: databaseUrl
   });
   await verifyPersonalCompatibilityData(databaseUrl);

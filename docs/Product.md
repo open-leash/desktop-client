@@ -31,14 +31,14 @@ web dashboard.
 
 ### Personal, Free (BYOK)
 
-- Runs `desktop-client`, the real open-source `client-api`, and Postgres for one
+- Runs Leash Desktop, the real open-source Leash Engine, and Postgres for one
   user.
 - Has no Leash Cloud sign-in, hosted account, billing, dashboard, organization,
   or identity-provider setup.
 - Uses a user-supplied LLM-provider key for evaluations.
 - Stores personal settings, Feature state, approvals, outcomes, and history in
   local Postgres.
-- Uses the same client API, schema, migrations, event pipeline, and Feature
+- Uses the same Engine API, schema, migrations, event pipeline, and Feature
   handlers as the public core used by hosted personal clients.
 - Must not use SQLite or a desktop-only duplicate backend for enforcement.
 
@@ -49,7 +49,7 @@ Price: **Free**.
 
 ### Personal, Leash Cloud
 
-- Desktop, web, and mobile use the Leash-hosted personal `client-api` surface.
+- Desktop, web, and mobile use the Leash-hosted personal Leash Engine surface.
 - Leash AI is included; Cloud never asks for or accepts a customer model-provider key.
 - A 10-day free trial starts at first Cloud sign-in with no card required.
 - Cloud keeps protection, approvals, history, and settings available across devices.
@@ -101,7 +101,7 @@ Price: **$8 per month**.
   billing, organization policy editing, or other administrator actions. Even
   an organization administrator uses the private web dashboard for those
   actions.
-- Built-in Features still execute through the typed `client-api` registry. A
+- Built-in Features still execute through the typed Leash Engine registry. A
   Business plan does not create a third-party Feature or arbitrary-code path.
 
 Price: **$18 per user per month**, or **$14 per user per month when billed
@@ -109,10 +109,11 @@ annually**.
 
 ## Public repository boundary
 
-The public core contains the desktop and mobile clients, personal `client-api`,
-local proxy, provider puller, flow viewer, docs, Personal and Business offer
-marketing/pricing, shared contracts, Postgres schema/migrations, and built-in
-Features.
+The public core contains the desktop and mobile clients, personal Leash Engine,
+local proxy, provider sync worker, flow viewer, shared contracts, Postgres
+schema/migrations, and built-in Features. Public documentation stays in its
+separate repository. Marketing, signup, and every Business control-plane
+surface are private deployments that may consume the public core.
 
 It does not contain or publish dashboard applications, dashboard APIs,
 identity/directory providers, Business administration/onboarding implementation,
@@ -149,7 +150,7 @@ A Feature is a first-party capability shipped with Leash.
 - Fresh setup enables every runtime-available built-in Feature. The setup page
   showcases what each Feature does; it is not an installation picker. After
   setup, Features may be enabled, disabled, and configured by the user.
-- `client-api` executes Feature handlers in-process in Node.js. It does not
+- Leash Engine executes Feature handlers in-process in Node.js. It does not
   launch containers, pull images, call a local runtime gateway, or load arbitrary
   third-party code.
 - A typed registry binds each stable manifest to its handler. Unknown IDs are
@@ -159,7 +160,7 @@ A Feature is a first-party capability shipped with Leash.
 - Installation verifies the API’s Feature registry and a deterministic handler
   self-test; it does not verify Docker images or container health.
 - Feature authors add a manifest, handler, focused unit tests, and registry entry
-  in `apps/client-api/src/features` (the existing internal `plugins` directory
+  in `apps/engine/src/features` (the existing internal `plugins` directory
   may remain temporarily as a source-compatible path).
 
 Feature settings in the public core are evaluated per user. Manifest defaults
@@ -198,7 +199,7 @@ changing the value will do.
 
 ## Agent event pipeline
 
-Every transport enters `client-api` as the same normalized, versioned event.
+Every transport enters Leash Engine as the same normalized, versioned event.
 The event records source, provider, idempotency key, correlation ID, and explicit
 enforcement capabilities.
 
@@ -206,14 +207,14 @@ enforcement capabilities.
 - `local_proxy` can observe and transform prompts before forwarding. It holds
   tool-capable responses until complete tool calls are reconstructed and
   evaluated.
-- `provider_puller` is retrospective observation and cannot mutate an action
+- `provider_sync_worker` is retrospective observation and cannot mutate an action
   that already completed.
 
 Hooks and proxy events describing the same action are deduplicated before
 Feature execution. Feature handlers use declared event capabilities rather than
 guessing from the agent name.
 
-The public client API accepts a typed runtime-policy provider from a private
+The public Engine API accepts a typed runtime-policy provider from a private
 Business deployment. The public core does not store or administer organization
 policy. When the provider returns learning mode, the original evaluation and
 Feature outcomes remain durable while the effective agent response is `allow`;
@@ -221,11 +222,11 @@ an `ask` outcome is marked resolved by the organization mode so no request is
 left waiting. Notification delivery consults the same provider independently.
 
 The cross-platform Rust `local-proxy` is separate from Feature execution. It
-submits normalized requests to `client-api`, which runs enabled Features in
+submits normalized requests to Leash Engine, which runs enabled Features in
 process, persists outcomes, and returns the decision. It never invokes a Feature
 directly. The desktop package bundles and runs the native proxy executable;
 Personal and Business Cloud customers do not need Docker. Personal Open Source
-may still use Docker to package Postgres and its local `client-api`.
+may still use Docker to package Postgres and its local Leash Engine.
 
 A user may pause monitoring for one exact conversation for at most 30 minutes.
 The pause stays visible and resumable and never becomes a global fail-open mode.
@@ -247,7 +248,7 @@ credentials are connected.
 
 ## Hook direction
 
-Installed hooks call the configured `client-api` directly:
+Installed hooks call the configured Leash Engine directly:
 
 ```text
 https://api.openleash.com/v1/hooks/:agent/:event

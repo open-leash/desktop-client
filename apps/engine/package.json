@@ -1,6 +1,12 @@
 {
   "name": "@openleash/client-api",
   "version": "0.37.3",
+  "description": "Leash Engine: the personal event, decision, Feature, and approval runtime.",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/open-leash/leash.git",
+    "directory": "apps/engine"
+  },
   "type": "module",
   "main": "dist/server.js",
   "types": "dist/server.d.ts",

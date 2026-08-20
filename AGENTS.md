@@ -16,7 +16,7 @@ billing implementation, or a third-party extension marketplace.
 ## Public Product Offers
 
 1. Personal, Free (BYOK)
-   - Runs the real `client-api` and Postgres for one person.
+   - Runs Leash Engine and Postgres for one person.
    - Uses the desktop client and optional mobile client.
    - Requires a user-supplied model-provider key.
    - Has no Leash account, hosted evaluation, billing, dashboard, organization,
@@ -34,25 +34,27 @@ billing implementation, or a third-party extension marketplace.
      tooling live outside this public repository.
 
 Do not add a standalone desktop-only enforcement backend or a duplicate local
-schema. Both modes use `client-api`; Personal Open Source uses local Postgres.
+schema. Both modes use Leash Engine; Personal Open Source uses local Postgres.
 
 ## Public Repository Boundary
 
 The public repository may contain:
 
-- `apps/desktop-client`
-- `apps/mobile-client`
-- `apps/client-api`, limited to personal client-facing behavior
+- `apps/desktop`
+- `apps/mobile`
+- `apps/engine`, limited to personal client-facing behavior
 - `apps/local-proxy`
-- `apps/provider-puller`
+- `apps/provider-sync-worker`
 - `apps/flow-viewer`
-- `apps/docs-web`
-- `apps/main-web`
 - shared contracts, schema, personal deployment tooling, and built-in Features
-- public marketing, pricing, and hosted-offer entry points for Personal and Business
+
+The public docs site remains a separate public repository. The marketing site
+and hosted-offer entry points are private deployments and are not part of this
+runtime repository.
 
 The public repository must not contain or publish:
 
+- `apps/main-web` or `apps/docs-web`; marketing is private and docs are separate
 - `dashboard-api` or `dashboard-web`
 - identity-provider or directory-sync implementations
 - organization administration, CISO consoles, or multi-tenant control planes
@@ -68,7 +70,7 @@ import private packages.
 Leakage Prevention, Rules Enforcer, or MCP Scanner.
 
 - Features are authored, reviewed, and shipped only by the Leash team.
-- Features execute in-process in the Node.js `client-api` runtime.
+- Features execute in-process in the Node.js Leash Engine runtime.
 - Feature logic is registered through typed manifests and handlers so adding a
   first-party Feature remains straightforward.
 - Feature execution must not require Docker, a sandbox container, image pulls,
@@ -98,17 +100,17 @@ Leash.
 
 The local open-source backend may use Docker for Postgres/service packaging.
 That is independent of Feature execution: Features always run in-process in
-`client-api` and never require their own containers.
+Leash Engine and never require their own containers.
 
 ## Hook Direction
 
-Installed hooks call the configured `client-api` directly:
+Installed hooks call the configured Leash Engine API directly:
 
 ```text
 https://api.openleash.com/v1/hooks/:agent/:event
 ```
 
-Personal Open Source uses its local `client-api`, normally
+Personal Open Source uses its local Engine, normally
 `http://127.0.0.1:9318`. Cloud-run agent environments cannot reach loopback
 unless the user deliberately exposes the backend.
 

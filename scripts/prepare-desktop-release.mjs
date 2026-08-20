@@ -6,7 +6,7 @@ import { spawnSync } from "node:child_process";
 
 const root = process.cwd();
 const rootPackagePath = path.join(root, "package.json");
-const desktopPackagePath = path.join(root, "apps/desktop-client/package.json");
+const desktopPackagePath = path.join(root, "apps/desktop/package.json");
 const mainWebSitePath = path.join(root, "apps/main-web/components/redesign/site.jsx");
 const accountClientPath = path.join(root, "apps/main-web/app/account/AccountClient.tsx");
 const mainWebDockerfilePath = path.join(root, "apps/main-web/Dockerfile");
@@ -134,7 +134,7 @@ function desktopDownloadUrls(version) {
     };
   }
 
-  const repo = process.env.OPENLEASH_DESKTOP_GITHUB_REPO ?? "open-leash/desktop-client";
+  const repo = process.env.OPENLEASH_DESKTOP_GITHUB_REPO ?? "open-leash/leash";
   const baseUrl = `https://github.com/${repo}/releases/download/v${version}`;
   return {
     macUrl: terminalInstaller

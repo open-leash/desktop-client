@@ -7333,8 +7333,8 @@
       /* development-plugin-selection:start */
       function isDevelopmentDesktopRenderer(pathname = window.location.pathname) {
         const normalized = decodeURIComponent(String(pathname || "")).replace(/\\/g, "/");
-        return normalized.includes("/apps/desktop-client/.dev/")
-          || normalized.endsWith("/apps/desktop-client/dist/window.html");
+        return normalized.includes("/apps/desktop/.dev/")
+          || normalized.endsWith("/apps/desktop/dist/window.html");
       }
 
       function defaultPluginSelectionIds(plugins) {

@@ -344,7 +344,7 @@ cleanup_existing_integrations() {
     const resources = process.argv[1];
     const roots = [
       `${resources}/app.asar/dist`,
-      `${resources}/app.asar/apps/desktop-client/dist`,
+      `${resources}/app.asar/apps/desktop/dist`,
     ];
     const base = roots.find((candidate) => fs.existsSync(`${candidate}/proxy-manager.js`));
     if (!base) throw new Error("Packaged integration cleanup modules are missing.");
@@ -496,7 +496,7 @@ services:
       OPENLEASH_MIGRATION_LOG_DIR: /var/log/openleash
     volumes:
       - ./migration-logs:/var/log/openleash
-    command: ["node", "apps/client-api/dist/migrate.js", "--apply"]
+    command: ["node", "apps/engine/dist/migrate.js", "--apply"]
     depends_on:
       postgres:
         condition: service_healthy
@@ -506,7 +506,7 @@ services:
     profiles: ["setup"]
     environment:
       DATABASE_URL: postgres://${OPENLEASH_POSTGRES_USER:-openleash}:${OPENLEASH_POSTGRES_PASSWORD:-openleash}@postgres:5432/${OPENLEASH_POSTGRES_DB:-openleash}
-    command: ["node", "apps/client-api/dist/bootstrap-personal.js", "--name", "Individual Open Source", "--slug", "individual-open-source", "--mode", "private"]
+    command: ["node", "apps/engine/dist/bootstrap-personal.js", "--name", "Individual Open Source", "--slug", "individual-open-source", "--mode", "private"]
     depends_on:
       postgres:
         condition: service_healthy

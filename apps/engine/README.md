@@ -1,6 +1,8 @@
-# Leash client API
+# Leash Engine
 
-`client-api` is the single personal backend used by Leash Cloud and Personal Open Source. It evaluates normalized agent events, records outcomes, manages approvals and structured questions, serves desktop/mobile/web state, stores personal Feature settings, and publishes desktop updates.
+Leash Engine is the single personal backend used by Leash Cloud and Personal Open Source. It evaluates normalized agent events, records outcomes, manages approvals and structured questions, serves desktop/mobile/web state, stores personal Feature settings, and publishes desktop updates.
+
+The source lives at `apps/engine`. The npm package name `@openleash/client-api`, container/service name `client-api`, environment variables, and versioned HTTP routes remain stable compatibility identifiers for existing installations.
 
 ## Built-in Features
 
@@ -24,4 +26,4 @@ npm run db:migrate -w @openleash/client-api -- --apply
 npm run dev -w @openleash/client-api
 ```
 
-The shipped server is permanently client-only. Dashboard, organization, SSO/IdP, marketplace, and upload endpoints cannot be enabled by an API-surface environment flag.
+The shipped Engine is permanently personal/client-only. Dashboard, organization, SSO/IdP, marketplace, and upload endpoints cannot be enabled by an API-surface environment flag.

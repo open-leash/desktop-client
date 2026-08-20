@@ -1,6 +1,12 @@
 {
   "name": "@openleash/provider-puller",
   "version": "0.1.0",
+  "description": "Optional Leash provider activity synchronization scheduler.",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/open-leash/leash.git",
+    "directory": "apps/provider-sync-worker"
+  },
   "type": "module",
   "main": "dist/index.js",
   "scripts": {

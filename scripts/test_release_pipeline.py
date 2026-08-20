@@ -82,6 +82,12 @@ class ReleasePipelineTests(unittest.TestCase):
             {"client-api": "1.2.3", "cloud-client-api": "4.5.6"},
         )
 
+    def test_engine_alias_selects_the_compatibility_component(self):
+        self.assertEqual(
+            PIPELINE.parse_selection(["engine=1.2.3"], None),
+            {"client-api": "1.2.3"},
+        )
+
     def test_semver_comparison_uses_numeric_components(self):
         self.assertGreater(
             PIPELINE.semver_core("0.10.0"),
@@ -115,7 +121,7 @@ class ReleasePipelineTests(unittest.TestCase):
             ])
         self.assertEqual(result, 0)
         rendered = output.getvalue()
-        self.assertIn("desktop-client: prepare -> test/build -> commit -> push -> publish/deploy -> verify", rendered)
+        self.assertIn("desktop: prepare -> test/build -> commit -> push -> publish/deploy -> verify", rendered)
         self.assertIn("main-web: prepare -> test/build -> commit -> push -> publish/deploy -> verify", rendered)
         self.assertIn("direct Google Cloud main-web deploy and live install.sh", rendered)
 

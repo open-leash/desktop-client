@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src="https://capsule-render.vercel.app/api?type=waving&color=0:F59E0B,45:EA580C,100:111827&height=220&section=header&text=Provider%20Puller&fontSize=54&fontColor=ffffff&fontAlignY=38&desc=Scheduled%20discovery%20for%20hosted%20enterprise%20agents.&descSize=18&descAlignY=58" width="100%" />
+<img src="https://capsule-render.vercel.app/api?type=waving&color=0:F59E0B,45:EA580C,100:111827&height=220&section=header&text=Provider%20Sync%20Worker&fontSize=54&fontColor=ffffff&fontAlignY=38&desc=Scheduled%20discovery%20for%20provider-hosted%20agents.&descSize=18&descAlignY=58" width="100%" />
 
 <p>
   <a href="https://openleash.com"><img src="https://img.shields.io/badge/OpenLeash-openleash.com-F59E0B?style=for-the-badge&logo=googlechrome&logoColor=white" /></a>
@@ -14,7 +14,7 @@
   <img src="https://img.shields.io/badge/Output-normalized%20agent%20events-F59E0B?style=for-the-badge" />
 </p>
 
-<h3>☁️ Bring hosted agent activity into the same OpenLeash decision and audit pipeline.</h3>
+<h3>☁️ Bring provider-hosted agent activity into the same Leash event and audit pipeline.</h3>
 
 </div>
 
@@ -22,18 +22,18 @@
 
 ## ✨ What this app is
 
-`provider-puller` is OpenLeash's small, deployable scheduler for SaaS and cloud agent platforms that expose activity through provider APIs instead of a local model connection. It asks `client-api` to synchronize configured providers on a fixed interval; provider connectors fetch, normalize, deduplicate, and process the actual activity.
+Provider Sync Worker is Leash's small, stateless scheduler for SaaS and cloud agent platforms that expose activity through provider APIs instead of a local model connection. It asks Leash Engine to synchronize configured providers on a fixed interval; Engine-owned connectors fetch, normalize, deduplicate, and process the activity.
 
 ```text
 Salesforce Agentforce ─┐
-Google Vertex AI ──────┼─► client-api connectors ─► normalized event pipeline
+Google Vertex AI ──────┼─► Engine connectors ─────► normalized event pipeline
 Copilot Studio ────────┘             ▲
                                      │
-                              provider-puller
+                         provider-sync-worker
                               scheduled trigger
 ```
 
-Keeping scheduling separate makes the worker stateless and horizontally disposable while `client-api` remains the source of truth for credentials, checkpoints, normalization, policy, and audit data.
+Keeping scheduling separate makes the worker horizontally disposable while Leash Engine remains the source of truth for credentials, checkpoints, normalization, policy, and audit data. It lives in this monorepo because it shares Engine's event contract and releases with the public runtime; it is not an independent product repository.
 
 ---
 
@@ -42,7 +42,7 @@ Keeping scheduling separate makes the worker stateless and horizontally disposab
 - Trigger configured provider synchronizations on startup and on a fixed interval
 - Synchronize providers concurrently so a slow platform does not serialize the cycle
 - Emit structured JSON success and failure logs per provider
-- Authenticate to the administrative sync surface of `client-api`
+- Authenticate to the provider-sync surface of Leash Engine
 - Apply bounded request timeouts and continue future cycles after individual failures
 
 The default provider set is:
@@ -57,7 +57,7 @@ The default provider set is:
 
 | Mode | Role |
 | --- | --- |
-| 🏢 Private Cloud | Optional worker beside the customer-hosted `client-api`. |
+| 🏢 Private Cloud | Optional worker beside the customer-hosted Engine. |
 | ☁️ OpenLeash Cloud | Hosted scheduler for enabled SaaS connectors. |
 | 🧑‍💻 Individual Open Source | Optional; useful only when the user configures a supported hosted provider connector. |
 
@@ -65,7 +65,7 @@ The default provider set is:
 
 ## 🛠 Run locally
 
-Requirements: Node.js 22 or newer and a running OpenLeash `client-api` with an administrative token.
+Requirements: Node.js 22 or newer and a running Leash Engine with an administrative token.
 
 ```bash
 npm install
@@ -84,7 +84,7 @@ The first synchronization runs immediately. Subsequent cycles use `OPENLEASH_PUL
 
 | Variable | Required | Purpose |
 | --- | --- | --- |
-| `OPENLEASH_CLIENT_API_URL` | No | `client-api` base URL. Defaults to `http://127.0.0.1:9318`. |
+| `OPENLEASH_CLIENT_API_URL` | No | Engine base URL. Defaults to `http://127.0.0.1:9318`. |
 | `OPENLEASH_ADMIN_TOKEN` | Yes* | Administrative bearer token used for sync requests. |
 | `OPENLEASH_DASHBOARD_TOKEN` | Yes* | Backward-compatible token fallback. |
 | `OPENLEASH_PULL_INTERVAL_MS` | No | Interval between cycles. Minimum 30 seconds; default 5 minutes. |
@@ -92,7 +92,7 @@ The first synchronization runs immediately. Subsequent cycles use `OPENLEASH_PUL
 
 *Set one of the two token variables. Prefer `OPENLEASH_ADMIN_TOKEN`.
 
-Provider credentials and checkpoints belong in `client-api`; do not place them in this worker's environment.
+Provider credentials and checkpoints belong in Engine; do not place them in this worker's environment.
 
 ---
 

@@ -77,8 +77,8 @@ class RunnerTests(unittest.TestCase):
     def test_packaged_local_cloud_mode_uses_real_oauth_and_no_dev_desktop(self):
         mode = RUNNER.build_packaged_local_cloud_mode()
         self.assertNotIn("desktop-client", {process.name for process in mode.processes})
-        client_api = next(process for process in mode.processes if process.name == "client-api")
-        self.assertEqual(client_api.env["OPENLEASH_MOBILE_DEV_AUTH"], "0")
+        engine = next(process for process in mode.processes if process.name == "engine")
+        self.assertEqual(engine.env["OPENLEASH_MOBILE_DEV_AUTH"], "0")
         main_web = next(process for process in mode.processes if process.name == "main-web")
         self.assertEqual(main_web.env["NEXT_PUBLIC_DASHBOARD_URL"], "http://localhost:9302")
 
@@ -194,7 +194,7 @@ class RunnerTests(unittest.TestCase):
         self.assertIn("/Applications/OpenLeash.app", targets)
         self.assertIn("/usr/local/bin/openleash", targets)
         self.assertIn("/opt/homebrew/bin/leash", targets)
-        self.assertTrue(any(path.endswith("/apps/desktop-client/.dev/OpenLeash.app") for path in targets))
+        self.assertTrue(any(path.endswith("/apps/desktop/.dev/OpenLeash.app") for path in targets))
         self.assertIn(str(RUNNER.PACKAGED_LOCAL_CLOUD_USER_DATA), targets)
 
     def test_full_cleanup_stops_packaged_local_cloud_services(self):

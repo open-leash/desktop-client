@@ -15,36 +15,10 @@ jobs:
   terminal-macos-arm64:
     runs-on: macos-14
     steps:
-      - name: Checkout desktop client
+      - name: Checkout Leash monorepo
         uses: actions/checkout@v7
         with:
-          path: apps/desktop-client
-
-      - name: Checkout shared contracts
-        uses: actions/checkout@v7
-        with:
-          repository: open-leash/shared
-          ref: v0.2.1
-          path: packages/shared
-
-      - name: Read local proxy version
-        id: local-proxy-version
-        shell: bash
-        run: echo "version=$(cat apps/desktop-client/local-proxy.version)" >> "$GITHUB_OUTPUT"
-
-      - name: Checkout native local proxy
-        uses: actions/checkout@v7
-        with:
-          repository: open-leash/local-proxy
-          ref: v${{ steps.local-proxy-version.outputs.version }}
-          path: apps/local-proxy
-
-      - name: Checkout public installer and smoke tests
-        uses: actions/checkout@v7
-        with:
-          repository: open-leash/openleash
-          ref: main
-          path: platform
+          fetch-depth: 0
 
       - name: Setup Node
         uses: actions/setup-node@v7
@@ -54,19 +28,15 @@ jobs:
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
 
-      - name: Create release workspace
+      - name: Install monorepo dependencies
         shell: bash
-        run: |
-          set -euo pipefail
-          printf '%s\n' '{"private":true,"workspaces":["packages/*","apps/*"]}' > package.json
-          cp platform/scripts/install-openleash-personal.sh apps/desktop-client/scripts/install-openleash-personal.sh
-          npm install
+        run: npm ci
 
       - name: Verify release tag matches package version
         shell: bash
         run: |
           set -euo pipefail
-          package_version=$(node -p "require('./apps/desktop-client/package.json').version")
+          package_version=$(node -p "require('./apps/desktop/package.json').version")
           test "v$package_version" = "${{ inputs.release_tag }}"
 
       - name: Test and build
@@ -79,7 +49,7 @@ jobs:
           npm run build -w @openleash/desktop-client
 
       - name: Build locally signed Terminal DMG
-        working-directory: apps/desktop-client
+        working-directory: apps/desktop
         shell: bash
         env:
           CSC_IDENTITY_AUTO_DISCOVERY: "false"
@@ -89,16 +59,16 @@ jobs:
           npx electron-builder --config electron-builder.mac.yml --mac --arm64 --publish never
 
       - name: Release-gate the actual installer
-        working-directory: apps/desktop-client
+        working-directory: apps/desktop
         shell: bash
         run: |
           set -euo pipefail
           dmg_path=$(find release/macos -maxdepth 1 -type f -name 'Leash-*.dmg' -print -quit)
           test -n "$dmg_path"
-          bash ../../platform/scripts/smoke-macos-installer.sh "$dmg_path" ../../platform/scripts/install-openleash-personal.sh
+          bash ../../scripts/smoke-macos-installer.sh "$dmg_path" ../../scripts/install-openleash-personal.sh
 
       - name: Prepare immutable Terminal assets
-        working-directory: apps/desktop-client
+        working-directory: apps/desktop
         shell: bash
         run: |
           set -euo pipefail
@@ -106,7 +76,7 @@ jobs:
           source_dmg=$(find release/macos -maxdepth 1 -type f -name 'Leash-*.dmg' ! -name '*terminal-installer*' -print -quit)
           terminal_dmg="release/macos/Leash-${package_version}-terminal-installer-arm64.dmg"
           cp "$source_dmg" "$terminal_dmg"
-          cp ../../platform/scripts/install-openleash-personal.sh release/macos/install-openleash-personal-terminal.sh
+          cp ../../scripts/install-openleash-personal.sh release/macos/install-openleash-personal-terminal.sh
           chmod +x release/macos/install-openleash-personal-terminal.sh
           (
             cd release/macos
@@ -117,7 +87,7 @@ jobs:
           )
 
       - name: Upload verified assets to prerelease
-        working-directory: apps/desktop-client
+        working-directory: apps/desktop
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
@@ -137,6 +107,6 @@ jobs:
         with:
           name: Leash-Terminal-macOS-arm64-${{ inputs.release_tag }}
           path: |
-            apps/desktop-client/release/macos/Leash-*-terminal-installer-arm64.dmg
-            apps/desktop-client/release/macos/install-openleash-personal-terminal.sh
-            apps/desktop-client/release/macos/SHA256SUMS-TERMINAL
+            apps/desktop/release/macos/Leash-*-terminal-installer-arm64.dmg
+            apps/desktop/release/macos/install-openleash-personal-terminal.sh
+            apps/desktop/release/macos/SHA256SUMS-TERMINAL
