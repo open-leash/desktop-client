@@ -5,13 +5,10 @@
   "description": "Leash protects personal AI coding agents with built-in security Features and clear local visibility.",
   "author": "Leash",
   "workspaces": [
-    "apps/client-api",
-    "apps/desktop-client",
-    "apps/docs-web",
+    "apps/engine",
+    "apps/desktop",
     "apps/flow-viewer",
-    "apps/main-web",
-    "apps/new-web-design2",
-    "apps/provider-puller",
+    "apps/provider-sync-worker",
     "packages/shared"
   ],
   "engines": {
@@ -24,10 +21,11 @@
     "icons:check": "node scripts/sync-product-icons.mjs --check",
     "features:sync": "node scripts/sync-feature-presentations.mjs",
     "features:check": "node scripts/sync-feature-presentations.mjs --check",
+    "desktop": "npm run dev -w @openleash/desktop-client",
     "desktop-client": "npm run dev -w @openleash/desktop-client",
     "desktop-cli": "npm run cli -w @openleash/desktop-client --",
-    "dev:client-api": "npm run dev -w @openleash/client-api",
-    "dev:docs-web": "npm run dev -w @openleash/docs-web",
+    "dev:engine": "npm run dev -w @openleash/client-api",
+    "dev:client-api": "npm run dev:engine",
     "dev:flow-viewer": "npm run dev -w @openleash/flow-viewer",
     "dev:main-web": "npm run dev -w @openleash/main-web",
     "dev:mode:individual-open-source": "python3 run.py --mode individual-open-source",
@@ -78,5 +76,5 @@
       "esbuild": "0.28.1"
     }
   },
-  "main": "apps/desktop-client/dist/main.js"
+  "main": "apps/desktop/dist/main.js"
 }

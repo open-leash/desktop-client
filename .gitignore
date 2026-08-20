@@ -41,9 +41,9 @@ openleash-cloud-private/
 apps/cloud-client-api/
 apps/cloud-dashboard-api/
 apps/cloud-dashboard-web/
+apps/docs-web/
 apps/main-web/
 apps/provider-mgmt-sync/
-apps/mobile/
 
 # Local workspaces, generated diagnostics, and imported repositories.
 .playwright-cli/
