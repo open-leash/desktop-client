@@ -557,7 +557,8 @@ def add_required_surfaces(selected: dict[str, str]) -> dict[str, str]:
 def print_plan(selected: list[str], versions: dict[str, str], args: argparse.Namespace, state_path: Path) -> None:
     print("Leash deterministic production release")
     for key in selected:
-        print(f"  - {display_name(key)}: {component_version(COMPONENTS[key])} -> {versions[key]}")
+        current = display_component_version(key).removeprefix("current ")
+        print(f"  - {display_name(key)}: {current} -> {versions[key]}")
     if "desktop-client" in selected:
         print(f"  - desktop channel: {args.desktop_channel}")
     if "cloud-client-api" in selected:

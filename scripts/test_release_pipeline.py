@@ -88,6 +88,15 @@ class ReleasePipelineTests(unittest.TestCase):
             {"client-api": "1.2.3"},
         )
 
+    def test_plan_can_render_when_a_private_checkout_is_missing(self):
+        with tempfile.TemporaryDirectory() as directory:
+            missing = PIPELINE.Component("main-web", Path(directory) / "missing", "open-leash/main-web", "web", (), ())
+            with patch.dict(PIPELINE.COMPONENTS, {"main-web": missing}):
+                output = io.StringIO()
+                with contextlib.redirect_stdout(output):
+                    PIPELINE.print_plan(["main-web"], {"main-web": "2.3.4"}, SimpleNamespace(), Path("state.json"))
+            self.assertIn("main-web: checkout missing -> 2.3.4", output.getvalue())
+
     def test_semver_comparison_uses_numeric_components(self):
         self.assertGreater(
             PIPELINE.semver_core("0.10.0"),
