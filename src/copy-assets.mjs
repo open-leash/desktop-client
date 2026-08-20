@@ -58,8 +58,18 @@ async function copyWorkspaceRuntimeDependencies() {
   );
 }
 
+const trayIconSize = 64;
+const trayIconCornerRadius = 14;
+const trayIconMask = Buffer.from(
+  `<svg xmlns="http://www.w3.org/2000/svg" width="${trayIconSize}" height="${trayIconSize}">
+    <rect width="${trayIconSize}" height="${trayIconSize}" rx="${trayIconCornerRadius}" fill="white"/>
+  </svg>`,
+);
+
 await sharp(path.join("src", "openleash-icon.png"))
-  .resize(64, 64, { fit: "fill", kernel: "lanczos3" })
+  .resize(trayIconSize, trayIconSize, { fit: "fill", kernel: "lanczos3" })
+  .ensureAlpha()
+  .composite([{ input: trayIconMask, blend: "dest-in" }])
   .png()
   .toFile(path.join("dist", "tray-icon.png"));
 

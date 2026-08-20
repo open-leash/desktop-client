@@ -67,6 +67,12 @@ test("desktop groups built-in Features into plain-language Safety and Cost contr
   assert.doesNotMatch(renderer, /\{ id: "security", label: "Security"/);
 });
 
+test("desktop tray icon has transparent rounded corners", () => {
+  assert.match(copyAssets, /const trayIconCornerRadius = 14/);
+  assert.match(copyAssets, /\.ensureAlpha\(\)/);
+  assert.match(copyAssets, /blend: "dest-in"/);
+});
+
 test("desktop Overview focuses on monitored activity and Agents owns enablement", () => {
   assert.match(renderer, /function overviewActivitySummary\(inventory\)/);
   assert.match(renderer, /function overviewActivitySnapshotHtml\(summary, inventory\)/);
