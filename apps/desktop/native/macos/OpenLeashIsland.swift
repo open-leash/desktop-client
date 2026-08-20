@@ -1,0 +1,558 @@
+import AppKit
+import Foundation
+import WebKit
+
+private func writeMessage(_ message: [String: Any]) {
+    guard JSONSerialization.isValidJSONObject(message),
+          let data = try? JSONSerialization.data(withJSONObject: message),
+          let line = String(data: data, encoding: .utf8) else { return }
+    FileHandle.standardOutput.write(Data((line + "\n").utf8))
+}
+
+private final class IslandPanel: NSPanel {
+    var pointerSequenceChanged: ((Bool) -> Void)?
+
+    override var canBecomeKey: Bool { true }
+    override var canBecomeMain: Bool { false }
+
+    override func sendEvent(_ event: NSEvent) {
+        switch event.type {
+        case .leftMouseDown, .rightMouseDown, .otherMouseDown:
+            pointerSequenceChanged?(true)
+            super.sendEvent(event)
+        case .leftMouseUp, .rightMouseUp, .otherMouseUp:
+            super.sendEvent(event)
+            pointerSequenceChanged?(false)
+        default:
+            super.sendEvent(event)
+        }
+    }
+}
+
+private final class FirstMouseWebView: WKWebView {
+    override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
+}
+
+private final class ScriptMessageRelay: NSObject, WKScriptMessageHandler {
+    weak var delegate: WKScriptMessageHandler?
+
+    func userContentController(
+        _ userContentController: WKUserContentController,
+        didReceive message: WKScriptMessage
+    ) {
+        delegate?.userContentController(userContentController, didReceive: message)
+    }
+}
+
+@MainActor
+private final class IslandController: NSObject, WKNavigationDelegate, WKScriptMessageHandler {
+    private let panel: IslandPanel
+    private let webView: FirstMouseWebView
+    private let scriptMessageRelay: ScriptMessageRelay
+    private var screen: NSScreen?
+    private var targetDisplayID: UInt32?
+    private var pendingPayload: [String: Any]?
+    private var pageReady = false
+    private var interactiveBounds: CGRect?
+    private var pointerTimer: Timer?
+    private var displayChangeWorkItem: DispatchWorkItem?
+    private var pointerSequenceActive = false
+    private var pointerPassthroughBlockedUntil: TimeInterval = 0
+
+    init(htmlPath: String) {
+        let configuration = WKWebViewConfiguration()
+        let scriptMessageRelay = ScriptMessageRelay()
+        configuration.userContentController.addUserScript(WKUserScript(
+            source: "window.__OPENLEASH_NATIVE_ISLAND__ = true;",
+            injectionTime: .atDocumentStart,
+            forMainFrameOnly: true
+        ))
+        configuration.userContentController.add(scriptMessageRelay, name: "openleash")
+
+        self.scriptMessageRelay = scriptMessageRelay
+        webView = FirstMouseWebView(frame: .zero, configuration: configuration)
+        panel = IslandPanel(
+            contentRect: NSRect(x: 0, y: 0, width: 300, height: 48),
+            styleMask: [.borderless, .nonactivatingPanel, .utilityWindow, .hudWindow],
+            backing: .buffered,
+            defer: false
+        )
+        super.init()
+
+        scriptMessageRelay.delegate = self
+        panel.pointerSequenceChanged = { [weak self] active in
+            self?.setPointerSequenceActive(active)
+        }
+        webView.navigationDelegate = self
+        webView.autoresizingMask = [.width, .height]
+        webView.setValue(false, forKey: "drawsBackground")
+        webView.layer?.backgroundColor = NSColor.clear.cgColor
+
+        panel.isFloatingPanel = true
+        panel.isOpaque = false
+        panel.backgroundColor = .clear
+        panel.hasShadow = false
+        panel.ignoresMouseEvents = true
+        panel.hidesOnDeactivate = false
+        panel.isMovable = false
+        panel.isMovableByWindowBackground = false
+        panel.level = .screenSaver
+        panel.collectionBehavior = [
+            .canJoinAllSpaces,
+            .fullScreenAuxiliary,
+            .stationary,
+            .ignoresCycle
+        ]
+        panel.contentView = webView
+
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(displayParametersDidChange),
+            name: NSApplication.didChangeScreenParametersNotification,
+            object: nil
+        )
+
+        pointerTimer = Timer.scheduledTimer(
+            timeInterval: 1.0 / 30.0,
+            target: self,
+            selector: #selector(pollPointerLocation),
+            userInfo: nil,
+            repeats: true
+        )
+
+        let fileURL = URL(fileURLWithPath: htmlPath)
+        webView.loadFileURL(fileURL, allowingReadAccessTo: fileURL.deletingLastPathComponent())
+    }
+
+    func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
+        pageReady = true
+        writeMessage(["type": "ready", "windowId": panel.windowNumber])
+        if let pendingPayload {
+            show(payload: pendingPayload)
+        }
+    }
+
+    func userContentController(
+        _ userContentController: WKUserContentController,
+        didReceive message: WKScriptMessage
+    ) {
+        guard let body = message.body as? [String: Any],
+              let type = body["type"] as? String else { return }
+
+        if type == "resize" {
+            let width = (body["width"] as? NSNumber)?.doubleValue ?? 300
+            let height = (body["height"] as? NSNumber)?.doubleValue ?? 48
+            let bounds = (body["interactiveBounds"] as? [String: Any]).flatMap(rectFromMessage)
+            resize(width: width, height: height, interactiveBounds: bounds)
+            return
+        }
+
+        if type == "action" {
+            writeMessage(body)
+        }
+    }
+
+    func show(
+        payload: [String: Any],
+        displayID: UInt32? = nil,
+        reposition: Bool = true
+    ) {
+        pendingPayload = payload
+        guard pageReady else { return }
+        if let displayID {
+            targetDisplayID = displayID
+            screen = screen(for: displayID) ?? activeScreen()
+        } else if reposition || screen == nil {
+            targetDisplayID = nil
+            screen = activeScreen()
+        }
+        place(width: panel.frame.width, height: panel.frame.height)
+        panel.level = .screenSaver
+        panel.orderFrontRegardless()
+
+        guard JSONSerialization.isValidJSONObject(payload),
+              let data = try? JSONSerialization.data(withJSONObject: payload),
+              let json = String(data: data, encoding: .utf8) else { return }
+        let quoted = String(data: try! JSONSerialization.data(withJSONObject: [json]), encoding: .utf8)!
+        let stringLiteral = String(quoted.dropFirst().dropLast())
+        let metrics = displayMetrics(for: screen ?? activeScreen())
+        let metricsJSON = String(
+            data: try! JSONSerialization.data(withJSONObject: metrics),
+            encoding: .utf8
+        )!
+        webView.evaluateJavaScript("window.setOpenLeashDisplayMetrics(\(metricsJSON)); window.renderOpenLeashNotice(JSON.parse(\(stringLiteral)))")
+    }
+
+    func dismiss() {
+        pendingPayload = nil
+        webView.evaluateJavaScript("window.dismissOpenLeashNotice && window.dismissOpenLeashNotice()")
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) { [weak self] in
+            guard self?.pendingPayload == nil else { return }
+            self?.panel.orderOut(nil)
+        }
+    }
+
+    func inspect() {
+        let display = screen ?? activeScreen()
+        let metrics = displayMetrics(for: display)
+        webView.evaluateJavaScript("window.inspectOpenLeashIsland && window.inspectOpenLeashIsland()") { [weak self] result, _ in
+            guard let self else { return }
+            var state: [String: Any] = [
+                "type": "state",
+                "visible": self.panel.isVisible,
+                "frame": [
+                    "x": self.panel.frame.origin.x,
+                    "y": self.panel.frame.origin.y,
+                    "width": self.panel.frame.width,
+                    "height": self.panel.frame.height,
+                    "topInset": display.frame.maxY - self.panel.frame.maxY
+                ],
+                "display": metrics
+            ]
+            if let bounds = self.interactiveBounds {
+                state["hitTest"] = [
+                    "ignoresMouseEvents": self.panel.ignoresMouseEvents,
+                    "interactiveBounds": self.rectMessage(bounds)
+                ]
+            }
+            if let layout = result as? [String: Any] {
+                state["layout"] = layout
+            }
+            writeMessage(state)
+        }
+    }
+
+    func expandActivityForVerification() {
+        webView.evaluateJavaScript("document.getElementById('toggle').click()")
+    }
+
+    func openMenuForVerification() {
+        webView.evaluateJavaScript("window.toggleOpenLeashIslandMenuForVerification && window.toggleOpenLeashIslandMenuForVerification()")
+    }
+
+    func clickFirstSessionMascotForVerification() {
+        webView.evaluateJavaScript("window.clickFirstSessionMascotForVerification && window.clickFirstSessionMascotForVerification()")
+    }
+
+    func clickPauseMonitoringForVerification() {
+        webView.evaluateJavaScript("window.clickPauseMonitoringForVerification && window.clickPauseMonitoringForVerification()")
+    }
+
+    func advanceInstallSuccessForVerification() {
+        webView.evaluateJavaScript("window.advanceInstallSuccessForVerification && window.advanceInstallSuccessForVerification()")
+    }
+
+    func clickSocialXForVerification() {
+        webView.evaluateJavaScript("window.clickSocialXForVerification && window.clickSocialXForVerification()")
+    }
+
+    func clickSocialLinkedInForVerification() {
+        webView.evaluateJavaScript("window.clickSocialLinkedInForVerification && window.clickSocialLinkedInForVerification()")
+    }
+
+    func setPointerInsideForVerification(_ inside: Bool) {
+        webView.evaluateJavaScript(
+            "window.setOpenLeashPointerInsideForVerification && window.setOpenLeashPointerInsideForVerification(\(inside ? "true" : "false"))"
+        ) { result, error in
+            writeMessage([
+                "type": "pointerInsideResult",
+                "inside": inside,
+                "applied": error == nil && (result as? Bool) == inside
+            ])
+        }
+    }
+
+    func hitTestForVerification(x: Double, y: Double) {
+        let point = CGPoint(
+            x: panel.frame.minX + CGFloat(x),
+            y: panel.frame.maxY - CGFloat(y)
+        )
+        refreshPointerPassthrough(at: point)
+        writeMessage([
+            "type": "hitTestResult",
+            "ignoresMouseEvents": panel.ignoresMouseEvents
+        ])
+    }
+
+    func setPointerSequenceForVerification(
+        _ active: Bool,
+        x: Double,
+        y: Double
+    ) {
+        if active, let bounds = interactiveBounds {
+            let point = CGPoint(
+                x: panel.frame.minX + bounds.midX,
+                y: panel.frame.maxY - bounds.midY
+            )
+            refreshPointerPassthrough(at: point)
+        }
+        let eventType: NSEvent.EventType = active ? .leftMouseDown : .leftMouseUp
+        if let event = NSEvent.mouseEvent(
+            with: eventType,
+            location: NSPoint(
+                x: CGFloat(x),
+                y: panel.frame.height - CGFloat(y)
+            ),
+            modifierFlags: [],
+            timestamp: ProcessInfo.processInfo.systemUptime,
+            windowNumber: panel.windowNumber,
+            context: nil,
+            eventNumber: 0,
+            clickCount: 1,
+            pressure: active ? 1 : 0
+        ) {
+            panel.sendEvent(event)
+        }
+        writeMessage([
+            "type": "pointerSequenceResult",
+            "active": active,
+            "ignoresMouseEvents": panel.ignoresMouseEvents
+        ])
+    }
+
+    func expand() {
+        webView.evaluateJavaScript("window.expandOpenLeashIsland && window.expandOpenLeashIsland()")
+        panel.orderFrontRegardless()
+    }
+
+    private func resize(width requestedWidth: Double, height requestedHeight: Double, interactiveBounds: CGRect?) {
+        let width = CGFloat(max(220, min(780, requestedWidth.rounded(.up))))
+        let height = CGFloat(max(42, min(760, requestedHeight.rounded(.up))))
+        self.interactiveBounds = interactiveBounds
+        place(width: width, height: height)
+        refreshPointerPassthrough()
+    }
+
+    private func place(width: CGFloat, height: CGFloat) {
+        let targetScreen = screen ?? activeScreen()
+        screen = targetScreen
+        let frame = targetScreen.frame
+        let target = NSRect(
+            x: frame.midX - width / 2,
+            y: frame.maxY - height,
+            width: width,
+            height: height
+        )
+        panel.setFrame(target, display: true)
+        if panel.isVisible {
+            panel.orderFrontRegardless()
+        }
+    }
+
+    private func rectFromMessage(_ message: [String: Any]) -> CGRect? {
+        guard let x = (message["x"] as? NSNumber)?.doubleValue,
+              let y = (message["y"] as? NSNumber)?.doubleValue,
+              let width = (message["width"] as? NSNumber)?.doubleValue,
+              let height = (message["height"] as? NSNumber)?.doubleValue,
+              width > 0,
+              height > 0 else { return nil }
+        return CGRect(x: x, y: y, width: width, height: height)
+    }
+
+    private func rectMessage(_ rect: CGRect) -> [String: Double] {
+        [
+            "x": rect.minX,
+            "y": rect.minY,
+            "width": rect.width,
+            "height": rect.height
+        ]
+    }
+
+    private func interactiveScreenFrame() -> CGRect? {
+        guard panel.isVisible, let bounds = interactiveBounds else { return nil }
+        return CGRect(
+            x: panel.frame.minX + bounds.minX,
+            y: panel.frame.maxY - bounds.maxY,
+            width: bounds.width,
+            height: bounds.height
+        )
+    }
+
+    private func refreshPointerPassthrough(at pointer: CGPoint = NSEvent.mouseLocation) {
+        if pointerSequenceActive || ProcessInfo.processInfo.systemUptime < pointerPassthroughBlockedUntil {
+            panel.ignoresMouseEvents = false
+            return
+        }
+        let isInsideVisibleIsland = interactiveScreenFrame()?
+            .insetBy(dx: -1, dy: -1)
+            .contains(pointer) ?? false
+        panel.ignoresMouseEvents = !isInsideVisibleIsland
+    }
+
+    private func setPointerSequenceActive(_ active: Bool) {
+        pointerSequenceActive = active
+        panel.ignoresMouseEvents = false
+        if active {
+            pointerPassthroughBlockedUntil = 0
+        } else {
+            // Resizing and rerendering can move the interactive bounds while a
+            // button click is completing. Keep the entire click owned by this
+            // panel before transparent-space passthrough resumes.
+            pointerPassthroughBlockedUntil = ProcessInfo.processInfo.systemUptime + 0.15
+        }
+    }
+
+    @objc private func pollPointerLocation() {
+        refreshPointerPassthrough()
+    }
+
+    @objc private func displayParametersDidChange() {
+        // macOS can replace NSScreen instances while changing mirroring,
+        // resolution, or display arrangement. Never position from the cached
+        // instance after that notification.
+        screen = nil
+        displayChangeWorkItem?.cancel()
+
+        let workItem = DispatchWorkItem { [weak self] in
+            self?.refreshDisplayPlacement()
+        }
+        displayChangeWorkItem = workItem
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.12, execute: workItem)
+    }
+
+    private func refreshDisplayPlacement() {
+        guard pendingPayload != nil else { return }
+        screen = targetDisplayID.flatMap { self.screen(for: $0) } ?? activeScreen()
+        place(width: panel.frame.width, height: panel.frame.height)
+
+        guard pageReady, let screen else { return }
+        let metrics = displayMetrics(for: screen)
+        guard let data = try? JSONSerialization.data(withJSONObject: metrics),
+              let metricsJSON = String(data: data, encoding: .utf8) else { return }
+        webView.evaluateJavaScript(
+            "window.setOpenLeashDisplayMetrics && window.setOpenLeashDisplayMetrics(\(metricsJSON))"
+        )
+    }
+
+    private func displayMetrics(for display: NSScreen) -> [String: Any] {
+        var safeTop: CGFloat = 0
+        var notchWidth: CGFloat = 0
+        var hasNotch = false
+
+        if #available(macOS 12.0, *) {
+            safeTop = max(0, display.safeAreaInsets.top)
+            if let leftArea = display.auxiliaryTopLeftArea,
+               let rightArea = display.auxiliaryTopRightArea {
+                notchWidth = max(0, rightArea.minX - leftArea.maxX)
+                hasNotch = notchWidth > 1
+                if hasNotch {
+                    safeTop = max(safeTop, min(leftArea.height, rightArea.height))
+                }
+            } else {
+                hasNotch = safeTop > 0
+            }
+        }
+
+        switch ProcessInfo.processInfo.environment["OPENLEASH_ISLAND_TEST_DISPLAY"] {
+        case "notch":
+            safeTop = 32
+            notchWidth = 210
+            hasNotch = true
+        case "plain":
+            safeTop = 0
+            notchWidth = 0
+            hasNotch = false
+        default:
+            break
+        }
+
+        return [
+            "hasNotch": hasNotch,
+            "safeTop": safeTop.rounded(.up),
+            "notchWidth": notchWidth.rounded(.up)
+        ]
+    }
+
+    private func activeScreen() -> NSScreen {
+        let pointer = NSEvent.mouseLocation
+        return NSScreen.screens.first(where: { NSMouseInRect(pointer, $0.frame, false) })
+            ?? NSScreen.main
+            ?? NSScreen.screens[0]
+    }
+
+    private func screen(for displayID: UInt32) -> NSScreen? {
+        NSScreen.screens.first { candidate in
+            (candidate.deviceDescription[
+                NSDeviceDescriptionKey("NSScreenNumber")
+            ] as? NSNumber)?.uint32Value == displayID
+        }
+    }
+}
+
+@main
+private struct OpenLeashIslandApplication {
+    static func main() {
+        let app = NSApplication.shared
+        app.setActivationPolicy(.accessory)
+
+        guard CommandLine.arguments.count > 1 else {
+            writeMessage(["type": "error", "message": "notice.html path is required"])
+            exit(2)
+        }
+
+        let controller = IslandController(htmlPath: CommandLine.arguments[1])
+        DispatchQueue.global(qos: .userInitiated).async {
+            while let line = readLine() {
+                guard let data = line.data(using: .utf8),
+                      let message = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+                      let type = message["type"] as? String else { continue }
+                DispatchQueue.main.async {
+                    switch type {
+                    case "show":
+                        if let payload = message["payload"] as? [String: Any] {
+                            controller.show(
+                                payload: payload,
+                                displayID: (message["displayId"] as? NSNumber)?.uint32Value,
+                                reposition: (message["reposition"] as? Bool) ?? true
+                            )
+                        }
+                    case "dismiss":
+                        controller.dismiss()
+                    case "inspect":
+                        controller.inspect()
+                    case "expandActivity":
+                        controller.expandActivityForVerification()
+                    case "openMenu":
+                        controller.openMenuForVerification()
+                    case "clickSessionMascot":
+                        controller.clickFirstSessionMascotForVerification()
+                    case "clickPauseMonitoring":
+                        controller.clickPauseMonitoringForVerification()
+                    case "advanceInstallSuccess":
+                        controller.advanceInstallSuccessForVerification()
+                    case "clickSocialX":
+                        controller.clickSocialXForVerification()
+                    case "clickSocialLinkedIn":
+                        controller.clickSocialLinkedInForVerification()
+                    case "pointerInside":
+                        controller.setPointerInsideForVerification(true)
+                    case "pointerOutside":
+                        controller.setPointerInsideForVerification(false)
+                    case "hitTest":
+                        let x = (message["x"] as? NSNumber)?.doubleValue ?? 0
+                        let y = (message["y"] as? NSNumber)?.doubleValue ?? 0
+                        controller.hitTestForVerification(x: x, y: y)
+                    case "pointerSequence":
+                        let x = (message["x"] as? NSNumber)?.doubleValue ?? 0
+                        let y = (message["y"] as? NSNumber)?.doubleValue ?? 0
+                        controller.setPointerSequenceForVerification(
+                            (message["active"] as? Bool) ?? false,
+                            x: x,
+                            y: y
+                        )
+                    case "expand":
+                        controller.expand()
+                    case "quit":
+                        controller.dismiss()
+                        app.terminate(nil)
+                    default:
+                        break
+                    }
+                }
+            }
+            DispatchQueue.main.async { app.terminate(nil) }
+        }
+
+        app.run()
+    }
+}

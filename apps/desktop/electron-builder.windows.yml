@@ -1,0 +1,33 @@
+appId: com.openleash.personal
+productName: Leash
+copyright: Copyright © 2026 Leash
+electronVersion: 43.3.0
+npmRebuild: false
+extraMetadata:
+  main: dist/main.js
+directories:
+  output: release/windows
+files:
+  - dist/**/*
+  - node_modules/better-sqlite3/**/*
+  - node_modules/bindings/**/*
+  - node_modules/file-uri-to-path/**/*
+  - package.json
+asarUnpack:
+  - node_modules/better-sqlite3/build/Release/*.node
+extraResources:
+  - from: build/local-proxy
+    to: local-proxy
+win:
+  icon: src/openleash-icon.png
+  target:
+    - target: nsis
+      arch:
+        - x64
+  artifactName: Leash-${version}-${arch}-Setup.${ext}
+nsis:
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true
+  deleteAppDataOnUninstall: false
+  runAfterFinish: true

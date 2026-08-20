@@ -1,0 +1,109 @@
+name: Release Leash for Windows
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  windows-x64:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout desktop client
+        uses: actions/checkout@v7
+        with:
+          path: apps/desktop-client
+
+      - name: Checkout shared contracts
+        uses: actions/checkout@v7
+        with:
+          repository: open-leash/shared
+          ref: v0.2.1
+          path: packages/shared
+
+      - name: Read local proxy version
+        id: local-proxy-version
+        shell: bash
+        run: echo "version=$(cat apps/desktop-client/local-proxy.version)" >> "$GITHUB_OUTPUT"
+
+      - name: Checkout native local proxy
+        uses: actions/checkout@v7
+        with:
+          repository: open-leash/local-proxy
+          ref: v${{ steps.local-proxy-version.outputs.version }}
+          path: apps/local-proxy
+
+      - name: Setup Node
+        uses: actions/setup-node@v7
+        with:
+          node-version: "22"
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Create release workspace
+        shell: pwsh
+        run: |
+          '{"private":true,"workspaces":["packages/*","apps/*"]}' | Set-Content -Encoding utf8 package.json
+          npm install
+
+      - name: Verify tag matches package version
+        if: startsWith(github.ref, 'refs/tags/')
+        shell: pwsh
+        run: |
+          $packageVersion = node -p "require('./apps/desktop-client/package.json').version"
+          if ("v$packageVersion" -ne "${{ github.ref_name }}") {
+            throw "Tag ${{ github.ref_name }} does not match desktop package v$packageVersion"
+          }
+
+      - name: Test and build
+        shell: pwsh
+        run: |
+          $PSNativeCommandUseErrorActionPreference = $true
+          npm run build -w @openleash/shared
+          npm run typecheck -w @openleash/desktop-client
+          npm run test -w @openleash/desktop-client
+          npm run build -w @openleash/desktop-client
+
+      - name: Rebuild native dependency and package unsigned NSIS installer
+        working-directory: apps/desktop-client
+        shell: pwsh
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: "false"
+        run: |
+          $PSNativeCommandUseErrorActionPreference = $true
+          npx electron-rebuild -v 43.3.0 -w better-sqlite3 --force
+          npx electron-builder --config electron-builder.windows.yml --win --x64 --publish never
+          node scripts/verify-packaged-windows.mjs
+
+      - name: Create checksums
+        working-directory: apps/desktop-client/release/windows
+        shell: pwsh
+        run: |
+          Get-ChildItem -File | Where-Object { $_.Extension -in '.exe', '.blockmap' -or $_.Name -eq 'latest.yml' } | ForEach-Object {
+            $hash = (Get-FileHash $_.FullName -Algorithm SHA256).Hash.ToLower()
+            "$hash  $($_.Name)"
+          } | Set-Content -Encoding ascii SHA256SUMS-WINDOWS
+
+      - name: Upload workflow artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: Leash-Windows-x64-${{ github.ref_name }}
+          path: |
+            apps/desktop-client/release/windows/*.exe
+            apps/desktop-client/release/windows/*.blockmap
+            apps/desktop-client/release/windows/latest.yml
+            apps/desktop-client/release/windows/SHA256SUMS-WINDOWS
+
+      - name: Attach immutable assets to GitHub release
+        if: startsWith(github.ref, 'refs/tags/')
+        working-directory: apps/desktop-client
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release upload "${{ github.ref_name }}" release/windows/*.exe release/windows/*.blockmap release/windows/latest.yml release/windows/SHA256SUMS-WINDOWS --clobber

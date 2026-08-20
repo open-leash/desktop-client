@@ -1,0 +1,54 @@
+appId: com.openleash.personal
+productName: Leash
+copyright: Copyright © 2026 Leash
+electronVersion: 43.3.0
+npmRebuild: false
+forceCodeSigning: false
+extraMetadata:
+  main: dist/main.js
+directories:
+  output: release/macos
+files:
+  - dist/**/*
+  - node_modules/@openleash/shared/**/*
+  - node_modules/better-sqlite3/**/*
+  - node_modules/bindings/**/*
+  - node_modules/file-uri-to-path/**/*
+  - package.json
+asarUnpack:
+  - node_modules/better-sqlite3/build/Release/*.node
+  - dist/openleash-island
+  - dist/notice.html
+  - dist/openleash-icon.png
+  - dist/Fireworks.json
+  - dist/lottie.min.js
+  - dist/agent-icons/**/*
+  - dist/agent-mascots/**/*
+extraResources:
+  - from: scripts/install-openleash-personal.sh
+    to: install-openleash-personal.sh
+  - from: build/local-proxy
+    to: local-proxy
+mac:
+  identity: null
+  icon: src/openleash-icon.png
+  category: public.app-category.developer-tools
+  target:
+    - target: dmg
+      arch:
+        - arm64
+  hardenedRuntime: true
+  notarize: false
+  entitlements: build/entitlements.mac.plist
+  entitlementsInherit: build/entitlements.mac.inherit.plist
+  artifactName: Leash-${version}-${arch}.${ext}
+dmg:
+  title: Leash
+  contents:
+    - x: 130
+      y: 220
+      type: file
+    - x: 410
+      y: 220
+      type: link
+      path: /Applications

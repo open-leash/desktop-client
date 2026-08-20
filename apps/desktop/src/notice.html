@@ -1,0 +1,1856 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Leash Island</title>
+    <style>
+      :root {
+        color-scheme: dark;
+        --black: #000000;
+        --panel: rgba(17, 19, 22, .94);
+        --panel-hover: rgba(27, 30, 34, .96);
+        --ink: #f8f8f7;
+        --soft-ink: #d6d7d8;
+        --muted: #898e96;
+        --faint: #5d626a;
+        --line: rgba(255, 255, 255, .095);
+        --green: #55e7a7;
+        --cyan: #58d8ff;
+        --amber: #ffb64a;
+        --red: #ff6b64;
+        --ease: cubic-bezier(.22, .9, .26, 1);
+        --hardware-safe-top: 0px;
+        --hardware-notch-width: 0px;
+      }
+
+      * { box-sizing: border-box; }
+      [hidden] { display: none !important; }
+      html, body {
+        margin: 0;
+        width: 100%;
+        min-height: 100%;
+        overflow: hidden;
+        background: transparent;
+      }
+      body {
+        display: flex;
+        justify-content: center;
+        align-items: flex-start;
+        padding: 0 96px 112px;
+        color: var(--ink);
+        font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI Variable Text", "Segoe UI", sans-serif;
+        font-synthesis: none;
+        -webkit-font-smoothing: antialiased;
+        text-rendering: geometricPrecision;
+        user-select: none;
+      }
+
+      .island {
+        position: relative;
+        flex: 0 0 auto;
+        width: 286px;
+        overflow: hidden;
+        border: 1px solid rgba(255, 255, 255, .115);
+        border-radius: 18px;
+        background: #000000;
+        box-shadow:
+          0 30px 76px rgba(0, 0, 0, .27),
+          0 10px 30px rgba(0, 0, 0, .18),
+          inset 0 1px rgba(255, 255, 255, .055);
+        opacity: 0;
+        transform: translateY(-14px) scale(.92, .72);
+        transform-origin: top center;
+        transition:
+          width 340ms var(--ease),
+          border-radius 340ms var(--ease),
+          opacity 180ms ease-out,
+          transform 380ms var(--ease),
+          filter 180ms ease-out;
+        will-change: width, transform;
+      }
+      body.native-macos .island {
+        border-top: 0;
+        border-radius: 0 0 18px 18px;
+        box-shadow:
+          0 34px 84px rgba(0, 0, 0, .29),
+          0 10px 30px rgba(0, 0, 0, .18),
+          inset 0 -1px rgba(255, 255, 255, .05);
+      }
+      .island.presented { opacity: 1; transform: translateY(0) scale(1); }
+      .island.expanded { width: 540px; border-radius: 26px; }
+      body.native-macos .island.expanded { border-radius: 0 0 27px 27px; }
+      .island.leaving { opacity: 0; transform: translateY(-12px) scale(.94, .7); filter: blur(2px); }
+
+      .cap {
+        min-height: 46px;
+        display: flex;
+        align-items: center;
+        gap: 9px;
+        padding: 7px 10px;
+        cursor: default;
+      }
+      body.native-macos.has-display-notch .cap {
+        padding-top: calc(7px + var(--hardware-safe-top));
+      }
+      body.native-macos.has-display-notch .island { width: 430px; }
+      body.native-macos.has-display-notch .island.expanded { width: 540px; }
+      .notch-rail { display: none; }
+      body.native-macos.has-display-notch .notch-rail {
+        position: absolute;
+        z-index: 3;
+        top: 0;
+        left: 0;
+        right: 0;
+        height: var(--hardware-safe-top);
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) var(--hardware-notch-width) minmax(0, 1fr);
+        align-items: center;
+        pointer-events: none;
+      }
+      .notch-agents, .notch-metric { min-width: 0; display: flex; align-items: center; gap: 5px; }
+      .notch-agents { justify-content: flex-start; padding: 0 9px 0 12px; }
+      .notch-metric { justify-content: flex-end; padding: 0 12px 0 9px; }
+      .notch-agent {
+        position: relative;
+        width: 18px;
+        height: 18px;
+        display: grid;
+        place-items: center;
+        overflow: hidden;
+        border: 1px solid rgba(255,255,255,.13);
+        border-radius: 6px;
+        background: #1a1d21;
+        color: var(--soft-ink);
+        font-size: 7px;
+        font-weight: 750;
+      }
+      .notch-metric-value { overflow: hidden; color: var(--green); font-size: 9px; font-weight: 700; text-overflow: ellipsis; white-space: nowrap; }
+      .notch-metric-value.danger { color: var(--red); background: transparent; border: 0; }
+      .compact-progress {
+        position: absolute;
+        z-index: 4;
+        left: 12px;
+        right: 12px;
+        bottom: 3px;
+        height: 3px;
+        overflow: hidden;
+        border-radius: 999px;
+        background: rgba(255,255,255,.11);
+        pointer-events: none;
+      }
+      .compact-progress span {
+        display: block;
+        width: 0;
+        height: 100%;
+        border-radius: inherit;
+        background: linear-gradient(90deg, var(--cyan), var(--green));
+        box-shadow: 0 0 8px rgba(88,216,255,.58);
+        transition: width 320ms var(--ease);
+      }
+      .compact-progress.tone-success span { background: var(--green); }
+      .compact-progress.tone-danger span { background: var(--red); }
+      body.native-macos.has-display-notch .compact-progress { bottom: 2px; }
+      .cap-metric { color: var(--green); font-size: 9px; font-weight: 700; white-space: nowrap; }
+      body.native-macos.has-display-notch .cap-metric { display: none; }
+      .island.expandable .cap { cursor: pointer; }
+      .cap-agents { display: none; align-items: center; gap: 5px; }
+      .cap-agent {
+        position: relative;
+        width: 24px;
+        height: 24px;
+        display: grid;
+        place-items: center;
+        overflow: hidden;
+        border: 1px solid rgba(255,255,255,.12);
+        border-radius: 8px;
+        background: #1a1d21;
+        color: var(--soft-ink);
+        font-size: 8px;
+        font-weight: 750;
+      }
+      .agent-avatar { --agent-accent: var(--cyan); isolation: isolate; }
+      .agent-avatar.agent-claude { --agent-accent: #d97757; }
+      .agent-avatar.agent-codex, .agent-avatar.agent-opencode { --agent-accent: #54d6b4; }
+      .agent-avatar.agent-gemini { --agent-accent: #78a9ff; }
+      .agent-avatar.agent-copilot { --agent-accent: #b69cff; }
+      .agent-avatar.agent-idle { --agent-accent: #55e7a7; }
+      .agent-avatar-orbit {
+        position: absolute;
+        z-index: -1;
+        inset: 2px;
+        border: 1px dashed color-mix(in srgb, var(--agent-accent) 72%, transparent);
+        border-radius: 50%;
+        box-shadow: 0 0 9px color-mix(in srgb, var(--agent-accent) 42%, transparent);
+        animation: agent-orbit 2.4s linear infinite;
+      }
+      .agent-avatar-core {
+        width: 58%;
+        height: 58%;
+        display: grid;
+        place-items: center;
+        color: var(--agent-accent);
+        font-size: 8px;
+        font-weight: 800;
+        line-height: 1;
+        animation: agent-walk 720ms steps(2, jump-none) infinite;
+      }
+      .agent-avatar-core img { width: 100%; height: 100%; object-fit: contain; filter: drop-shadow(0 0 4px color-mix(in srgb, var(--agent-accent) 48%, transparent)); }
+      .agent-avatar.has-mascot { overflow: visible; border-color: transparent; background: transparent; }
+      .agent-avatar.has-mascot .agent-avatar-orbit { display: none; }
+      .agent-avatar.has-mascot .agent-avatar-core { width: 100%; height: 100%; animation: none; }
+      .agent-mascot { width: 100%; height: 100%; display: grid; place-items: center; overflow: visible; color: var(--agent-accent); image-rendering: pixelated; filter: drop-shadow(0 2px 4px color-mix(in srgb, var(--agent-accent) 28%, transparent)); }
+      .claude-mascot { animation: mascot-bob 430ms steps(2, jump-none) infinite; }
+      .claude-mascot svg { width: 100%; height: 76%; overflow: visible; }
+      .claude-mascot .claude-frame-b { animation: claude-feet 430ms steps(1, end) infinite; }
+      .codex-mascot { position: relative; width: 94%; height: 100%; overflow: hidden; }
+      .agent-avatar .codex-mascot img {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 800%;
+        height: 900%;
+        max-width: none;
+        object-fit: fill;
+        filter: none;
+        animation: codex-pet-walk 960ms steps(1, end) infinite;
+      }
+      .agent-avatar.processing .agent-mascot { animation-duration: 920ms; opacity: .9; }
+      .agent-avatar.processing .codex-mascot img { animation-duration: 1.44s; }
+      .agent-avatar.waiting .agent-avatar-orbit { border-style: solid; animation-duration: 1.05s; }
+      .agent-avatar.waiting .agent-mascot { animation: mascot-alert 720ms ease-in-out infinite; }
+      .agent-avatar.waiting .codex-mascot img { animation: none; transform: translate(-50%, -11.111%); }
+      .agent-avatar.waiting::after {
+        content: "";
+        position: absolute;
+        right: -1px;
+        bottom: -1px;
+        width: 5px;
+        height: 5px;
+        border: 1px solid #111316;
+        border-radius: 50%;
+        background: var(--amber);
+        box-shadow: 0 0 7px var(--amber);
+        animation: agent-attention 1s ease-in-out infinite;
+      }
+      .agent-avatar.completed .agent-avatar-orbit { border-color: rgba(85,231,167,.72); border-style: solid; box-shadow: 0 0 9px rgba(85,231,167,.38); animation: none; opacity: .9; }
+      .agent-avatar.completed .agent-avatar-core { animation: mascot-complete 760ms ease-out 1; }
+      .agent-avatar.completed .agent-mascot { animation: none; }
+      .agent-avatar.completed .claude-frame-b { animation: none; opacity: 0; }
+      .agent-avatar.completed .codex-mascot img { animation-play-state: paused; }
+      .agent-avatar.completed::after {
+        content: "✓";
+        position: absolute;
+        right: -2px;
+        bottom: -2px;
+        width: 9px;
+        height: 9px;
+        display: grid;
+        place-items: center;
+        border: 1px solid #111316;
+        border-radius: 50%;
+        color: #07150f;
+        background: var(--green);
+        box-shadow: 0 0 7px rgba(85,231,167,.7);
+        font-size: 6px;
+        font-weight: 900;
+        line-height: 1;
+      }
+      .agent-avatar.idle .agent-avatar-orbit { display: none; animation: none; }
+      .agent-avatar.idle .agent-avatar-core { opacity: .78; animation: none; }
+      @keyframes agent-orbit { to { transform: rotate(360deg); } }
+      @keyframes agent-walk { 50% { transform: translateY(-1.5px) rotate(-4deg); } }
+      @keyframes agent-breathe { 50% { opacity: .5; transform: scale(.86); } }
+      @keyframes agent-attention { 50% { opacity: .45; transform: scale(.76); } }
+      @keyframes mascot-bob { 50% { transform: translateY(-1.5px); } }
+      @keyframes mascot-alert { 50% { transform: translateY(-2px) scale(1.06); filter: drop-shadow(0 0 7px var(--amber)); } }
+      @keyframes mascot-complete { 45% { transform: translateY(-3px) scale(1.1); filter: drop-shadow(0 0 8px var(--green)); } }
+      @keyframes claude-feet { 0%, 49.99% { opacity: 0; } 50%, 100% { opacity: 1; } }
+      @keyframes codex-pet-walk {
+        0%, 12.49% { transform: translate(0, -11.111%); }
+        12.5%, 24.99% { transform: translate(-12.5%, -11.111%); }
+        25%, 37.49% { transform: translate(-25%, -11.111%); }
+        37.5%, 49.99% { transform: translate(-37.5%, -11.111%); }
+        50%, 62.49% { transform: translate(-50%, -11.111%); }
+        62.5%, 74.99% { transform: translate(-62.5%, -11.111%); }
+        75%, 87.49% { transform: translate(-75%, -11.111%); }
+        87.5%, 100% { transform: translate(-87.5%, -11.111%); }
+      }
+      body.animations-paused .agent-avatar *, body.animations-paused .signal::after { animation-play-state: paused !important; }
+      body.animations-paused .island,
+      body.animations-paused .reveal,
+      body.animations-paused .toggle svg { transition: none !important; }
+      .island.activity-mode:not(.expanded) { width: var(--activity-compact-width, 180px); }
+      .island.menu-open { min-height: 438px; }
+      .island.activity-mode.menu-open:not(.expanded) { width: 286px; }
+      .island.activity-mode:not(.expanded) .agent-mark,
+      .island.activity-mode:not(.expanded) .signal-wrap,
+      .island.activity-mode:not(.expanded) .cap-copy { display: none; }
+      .island.activity-mode:not(.expanded) .cap-agents { display: flex; }
+      body.native-macos.has-display-notch .island.activity-mode:not(.expanded) {
+        width: var(--activity-compact-width, 320px);
+        height: var(--hardware-safe-top);
+        min-height: var(--hardware-safe-top);
+        border-radius: 0 0 18px 18px;
+      }
+      body.native-macos.has-display-notch .island.activity-mode:not(.expanded) .cap { display: none; }
+      body.native-macos.has-display-notch .island.activity-mode:not(.expanded) .notch-rail {
+        pointer-events: auto;
+        cursor: pointer;
+      }
+      .agent-mark {
+        width: 31px;
+        height: 31px;
+        flex: 0 0 31px;
+        display: grid;
+        place-items: center;
+        overflow: hidden;
+        border: 1px solid rgba(255,255,255,.1);
+        border-radius: 10px;
+        color: #ececea;
+        background: linear-gradient(145deg, #25282d, #111316);
+        box-shadow: inset 0 1px rgba(255,255,255,.06);
+        font-size: 10px;
+        font-weight: 750;
+        letter-spacing: -.02em;
+      }
+      .agent-mark img { width: 18px; height: 18px; object-fit: contain; }
+      .signal-wrap { position: relative; width: 8px; height: 8px; flex: 0 0 8px; }
+      .signal {
+        position: absolute;
+        inset: 0;
+        border-radius: 50%;
+        color: var(--amber);
+        background: currentColor;
+        box-shadow: 0 0 11px currentColor;
+      }
+      .signal::after {
+        content: "";
+        position: absolute;
+        inset: -4px;
+        border: 1px solid currentColor;
+        border-radius: 50%;
+        opacity: 0;
+        animation: breathe 1.8s ease-out infinite;
+      }
+      .signal.completed, .signal.subagent_completed { color: var(--green); }
+      .signal.question { color: var(--cyan); }
+      .signal.blocked { color: var(--red); }
+      .signal.plan_review { color: #b99cff; }
+      @keyframes breathe { 0% { transform: scale(.4); opacity: .6; } 70%, 100% { transform: scale(1.25); opacity: 0; } }
+
+      .cap-copy { min-width: 0; flex: 1; }
+      .eyebrow {
+        overflow: hidden;
+        color: var(--muted);
+        font-size: 10.5px;
+        font-weight: 560;
+        line-height: 1.15;
+        letter-spacing: -.01em;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+      .cap-title {
+        overflow: hidden;
+        margin-top: 2px;
+        color: var(--ink);
+        font-size: 13px;
+        font-weight: 650;
+        line-height: 1.16;
+        letter-spacing: -.015em;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+      .queue-count {
+        min-width: 21px;
+        padding: 4px 6px;
+        border: 1px solid var(--line);
+        border-radius: 999px;
+        color: var(--soft-ink);
+        background: rgba(255,255,255,.055);
+        font-size: 10px;
+        font-variant-numeric: tabular-nums;
+        text-align: center;
+      }
+      .icon-button {
+        width: 27px;
+        height: 27px;
+        flex: 0 0 27px;
+        display: grid;
+        place-items: center;
+        border: 0;
+        border-radius: 9px;
+        outline: none;
+        color: var(--faint);
+        background: transparent;
+        cursor: pointer;
+        transition: color 140ms ease, background 140ms ease, transform 260ms var(--ease);
+      }
+      .icon-button:hover { color: var(--ink); background: rgba(255,255,255,.075); }
+      .toggle svg { transition: transform 300ms var(--ease); }
+      .island.expanded .toggle svg { transform: rotate(180deg); }
+      .close { display: none; }
+      .island.expanded .close { display: grid; }
+      .island.activity-mode .close { display: none; }
+      .menu-toggle { color: var(--muted); }
+      .island-menu {
+        position: absolute;
+        z-index: 20;
+        top: 43px;
+        right: 9px;
+        width: 264px;
+        padding: 7px;
+        overflow: hidden;
+        border: 1px solid rgba(255,255,255,.12);
+        border-radius: 16px;
+        background: rgba(19, 21, 24, .985);
+        box-shadow: 0 22px 60px rgba(0,0,0,.48), inset 0 1px rgba(255,255,255,.045);
+        backdrop-filter: blur(24px) saturate(1.2);
+        transform-origin: top right;
+        animation: menu-in 150ms var(--ease);
+      }
+      body.native-macos.has-display-notch .island-menu { top: calc(var(--hardware-safe-top) + 42px); }
+      @keyframes menu-in { from { opacity: 0; transform: translateY(-5px) scale(.97); } }
+      .menu-brand { padding: 7px 9px 8px; color: var(--muted); font-size: 10px; font-weight: 650; letter-spacing: .02em; text-transform: uppercase; }
+      .menu-separator { height: 1px; margin: 5px 4px; background: var(--line); }
+      .menu-item {
+        width: 100%;
+        min-height: 38px;
+        display: grid;
+        grid-template-columns: 25px minmax(0, 1fr) auto;
+        align-items: center;
+        gap: 7px;
+        padding: 6px 8px;
+        border: 0;
+        border-radius: 10px;
+        color: var(--soft-ink);
+        background: transparent;
+        font: inherit;
+        text-align: left;
+        cursor: pointer;
+      }
+      .menu-item:hover { color: var(--ink); background: rgba(255,255,255,.07); }
+      .menu-item.dangerous:hover { color: #ffaaa5; background: rgba(255,107,100,.09); }
+      .menu-icon { width: 25px; height: 25px; display: grid; place-items: center; border-radius: 8px; color: #b7bbc1; background: rgba(255,255,255,.055); font-size: 12px; font-weight: 700; }
+      .menu-copy { min-width: 0; display: grid; gap: 2px; }
+      .menu-label { font-size: 11.5px; font-weight: 620; line-height: 1.1; }
+      .menu-detail { overflow: hidden; color: var(--muted); font-size: 9.5px; line-height: 1.1; text-overflow: ellipsis; white-space: nowrap; }
+      .menu-chevron { color: var(--faint); font-size: 15px; }
+
+      .reveal {
+        display: grid;
+        grid-template-rows: 0fr;
+        opacity: 0;
+        visibility: hidden;
+        transition: grid-template-rows 340ms var(--ease), opacity 180ms ease 20ms, visibility 0s linear 340ms;
+      }
+      .island.expanded .reveal { grid-template-rows: 1fr; opacity: 1; visibility: visible; transition-delay: 0s; }
+      .reveal-clip { min-height: 0; overflow: hidden; }
+      .content {
+        padding: 3px 17px 17px;
+        border-top: 1px solid rgba(255,255,255,.075);
+      }
+      .summary {
+        margin: 10px 1px 0;
+        color: #ececeb;
+        font-size: 14px;
+        font-weight: 470;
+        line-height: 1.42;
+        letter-spacing: -.012em;
+        white-space: pre-wrap;
+      }
+      .purpose, .evidence-block {
+        margin: 10px 0 0;
+        padding: 10px 11px;
+        border: 1px solid rgba(255,255,255,.055);
+        border-radius: 13px;
+        background: var(--panel);
+        color: var(--muted);
+        font-size: 11.5px;
+        line-height: 1.42;
+      }
+      .purpose b { color: var(--soft-ink); font-weight: 620; }
+      .evidence-block { padding: 0; overflow: hidden; }
+      .evidence-label {
+        padding: 9px 11px 7px;
+        border-bottom: 1px solid rgba(255,255,255,.055);
+        color: var(--soft-ink);
+        font-size: 10px;
+        font-weight: 650;
+        letter-spacing: .055em;
+        text-transform: uppercase;
+      }
+      .evidence {
+        margin: 0;
+        padding: 10px 11px 11px;
+        max-height: 128px;
+        overflow: auto;
+        color: #bfc2c7;
+        font-family: ui-monospace, "SFMono-Regular", Consolas, monospace;
+        font-size: 10.5px;
+        white-space: pre-wrap;
+        user-select: text;
+      }
+      .chips { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 13px; }
+      .chip {
+        min-width: 0;
+        max-width: 220px;
+        overflow: hidden;
+        padding: 6px 9px;
+        border: 1px solid rgba(255,255,255,.105);
+        border-radius: 9px;
+        color: var(--soft-ink);
+        background: rgba(255,255,255,.065);
+        font-size: 10.5px;
+        font-weight: 620;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+      .activity-panel { padding-top: 11px; }
+      .attention-card {
+        margin-bottom: 10px;
+        overflow: hidden;
+        border: 1px solid rgba(255,182,74,.3);
+        border-radius: 16px;
+        background: linear-gradient(135deg, rgba(255,182,74,.11), rgba(255,255,255,.035) 58%);
+        box-shadow: inset 0 1px rgba(255,255,255,.055), 0 12px 30px rgba(0,0,0,.16);
+      }
+      .attention-head { display: grid; grid-template-columns: 32px minmax(0,1fr) auto; align-items: center; gap: 9px; padding: 10px 11px 8px; }
+      .attention-copy { min-width: 0; }
+      .attention-title { overflow: hidden; color: var(--ink); font-size: 12px; font-weight: 700; text-overflow: ellipsis; white-space: nowrap; }
+      .attention-meta { margin-top: 3px; color: var(--muted); font-size: 9.5px; }
+      .attention-badge { padding: 4px 7px; border-radius: 999px; color: #2a1800; background: var(--amber); font-size: 8.5px; font-weight: 800; letter-spacing: .03em; text-transform: uppercase; }
+      .attention-body { padding: 0 11px 11px; }
+      .attention-summary { margin: 2px 0 0; color: var(--soft-ink); font-size: 11px; line-height: 1.42; }
+      .attention-evidence { margin: 9px 0 0; max-height: 110px; overflow: auto; padding: 9px; border: 1px solid var(--line); border-radius: 10px; color: #c6c9ce; background: rgba(0,0,0,.26); font: 9.5px/1.4 ui-monospace, "SFMono-Regular", Consolas, monospace; white-space: pre-wrap; user-select: text; }
+      .attention-guidance { width: 100%; min-height: 56px; margin-top: 9px; resize: vertical; }
+      .attention-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 7px; margin-top: 9px; }
+      .attention-actions.single { grid-template-columns: 1fr; }
+      .attention-options { display: grid; gap: 6px; margin-top: 9px; }
+      .attention-question { display: grid; gap: 6px; }
+      .attention-option { min-height: 34px; padding: 7px 9px; border: 1px solid var(--line); border-radius: 10px; color: var(--soft-ink); background: rgba(255,255,255,.045); font: inherit; font-size: 10.5px; text-align: left; cursor: pointer; }
+      .attention-option.selected { border-color: rgba(88,216,255,.48); color: var(--ink); background: rgba(88,216,255,.12); }
+      .session-section-label { margin: 3px 2px 7px; color: var(--faint); font-size: 9px; font-weight: 750; letter-spacing: .06em; text-transform: uppercase; }
+      .idle-island-state { padding: 15px 11px 13px; border: 1px solid var(--line); border-radius: 14px; color: var(--muted); background: var(--panel); font-size: 11px; line-height: 1.4; text-align: center; }
+      .session-list { display: grid; gap: 7px; }
+      .session-card {
+        width: 100%;
+        display: grid;
+        grid-template-columns: 32px minmax(0, 1fr) auto;
+        align-items: center;
+        gap: 10px;
+        padding: 10px;
+        border: 1px solid var(--line);
+        border-radius: 14px;
+        color: inherit;
+        background: var(--panel);
+        font: inherit;
+        text-align: left;
+        cursor: pointer;
+        transition: border-color 150ms ease, background 150ms ease, transform 150ms ease;
+      }
+      .session-card:hover, .session-card.selected { border-color: rgba(85,231,167,.34); background: var(--panel-hover); transform: translateY(-1px); }
+      .session-agent-icon {
+        position: relative;
+        width: 32px;
+        height: 32px;
+        display: grid;
+        place-items: center;
+        overflow: hidden;
+        border: 1px solid rgba(255,255,255,.08);
+        border-radius: 10px;
+        color: var(--soft-ink);
+        background: rgba(255,255,255,.05);
+        font-size: 9px;
+        font-weight: 700;
+        cursor: pointer;
+        transition: transform 140ms ease, filter 140ms ease;
+      }
+      .session-agent-icon:hover { transform: scale(1.08); filter: brightness(1.12); }
+      .session-agent-icon img { width: 18px; height: 18px; object-fit: contain; }
+      .session-copy { min-width: 0; }
+      .session-title, .session-meta, .session-action { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      .session-title { color: var(--ink); font-size: 12px; font-weight: 650; }
+      .session-meta { margin-top: 3px; color: var(--muted); font-size: 9.5px; }
+      .session-action { margin-top: 5px; color: var(--soft-ink); font-size: 10.5px; }
+      .session-live { display: flex; align-items: center; gap: 5px; padding-left: 4px; color: var(--green); font-size: 9px; font-weight: 650; white-space: nowrap; }
+      .session-live::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: currentColor; box-shadow: 0 0 8px currentColor; }
+      .session-live.processing { color: var(--cyan); }
+      .session-live.waiting { color: var(--amber); }
+      .session-live.completed { color: var(--green); }
+      .session-live.paused { color: var(--amber); }
+      .session-card-controls { display: flex; align-items: center; justify-content: flex-end; gap: 7px; }
+      .session-monitoring-toggle {
+        width: 26px;
+        height: 26px;
+        display: grid;
+        place-items: center;
+        flex: 0 0 26px;
+        padding: 0;
+        border: 1px solid rgba(255,255,255,.11);
+        border-radius: 8px;
+        color: var(--muted);
+        background: rgba(255,255,255,.045);
+        cursor: pointer;
+        transition: color 140ms ease, border-color 140ms ease, background 140ms ease, transform 140ms ease;
+      }
+      .session-monitoring-toggle:hover {
+        border-color: rgba(255,182,74,.38);
+        color: var(--amber);
+        background: rgba(255,182,74,.1);
+        transform: translateY(-1px);
+      }
+      .session-monitoring-toggle.paused {
+        border-color: rgba(255,182,74,.28);
+        color: var(--amber);
+        background: rgba(255,182,74,.08);
+      }
+      .session-monitoring-toggle:focus-visible { outline: 2px solid rgba(88,216,255,.72); outline-offset: 2px; }
+      .session-monitoring-toggle:disabled { cursor: wait; opacity: .55; transform: none; }
+      .session-monitoring-toggle svg {
+        width: 14px;
+        height: 14px;
+        fill: none;
+        stroke: currentColor;
+        stroke-width: 1.8;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+      }
+      .contribution-pills { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 7px; }
+      .contribution-pill { max-width: 100%; overflow: hidden; padding: 4px 6px; border: 1px solid var(--line); border-radius: 7px; color: var(--soft-ink); background: rgba(255,255,255,.04); font-size: 8.5px; text-overflow: ellipsis; white-space: nowrap; }
+      .contribution-pill.info { color: var(--cyan); border-color: rgba(88,216,255,.22); }
+      .contribution-pill.success { color: var(--green); border-color: rgba(85,231,167,.22); }
+      .contribution-pill.warning { color: var(--amber); border-color: rgba(255,182,74,.24); }
+      .contribution-pill.danger { color: var(--red); border-color: rgba(255,107,100,.25); }
+      .activity-detail { margin-top: 9px; padding: 11px; border: 1px solid var(--line); border-radius: 14px; background: rgba(255,255,255,.035); }
+      .activity-detail h3 { margin: 0; color: var(--ink); font-size: 12px; }
+      .activity-detail p { margin: 6px 0 0; color: var(--muted); font-size: 10.5px; line-height: 1.4; }
+      .activity-events { margin-top: 8px; display: grid; gap: 5px; }
+      .activity-event { display: flex; justify-content: space-between; gap: 10px; color: var(--soft-ink); font: 9.5px/1.35 ui-monospace, "SFMono-Regular", Consolas, monospace; }
+      .activity-event span:last-child { color: var(--faint); white-space: nowrap; }
+      .history-heading { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+      .island-contributions { display: grid; gap: 7px; margin-top: 9px; }
+      .island-contribution { padding: 9px 10px; border: 1px solid var(--line); border-radius: 12px; background: rgba(255,255,255,.035); }
+      .island-contribution.warning { border-color: rgba(255,182,74,.22); }
+      .island-contribution.danger { border-color: rgba(255,107,100,.24); }
+      .contribution-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+      .contribution-title { min-width: 0; overflow: hidden; color: var(--ink); font-size: 10.5px; font-weight: 630; text-overflow: ellipsis; white-space: nowrap; }
+      .contribution-plugin { color: var(--faint); font-size: 8.5px; white-space: nowrap; }
+      .contribution-detail { margin-top: 4px; color: var(--muted); font-size: 9.5px; line-height: 1.35; }
+      .contribution-progress { height: 4px; margin-top: 7px; overflow: hidden; border-radius: 999px; background: rgba(255,255,255,.08); }
+      .contribution-progress span { display: block; height: 100%; border-radius: inherit; background: var(--cyan); }
+      .contribution-foot { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 7px; color: var(--faint); font-size: 8.5px; }
+      .contribution-button { padding: 5px 8px; border: 1px solid var(--line); border-radius: 8px; color: var(--soft-ink); background: rgba(255,255,255,.055); font: inherit; font-size: 9px; font-weight: 600; line-height: 1; cursor: pointer; }
+      .questions { margin-top: 12px; }
+      .install-success {
+        padding: 8px 6px 3px;
+        text-align: center;
+      }
+      .install-fireworks {
+        width: 172px;
+        height: 128px;
+        margin: -4px auto -2px;
+        overflow: hidden;
+        pointer-events: none;
+      }
+      .install-success h2 {
+        margin: 0;
+        color: var(--ink);
+        font-size: 19px;
+        font-weight: 680;
+        line-height: 1.2;
+        letter-spacing: -.025em;
+      }
+      .install-success p {
+        max-width: 360px;
+        margin: 7px auto 2px;
+        color: var(--muted);
+        font-size: 11.5px;
+        line-height: 1.45;
+      }
+      .restart-agents h2 { margin: 0; font-size: 17px; letter-spacing: -.02em; }
+      .restart-agents > p { margin: 6px 0 11px; color: var(--muted); font-size: 11px; line-height: 1.45; }
+      .restart-target-list { display: grid; max-height: 292px; overflow: auto; gap: 7px; padding-right: 2px; }
+      .restart-target {
+        display: grid;
+        grid-template-columns: 18px 36px minmax(0, 1fr);
+        align-items: center;
+        gap: 10px;
+        padding: 10px 11px;
+        border: 1px solid var(--line);
+        border-radius: 14px;
+        background: var(--panel);
+        cursor: pointer;
+        transition: border-color 150ms ease, background 150ms ease;
+      }
+      .restart-target:hover { border-color: rgba(88,216,255,.3); background: var(--panel-hover); }
+      .restart-target:has(input:checked) { border-color: rgba(85,231,167,.36); background: rgba(24,57,44,.42); }
+      .restart-target input { margin: 0; accent-color: var(--green); }
+      .restart-target-icon { width: 36px; height: 36px; display: grid; place-items: center; overflow: hidden; border: 1px solid rgba(255,255,255,.1); border-radius: 10px; background: rgba(255,255,255,.055); }
+      .restart-target-icon img { width: 22px; height: 22px; object-fit: contain; }
+      .restart-target-copy { min-width: 0; }
+      .restart-target-name { display: block; color: var(--ink); font-size: 12px; font-weight: 680; }
+      .restart-target-agent { display: block; margin-top: 2px; color: var(--soft-ink); font-size: 10px; }
+      .restart-target-projects { display: block; overflow: hidden; margin-top: 3px; color: var(--muted); font-size: 9.5px; line-height: 1.35; text-overflow: ellipsis; white-space: nowrap; }
+      .restart-target-projects code { color: #aeb2b7; font: 9px/1.35 ui-monospace, "SFMono-Regular", Consolas, monospace; user-select: text; }
+      .restart-warning { margin: 9px 1px 0 !important; color: var(--amber) !important; font-size: 9.5px !important; }
+      .restart-error { margin-top: 9px; padding: 8px 10px; border: 1px solid rgba(255,107,100,.22); border-radius: 10px; color: #ffd4d1; background: rgba(122,39,37,.35); font-size: 9.5px; line-height: 1.4; }
+      .social-follow {
+        padding: 20px 6px 5px;
+        text-align: center;
+      }
+      .social-follow h2 {
+        margin: 0;
+        color: var(--ink);
+        font-size: 20px;
+        font-weight: 680;
+        line-height: 1.2;
+        letter-spacing: -.025em;
+      }
+      .social-follow p {
+        max-width: 360px;
+        margin: 8px auto 15px;
+        color: var(--muted);
+        font-size: 11.5px;
+        line-height: 1.45;
+      }
+      .social-options {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 9px;
+      }
+      .social-card {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        min-width: 0;
+        padding: 12px;
+        border: 1px solid var(--line);
+        border-radius: 14px;
+        color: var(--ink);
+        background: rgba(255,255,255,.045);
+        font: inherit;
+        text-align: left;
+        cursor: pointer;
+        transition: transform 140ms ease, border-color 140ms ease, background 140ms ease;
+      }
+      .social-card:hover {
+        transform: translateY(-1px);
+        border-color: rgba(88,216,255,.38);
+        background: rgba(255,255,255,.075);
+      }
+      .social-card:focus-visible { outline: 2px solid var(--cyan); outline-offset: 2px; }
+      .social-logo {
+        display: grid;
+        flex: 0 0 34px;
+        width: 34px;
+        height: 34px;
+        place-items: center;
+        border-radius: 10px;
+        color: #fff;
+        background: #050505;
+      }
+      .social-card.linkedin .social-logo { background: #0a66c2; }
+      .social-logo svg { width: 18px; height: 18px; fill: currentColor; }
+      .social-copy { min-width: 0; }
+      .social-name { display: block; font-size: 12px; font-weight: 680; }
+      .social-handle {
+        display: block;
+        overflow: hidden;
+        margin-top: 3px;
+        color: var(--muted);
+        font-size: 9.5px;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+      @media (prefers-reduced-motion: reduce) {
+        .install-fireworks { opacity: .9; }
+      }
+      .question + .question { margin-top: 15px; padding-top: 14px; border-top: 1px solid var(--line); }
+      .question-label { margin: 0 1px 8px; color: var(--ink); font-size: 13px; font-weight: 620; line-height: 1.35; }
+      .option {
+        width: 100%;
+        display: flex;
+        align-items: flex-start;
+        gap: 10px;
+        margin-top: 6px;
+        padding: 10px 11px;
+        border: 1px solid var(--line);
+        border-radius: 13px;
+        outline: none;
+        color: var(--soft-ink);
+        background: var(--panel);
+        font: inherit;
+        font-size: 12px;
+        line-height: 1.3;
+        text-align: left;
+        cursor: pointer;
+        transition: border-color 150ms ease, background 150ms ease, transform 150ms ease;
+      }
+      .option:hover { border-color: rgba(88,216,255,.32); background: var(--panel-hover); transform: translateY(-1px); }
+      .option.selected { border-color: rgba(88,216,255,.58); background: rgba(28, 86, 103, .38); }
+      .option-key {
+        width: 22px;
+        height: 22px;
+        flex: 0 0 22px;
+        display: grid;
+        place-items: center;
+        border-radius: 7px;
+        color: var(--cyan);
+        background: rgba(88,216,255,.11);
+        font-size: 10px;
+        font-weight: 680;
+      }
+      .option-copy { min-width: 0; padding-top: 2px; }
+      .option-description { display: block; margin-top: 3px; color: var(--muted); font-size: 10.5px; }
+      textarea, input[type="text"] {
+        width: 100%;
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        outline: none;
+        color: var(--ink);
+        background: var(--panel);
+        font: inherit;
+        font-size: 12px;
+        user-select: text;
+        transition: border-color 150ms ease, box-shadow 150ms ease;
+      }
+      textarea:focus, input[type="text"]:focus { border-color: rgba(88,216,255,.52); box-shadow: 0 0 0 3px rgba(88,216,255,.09); }
+      textarea { min-height: 62px; margin-top: 10px; padding: 10px 11px; resize: none; line-height: 1.4; }
+      input[type="text"] { margin-top: 7px; padding: 10px 11px; }
+      .plan {
+        max-height: 340px;
+        overflow: auto;
+        margin: 11px 0 0;
+        padding: 12px;
+        border: 1px solid var(--line);
+        border-radius: 14px;
+        color: #d2d4d8;
+        background: var(--panel);
+        font: 11px/1.52 ui-monospace, "SFMono-Regular", Consolas, monospace;
+        white-space: pre-wrap;
+        user-select: text;
+      }
+      .actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 13px; }
+      .actions.single { grid-template-columns: 1fr; }
+      .actions.install-complete { display: flex; justify-content: center; }
+      .actions.install-complete .action { width: 112px; min-height: 38px; }
+      .action {
+        min-height: 41px;
+        border: 1px solid var(--line);
+        border-radius: 13px;
+        outline: none;
+        font: 640 12px/1 -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", sans-serif;
+        letter-spacing: -.005em;
+        cursor: pointer;
+        transition: transform 140ms ease, filter 140ms ease, background 140ms ease;
+      }
+      .action:hover { transform: translateY(-1px); filter: brightness(1.08); }
+      .action:active { transform: translateY(0) scale(.985); }
+      .secondary { color: #ececeb; background: #202328; }
+      .primary { color: #06110c; border-color: transparent; background: var(--green); }
+      .answer { color: #041216; border-color: transparent; background: var(--cyan); }
+      .danger { color: #ffd4d1; border-color: rgba(255,107,100,.22); background: rgba(122, 39, 37, .55); }
+      .action:disabled { opacity: .42; cursor: default; transform: none; }
+      .remember { display: flex; align-items: center; gap: 7px; margin: 10px 1px 0; color: var(--muted); font-size: 10.5px; }
+      .remember input { accent-color: var(--green); }
+      .hint { margin-top: 9px; color: var(--faint); font-size: 9.5px; font-weight: 520; line-height: 1.3; text-align: center; }
+
+      @media (prefers-reduced-motion: reduce) {
+        *, *::before, *::after { animation-duration: 1ms !important; transition-duration: 1ms !important; }
+      }
+    </style>
+  </head>
+  <body>
+    <main class="island" id="island" aria-live="polite">
+      <div class="notch-rail" id="notchRail" aria-label="Active agents and token savings">
+        <div class="notch-agents" id="notchAgents"></div>
+        <span aria-hidden="true"></span>
+        <div class="notch-metric" id="notchMetric"></div>
+      </div>
+      <div class="compact-progress" id="compactProgress" role="progressbar" hidden><span id="compactProgressFill"></span></div>
+      <header class="cap" id="cap">
+        <div class="agent-mark" id="glyph">OL</div>
+        <span class="signal-wrap"><span class="signal" id="status"></span></span>
+        <div class="cap-agents" id="capAgents" aria-label="Active agents"></div>
+        <div class="cap-copy">
+          <div class="eyebrow" id="eyebrow">Leash</div>
+          <div class="cap-title" id="title">Agent activity</div>
+        </div>
+        <span class="cap-metric" id="capMetric" hidden></span>
+        <span class="queue-count" id="count" hidden></span>
+        <button class="icon-button menu-toggle" id="menuToggle" aria-label="Open Leash menu" aria-expanded="false">
+          <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor"><circle cx="3" cy="8" r="1.25"/><circle cx="8" cy="8" r="1.25"/><circle cx="13" cy="8" r="1.25"/></svg>
+        </button>
+        <button class="icon-button close" id="close" aria-label="Dismiss">
+          <svg width="13" height="13" viewBox="0 0 16 16" fill="none"><path d="m4 4 8 8m0-8-8 8" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+        </button>
+        <button class="icon-button toggle" id="toggle" aria-label="Expand or collapse">
+          <svg width="13" height="13" viewBox="0 0 16 16" fill="none"><path d="m4 6 4 4 4-4" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </button>
+      </header>
+      <div class="island-menu" id="islandMenu" hidden>
+        <div class="menu-brand">Leash controls</div>
+        <button class="menu-item" data-command="settings"><span class="menu-icon">S</span><span class="menu-copy"><span class="menu-label">Settings</span><span class="menu-detail">Configure Leash</span></span><span class="menu-chevron">›</span></button>
+        <div class="menu-separator"></div>
+        <button class="menu-item" data-command="protection"><span class="menu-icon">✓</span><span class="menu-copy"><span class="menu-label">Agent protection</span><span class="menu-detail" id="menuProtection">Checking protection…</span></span><span class="menu-chevron">›</span></button>
+        <button class="menu-item" data-command="proxy"><span class="menu-icon">P</span><span class="menu-copy"><span class="menu-label">Proxy</span><span class="menu-detail" id="menuProxy">Checking proxy…</span></span><span class="menu-chevron">›</span></button>
+        <button class="menu-item" data-command="sessions"><span class="menu-icon">A</span><span class="menu-copy"><span class="menu-label">Agent sessions</span><span class="menu-detail" id="menuSessions">No active sessions</span></span><span class="menu-chevron">›</span></button>
+        <button class="menu-item" data-command="approvals"><span class="menu-icon">!</span><span class="menu-copy"><span class="menu-label">Approvals</span><span class="menu-detail" id="menuApprovals">No pending approvals</span></span><span class="menu-chevron">›</span></button>
+        <div class="menu-separator"></div>
+        <button class="menu-item" data-command="check-updates"><span class="menu-icon">↻</span><span class="menu-copy"><span class="menu-label">Check for updates</span></span></button>
+        <button class="menu-item dangerous" data-command="quit"><span class="menu-icon">×</span><span class="menu-copy"><span class="menu-label">Quit Leash</span></span></button>
+      </div>
+      <section class="reveal" id="reveal" inert aria-hidden="true"><div class="reveal-clip"><div class="content">
+        <div class="install-success" id="installSuccess" hidden>
+          <div class="install-fireworks" id="installFireworks" aria-hidden="true"></div>
+          <h2>Leash installed</h2>
+          <p>Your agents are connected. Leash will appear here when something needs your attention.</p>
+        </div>
+        <div class="restart-agents" id="restartAgents" hidden>
+          <h2>Restart running agents</h2>
+          <p>These apps started before Leash was installed. Restart the selected ones so the new hooks and proxy settings take effect.</p>
+          <div class="restart-target-list" id="restartTargetList"></div>
+          <p class="restart-warning">Your editor may ask you to save unsaved work before it restarts.</p>
+          <div class="restart-error" id="restartError" hidden></div>
+        </div>
+        <div class="social-follow" id="socialFollow" hidden>
+          <h2>Stay protected and informed</h2>
+          <p>Follow Leash for security alerts, new protections and agent updates.</p>
+          <div class="social-options">
+            <button type="button" class="social-card x" data-social="x" aria-label="Follow Leash on X">
+              <span class="social-logo" aria-hidden="true">
+                <svg viewBox="0 0 24 24"><path d="M14.234 10.162 22.977 0h-2.072l-7.591 8.824L7.251 0H.258l9.168 13.343L.258 24H2.33l8.016-9.318L16.749 24h6.993zm-2.837 3.299-.929-1.329L3.076 1.56h3.182l5.965 8.532.929 1.329 7.754 11.09h-3.182z"/></svg>
+              </span>
+              <span class="social-copy"><span class="social-name">X</span><span class="social-handle">@OpenLeashCom</span></span>
+            </button>
+            <button type="button" class="social-card linkedin" data-social="linkedin" aria-label="Follow Leash on LinkedIn">
+              <span class="social-logo" aria-hidden="true">
+                <svg viewBox="0 0 24 24"><path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.94v5.666H9.351V9h3.414v1.561h.047c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433A2.062 2.062 0 1 1 5.337 3.31a2.062 2.062 0 0 1 0 4.124zM7.119 20.452H3.555V9h3.564zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0z"/></svg>
+              </span>
+              <span class="social-copy"><span class="social-name">LinkedIn</span><span class="social-handle">Leash</span></span>
+            </button>
+          </div>
+        </div>
+        <div class="activity-panel" id="activityPanel" hidden>
+          <div class="attention-card" id="attentionPanel" hidden></div>
+          <div class="session-section-label" id="sessionSectionLabel">Live agents</div>
+          <div class="session-list" id="sessionList"></div>
+          <div class="activity-detail" id="activityDetail" hidden></div>
+          <div class="island-contributions" id="ambientContributions"></div>
+        </div>
+        <div class="chips" id="chips"></div>
+        <p class="summary" id="summary"></p>
+        <div class="purpose" id="purpose" hidden></div>
+        <div class="evidence-block" id="evidenceBlock" hidden>
+          <div class="evidence-label">Request</div>
+          <pre class="evidence" id="evidence"></pre>
+        </div>
+        <div class="questions" id="questions"></div>
+        <pre class="plan" id="plan" hidden></pre>
+        <textarea id="guidance" maxlength="500" placeholder="Optional guidance for the agent" hidden></textarea>
+        <label class="remember" id="rememberRow" hidden><input id="remember" type="checkbox" /> Remember this choice for 5 minutes</label>
+        <div class="actions" id="actions"></div>
+        <div class="hint" id="hint"></div>
+      </div></div></section>
+    </main>
+
+    <script id="installFireworksData" type="application/json">__OPENLEASH_FIREWORKS_DATA__</script>
+    <script src="./lottie.min.js"></script>
+    <script>
+      let current;
+      let currentKind = "approval";
+      let selectedAnswers = new Map();
+      let expandTimer;
+      let pointerInsideIsland = false;
+      let pointerInsideVerificationOverride = null;
+      let installAnimation;
+      const $ = (id) => document.getElementById(id);
+      const island = $("island"), cap = $("cap"), glyph = $("glyph"), status = $("status"), eyebrow = $("eyebrow"), title = $("title"), count = $("count"), capAgents = $("capAgents"), capMetric = $("capMetric"), notchRail = $("notchRail"), notchAgents = $("notchAgents"), notchMetric = $("notchMetric"), compactProgress = $("compactProgress"), compactProgressFill = $("compactProgressFill");
+      const installSuccess = $("installSuccess"), installFireworks = $("installFireworks"), restartAgents = $("restartAgents"), restartTargetList = $("restartTargetList"), restartError = $("restartError"), socialFollow = $("socialFollow"), activityPanel = $("activityPanel"), attentionPanel = $("attentionPanel"), sessionSectionLabel = $("sessionSectionLabel"), sessionList = $("sessionList"), activityDetail = $("activityDetail"), ambientContributions = $("ambientContributions"), summary = $("summary"), purpose = $("purpose"), evidenceBlock = $("evidenceBlock"), evidence = $("evidence"), chips = $("chips"), questions = $("questions"), plan = $("plan");
+      const guidance = $("guidance"), rememberRow = $("rememberRow"), remember = $("remember"), actions = $("actions"), hint = $("hint"), islandMenu = $("islandMenu"), menuToggle = $("menuToggle");
+      const previewParams = new URLSearchParams(location.search);
+      const previewPlatform = previewParams.get("preview") ? previewParams.get("platform") : null;
+
+      if (window.__OPENLEASH_NATIVE_ISLAND__) document.body.classList.add("native-macos");
+      else if (previewPlatform === "windows") document.body.classList.add("windows");
+      else if (/Macintosh|Mac OS X/.test(navigator.userAgent)) document.body.classList.add("electron-macos");
+      else document.body.classList.add("windows");
+
+      const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
+      const updateAnimationAvailability = () => {
+        document.body.classList.toggle("animations-paused", document.hidden || reducedMotion.matches);
+      };
+      document.addEventListener("visibilitychange", updateAnimationAvailability);
+      reducedMotion.addEventListener?.("change", updateAnimationAvailability);
+      window.addEventListener("pagehide", () => document.body.classList.add("animations-paused"));
+      window.addEventListener("pageshow", updateAnimationAvailability);
+      updateAnimationAvailability();
+
+      const nativeHandler = window.webkit?.messageHandlers?.openleash;
+      const bridge = window.openleash || (nativeHandler ? {
+        resizeNotice: (size) => nativeHandler.postMessage({ type: "resize", ...size }),
+        resolve: (id, resolution, resolutionGuidance = "", rememberForMs = 0, response) => nativeHandler.postMessage({ type: "action", action: "resolve", id, resolution, guidance: resolutionGuidance, rememberForMs, response }),
+        dismissNotice: () => nativeHandler.postMessage({ type: "action", action: "dismiss" }),
+        jumpToAgent: (payload) => nativeHandler.postMessage({ type: "action", action: "jump", payload }),
+        restartAgentTargets: (payload) => { nativeHandler.postMessage({ type: "action", action: "restart-agent-targets", payload }); return Promise.resolve({ ok: true }); },
+        setSessionMonitoring: (payload) => nativeHandler.postMessage({ type: "action", action: "session-monitoring", payload }),
+        pluginIslandAction: (payload) => nativeHandler.postMessage({ type: "action", action: "plugin-action", payload }),
+        islandCommand: (command) => nativeHandler.postMessage({ type: "action", action: "island-command", command }),
+        setNoticePointerInside: () => {},
+        onNotice: () => {},
+      } : {
+        resizeNotice: () => {}, resolve: () => {}, dismissNotice: () => {}, jumpToAgent: () => {}, restartAgentTargets: () => Promise.resolve({ ok: true }), setSessionMonitoring: () => {}, pluginIslandAction: () => {}, islandCommand: () => {}, setNoticePointerInside: () => {}, onNotice: () => {},
+      });
+      const scheduleVisualUpdate = (callback) => nativeHandler ? callback() : requestAnimationFrame(callback);
+
+      function initials(name) { return (name || "AI").split(/\s+/).map((part) => part[0]).join("").slice(0, 2).toUpperCase(); }
+      function agentVisualClass(agent = {}) {
+        const value = `${agent.agentKind || ""} ${agent.agentName || ""}`.toLowerCase();
+        if (value.includes("claude")) return "agent-claude";
+        if (value.includes("codex") || value.includes("openai")) return "agent-codex";
+        if (value.includes("opencode")) return "agent-opencode";
+        if (value.includes("gemini")) return "agent-gemini";
+        if (value.includes("copilot") || value.includes("github")) return "agent-copilot";
+        if (value.includes("openleash") || value.includes("idle")) return "agent-idle";
+        return "agent-generic";
+      }
+      const CLAUDE_MASCOT_FRAMES = [
+        [" ▐▛███▜▌ ", "▝▜█████▛▘", "  ▘▘ ▝▝  "],
+        [" ▐▛███▜▌ ", "▝▜█████▛▘", "  ▝▝ ▘▘  "],
+      ];
+      const CLAUDE_QUADRANTS = {
+        "█": [1, 1, 1, 1], "▐": [0, 1, 0, 1], "▌": [1, 0, 1, 0],
+        "▛": [1, 1, 1, 0], "▜": [1, 1, 0, 1], "▙": [1, 0, 1, 1],
+        "▟": [0, 1, 1, 1], "▘": [1, 0, 0, 0], "▝": [0, 1, 0, 0],
+        "▖": [0, 0, 1, 0], "▗": [0, 0, 0, 1], " ": [0, 0, 0, 0],
+      };
+      function claudeMascot() {
+        const stage = document.createElement("span"); stage.className = "agent-mascot claude-mascot";
+        const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+        svg.setAttribute("viewBox", "0 0 20 12"); svg.setAttribute("aria-hidden", "true");
+        CLAUDE_MASCOT_FRAMES.forEach((lines, frameIndex) => {
+          const group = document.createElementNS(svg.namespaceURI, "g");
+          if (frameIndex === 1) group.setAttribute("class", "claude-frame-b");
+          lines.forEach((line, row) => [...line].forEach((character, column) => {
+            const quadrants = CLAUDE_QUADRANTS[character] || CLAUDE_QUADRANTS[" "];
+            quadrants.forEach((enabled, quadrant) => {
+              if (!enabled) return;
+              const rect = document.createElementNS(svg.namespaceURI, "rect");
+              rect.setAttribute("x", String(column * 2 + quadrant % 2));
+              rect.setAttribute("y", String((row * 2 + Math.floor(quadrant / 2)) * 2));
+              rect.setAttribute("width", ".86"); rect.setAttribute("height", "1.72"); rect.setAttribute("rx", ".08");
+              rect.setAttribute("fill", "currentColor"); group.appendChild(rect);
+            });
+          }));
+          svg.appendChild(group);
+        });
+        stage.appendChild(svg); return stage;
+      }
+      function codexMascot() {
+        const stage = document.createElement("span"); stage.className = "agent-mascot codex-mascot";
+        const image = document.createElement("img"); image.src = "agent-mascots/codex-pet.webp"; image.alt = "";
+        stage.appendChild(image); return stage;
+      }
+      function animatedAgentIcon(agent = {}, className = "", state = "running") {
+        const avatar = document.createElement("span");
+        avatar.className = `agent-avatar ${agentVisualClass(agent)} ${state} ${className}`.trim();
+        avatar.dataset.visualState = state;
+        avatar.title = state === "waiting" ? `${agent.agentName || "Agent"} needs attention` : state === "completed" ? `${agent.agentName || "Agent"} finished` : state === "idle" ? "Leash is watching" : `${agent.agentName || "Agent"} working`;
+        const orbit = document.createElement("span"); orbit.className = "agent-avatar-orbit"; orbit.setAttribute("aria-hidden", "true");
+        const core = document.createElement("span"); core.className = "agent-avatar-core";
+        const visual = agentVisualClass(agent);
+        if (visual === "agent-claude") { avatar.classList.add("has-mascot"); core.appendChild(claudeMascot()); }
+        else if (visual === "agent-codex") { avatar.classList.add("has-mascot"); core.appendChild(codexMascot()); }
+        else if (agent.agentIcon) { const image = document.createElement("img"); image.src = agent.agentIcon; image.alt = ""; core.appendChild(image); }
+        else core.textContent = initials(agent.agentName);
+        avatar.append(orbit, core);
+        return avatar;
+      }
+      function setGlyph(payload) {
+        glyph.innerHTML = "";
+        if (payload.agentIcon) { const image = document.createElement("img"); image.src = payload.agentIcon; image.alt = ""; glyph.appendChild(image); }
+        else glyph.textContent = initials(payload.agentName);
+      }
+      function button(label, className, action) {
+        const item = document.createElement("button"); item.className = `action ${className}`; item.textContent = label; item.dataset.action = action; return item;
+      }
+      function sessionMonitoringToggle(session) {
+        const paused = Boolean(session.monitoringPausedUntil);
+        const item = document.createElement("button");
+        item.type = "button";
+        item.className = `session-monitoring-toggle${paused ? " paused" : ""}`;
+        item.dataset.action = paused ? "resume-monitoring" : "pause-monitoring";
+        item.title = paused ? "Resume monitoring" : "Pause monitoring for 30 minutes";
+        item.setAttribute("aria-label", item.title);
+        item.innerHTML = paused
+          ? `<svg viewBox="0 0 20 20" aria-hidden="true"><path d="M2.5 10s2.7-5 7.5-5 7.5 5 7.5 5-2.7 5-7.5 5-7.5-5-7.5-5Z"/><circle cx="10" cy="10" r="2.2"/></svg>`
+          : `<svg viewBox="0 0 20 20" aria-hidden="true"><path d="M2.5 10s2.7-5 7.5-5 7.5 5 7.5 5-2.7 5-7.5 5-7.5-5-7.5-5Z"/><circle cx="10" cy="10" r="2.2"/><path d="m3 3 14 14"/></svg>`;
+        item.addEventListener("click", (event) => {
+          event.stopPropagation();
+          const card = item.closest(".session-card");
+          if (card) selectActivitySession(session, card);
+          item.disabled = true;
+          item.title = paused ? "Resuming monitoring…" : "Pausing monitoring…";
+          item.setAttribute("aria-label", item.title);
+          bridge.setSessionMonitoring({ paused: !paused, session });
+        });
+        return item;
+      }
+      function reset() {
+        clearTimeout(expandTimer);
+        installAnimation?.destroy(); installAnimation = undefined; installFireworks.innerHTML = ""; installSuccess.hidden = true; restartAgents.hidden = true; restartTargetList.innerHTML = ""; restartError.hidden = true; restartError.textContent = ""; socialFollow.hidden = true;
+        activityPanel.hidden = true; attentionPanel.hidden = true; attentionPanel.innerHTML = ""; sessionSectionLabel.hidden = false; sessionList.innerHTML = ""; activityDetail.hidden = true; activityDetail.innerHTML = ""; ambientContributions.innerHTML = "";
+        notchAgents.innerHTML = ""; notchMetric.innerHTML = ""; capAgents.innerHTML = ""; capMetric.hidden = true; capMetric.textContent = "";
+        compactProgress.hidden = true; compactProgress.className = "compact-progress"; compactProgressFill.style.width = "0"; compactProgress.removeAttribute("aria-valuenow"); compactProgress.removeAttribute("aria-valuemax"); compactProgress.removeAttribute("aria-label");
+        selectedAnswers = new Map(); questions.innerHTML = ""; actions.innerHTML = ""; chips.innerHTML = ""; guidance.value = "";
+        actions.className = "actions"; summary.hidden = false; purpose.hidden = true; evidenceBlock.hidden = true; plan.hidden = true;
+        guidance.hidden = true; rememberRow.hidden = true; hint.textContent = ""; island.classList.remove("expanded", "expandable", "leaving", "activity-mode", "menu-open");
+        closeIslandMenu();
+        $("reveal").inert = true; $("reveal").setAttribute("aria-hidden", "true");
+      }
+      function resize() {
+        const reportSize = () => {
+          const rect = island.getBoundingClientRect();
+          const hasDisplayNotch = document.body.classList.contains("has-display-notch");
+          const needsWideGutter = hasDisplayNotch || island.classList.contains("expanded");
+          bridge.resizeNotice({
+            width: Math.ceil(needsWideGutter ? rect.width + 192 : Math.max(300, rect.width + 36)),
+            height: Math.ceil(rect.height + 112),
+            interactiveBounds: {
+              x: rect.left,
+              y: rect.top,
+              width: rect.width,
+              height: rect.height,
+            },
+          });
+        };
+        // A background accessory WKWebView can suspend animation frames even
+        // while its panel is visible. Report native hit targets synchronously so
+        // transparent panel space never blocks the applications underneath.
+        if (nativeHandler) reportSize();
+        else requestAnimationFrame(reportSize);
+      }
+      function visibleRowWidth(element) {
+        const style = getComputedStyle(element);
+        const children = [...element.children].filter((child) => {
+          const childStyle = getComputedStyle(child);
+          return childStyle.display !== "none" && child.getBoundingClientRect().width > 0;
+        });
+        const content = children.reduce((width, child) => width + child.getBoundingClientRect().width, 0);
+        const gap = parseFloat(style.columnGap || style.gap) || 0;
+        return content + Math.max(0, children.length - 1) * gap + (parseFloat(style.paddingLeft) || 0) + (parseFloat(style.paddingRight) || 0);
+      }
+      function updateActivityCompactWidth() {
+        if (!island.classList.contains("activity-mode")) return;
+        const hasNotch = document.body.classList.contains("has-display-notch");
+        let width;
+        if (hasNotch) {
+          const notchWidth = parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--hardware-notch-width")) || 0;
+          const sideWidth = Math.max(visibleRowWidth(notchAgents), visibleRowWidth(notchMetric));
+          width = notchWidth + (2 * (sideWidth + 8));
+          width = Math.max(notchWidth + 64, Math.min(430, width));
+        } else {
+          width = Math.max(112, Math.min(360, visibleRowWidth(cap)));
+        }
+        island.style.setProperty("--activity-compact-width", `${Math.ceil(width)}px`);
+        resize();
+      }
+      new ResizeObserver(resize).observe(island);
+
+      function canonicalPluginSlug(value) {
+        const raw = String(value || "").trim();
+        if (!raw) return "";
+        if (raw.toLowerCase() === "openleash.core") return "openleash-core";
+        const unscoped = raw.replace(/^openleash\./i, "");
+        const lower = unscoped.toLowerCase();
+        const aliases = {
+          "blast radius": "blast-radius",
+          "prompt-compression": "token-saver",
+          "prompt compression": "token-saver",
+          "token-compression": "token-saver",
+          "token compression": "token-saver",
+          "token saver": "token-saver",
+          "dlp": "data-leakage-prevention"
+        };
+        return aliases[lower] || lower.replace(/[\s_]+/g, "-");
+      }
+
+      function renderNotice(payload) {
+        const previousKind = currentKind;
+        const previousAttention = current?.attention || current;
+        const nextAttention = payload?.attention || payload;
+        const nextKind = payload.interaction?.type === "questions" ? "question" : payload.interaction?.type === "plan" ? "plan_review" : payload.interaction?.type === "approval" ? "approval" : payload.kind;
+        const sameAttention = Boolean(
+          previousAttention?.intentKey &&
+          nextAttention?.intentKey &&
+          previousAttention.intentKey === nextAttention.intentKey
+        );
+        const hasLiveSession = (payload.sessions || []).some((session) => session.visualState !== "completed");
+        const preserveExpanded = island.classList.contains("expanded") && (
+          sameAttention || (pointerInsideIsland && previousKind === "activity" && nextKind === "activity" && hasLiveSession)
+        );
+        const draftGuidance = sameAttention
+          ? (attentionPanel.querySelector(".attention-guidance")?.value ?? guidance.value)
+          : "";
+        const draftRemember = sameAttention
+          ? (attentionPanel.querySelector('input[type="checkbox"]')?.checked ?? remember.checked)
+          : false;
+        current = payload; reset(); setGlyph(payload);
+        currentKind = nextKind;
+        status.className = `signal ${currentKind || "approval"}`;
+        eyebrow.textContent = currentKind === "activity"
+          ? (payload.agentName || "Leash")
+          : `${payload.agentName || "Agent"} · ${payload.project || payload.time || "now"}`;
+        title.textContent = payload.title || (currentKind === "question" ? `${payload.agentName} asks` : currentKind === "plan_review" ? `${payload.agentName} has a plan` : payload.id ? "Permission request" : "Agent activity");
+        count.hidden = !(payload.pendingCount > 1); count.textContent = payload.pendingCount || "";
+        summary.textContent = payload.summary || "The agent is waiting for you.";
+        renderIslandMenu(payload.islandMenu || {});
+        if (payload.purpose && currentKind === "approval") { purpose.hidden = false; purpose.innerHTML = ""; const label = document.createElement("b"); label.textContent = "Why now · "; purpose.append(label, document.createTextNode(payload.purpose)); }
+        if (payload.evidence && currentKind === "approval") { evidenceBlock.hidden = false; evidence.textContent = payload.evidence; }
+        for (const [label, value] of (currentKind === "activity" ? [] : [["Folder", payload.project], ["Plugin", canonicalPluginSlug(payload.pluginName)]]).filter((item) => item[1])) { const chip = document.createElement("span"); chip.className = "chip"; chip.textContent = `${label} · ${value}`; chips.appendChild(chip); }
+
+        if (currentKind === "question") renderQuestions(payload);
+        else if (currentKind === "plan_review") renderPlan(payload);
+        else if (currentKind === "install_success") renderInstallSuccess();
+        else if (currentKind === "completed") renderCompleted(payload);
+        else if (currentKind === "activity") renderSessionActivity(payload);
+        else if (payload.id) renderApproval(payload);
+        else renderActivity(payload);
+
+        if (sameAttention) {
+          const nextGuidance = attentionPanel.querySelector(".attention-guidance") || guidance;
+          const nextRemember = attentionPanel.querySelector('input[type="checkbox"]') || remember;
+          nextGuidance.value = draftGuidance;
+          nextRemember.checked = draftRemember;
+        }
+
+        const expandable = Boolean(payload.id || currentKind === "activity" || currentKind === "install_success" || currentKind === "sample" || currentKind === "blocked" || currentKind === "question" || currentKind === "plan_review" || payload.summary);
+        island.classList.toggle("expandable", expandable);
+        scheduleVisualUpdate(() => {
+          island.classList.add("presented");
+          resize();
+          if (preserveExpanded) {
+            setExpanded(true);
+          } else if (payload.id || (payload.attention?.id && payload.autoExpand !== false) || ["install_success", "sample", "blocked", "question", "plan_review"].includes(currentKind)) {
+            expandTimer = setTimeout(() => setExpanded(true), 170);
+          }
+        });
+      }
+      window.renderOpenLeashNotice = renderNotice;
+      window.setOpenLeashDisplayMetrics = (metrics = {}) => {
+        const safeTop = Math.max(0, Math.ceil(Number(metrics.safeTop) || 0));
+        const notchWidth = Math.max(0, Math.ceil(Number(metrics.notchWidth) || 0));
+        document.documentElement.style.setProperty("--hardware-safe-top", `${safeTop}px`);
+        document.documentElement.style.setProperty("--hardware-notch-width", `${notchWidth}px`);
+        document.body.classList.toggle("has-display-notch", Boolean(metrics.hasNotch) && safeTop > 0);
+        scheduleVisualUpdate(updateActivityCompactWidth);
+        resize();
+      };
+      window.inspectOpenLeashIsland = () => {
+        const copyRect = document.querySelector(".cap-copy")?.getBoundingClientRect();
+        const islandRect = island.getBoundingClientRect();
+        const notchAgentRect = notchAgents.firstElementChild?.getBoundingClientRect();
+        const notchTokenRect = notchMetric.firstElementChild?.getBoundingClientRect();
+        const compactProgressRect = compactProgress.getBoundingClientRect();
+        const safeTop = parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--hardware-safe-top")) || 0;
+        const compactNotch = document.body.classList.contains("has-display-notch") && island.classList.contains("activity-mode") && !island.classList.contains("expanded");
+        return {
+          hasNotch: document.body.classList.contains("has-display-notch"),
+          safeTop,
+          backgroundColor: getComputedStyle(island).backgroundColor,
+          contentTop: compactNotch ? safeTop : copyRect?.top ?? 0,
+          contentClearsNotch: compactNotch || !document.body.classList.contains("has-display-notch") || (copyRect?.top ?? 0) >= safeTop,
+          fireworksRendered: Boolean(installFireworks.querySelector("svg")),
+          socialFollowVisible: !socialFollow.hidden,
+          restartAgentsVisible: !restartAgents.hidden,
+          restartTargetCount: restartTargetList.querySelectorAll(".restart-target").length,
+          restartSelectedCount: restartTargetList.querySelectorAll('input[type="checkbox"]:checked').length,
+          restartButtonVisible: Boolean(actions.querySelector('[data-action="restart-agents"]')),
+          socialCardCount: socialFollow.querySelectorAll("[data-social]").length,
+          socialLogoCount: socialFollow.querySelectorAll(".social-logo svg").length,
+          socialHeading: socialFollow.querySelector("h2")?.textContent ?? "",
+          socialDescription: socialFollow.querySelector("p")?.textContent ?? "",
+          installNextVisible: Boolean(actions.querySelector('[data-action="install-next"]')),
+          sessionCount: sessionList.querySelectorAll(".session-card").length,
+          sessionSectionLabel: sessionSectionLabel.textContent,
+          firstSessionTitle: sessionList.querySelector(".session-title")?.textContent ?? "",
+          firstSessionAction: sessionList.querySelector(".session-action")?.textContent ?? "",
+          firstSessionStatus: sessionList.querySelector(".session-live")?.textContent ?? "",
+          activityDetailVisible: !activityDetail.hidden,
+          attentionVisible: !attentionPanel.hidden,
+          attentionActionCount: attentionPanel.querySelectorAll("button[data-attention-action]").length,
+          animatedAgentCount: document.querySelectorAll(".agent-avatar-orbit").length,
+          mascotCount: document.querySelectorAll(".agent-mascot").length,
+          mascotStates: [...document.querySelectorAll(".agent-avatar[data-visual-state]")].map((item) => item.dataset.visualState),
+          idleAnimatedPartCount: document.querySelectorAll(".agent-avatar.idle .agent-avatar-orbit, .agent-avatar.idle .agent-avatar-core").length
+            ? [...document.querySelectorAll(".agent-avatar.idle .agent-avatar-orbit, .agent-avatar.idle .agent-avatar-core")]
+                .filter((item) => {
+                  const style = getComputedStyle(item);
+                  return style.display !== "none" && style.animationName !== "none";
+                }).length
+            : 0,
+          sessionMascotJumpCount: document.querySelectorAll('.session-agent-icon[title^="Return to"]').length,
+          animationsPaused: document.body.classList.contains("animations-paused"),
+          contributionCount: document.querySelectorAll(".island-contribution, .contribution-pill").length,
+          notchAgentCount: notchAgents.children.length,
+          capAgentCount: capAgents.children.length,
+          notchTokenSaving: notchMetric.textContent.trim(),
+          notchAgentLeftGap: notchAgentRect ? notchAgentRect.left - islandRect.left : null,
+          notchTokenRightGap: notchTokenRect ? islandRect.right - notchTokenRect.right : null,
+          compactProgressVisible: !compactProgress.hidden,
+          compactProgressPercent: compactProgress.hidden || compactProgressRect.width <= 0
+            ? 0
+            : compactProgressFill.getBoundingClientRect().width / compactProgressRect.width * 100,
+          capTokenSaving: capMetric.textContent.trim(),
+          historyButtonVisible: Boolean(actions.querySelector('[data-action="show-history"]')),
+          pauseMonitoringButtonVisible: Boolean(sessionList.querySelector('[data-action="pause-monitoring"]')),
+          resumeMonitoringButtonVisible: Boolean(sessionList.querySelector('[data-action="resume-monitoring"]')),
+          monitoringButtonInsideSessionCard: Boolean(sessionList.querySelector('.session-card [data-action="pause-monitoring"], .session-card [data-action="resume-monitoring"]')),
+          islandHeight: island.getBoundingClientRect().height,
+          islandWidth: island.getBoundingClientRect().width,
+          activityCompactWidth: parseFloat(getComputedStyle(island).getPropertyValue("--activity-compact-width")) || 0,
+          islandBorderRadius: getComputedStyle(island).borderRadius,
+          expanded: island.classList.contains("expanded"),
+          menuOpen: !islandMenu.hidden,
+          pointerInsideIsland,
+          menuItemCount: islandMenu.querySelectorAll("[data-command]").length,
+          menuFitsIsland: islandMenu.hidden || islandMenu.getBoundingClientRect().bottom <= island.getBoundingClientRect().bottom,
+        };
+      };
+      window.dismissOpenLeashNotice = () => { island.classList.add("leaving"); island.classList.remove("expanded"); resize(); };
+      window.expandOpenLeashIsland = () => setExpanded(true);
+      window.setOpenLeashPointerInsideForVerification = (inside) => {
+        pointerInsideVerificationOverride = Boolean(inside);
+        pointerInsideIsland = pointerInsideVerificationOverride;
+        return pointerInsideIsland;
+      };
+      window.advanceInstallSuccessForVerification = () => actions.querySelector('[data-action="install-next"]')?.click();
+      window.clickSocialXForVerification = () => socialFollow.querySelector('[data-social="x"]')?.click();
+      window.clickSocialLinkedInForVerification = () => socialFollow.querySelector('[data-social="linkedin"]')?.click();
+      window.clickFirstSessionMascotForVerification = () => sessionList.querySelector(".session-agent-icon")?.click();
+      window.clickPauseMonitoringForVerification = () => sessionList.querySelector('[data-action="pause-monitoring"]')?.click();
+
+      function renderIslandMenu(menu) {
+        $("menuProtection").textContent = menu.protection || "Protection status unavailable";
+        $("menuProxy").textContent = menu.proxy || "Proxy status unavailable";
+        $("menuSessions").textContent = menu.sessions || "No active sessions";
+        $("menuApprovals").textContent = menu.approvals || "No pending approvals";
+      }
+      function closeIslandMenu() {
+        islandMenu.hidden = true;
+        island.classList.remove("menu-open");
+        menuToggle.setAttribute("aria-expanded", "false");
+      }
+      function toggleIslandMenu() {
+        islandMenu.hidden = !islandMenu.hidden;
+        island.classList.toggle("menu-open", !islandMenu.hidden);
+        menuToggle.setAttribute("aria-expanded", String(!islandMenu.hidden));
+        resize();
+      }
+      window.toggleOpenLeashIslandMenuForVerification = toggleIslandMenu;
+
+      function setExpanded(expanded) {
+        if (!island.classList.contains("expandable")) return;
+        island.classList.toggle("expanded", expanded);
+        $("reveal").inert = !expanded;
+        $("reveal").setAttribute("aria-hidden", String(!expanded));
+        $("toggle").setAttribute("aria-label", expanded ? "Collapse" : "Expand");
+        resize();
+      }
+
+      function renderApproval(payload) {
+        guidance.hidden = !payload.supportsGuidance;
+        rememberRow.hidden = false;
+        actions.append(button("Deny", "danger", "deny"), button("Allow once", "primary", "allow"));
+        hint.textContent = "Esc to deny · Return to allow";
+      }
+      function renderQuestions(payload) {
+        const items = payload.interaction?.questions || [];
+        summary.hidden = items.length > 0;
+        items.forEach((item) => {
+          const wrap = document.createElement("div"); wrap.className = "question";
+          const label = document.createElement("p"); label.className = "question-label"; label.textContent = item.question; wrap.appendChild(label);
+          (item.options || []).forEach((option, optionIndex) => {
+            const optionButton = document.createElement("button"); optionButton.className = "option"; optionButton.type = "button";
+            const key = document.createElement("span"); key.className = "option-key"; key.textContent = `${optionIndex + 1}`;
+            const copy = document.createElement("span"); copy.className = "option-copy"; copy.textContent = option.label;
+            if (option.description) { const description = document.createElement("span"); description.className = "option-description"; description.textContent = option.description; copy.appendChild(description); }
+            optionButton.append(key, copy); optionButton.addEventListener("click", () => selectOption(item, option.label, optionButton, wrap)); wrap.appendChild(optionButton);
+          });
+          const other = document.createElement("input"); other.type = "text"; other.placeholder = "Type another answer…";
+          other.addEventListener("input", () => { if (other.value.trim()) { selectedAnswers.set(item.question, other.value.trim()); wrap.querySelectorAll(".option").forEach((node) => node.classList.remove("selected")); } syncAnswerButton(items); });
+          wrap.appendChild(other); questions.appendChild(wrap);
+        });
+        actions.className = "actions single"; actions.append(button("Send answer", "answer", "answer")); syncAnswerButton(items);
+        hint.textContent = "Returned directly to the waiting agent";
+      }
+      function selectOption(question, label, element, wrap) {
+        if (question.multiSelect) {
+          const existing = selectedAnswers.get(question.question); const values = new Set(Array.isArray(existing) ? existing : []);
+          values.has(label) ? values.delete(label) : values.add(label); selectedAnswers.set(question.question, [...values]); element.classList.toggle("selected");
+        } else {
+          selectedAnswers.set(question.question, label); wrap.querySelectorAll(".option").forEach((node) => node.classList.toggle("selected", node === element));
+        }
+        const input = wrap.querySelector('input[type="text"]'); if (input) input.value = ""; syncAnswerButton(current.interaction?.questions || []);
+      }
+      function syncAnswerButton(items) {
+        const submit = actions.querySelector('[data-action="answer"]');
+        if (submit) submit.disabled = !items.length || items.some((item) => { const answer = selectedAnswers.get(item.question); return Array.isArray(answer) ? answer.length === 0 : !answer; });
+      }
+      function renderPlan(payload) {
+        if (payload.interaction?.markdown) { plan.hidden = false; plan.textContent = payload.interaction.markdown; }
+        guidance.hidden = false; guidance.placeholder = "Feedback if you want the agent to revise the plan";
+        actions.append(button("Request changes", "danger", "deny"), button("Approve plan", "primary", "approve-plan"));
+        hint.textContent = "Review before the agent starts changing files";
+      }
+      function renderActivity(payload) {
+        actions.className = payload.canJump ? "actions" : "actions single";
+        if (payload.canJump) actions.append(button("Open agent", "secondary", "jump"));
+        actions.append(button("Dismiss", "primary", "dismiss"));
+      }
+      function renderCompleted(payload) {
+        island.classList.add("activity-mode");
+        capAgents.appendChild(animatedAgentIcon(payload, "cap-agent", "completed"));
+        notchAgents.appendChild(animatedAgentIcon(payload, "notch-agent", "completed"));
+        renderActivity(payload);
+        scheduleVisualUpdate(updateActivityCompactWidth);
+      }
+      function renderInstallSuccess() {
+        summary.hidden = true;
+        installSuccess.hidden = false;
+        actions.className = "actions install-complete";
+        actions.append(button("Next", "primary", "install-next"));
+        if (!window.lottie) return;
+        let animationData;
+        try { animationData = JSON.parse($("installFireworksData").textContent); }
+        catch { return; }
+        installAnimation = window.lottie.loadAnimation({
+          container: installFireworks,
+          renderer: "svg",
+          loop: true,
+          autoplay: !window.matchMedia("(prefers-reduced-motion: reduce)").matches,
+          animationData,
+          rendererSettings: { preserveAspectRatio: "xMidYMid meet" },
+        });
+        if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+          installAnimation.addEventListener("DOMLoaded", () => installAnimation?.goToAndStop(18, true));
+        }
+      }
+
+      function renderRestartAgents() {
+        const targets = Array.isArray(current?.restartTargets) ? current.restartTargets : [];
+        if (targets.length === 0) return renderSocialFollow();
+        installAnimation?.destroy(); installAnimation = undefined; installFireworks.innerHTML = "";
+        installSuccess.hidden = true;
+        restartAgents.hidden = false;
+        title.textContent = "Restart to finish setup";
+        restartTargetList.innerHTML = "";
+        targets.forEach((target) => {
+          const row = document.createElement("label"); row.className = "restart-target";
+          const input = document.createElement("input"); input.type = "checkbox"; input.checked = true; input.value = target.id;
+          const icon = document.createElement("span"); icon.className = "restart-target-icon";
+          if (target.icon) {
+            const image = document.createElement("img"); image.src = target.icon; image.alt = "";
+            image.addEventListener("error", () => { image.remove(); icon.textContent = initials(target.application); }, { once: true });
+            icon.appendChild(image);
+          }
+          else icon.textContent = initials(target.application);
+          const copy = document.createElement("span"); copy.className = "restart-target-copy";
+          const name = document.createElement("span"); name.className = "restart-target-name"; name.textContent = target.application;
+          const agents = document.createElement("span"); agents.className = "restart-target-agent"; agents.textContent = (target.agentNames || []).join(" · ") || "Running agent";
+          copy.append(name, agents);
+          if (target.projects?.length) {
+            const projects = document.createElement("span"); projects.className = "restart-target-projects";
+            target.projects.slice(0, 3).forEach((project, index) => {
+              if (index) projects.append(document.createTextNode(" · "));
+              const value = document.createElement(project.path ? "code" : "span");
+              value.textContent = project.path || project.name;
+              value.title = project.path || project.name;
+              projects.appendChild(value);
+            });
+            if (target.projects.length > 3) projects.append(document.createTextNode(` · +${target.projects.length - 3} more`));
+            copy.appendChild(projects);
+          }
+          row.append(input, icon, copy); restartTargetList.appendChild(row);
+        });
+        const syncRestartButton = () => {
+          const selected = restartTargetList.querySelectorAll('input[type="checkbox"]:checked').length;
+          const total = restartTargetList.querySelectorAll('input[type="checkbox"]').length;
+          const submit = actions.querySelector('[data-action="restart-agents"]');
+          if (submit) submit.disabled = selected === 0;
+          hint.textContent = selected === total
+            ? "All detected running agent apps are selected"
+            : `${selected} of ${total} running agent apps selected`;
+        };
+        restartTargetList.onchange = syncRestartButton;
+        actions.className = "actions";
+        actions.innerHTML = "";
+        actions.append(button("Not now", "secondary", "restart-skip"), button("Restart selected", "primary", "restart-agents"));
+        syncRestartButton();
+        setExpanded(true);
+        resize();
+      }
+
+      function renderSocialFollow() {
+        installAnimation?.destroy(); installAnimation = undefined; installFireworks.innerHTML = "";
+        installSuccess.hidden = true;
+        restartAgents.hidden = true;
+        socialFollow.hidden = false;
+        title.textContent = "Stay protected and informed";
+        actions.innerHTML = "";
+        actions.className = "actions single";
+        actions.append(button("Done", "primary", "dismiss"));
+        setExpanded(true);
+        resize();
+      }
+
+      function renderSessionActivity(payload) {
+        island.classList.add("activity-mode");
+        summary.hidden = true;
+        activityPanel.hidden = false;
+        const sessions = Array.isArray(payload.sessions) ? payload.sessions : [];
+        const attention = payload.attention;
+        renderNotchRail(sessions, payload.contributions || [], payload.tokenSaver, attention);
+        if (attention?.id) renderInlineAttention(attention);
+        const onlyCompleted = sessions.length > 0 && sessions.every((session) => session.visualState === "completed");
+        sessionSectionLabel.textContent = sessions.length ? (onlyCompleted ? "Recent sessions" : "Live agents") : attention?.id ? "Agent activity" : "Status";
+        sessionSectionLabel.hidden = false;
+        if (sessions.length === 0) {
+          const idle = document.createElement("div"); idle.className = "idle-island-state";
+          idle.textContent = attention?.id ? "No other agents are working right now." : "No agents are working right now. Leash is watching.";
+          sessionList.appendChild(idle);
+        }
+        sessions.forEach((session, index) => {
+          const card = document.createElement("div"); card.className = "session-card";
+          card.setAttribute("role", "button"); card.tabIndex = 0;
+          const visualState = session.visualState || "processing";
+          const icon = animatedAgentIcon(session, "session-agent-icon", visualState);
+          icon.title = `Return to ${session.agentName || "agent"} session`;
+          icon.addEventListener("click", (event) => {
+            event.stopPropagation(); setExpanded(false); bridge.jumpToAgent({ agentKind: session.agentKind, session });
+          });
+          const copy = document.createElement("span"); copy.className = "session-copy";
+          const heading = document.createElement("span"); heading.className = "session-title"; heading.textContent = session.project && session.project !== "Workspace" ? `${session.project} · ${session.title}` : session.title;
+          const meta = document.createElement("span"); meta.className = "session-meta"; meta.textContent = `${session.agentName} · ${session.time || "now"}`;
+          const action = document.createElement("span"); action.className = "session-action"; action.textContent = session.latestAction || "Working";
+          copy.append(heading, meta, action);
+          renderContributionPills(copy, session.contributions || []);
+          const live = document.createElement("span"); live.className = `session-live ${session.monitoringPausedUntil ? "paused" : visualState}`;
+          live.textContent = session.monitoringPausedUntil ? "Paused" : visualState === "waiting" ? "Waiting" : visualState === "running" ? "Active" : visualState === "completed" ? "Done" : "Thinking";
+          const controls = document.createElement("span"); controls.className = "session-card-controls";
+          controls.appendChild(live);
+          if (session.canPauseMonitoring) controls.appendChild(sessionMonitoringToggle(session));
+          card.append(icon, copy, controls);
+          card.addEventListener("click", () => selectActivitySession(session, card));
+          card.addEventListener("keydown", (event) => {
+            if (event.target !== card || (event.key !== "Enter" && event.key !== " ")) return;
+            event.preventDefault(); selectActivitySession(session, card);
+          });
+          sessionList.appendChild(card);
+          if (index === 0 && !attention?.id) selectActivitySession(session, card);
+        });
+        (payload.contributions || []).forEach((contribution) => ambientContributions.appendChild(contributionCard(contribution)));
+        hint.textContent = "";
+      }
+
+      function renderInlineAttention(attention) {
+        attentionPanel.hidden = false;
+        attentionPanel.innerHTML = "";
+        const interaction = attention.interaction?.type || "approval";
+        const head = document.createElement("div"); head.className = "attention-head";
+        const icon = animatedAgentIcon(attention, "session-agent-icon", attention.visualState || "waiting");
+        const copy = document.createElement("div"); copy.className = "attention-copy";
+        const heading = document.createElement("div"); heading.className = "attention-title"; heading.textContent = attention.title || "Agent needs your attention";
+        const meta = document.createElement("div"); meta.className = "attention-meta"; meta.textContent = [attention.agentName, attention.project, canonicalPluginSlug(attention.pluginName)].filter(Boolean).join(" · ");
+        copy.append(heading, meta);
+        const badge = document.createElement("span"); badge.className = "attention-badge"; badge.textContent = interaction === "questions" ? "Question" : interaction === "plan" ? "Plan" : "Approval";
+        head.append(icon, copy, badge);
+        const body = document.createElement("div"); body.className = "attention-body";
+        if (attention.summary) { const text = document.createElement("p"); text.className = "attention-summary"; text.textContent = attention.summary; body.appendChild(text); }
+        if (attention.evidence) { const request = document.createElement("pre"); request.className = "attention-evidence"; request.textContent = attention.evidence; body.appendChild(request); }
+
+        const guidanceInput = document.createElement("textarea"); guidanceInput.className = "attention-guidance"; guidanceInput.maxLength = 500;
+        const rememberChoice = document.createElement("input"); rememberChoice.type = "checkbox";
+        const actionRow = document.createElement("div"); actionRow.className = "attention-actions";
+        const addAction = (label, className, action, handler) => {
+          const item = button(label, className, action); item.dataset.attentionAction = action;
+          item.addEventListener("click", () => { attentionPanel.querySelectorAll("button").forEach((candidate) => candidate.disabled = true); handler(); });
+          actionRow.appendChild(item); return item;
+        };
+
+        if (interaction === "questions") {
+          const answerValues = new Map();
+          const optionArea = document.createElement("div"); optionArea.className = "attention-options";
+          const syncSubmit = () => { submit.disabled = (attention.interaction?.questions || []).some((item) => { const answer = answerValues.get(item.question); return Array.isArray(answer) ? answer.length === 0 : !answer; }); };
+          for (const question of attention.interaction?.questions || []) {
+            const group = document.createElement("div"); group.className = "attention-question";
+            const label = document.createElement("div"); label.className = "attention-summary"; label.textContent = question.question; group.appendChild(label);
+            for (const option of question.options || []) {
+              const optionButton = document.createElement("button"); optionButton.type = "button"; optionButton.className = "attention-option"; optionButton.textContent = option.label;
+              optionButton.addEventListener("click", () => {
+                if (question.multiSelect) {
+                  const values = new Set(Array.isArray(answerValues.get(question.question)) ? answerValues.get(question.question) : []);
+                  values.has(option.label) ? values.delete(option.label) : values.add(option.label);
+                  answerValues.set(question.question, [...values]); optionButton.classList.toggle("selected");
+                } else {
+                  answerValues.set(question.question, option.label);
+                  group.querySelectorAll(".attention-option").forEach((candidate) => candidate.classList.toggle("selected", candidate === optionButton));
+                }
+                const other = group.querySelector('input[type="text"]'); if (other) other.value = "";
+                syncSubmit();
+              });
+              group.appendChild(optionButton);
+            }
+            const other = document.createElement("input"); other.type = "text"; other.placeholder = "Type another answer…";
+            other.addEventListener("input", () => { if (other.value.trim()) { answerValues.set(question.question, other.value.trim()); group.querySelectorAll(".attention-option").forEach((candidate) => candidate.classList.remove("selected")); } syncSubmit(); });
+            group.appendChild(other); optionArea.appendChild(group);
+          }
+          body.appendChild(optionArea);
+          const submit = addAction("Send answer", "answer", "answer", () => bridge.resolve(attention.id, "allow", "", 0, { ...(attention.interaction?.originalInput || {}), answers: Object.fromEntries(answerValues) }));
+          actionRow.classList.add("single"); submit.disabled = true;
+        } else if (interaction === "plan") {
+          if (attention.interaction?.markdown) { const planText = document.createElement("pre"); planText.className = "attention-evidence"; planText.textContent = attention.interaction.markdown; body.appendChild(planText); }
+          guidanceInput.placeholder = "Feedback if you want the agent to revise the plan"; body.appendChild(guidanceInput);
+          addAction("Request changes", "danger", "deny", () => bridge.resolve(attention.id, "deny", guidanceInput.value, 0));
+          addAction("Approve plan", "primary", "approve-plan", () => bridge.resolve(attention.id, "allow", "", 0, attention.interaction?.originalInput || {}));
+        } else {
+          if (attention.supportsGuidance) { guidanceInput.placeholder = "Optional guidance for the agent"; body.appendChild(guidanceInput); }
+          const rememberLabel = document.createElement("label"); rememberLabel.className = "remember"; rememberLabel.append(rememberChoice, document.createTextNode(" Remember this choice for 5 minutes")); body.appendChild(rememberLabel);
+          addAction("Deny", "danger", "deny", () => bridge.resolve(attention.id, "deny", guidanceInput.value, rememberChoice.checked ? 300000 : 0));
+          addAction("Approve", "primary", "allow", () => bridge.resolve(attention.id, "allow", "", rememberChoice.checked ? 300000 : 0));
+        }
+        body.appendChild(actionRow);
+        attentionPanel.append(head, body);
+      }
+
+      function renderNotchRail(sessions, ambient, tokenSaverStatus, attention) {
+        const visibleAgents = [];
+        if (attention?.id) visibleAgents.push({ ...attention, visualState: "waiting" });
+        for (const session of sessions) {
+          const duplicate = visibleAgents.some((agent) => agent.agentKind && session.agentKind && agent.agentKind === session.agentKind && agent.project === session.project);
+          if (!duplicate) visibleAgents.push({ ...session, visualState: session.visualState || "processing" });
+        }
+        if (visibleAgents.length === 0) visibleAgents.push({ agentKind: "openleash-idle", agentName: "Leash", agentIcon: "openleash-icon.png", visualState: "idle" });
+        visibleAgents.slice(0, 4).forEach((session) => {
+          notchAgents.appendChild(animatedAgentIcon(session, "notch-agent", session.visualState));
+          capAgents.appendChild(animatedAgentIcon(session, "cap-agent", session.visualState));
+        });
+        const contributions = [...sessions.flatMap((session) => session.contributions || []), ...ambient];
+        const progressContribution = ambient.find((item) => Number(item.progress?.total || 0) > 0);
+        if (progressContribution) {
+          const current = Math.max(0, Number(progressContribution.progress.current || 0));
+          const total = Math.max(1, Number(progressContribution.progress.total || 1));
+          compactProgress.hidden = false;
+          compactProgress.className = `compact-progress tone-${progressContribution.tone || "info"}`;
+          compactProgressFill.style.width = `${Math.min(100, current / total * 100)}%`;
+          compactProgress.setAttribute("aria-valuenow", String(current));
+          compactProgress.setAttribute("aria-valuemax", String(total));
+          compactProgress.setAttribute("aria-label", `${progressContribution.title || "Plugin progress"}: ${progressContribution.progress.label || `${current} of ${total}`}`);
+        }
+        const tokenSaver = contributions.find((item) => item.pluginId === "openleash.prompt-compression" && item.value) || tokenSaverStatus;
+        if (tokenSaver) {
+          const value = document.createElement("span"); value.className = `notch-metric-value ${tokenSaver.tone || ""}`; value.textContent = `✂ ${tokenSaver.value}`; value.title = tokenSaver.detail || "token-saver";
+          notchMetric.appendChild(value);
+          capMetric.hidden = false; capMetric.textContent = `✂ ${tokenSaver.value}`; capMetric.title = value.title;
+        }
+        scheduleVisualUpdate(updateActivityCompactWidth);
+      }
+
+      function selectActivitySession(session, card) {
+        current.selectedSession = session;
+        sessionList.querySelectorAll(".session-card").forEach((item) => item.classList.toggle("selected", item === card));
+        activityDetail.hidden = true; activityDetail.innerHTML = "";
+        actions.innerHTML = ""; actions.className = "actions";
+        actions.append(button("View history", "secondary", "show-history"));
+        if (session.canJump) actions.append(button(`Open ${session.agentName}`, "secondary", "jump-session"));
+        if (actions.childElementCount === 1) actions.className = "actions single";
+        hint.textContent = session.monitoringPausedUntil
+          ? `Only this conversation is unmonitored until ${new Date(session.monitoringPausedUntil).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}.`
+          : session.canPauseMonitoring
+            ? "Pausing bypasses protection only for this conversation."
+            : "";
+        resize();
+      }
+
+      function renderActivityHistory(session) {
+        activityDetail.hidden = false; activityDetail.innerHTML = "";
+        const headingRow = document.createElement("div"); headingRow.className = "history-heading";
+        const heading = document.createElement("h3"); heading.textContent = "Recent activity";
+        headingRow.appendChild(heading);
+        const events = document.createElement("div"); events.className = "activity-events";
+        (session.events || []).slice(0, 5).forEach((event) => {
+          const row = document.createElement("div"); row.className = "activity-event";
+          const label = document.createElement("span"); label.textContent = friendlyEventLabel(event);
+          const when = document.createElement("span"); when.textContent = event.created_at ? relativeTime(event.created_at) : "";
+          row.append(label, when); events.appendChild(row);
+        });
+        activityDetail.appendChild(headingRow);
+        if (events.childElementCount) activityDetail.appendChild(events);
+        else { const empty = document.createElement("p"); empty.textContent = "No earlier activity yet."; activityDetail.appendChild(empty); }
+        const historyButton = actions.querySelector('[data-action="show-history"]');
+        if (historyButton) historyButton.textContent = "Hide history";
+        resize();
+      }
+
+      function renderContributionPills(parent, contributions) {
+        if (!contributions.length) return;
+        const pills = document.createElement("span"); pills.className = "contribution-pills";
+        contributions.slice(0, 3).forEach((contribution) => {
+          const pill = document.createElement("span"); pill.className = `contribution-pill ${contribution.tone || "neutral"}`;
+          pill.textContent = `${contribution.pluginIcon || "OL"} ${contribution.label || contribution.title || "Plugin update"}${contribution.value ? ` · ${contribution.value}` : ""}`;
+          pills.appendChild(pill);
+        });
+        parent.appendChild(pills);
+      }
+
+      function contributionCard(contribution, session) {
+        const card = document.createElement("div"); card.className = `island-contribution ${contribution.tone || "neutral"}`;
+        const head = document.createElement("div"); head.className = "contribution-head";
+        const title = document.createElement("div"); title.className = "contribution-title"; title.textContent = contribution.label || contribution.title || "Plugin update";
+        const plugin = document.createElement("div"); plugin.className = "contribution-plugin"; plugin.textContent = `${contribution.pluginIcon || "OL"} ${canonicalPluginSlug(contribution.pluginName || contribution.pluginId)}`;
+        head.append(title, plugin); card.appendChild(head);
+        if (contribution.detail) { const detail = document.createElement("div"); detail.className = "contribution-detail"; detail.textContent = contribution.detail; card.appendChild(detail); }
+        if (contribution.progress) {
+          const progress = document.createElement("div"); progress.className = "contribution-progress";
+          const fill = document.createElement("span"); const total = Number(contribution.progress.total || 0); const current = Number(contribution.progress.current || 0);
+          fill.style.width = `${total > 0 ? Math.max(0, Math.min(100, current / total * 100)) : 100}%`; progress.appendChild(fill); card.appendChild(progress);
+        }
+        if (contribution.value || contribution.status || contribution.progress?.label || contribution.action) {
+          const foot = document.createElement("div"); foot.className = "contribution-foot";
+          const value = document.createElement("span"); value.textContent = contribution.value || contribution.progress?.label || contribution.status || ""; foot.appendChild(value);
+          if (contribution.action) {
+            const action = document.createElement("button"); action.type = "button"; action.className = "contribution-button"; action.textContent = contribution.action.label;
+            action.addEventListener("click", (event) => { event.stopPropagation(); bridge.pluginIslandAction({ pluginId: contribution.pluginId, action: contribution.action, session }); });
+            foot.appendChild(action);
+          }
+          card.appendChild(foot);
+        }
+        return card;
+      }
+
+      function relativeTime(value) {
+        const seconds = Math.max(0, Math.round((Date.now() - new Date(value).getTime()) / 1000));
+        return seconds < 60 ? `${seconds}s` : `${Math.floor(seconds / 60)}m`;
+      }
+
+      function friendlyEventLabel(event) {
+        const tool = String(event.tool_name || "").toLowerCase().replace(/[_-]+/g, " ");
+        if (/^(read|cat|view|open)$/.test(tool)) return "Reviewed project files";
+        if (/^(write|edit|multiedit|apply patch)$/.test(tool)) return "Updated a file";
+        if (/^(bash|shell|terminal|command)$/.test(tool)) return "Ran a command";
+        if (/^(grep|glob|search|find)$/.test(tool)) return "Searched the project";
+        if (/^(task|agent|subagent)$/.test(tool)) return "Delegated work";
+        if (tool) return "Used a project tool";
+        if (event.event_name === "UserPromptSubmit") return "Received your request";
+        if (event.event_name === "SubagentStart") return "Started delegated work";
+        if (event.event_name === "SubagentStop") return "Finished delegated work";
+        if (event.event_name === "Stop" || event.event_name === "SessionEnd" || event.event_name === "AgentStop") return "Finished latest turn";
+        return "Continued working";
+      }
+
+      function requestDismiss() { island.classList.add("leaving"); setTimeout(() => bridge.dismissNotice(), 120); }
+      socialFollow.addEventListener("click", (event) => {
+        const target = event.target.closest("[data-social]");
+        if (!target) return;
+        bridge.islandCommand(target.dataset.social === "linkedin" ? "social-linkedin" : "social-x");
+      });
+      actions.addEventListener("click", async (event) => {
+        const target = event.target.closest("button"); if (!target || !current || target.disabled) return;
+        const action = target.dataset.action;
+        if (action === "show-history") {
+          if (!current.selectedSession) return;
+          if (activityDetail.hidden) renderActivityHistory(current.selectedSession);
+          else { activityDetail.hidden = true; activityDetail.innerHTML = ""; target.textContent = "View history"; resize(); }
+          return;
+        }
+        if (action === "install-next") {
+          if (Array.isArray(current.restartTargets) && current.restartTargets.length > 0) renderRestartAgents();
+          else renderSocialFollow();
+          return;
+        }
+        if (action === "restart-skip") {
+          renderSocialFollow();
+          return;
+        }
+        if (action === "restart-agents") {
+          const targetIds = [...restartTargetList.querySelectorAll('input[type="checkbox"]:checked')].map((input) => input.value);
+          actions.querySelectorAll("button").forEach((item) => item.disabled = true);
+          target.textContent = "Restarting…";
+          restartError.hidden = true;
+          let result;
+          try { result = await bridge.restartAgentTargets({ targetIds }); }
+          catch (error) { result = { ok: false, errors: [error?.message || "The selected apps could not restart."] }; }
+          if (result?.ok === false) {
+            restartError.textContent = (result.errors || []).join(" ") || "One or more apps could not restart.";
+            restartError.hidden = false;
+            target.textContent = "Try again";
+            actions.querySelectorAll("button").forEach((item) => item.disabled = false);
+            resize();
+            return;
+          }
+          renderSocialFollow();
+          return;
+        }
+        actions.querySelectorAll("button").forEach((item) => item.disabled = true);
+        if (action === "dismiss") return requestDismiss();
+        if (action === "jump-session") { setExpanded(false); return bridge.jumpToAgent({ agentKind: current.selectedSession?.agentKind, session: current.selectedSession }); }
+        if (action === "jump") { setExpanded(false); return bridge.jumpToAgent({ agentKind: current.agentKind, session: current.session }); }
+        if (action === "answer") { const original = current.interaction?.originalInput || {}; return bridge.resolve(current.id, "allow", "", 0, { ...original, answers: Object.fromEntries(selectedAnswers) }); }
+        if (action === "approve-plan") return bridge.resolve(current.id, "allow", "", 0, current.interaction?.originalInput || {});
+        const resolution = action === "allow" ? "allow" : "deny";
+        bridge.resolve(current.id, resolution, resolution === "deny" ? guidance.value : "", remember.checked ? 300000 : 0);
+      });
+      cap.addEventListener("click", (event) => { if (!event.target.closest("button")) setExpanded(!island.classList.contains("expanded")); });
+      island.addEventListener("pointerenter", () => {
+        if (pointerInsideVerificationOverride === null) pointerInsideIsland = true;
+        bridge.setNoticePointerInside?.(true);
+      });
+      island.addEventListener("pointerleave", () => {
+        if (pointerInsideVerificationOverride === null) pointerInsideIsland = false;
+        bridge.setNoticePointerInside?.(false);
+      });
+      notchRail.addEventListener("click", () => { if (island.classList.contains("activity-mode")) setExpanded(true); });
+      $("toggle").addEventListener("click", () => setExpanded(!island.classList.contains("expanded")));
+      $("close").addEventListener("click", () => currentKind === "activity" ? setExpanded(false) : requestDismiss());
+      menuToggle.addEventListener("click", (event) => { event.stopPropagation(); toggleIslandMenu(); });
+      islandMenu.addEventListener("click", (event) => {
+        const item = event.target.closest("[data-command]"); if (!item) return;
+        const command = item.dataset.command; closeIslandMenu();
+        if (command === "sessions") { setExpanded(true); return; }
+        bridge.islandCommand(command);
+      });
+      document.addEventListener("click", (event) => { if (!islandMenu.hidden && !event.target.closest("#islandMenu") && !event.target.closest("#menuToggle")) { closeIslandMenu(); resize(); } });
+      document.addEventListener("keydown", (event) => {
+        if (event.key === "Escape") { event.preventDefault(); if (currentKind === "activity") { closeIslandMenu(); setExpanded(false); } else if (current?.id && current.interaction?.type === "approval") actions.querySelector('[data-action="deny"]')?.click(); else requestDismiss(); }
+        if (event.key === "Enter" && !event.shiftKey && document.activeElement?.tagName !== "TEXTAREA" && document.activeElement?.tagName !== "INPUT" && current?.id && current.interaction?.type === "approval") { event.preventDefault(); actions.querySelector('[data-action="allow"]')?.click(); }
+      });
+
+      bridge.onNotice?.(renderNotice);
+      const preview = previewParams.get("preview");
+      if (!window.openleash && !nativeHandler && preview) {
+        const fixtures = {
+          approval: { kind: "ask", id: "preview", agentName: "Claude Code", title: "Permission request", summary: "Claude wants to edit the authentication middleware.", purpose: "Update token verification without touching unrelated files.", evidence: "Edit src/auth/middleware.ts\n- jwt.verify(token)\n+ verifyAccessToken(token)", project: "openleash", pluginName: "blast-radius", time: "now", supportsGuidance: true, interaction: { type: "approval" } },
+          question: { kind: "question", id: "preview", agentName: "Claude Code", title: "Claude asks", project: "openleash", time: "now", interaction: { type: "questions", questions: [{ question: "Which deployment target?", options: [{ label: "Production" }, { label: "Staging" }, { label: "Local only" }] }] } },
+          plan: { kind: "plan_review", id: "preview", agentName: "OpenAI Codex", title: "Codex has a plan", summary: "Review the proposed changes before work begins.", project: "desktop-client", time: "now", interaction: { type: "plan", markdown: "1. Add the native top-edge panel\n2. Share the renderer with Windows\n3. Verify expansion, focus, and dismissal\n4. Package and run upgrade tests" } },
+          completed: { kind: "completed", agentName: "Claude Code", agentKind: "claude", title: "Claude finished", summary: "Authentication middleware updated and all tests pass.", project: "openleash", time: "now", canJump: true },
+          installed: { kind: "install_success", agentName: "Leash", agentIcon: "openleash-icon.png", title: "Installation complete", summary: "Leash installed" },
+          restart: { kind: "install_success", agentName: "Leash", agentIcon: "openleash-icon.png", title: "Installation complete", summary: "Leash installed", restartTargets: [
+            { id: "application:vscode", application: "Visual Studio Code", icon: "agent-icons/vscode.png", agentNames: ["OpenAI Codex"], projects: [{ name: "OL2", path: "/Users/max/Code/OL2" }, { name: "FileMesh (All)", path: "/Users/max/Code/FileMesh (All)" }] },
+            { id: "application:cursor", application: "Cursor", icon: "agent-icons/cursor.svg", agentNames: ["Cursor"], projects: [{ name: "Website", path: "/Users/max/Code/Website" }] },
+          ] },
+          unified: { kind: "activity", agentName: "Leash", agentIcon: "openleash-icon.png", title: "1 approval waiting", project: "Claude Code needs your attention", pendingCount: 1, autoExpand: true, attention: { kind: "ask", id: "preview", agentKind: "claude-code", agentName: "Claude Code", agentIcon: "agent-icons/claude.svg", visualState: "waiting", title: "Outside sandbox", summary: "Claude needs network access to compile the release binary.", evidence: "$ cargo build --release --target aarch64-apple-darwin", project: "api-server", pluginName: "blast-radius", supportsGuidance: true, interaction: { type: "approval" } }, sessions: [
+            { id: "claude", agentKind: "claude-code", agentName: "Claude Code", agentIcon: "agent-icons/claude.svg", visualState: "waiting", project: "api-server", title: "Compile release binary", summary: "Preparing the production artifact.", latestAction: "Waiting for approval", time: "now", eventCount: 8, canJump: true },
+            { id: "codex", agentKind: "codex", agentName: "OpenAI Codex", agentIcon: "agent-icons/openai.svg", visualState: "running", project: "design-system", title: "Refresh design tokens", summary: "Updating shared components.", latestAction: "Editing files", time: "12s", eventCount: 12, canJump: true },
+          ], contributions: [] },
+          activity: { kind: "activity", agentName: "Leash", agentIcon: "openleash-icon.png", title: "3 agents working", project: "3 active sessions", sessions: [
+            { id: "claude", agentKind: "claude-code", agentName: "Claude Code", agentIcon: "agent-icons/claude.svg", visualState: "running", project: "client-api", title: "Correct approval attribution", summary: "Tracing policy ownership and notification labels.", latestAction: "Running tests", time: "now", eventCount: 8, canJump: true, events: [{ tool_name: "Bash", created_at: new Date().toISOString() }] },
+            { id: "codex", sessionId: "codex-session", agentKind: "codex", agentName: "OpenAI Codex", agentIcon: "agent-icons/openai.svg", visualState: "processing", project: "desktop-client", title: "Build multi-agent activity island", summary: "Implementing the compact and expanded session experience.", latestAction: "Editing notice.html", time: "now", eventCount: 12, canJump: true, events: [{ tool_name: "Edit", created_at: new Date().toISOString() }], contributions: [{ pluginId: "openleash.blast-radius", pluginName: "blast-radius", pluginIcon: "💥", kind: "annotation", label: "Destructive filesystem operation", detail: "Recursive deletion affects this workspace.", value: "critical", tone: "danger", action: { id: "open", label: "Open session", type: "open-session" } }] },
+            { id: "gemini", agentKind: "gemini", agentName: "Google Gemini CLI", agentIcon: "agent-icons/gemini.svg", visualState: "processing", project: "docs-web", title: "Review agent setup docs", summary: "Checking supported-agent instructions.", latestAction: "Reading documentation", time: "1m", eventCount: 4, canJump: false, events: [{ event_name: "PostToolUse", created_at: new Date(Date.now() - 60_000).toISOString() }] },
+          ], contributions: [{ pluginId: "community.test-progress", pluginName: "test-progress", pluginIcon: "TP", kind: "status", title: "Test suite running", detail: "18 of 24 tests passed.", tone: "info", progress: { current: 18, total: 24, label: "18 / 24" } }] },
+        };
+        renderNotice(fixtures[preview] || fixtures.approval);
+      }
+    </script>
+  </body>
+</html>
