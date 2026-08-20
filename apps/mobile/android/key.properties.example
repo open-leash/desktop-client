@@ -1,0 +1,4 @@
+storeFile=/absolute/path/to/openleash-upload-keystore.jks
+storePassword=replace-with-upload-keystore-password
+keyAlias=openleash-upload
+keyPassword=replace-with-upload-key-password
