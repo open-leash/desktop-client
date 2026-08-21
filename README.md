@@ -1,50 +1,153 @@
-# Leash
+<div align="center">
 
-Leash is the open-source control layer for personal AI agents. It observes agent activity, asks for approval before risky actions, masks sensitive data, enforces selected project instructions, and records understandable outcomes.
+<img src="https://capsule-render.vercel.app/api?type=waving&color=0:6366F1,45:14B8A6,100:111827&height=230&section=header&text=Leash&fontSize=68&fontColor=ffffff&fontAlignY=38&desc=Control%20your%20AI.&descSize=22&descAlignY=59" alt="Leash — Control your AI" width="100%" />
 
-## Product modes
+<img src="assets/openleash-icon.png" alt="Leash" width="76" />
 
-- **Leash Cloud**: a personal hosted account used from desktop, mobile, and web.
-- **Personal Open Source**: Leash Engine and Postgres running locally, without a Leash Cloud account.
+<h2>The open-source safety layer for AI agents.</h2>
 
-There is no public organization dashboard, dashboard API, identity-provider service, or team-management product in this repository.
+<p>
+  Monitor every action. Ask when it matters.<br />
+  <strong>Stop damage before it happens.</strong>
+</p>
 
-## Built-in Features
+<p>
+  <a href="https://github.com/open-leash/leash/releases"><img src="https://img.shields.io/badge/Download-Leash-6366F1?style=for-the-badge&logo=github&logoColor=white" alt="Download Leash" /></a>
+  <a href="https://docs.openleash.com"><img src="https://img.shields.io/badge/Read-the%20docs-14B8A6?style=for-the-badge&logo=readthedocs&logoColor=white" alt="Read the docs" /></a>
+  <a href="https://openleash.com"><img src="https://img.shields.io/badge/Visit-openleash.com-111827?style=for-the-badge&logo=googlechrome&logoColor=white" alt="Visit openleash.com" /></a>
+</p>
 
-Security and productivity capabilities ship as first-party **Features**. They execute as reviewed TypeScript handlers inside Leash Engine; they do not use per-Feature containers or a public marketplace. Stable `@openleash/client-api`, `OPENLEASH_*`, `openleash.*`, image, and `/v1/plugins` identifiers remain compatibility contracts.
+<p>
+  <a href="https://github.com/open-leash/leash/actions/workflows/ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/open-leash/leash/ci.yml?branch=main&style=flat-square&label=build" alt="Build status" /></a>
+  <a href="https://github.com/open-leash/leash/stargazers"><img src="https://img.shields.io/github/stars/open-leash/leash?style=flat-square&logo=github&label=stars&color=F59E0B" alt="GitHub stars" /></a>
+  <a href="https://github.com/open-leash/leash/releases"><img src="https://img.shields.io/github/v/release/open-leash/leash?display_name=tag&sort=semver&style=flat-square&color=6366F1" alt="Latest release" /></a>
+  <img src="https://img.shields.io/badge/macOS-supported-111111?style=flat-square&logo=apple&logoColor=white" alt="macOS supported" />
+  <img src="https://img.shields.io/badge/Windows-supported-2774CA?style=flat-square&logo=windows&logoColor=white" alt="Windows supported" />
+</p>
 
-## One public repository
+</div>
 
-The public runtime is developed and released together:
+---
 
-| Path | Purpose |
-| --- | --- |
-| `apps/engine` | Personal event API, decisions, approvals, Features, and Postgres migrations |
-| `apps/desktop` | macOS and Windows client, tray, Island, hooks, and local proxy management |
-| `apps/mobile` | Optional personal iOS and Android companion |
-| `apps/local-proxy` | Native provider-traffic enforcement edge |
-| `apps/provider-sync-worker` | Optional scheduler for provider-hosted activity |
-| `apps/flow-viewer` | Local developer trace viewer |
-| `packages/shared` | Versioned contracts shared by the runtime and clients |
+<div align="center">
+  <img src=".github/readme/control-your-ai.gif" alt="Leash Security, Cost, Activity, and Rules controls" width="100%" />
+  <br />
+  <sub>Security, Cost, Activity, and Rules—one control layer for every agent.</sub>
+</div>
 
-The public documentation site remains in its own repository. The marketing site and all Business Cloud control-plane services are private and deploy independently; they consume this public core but are not copied into it.
+<br />
 
-Google Cloud Build should create one trigger per deployable service, all pointed
-at this repository. Engine uses `cloudbuild.engine.yaml`; the optional provider
-worker uses `cloudbuild.provider-sync-worker.yaml`. Private `main-web` and
-`cloud-client-api` keep their own repositories and build configurations. A
-monorepo is a source boundary, not a combined production image.
+<p align="center"><strong>Works with the agents you already use.</strong></p>
 
-## Development
+<p align="center">
+  <img src="assets/agents/claude.png" alt="Claude Code" title="Claude Code" width="42" />&nbsp;&nbsp;
+  <img src="assets/agents/codex.png" alt="OpenAI Codex" title="OpenAI Codex" width="42" />&nbsp;&nbsp;
+  <img src="assets/agents/googlegemini.png" alt="Gemini CLI" title="Gemini CLI" width="42" />&nbsp;&nbsp;
+  <img src="assets/agents/cursor.png" alt="Cursor" title="Cursor" width="42" />&nbsp;&nbsp;
+  <img src="assets/agents/githubcopilot.png" alt="GitHub Copilot" title="GitHub Copilot" width="42" />&nbsp;&nbsp;
+  <img src="assets/agents/opencode.png" alt="OpenCode" title="OpenCode" width="42" />&nbsp;&nbsp;
+  <img src="assets/agents/cline.png" alt="Cline" title="Cline" width="42" />&nbsp;&nbsp;
+  <img src="assets/agents/windsurf.png" alt="Windsurf" title="Windsurf" width="42" />
+</p>
+
+---
+
+## 🛡️ AI moves fast. Leash checks first.
+
+Leash sits between your AI agents and the actions they take. Safe work keeps moving; sensitive work becomes a clear decision you can understand and control.
+
+| 🛡️ **Security** | 💸 **Cost** | 📡 **Activity** | 📏 **Rules** |
+| :--- | :--- | :--- | :--- |
+| Stop destructive commands, secret exposure, prompt injection, and unsafe tools. | Remove repeated context automatically with Token Saver. | Follow agents, commands, files, tools, and approvals in one live view. | Protect important folders and require approval for actions you choose. |
+
+```text
+  agent proposes an action
+              │
+              ▼
+     ╭───────────────────╮       safe       ─────────▶ continue
+     │       LEASH       │
+     │ observe · evaluate│       sensitive  ─────────▶ ask you
+     │ ask · stop        │
+     ╰───────────────────╯       dangerous  ─────────▶ stop
+```
+
+---
+
+## ✨ See Leash in action
+
+<table>
+  <tr>
+    <td width="50%" align="center">
+      <img src=".github/readme/island.png" alt="Leash Island approval" width="92%" />
+      <br /><strong>Answer the exact decision</strong><br />
+      <sub>The Island shows approvals and live agents without breaking your flow.</sub>
+    </td>
+    <td width="50%" align="center">
+      <img src=".github/readme/desktop-setup.png" alt="Leash desktop Island setup" width="100%" />
+      <br /><strong>Desktop protection that feels native</strong><br />
+      <sub>Install once, choose your agents, and keep protection close.</sub>
+    </td>
+  </tr>
+</table>
+
+<div align="center">
+  <img src=".github/readme/cloud-dashboard.png" alt="Leash Cloud cost intelligence dashboard" width="100%" />
+  <br /><strong>Understand AI usage across projects and providers</strong><br />
+  <sub>Leash Cloud adds personal web access and Business administration on top of the same public runtime.</sub>
+</div>
+
+<p align="center"><sub>The Business control plane shown above is a hosted Leash Cloud service and is not included in this public repository.</sub></p>
+
+---
+
+## ⚙️ One Engine. Every agent.
+
+```text
+AI agent hooks + provider traffic
+                │
+                ▼
+        ┌────────────────┐
+        │  Leash Engine  │──▶ first-party Features
+        │                │──▶ approvals + history
+        │                │──▶ local Postgres
+        └───────┬────────┘
+                │
+         Desktop · Mobile
+```
+
+The public repository ships the complete personal runtime. Features are reviewed TypeScript handlers that run in-process—no marketplace code, per-feature containers, or hidden local backend.
+
+Safe actions stay invisible and fast. When something needs attention, Leash gives you the exact agent, command, project, reason, and decision instead of a generic warning.
+
+---
+
+## 🚀 Run Leash locally
+
+Personal Open Source (BYOK) runs on your computer with your own model-provider key. It does not require a Leash account or Leash Cloud.
 
 ```bash
+git clone https://github.com/open-leash/leash.git
+cd leash
 npm install
 npm run dev:mode:individual-open-source
 ```
 
-Docker is required for the local Postgres/API stack. It is not used to sandbox Features.
+Docker is used for the local Postgres/API stack. Leash Features themselves always run in-process inside Engine.
 
-Useful gates:
+<details>
+<summary><strong>🧱 Explore the complete public runtime</strong></summary>
+
+| Path | What lives there |
+| :--- | :--- |
+| `apps/engine` | Personal event API, decisions, approvals, Features, and migrations |
+| `apps/desktop` | macOS and Windows app, tray, Island, hooks, and proxy management |
+| `apps/mobile` | Optional iOS and Android companion |
+| `apps/local-proxy` | Native provider-traffic enforcement edge |
+| `apps/provider-sync-worker` | Optional provider activity scheduler |
+| `apps/flow-viewer` | Local trace and decision viewer |
+| `packages/shared` | Versioned contracts shared across clients and runtime |
+
+Useful checks:
 
 ```bash
 npm run typecheck
@@ -53,6 +156,25 @@ npm test -w @openleash/desktop-client
 npm run test:deployment
 ```
 
-The npm package names above are retained for installed-client compatibility. New paths and product language use **Engine**, **Desktop**, and **Mobile**.
+Package names retain `openleash` and `client-api` where changing them would break existing installations. The product UI and new documentation use **Leash** and **Engine**.
 
-See [Product](docs/Product.md), [user flows](docs/USER_FLOWS.md), [architecture](docs/ARCHITECTURE.md), and [deployment](docs/DEPLOYMENT.md).
+</details>
+
+---
+
+## 💜 Built in the open
+
+Leash is for people who want powerful agents without giving up the final say. If that matters to you, try it, open an issue, or give the project a star—it genuinely helps more people find it.
+
+<div align="center">
+
+**Fast agents. Human boundaries.**
+
+<p>
+  <a href="https://github.com/open-leash/leash"><img src="https://img.shields.io/badge/⭐_Star-Leash-F59E0B?style=for-the-badge" alt="Star Leash" /></a>
+  <a href="https://github.com/open-leash/leash/issues/new"><img src="https://img.shields.io/badge/Report-a%20bug-EC4899?style=for-the-badge&logo=github&logoColor=white" alt="Report a bug" /></a>
+</p>
+
+<img src="https://capsule-render.vercel.app/api?type=waving&color=0:111827,55:14B8A6,100:6366F1&height=120&section=footer" width="100%" />
+
+</div>
