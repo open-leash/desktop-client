@@ -390,6 +390,32 @@ class ReleasePipelineTests(unittest.TestCase):
             component.path,
         )
 
+    def test_main_web_gates_run_from_its_standalone_repository(self):
+        component = PIPELINE.COMPONENTS["main-web"]
+        self.assertEqual(
+            PIPELINE.component_command_cwd(component, ("npm", "run", "typecheck")),
+            component.path,
+        )
+        self.assertNotIn("-w", component.test_commands[0])
+        self.assertEqual(component.build_commands[0][-1], ".")
+
+    def test_version_bump_keeps_package_lock_metadata_aligned(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory)
+            (path / "package.json").write_text(json.dumps({"name": "example", "version": "1.0.0"}))
+            (path / "package-lock.json").write_text(json.dumps({
+                "name": "example",
+                "version": "1.0.0",
+                "packages": {"": {"name": "example", "version": "1.0.0"}},
+            }))
+            component = PIPELINE.Component("example", path, "open-leash/example", "web", (), ())
+            PIPELINE.bump_component_version(component, "1.1.0")
+            package = json.loads((path / "package.json").read_text())
+            package_lock = json.loads((path / "package-lock.json").read_text())
+            self.assertEqual(package["version"], "1.1.0")
+            self.assertEqual(package_lock["version"], "1.1.0")
+            self.assertEqual(package_lock["packages"][""]["version"], "1.1.0")
+
     def test_terminal_release_does_not_publish_an_unbuilt_windows_link(self):
         commands = []
         args = SimpleNamespace(desktop_channel="terminal")

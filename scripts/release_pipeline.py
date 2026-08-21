@@ -117,10 +117,10 @@ COMPONENTS: dict[str, Component] = {
     "main-web": Component(
         "main-web", ROOT / "apps/main-web", "open-leash/main-web", "web",
         (
-            ("npm", "run", "test:installer-wrapper", "-w", "@openleash/main-web"),
-            ("npm", "run", "typecheck", "-w", "@openleash/main-web"),
+            ("npm", "run", "test:installer-wrapper"),
+            ("npm", "run", "typecheck"),
         ),
-        (("docker", "build", "--no-cache", "-t", "openleash/main-web:release-gate", "apps/main-web"),),
+        (("docker", "build", "--no-cache", "-t", "openleash/main-web:release-gate", "."),),
     ),
 }
 
@@ -726,7 +726,7 @@ def run_release_wide_tests(selected: list[str]) -> dict[str, str]:
 
 
 def component_command_cwd(component: Component, command: tuple[str, ...]) -> Path:
-    if component.key == "cloud-dashboard-web":
+    if component.key in {"cloud-dashboard-web", "main-web"}:
         return component.path
     if component.key.startswith("cloud-") and command[0] == "npm":
         return component.path
@@ -1051,6 +1051,14 @@ def bump_component_version(component: Component, version: str) -> None:
         data = json.loads(package.read_text(encoding="utf-8"))
         data["version"] = version
         package.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
+        package_lock = component.path / "package-lock.json"
+        if package_lock.exists():
+            lock_data = json.loads(package_lock.read_text(encoding="utf-8"))
+            lock_data["version"] = version
+            root_package = lock_data.get("packages", {}).get("")
+            if isinstance(root_package, dict):
+                root_package["version"] = version
+            package_lock.write_text(json.dumps(lock_data, indent=2) + "\n", encoding="utf-8")
     elif cargo.exists():
         replace_regex(cargo, r'^version\s*=\s*"[^"]+"', f'version = "{version}"', flags=re.MULTILINE)
     elif pubspec.exists():
