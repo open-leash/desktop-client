@@ -590,7 +590,12 @@ if [[ -d "$HOME/Library/Application Support/Leash" || -d "$HOME/Library/Applicat
 fi
 
 stop_openleash
-remove_retired_feature_containers
+# Fresh Cloud installs never inspect or invoke Docker. Legacy container cleanup
+# is only relevant to an existing Leash installation or an explicitly selected
+# Personal Open Source installation.
+if [[ "$HAD_EXISTING_LOCAL_STATE" -eq 1 || "$INDIVIDUAL_OPEN_SOURCE" -eq 1 ]]; then
+  remove_retired_feature_containers
+fi
 
 MOUNT_POINT="$TMP_DIR/mount"
 mkdir -p "$MOUNT_POINT"

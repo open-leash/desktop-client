@@ -39,6 +39,13 @@ test("Business is preserved and restricted to Leash Cloud", () => {
   assert.match(html, /setupAudience === "individual" \? connectionChoice\("custom"/);
 });
 
+test("Docker is entered only through explicit Personal Open Source setup", () => {
+  assert.match(html, /setupAudience === "individual" && setupClientMode === "custom"/);
+  assert.match(html, /if \(startLocalBackend\) startLocalBackend\.onclick = \(\) => startSelfHostedRuntime\(\);/);
+  assert.match(html, /currentId === "local backend" && setupAudience === "individual" && setupClientMode === "custom"/);
+  assert.doesNotMatch(html, /setupClientMode === "cloud"[^\n]*startSelfHostedRuntime/);
+});
+
 test("Cloud headers identify the signed-in person", () => {
   assert.match(html, /function headerIdentityHtml\(\)/);
   assert.match(html, /state\.clientMode === "cloud" \? String\(state\.remoteUser \|\| ""\)\.trim\(\) : ""/);
