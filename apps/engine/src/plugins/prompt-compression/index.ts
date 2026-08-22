@@ -58,7 +58,32 @@ export async function runPromptCompression({
     };
   }
 
-  const llm = await capabilities.llm.evaluateJson<TokenSaverLlmResult>({
+  const minimumChars = Math.max(0, Number(config.minimumChars ?? 1200));
+  if (prompt.length < minimumChars) {
+    return {
+      prompt,
+      result: undefined,
+      run: pluginRun({
+        pluginId: manifest.id,
+        event: "prompt.beforeSubmit",
+        status: "passed",
+        summary: `token-saver checked: prompt is below the ${minimumChars}-character threshold.`,
+        startedAt,
+        metadata: {
+          deliveryStatus: "below-threshold",
+          minimumChars,
+          inputCharacters: prompt.length,
+          outputCharacters: prompt.length,
+          savedCharacters: 0,
+          savedPercent: 0,
+          triggeredAt: new Date(startedAt).toISOString()
+        }
+      })
+    };
+  }
+
+  const heuristicCandidate = heuristicCompress(prompt, config.level);
+  const llm = usefulCompression(prompt, heuristicCandidate) ? undefined : await capabilities.llm.evaluateJson<TokenSaverLlmResult>({
     purpose: "token-saver",
     system: tokenSaverSystemPrompt(config.level),
     prompt: JSON.stringify({
@@ -77,9 +102,9 @@ export async function runPromptCompression({
     },
     temperature: 0,
     maxOutputTokens: maxOutputTokensFor(prompt, config.level)
-  });
+  }).catch(() => undefined);
   const llmCompressed = typeof llm?.json?.compressed === "string" ? llm.json.compressed.trim() : "";
-  let finalPrompt = usefulCompression(prompt, llmCompressed) ? llmCompressed : heuristicCompress(prompt, config.level);
+  let finalPrompt = usefulCompression(prompt, llmCompressed) ? llmCompressed : heuristicCandidate;
   if (config.conciseResponse) {
     finalPrompt = `${finalPrompt.trim()}\n\nRespond concisely. Be short, direct, and avoid filler.`;
   }
@@ -181,10 +206,18 @@ function usefulCompression(original: string, candidate: string) {
 }
 
 function heuristicCompress(prompt: string, level: PluginPromptCompressionConfig["level"]) {
-  const normalized = prompt.replace(/[ \t]+/g, " ").replace(/\n{3,}/g, "\n\n").trim();
-  if (level === "light") return normalized;
-  const limit = level === "maximum" ? 1800 : 3600;
-  return normalized.length > limit ? `${normalized.slice(0, limit).trim()}\n\n[token-saver removed repetitive trailing context.]` : normalized;
+  const paragraphs = prompt.trim().split(/\n{2,}/);
+  const deduped: string[] = [];
+  for (const paragraph of paragraphs) {
+    const normalized = paragraph.trim();
+    if (!normalized) continue;
+    const previous = deduped.at(-1);
+    if (previous && previous.replace(/\s+/g, " ") === normalized.replace(/\s+/g, " ")) continue;
+    deduped.push(normalized);
+  }
+  // The fallback only removes exact repeated paragraphs. It deliberately does
+  // not truncate arbitrary trailing text or rewrite whitespace inside code.
+  return deduped.join("\n\n");
 }
 
 function compressionSummary(

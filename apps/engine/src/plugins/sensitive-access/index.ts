@@ -42,7 +42,7 @@ export async function runSensitiveAccess(input: EvaluationPipelineInput, capabil
   // The LLM result is deliberately ignored unless the event contains an actual
   // sensitive-resource, environment-dump, or exfiltration anchor. Avoid paying
   // for and blocking on a model call when it cannot affect the decision.
-  const llm = shouldUseSensitiveAccessLlm(text)
+  const llm = matches.length === 0 && shouldUseSensitiveAccessLlm(text)
     ? await evaluateSensitiveAccess(context, capabilities).catch((error) => ({
         error: error instanceof Error ? error.message : String(error)
       }))

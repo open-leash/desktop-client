@@ -16,7 +16,7 @@
 
 ## ✨ What this app is
 
-`mobile-client` is the iOS/Android companion app for Leash agent attention.
+Leash Mobile is the iOS/Android companion app for per-user Leash attention.
 
 It connects to Leash Cloud or a customer-hosted API, signs existing users in through the configured identity provider, registers the phone, and lets users approve or deny held agent actions.
 
@@ -55,10 +55,15 @@ Until those provider credentials and tokens exist, a suspended or terminated
 app cannot receive a background push; the live stream and local notifications
 work while the app is running.
 
-Responses are stored by `client-api`, then consumed by the request that
+Responses are stored by Engine, then consumed by the request that
 originally paused. A desktop hook or proxy therefore resumes only its own local
 agent. A cloud or SaaS agent is resumed by its own server-side request—mobile
 never sends an executable command to an unrelated desktop.
+
+Business membership does not turn Mobile into an admin console. Employees and
+administrators see only their own activity, approvals, and permitted settings;
+organization-wide people, cost, identity, policy, billing, and audit remain on
+the private web dashboard.
 
 ---
 

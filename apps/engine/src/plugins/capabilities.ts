@@ -441,6 +441,7 @@ async function evaluatePluginJson<T = unknown>(
   const client = new OpenAI({
     apiKey: config.apiKey,
     timeout: pluginLlmTimeoutMs,
+    maxRetries: 0,
     ...(config.baseURL ? { baseURL: config.baseURL } : {})
   });
   if (config.provider === "deepseek") {

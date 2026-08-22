@@ -71,6 +71,12 @@ Personal users can configure the first-party Features shipped with Leash.
 There is no public marketplace, uploader, publisher profile, or organization
 policy surface.
 
+Desktop and the signed-in person's personal web surface share the same view
+model: Overview, Agents, Features, approvals, history, notifications, and
+permitted settings. Overview leads with the current device and relative sync
+state. Agent enablement lives on Agents. Business roles never unlock employee,
+cost, identity, billing, or organization-policy administration in Desktop.
+
 ---
 
 ## 🛠 Run locally
@@ -98,6 +104,9 @@ npm run desktop-cli -- plugins install token-saver sec-evaluator
 npm run desktop-cli -- plugins uninstall token-saver sec-evaluator
 npm run desktop-cli -- configure --token "$OPENLEASH_TOKEN" --remote-api-url https://api.openleash.com
 ```
+
+The `plugins` CLI name is a compatibility surface. It lists and toggles the
+closed catalog of built-in Features; it does not download third-party code.
 
 ---
 

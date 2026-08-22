@@ -90,7 +90,7 @@ export async function runCodeScanner(
     });
   }
 
-  const evaluation = await capabilities.llm.evaluateJson<CodeScannerAssessment>(
+  const remoteEvaluation = await capabilities.llm.evaluateJson<CodeScannerAssessment>(
     {
       purpose: "code-scanner",
       system: CODE_SCANNER_SYSTEM_PROMPT,
@@ -108,30 +108,13 @@ export async function runCodeScanner(
       temperature: 0,
       maxOutputTokens: 1400,
     },
-  );
-
-  if (!evaluation) {
-    await capabilities.log.emit({
-      level: "warn",
-      category: "plugin",
-      code: "code-scanner.evaluation-unavailable",
-      message:
-        "Code-scanner could not evaluate generated code because no evaluator result was available.",
-      data: {
-        agentKind: request.agent.kind,
-        source: candidate.source,
-        codeCharacters: candidate.code.length,
-      },
-    });
-    return pluginRun({
-      pluginId: codeScannerManifest.id,
-      event,
-      status: "failed",
-      summary: "Generated-code security evaluation was unavailable.",
-      startedAt,
-      metadata: { agentKind: request.agent.kind, source: candidate.source },
-    });
-  }
+  ).catch(() => undefined);
+  const evaluation = remoteEvaluation ?? {
+    json: heuristicCodeAssessment(candidate.code),
+    model: "code-scanner-heuristic",
+    provider: "openleash-plugin",
+    source: "heuristic" as const,
+  };
 
   const assessment = normalizeAssessment(evaluation.json);
   const threshold = clamp(
@@ -332,6 +315,55 @@ function normalizeAssessment(
     riskScore,
     severity,
     summary: truncate(String(value?.summary ?? "Code review completed."), 400),
+    vulnerabilities,
+  };
+}
+
+function heuristicCodeAssessment(code: string): CodeScannerAssessment {
+  const vulnerabilities: CodeScannerVulnerability[] = [];
+  const add = (finding: CodeScannerVulnerability) => {
+    if (!vulnerabilities.some((item) => item.title === finding.title)) vulnerabilities.push(finding);
+  };
+  const commandInjection = code.match(/\b(?:eval|exec|execSync|system|popen)\s*\([^\n)]*(?:req\.|request\.|user|input|params|query|body|argv|\$\{)/i);
+  if (commandInjection) add({
+    title: "User-controlled text can reach executable code",
+    severity: "critical",
+    cwe: "CWE-78",
+    evidence: commandInjection[0],
+    remediation: "Use a fixed executable and pass validated values as an argument array without a shell.",
+  });
+  const sqlInjection = code.match(/\b(?:query|execute)\s*\(\s*(?:`[^`]*\$\{|[^\n)]*\+\s*(?:req\.|request\.|user|input|params|query|body))/i);
+  if (sqlInjection) add({
+    title: "User input is joined directly into a database query",
+    severity: "high",
+    cwe: "CWE-89",
+    evidence: sqlInjection[0],
+    remediation: "Use parameterized queries and pass user values separately from the SQL text.",
+  });
+  const unsafeHtml = code.match(/\b(?:innerHTML|outerHTML)\s*=\s*(?:req\.|request\.|user|input|params|query|body|[^;\n]*\$\{)/i);
+  if (unsafeHtml) add({
+    title: "Untrusted text can become executable page content",
+    severity: "high",
+    cwe: "CWE-79",
+    evidence: unsafeHtml[0],
+    remediation: "Render untrusted values as text or sanitize them with a maintained HTML sanitizer.",
+  });
+  const embeddedCredential = code.match(/\b(?:api[_-]?key|secret|password|token)\s*[:=]\s*["'][A-Za-z0-9_=-]{16,}["']/i);
+  if (embeddedCredential) add({
+    title: "A credential is embedded in generated source code",
+    severity: "high",
+    cwe: "CWE-798",
+    evidence: embeddedCredential[0].replace(/(["']).+\1$/, "$1[REDACTED]$1"),
+    remediation: "Remove the value from source control and load it from a protected secret store at runtime.",
+  });
+  const score = vulnerabilities.some((item) => item.severity === "critical") ? 95 : vulnerabilities.length ? 85 : 0;
+  return {
+    risky: vulnerabilities.length > 0,
+    riskScore: score,
+    severity: vulnerabilities.some((item) => item.severity === "critical") ? "critical" : vulnerabilities.length ? "high" : "none",
+    summary: vulnerabilities.length
+      ? "Deterministic checks found a concrete security risk in generated code."
+      : "Deterministic checks found no concrete vulnerability.",
     vulnerabilities,
   };
 }

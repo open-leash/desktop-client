@@ -15,14 +15,15 @@ process.env.HOME = home;
 process.env.USERPROFILE = home;
 
 test("released desktop resolves the bundled native proxy without Docker", () => {
+  const macResourcesPath = "/Applications/Leash.app/Contents/Resources";
   assert.deepEqual(
     localProxyBinaryCandidates({
       platform: "darwin",
-      resourcesPath: "/Applications/Leash.app/Contents/Resources",
-      moduleDir: "/Applications/Leash.app/Contents/Resources/app.asar/apps/desktop/dist",
+      resourcesPath: macResourcesPath,
+      moduleDir: `${macResourcesPath}/app.asar/apps/desktop/dist`,
       override: "",
     }).slice(0, 1),
-    ["/Applications/Leash.app/Contents/Resources/local-proxy/openleash-local-proxy"],
+    [path.join(macResourcesPath, "local-proxy", "openleash-local-proxy")],
   );
   assert.equal(
     localProxyBinaryCandidates({

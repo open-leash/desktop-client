@@ -58,8 +58,8 @@ The default provider set is:
 | Mode | Role |
 | --- | --- |
 | 🏢 Private Cloud | Optional worker beside the customer-hosted Engine. |
-| ☁️ OpenLeash Cloud | Hosted scheduler for enabled SaaS connectors. |
-| 🧑‍💻 Individual Open Source | Optional; useful only when the user configures a supported hosted provider connector. |
+| ☁️ Leash Cloud | Hosted scheduler for enabled SaaS agent connectors. |
+| 🧑‍💻 Personal Open Source | Optional; useful only when the user configures a supported hosted provider connector. |
 
 ---
 
@@ -92,18 +92,21 @@ The first synchronization runs immediately. Subsequent cycles use `OPENLEASH_PUL
 
 *Set one of the two token variables. Prefer `OPENLEASH_ADMIN_TOKEN`.
 
-Provider credentials and checkpoints belong in Engine; do not place them in this worker's environment.
+Provider credentials and checkpoints belong in Engine; do not place them in
+this worker's environment. This worker does not collect Business spend and does
+not synchronize Google Workspace, Microsoft 365, or another identity directory.
+Those are private Cloud responsibilities.
 
 ---
 
 ## 🐳 Container
 
 ```bash
-docker build -t openleash-provider-puller .
+docker build -t openleash-provider-sync-worker .
 docker run --rm \
   -e OPENLEASH_CLIENT_API_URL=https://api.example.com \
   -e OPENLEASH_ADMIN_TOKEN=replace-me \
-  openleash-provider-puller
+  openleash-provider-sync-worker
 ```
 
 The image builds TypeScript in a dedicated stage and runs as the unprivileged Node user.
@@ -115,7 +118,7 @@ The image builds TypeScript in a dedicated stage and runs as the unprivileged No
 ```bash
 npm run typecheck
 npm run build
-docker build -t openleash-provider-puller:test .
+docker build -t openleash-provider-sync-worker:test .
 ```
 
 ---

@@ -132,3 +132,36 @@ test("clean assessment is logged without notifying", async () => {
   assert.equal(mock.calls.signals, 0);
   assert.equal(mock.calls.logs, 1);
 });
+
+test("evaluator outage falls back to deterministic clean-code checks", async () => {
+  const mock = capabilities(undefined);
+  mock.value.llm.evaluateJson = async () => { throw new Error("evaluator unavailable"); };
+  const result = await runCodeScanner(
+    request("cursor", {
+      content:
+        "export function add(left: number, right: number) {\n  if (!Number.isFinite(left) || !Number.isFinite(right)) throw new Error('invalid');\n  return left + right;\n}\n",
+    }),
+    "tool.beforeUse",
+    mock.value,
+  );
+  assert.equal(result.status, "passed");
+  assert.equal(result.metadata?.notificationSent, false);
+  assert.equal(result.metadata?.evaluatedBy, "openleash-plugin:code-scanner-heuristic");
+});
+
+test("evaluator outage still detects obvious generated command injection", async () => {
+  const mock = capabilities(undefined);
+  mock.value.llm.evaluateJson = async () => { throw new Error("evaluator unavailable"); };
+  const result = await runCodeScanner(
+    request("gemini", {
+      content:
+        "import { exec } from 'node:child_process';\nexport function run(userInput: string) {\n  return exec(`git show ${userInput}`);\n}\n",
+    }),
+    "tool.beforeUse",
+    mock.value,
+  );
+  assert.equal(result.status, "passed");
+  assert.equal(result.metadata?.notificationSent, true);
+  assert.equal(mock.calls.notifications, 1);
+  assert.equal(mock.calls.signals, 1);
+});

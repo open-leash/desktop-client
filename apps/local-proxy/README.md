@@ -22,7 +22,11 @@
 
 ## ✨ What this app is
 
-`local-proxy` is Leash's cross-platform reverse proxy and enforcement relay for local AI agents. It understands Anthropic Messages, OpenAI Chat Completions, and OpenAI Responses traffic, reconstructs prompts and tool calls, sends normalized events to `client-api`, and applies policy decisions before protected traffic continues.
+`local-proxy` is Leash's cross-platform reverse proxy and enforcement relay for
+local AI agents. It understands Anthropic Messages, OpenAI Chat Completions,
+and OpenAI Responses traffic, reconstructs prompts and tool calls, sends
+normalized events to Leash Engine, and applies decisions before protected
+traffic continues.
 
 ```text
 Claude Code / Codex / Cursor / OpenCode / other agents
@@ -32,7 +36,7 @@ Claude Code / Codex / Cursor / OpenCode / other agents
                   raw → parsed
                          │
                          ▼
-              client-api plugin pipeline
+               Engine Feature pipeline
                          │
                    allow / replace / deny
                          │
@@ -55,7 +59,7 @@ The proxy complements provider-specific API hooks. The proxy is authoritative fo
 - Asynchronous text-response telemetry when no pre-execution decision is required
 - HTTP streaming, redirects, WebSockets, corporate proxy chaining, and hop-by-hop header sanitation
 - Bounded bodies, concurrency limits, timeouts, and TCP backpressure
-- Exact-session, time-bounded monitoring pauses authorized by `client-api`; unrelated conversations remain fully protected
+- Exact-session, time-bounded monitoring pauses authorized by Engine; unrelated conversations remain fully protected
 
 ---
 
@@ -63,7 +67,10 @@ The proxy complements provider-specific API hooks. The proxy is authoritative fo
 
 Protected request and tool-call evaluations suspend only their asynchronous request task; they do not occupy a CPU thread while waiting. Unrelated traffic continues normally.
 
-The proxy fails closed by default. If `client-api` is unavailable or evaluation times out, protected traffic is denied. Operators can explicitly opt into fail-open behavior with `OPENLEASH_PROXY_FAIL_OPEN=true` when their risk model requires availability over enforcement.
+The proxy fails closed by default. If Engine is unavailable or evaluation times
+out, protected traffic is denied. Operators can explicitly opt into fail-open
+behavior with `OPENLEASH_PROXY_FAIL_OPEN=true` when their risk model requires
+availability over enforcement.
 
 Default limits include 16 MiB intercepted requests, eight simultaneous request evaluations, 8 MiB gated responses, and eight simultaneous response gates. These limits are configurable and apply backpressure instead of allowing unbounded memory growth.
 
@@ -71,7 +78,7 @@ Default limits include 16 MiB intercepted requests, eight simultaneous request e
 
 ## 🛠 Run locally
 
-Requirements: a stable Rust toolchain and a running Leash `client-api`.
+Requirements: a stable Rust toolchain and a running Leash Engine.
 
 ```bash
 cargo run
@@ -82,7 +89,7 @@ Configure the agent's provider base URL to point at the proxy and set:
 ```bash
 export OPENLEASH_PROXY_UPSTREAM="https://api.anthropic.com"
 export OPENLEASH_CLIENT_API="http://127.0.0.1:9318"
-export OPENLEASH_TOKEN="your-client-api-token"
+export OPENLEASH_TOKEN="your-engine-token"
 cargo run --release
 ```
 
@@ -96,7 +103,7 @@ For an OpenAI-compatible agent, use its OpenAI upstream instead. The desktop cli
 | --- | --- |
 | `OPENLEASH_PROXY_UPSTREAM` | Provider API origin receiving allowed traffic. |
 | `OPENLEASH_CLIENT_API` | Leash evaluation API URL. |
-| `OPENLEASH_TOKEN` | Authentication token for `client-api`. |
+| `OPENLEASH_TOKEN` | Authentication token for Engine. |
 | `OPENLEASH_CORPORATE_PROXY` | Optional existing organization proxy to chain through. |
 | `OPENLEASH_PROXY_FAIL_OPEN` | Explicitly allow protected traffic when evaluation fails. Defaults to `false`. |
 | `OPENLEASH_PROXY_MAX_BODY_BYTES` | Maximum intercepted request size. |
