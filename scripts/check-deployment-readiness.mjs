@@ -9,13 +9,12 @@ const checks = [
   ["personal open-source compose", "deploy/docker/individual-open-source.compose.yml"],
   ["Feature registry", "apps/engine/src/plugins/feature-runtime.ts"],
   ["Feature runtime tests", "apps/engine/src/plugins/feature-runtime.test.ts"],
-  ["deployment guide", "docs/DEPLOYMENT.md"],
-  ["mode runner", "scripts/run-openleash.py"],
+  ["public setup guide", "README.md"],
 ];
 
 const contentChecks = [
   ["installer supports Personal Open Source", "scripts/install-openleash-personal.sh", /--open-source/],
-  ["runner supports Personal Open Source", "scripts/run-openleash.py", /individual-open-source/],
+  ["README supports Personal Open Source", "README.md", /Personal Open Source \(BYOK\)/],
   ["Features execute in process", "apps/engine/src/plugins/feature-runtime.ts", /BUILTIN_FEATURE_HANDLERS/],
   ["manifests declare built-in runtime", "packages/shared/src/index.ts", /runtime:\s*"builtin"/],
   ["Engine exposes its personal port", "apps/engine/Dockerfile", /EXPOSE\s+9318(?:\s|$)/],

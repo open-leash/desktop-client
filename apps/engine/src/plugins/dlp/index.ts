@@ -115,6 +115,11 @@ export async function runDlp({
 
 async function inspectPrompt(prompt: string, config: PluginDlpConfig, capabilities: PluginCapabilities): Promise<DlpInspection> {
   const heuristic = heuristicDlp(prompt, config);
+  // A routine prompt should never depend on a remote evaluator. Besides making
+  // the common path faster, this prevents an evaluator outage from turning a
+  // harmless prompt into a spurious approval request.
+  if (!heuristic.matched) return heuristic;
+
   const llm = await capabilities.llm.evaluateJson<DlpLlmResult>({
     purpose: "data-leakage-prevention",
     system: dlpSystemPrompt(config),
@@ -151,7 +156,7 @@ async function inspectPrompt(prompt: string, config: PluginDlpConfig, capabiliti
     },
     temperature: 0,
     maxOutputTokens: 1800
-  });
+  }).catch(() => undefined);
   const llmFindings = sanitizeFindings(llm?.json?.findings ?? [], config);
   const findings = dedupeFindings([...heuristic.findings, ...llmFindings]);
   const categories = [...new Set(findings.map((finding) => finding.category))];

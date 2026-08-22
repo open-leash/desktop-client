@@ -66,6 +66,7 @@ import {
 import { ensureDevToken, getUserByToken, hashToken, pool } from "./db.js";
 import { summarizeActionPurpose } from "./evaluator.js";
 import { nativeHookDecision } from "./hook-decisions.js";
+import { attributedHookAgent } from "./hook-attribution.js";
 import { pluginIconText } from "./plugin-icons.js";
 import { normalizePluginIconInput } from "./plugin-icon-input.js";
 import { canonicalPluginSlug } from "./plugin-slug.js";
@@ -1052,7 +1053,8 @@ app.post("/v1/hooks/:agent/:event", async (req, res, next) => {
         .status(400)
         .json({ error: "unsupported OpenLeash hook target" });
     }
-    const request = normalizeHookRequest(agent, eventName, req.body, req.query);
+    const activityAgent = attributedHookAgent(agent, req.body);
+    const request = normalizeHookRequest(activityAgent, eventName, req.body, req.query);
     if (await isSessionMonitoringPaused(user, request)) {
       return res.json(nativeHookDecision(
         agent,
@@ -1062,7 +1064,7 @@ app.post("/v1/hooks/:agent/:event", async (req, res, next) => {
     }
     await writePipelineTrace("ingress.raw_hook", {
       source: "api_hook",
-      provider: agent,
+      provider: activityAgent,
       agent: request.agent.kind,
       event: eventName,
       sessionId: request.event.sessionId,
@@ -1071,13 +1073,13 @@ app.post("/v1/hooks/:agent/:event", async (req, res, next) => {
     });
     const hookEnvelope = normalizeAgentEvent({
       source: "api_hook",
-      provider: agent,
+      provider: activityAgent,
       request,
     });
     await writePipelineTrace("pipeline.normalized_hook", {
       traceId: hookEnvelope.idempotencyKey,
       source: "api_hook",
-      provider: agent,
+      provider: activityAgent,
       agent: request.agent.kind,
       event: eventName,
       sessionId: request.event.sessionId,

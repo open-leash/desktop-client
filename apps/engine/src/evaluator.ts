@@ -44,6 +44,7 @@ export async function evaluatePolicies(
 
   const client = new OpenAI({
     apiKey: modelConfig.apiKey,
+    maxRetries: 0,
     ...(modelConfig.baseURL ? { baseURL: modelConfig.baseURL } : {})
   });
   const response = await client.responses.create({
@@ -139,6 +140,7 @@ export async function summarizeActionPurpose(request: EvaluationRequest, tenantM
   const recentTranscript = request.event.transcript?.slice(-Math.max(1, actionPurposeContextMessages)) ?? [];
   const client = new OpenAI({
     apiKey: modelConfig.apiKey,
+    maxRetries: 0,
     ...(modelConfig.baseURL ? { baseURL: modelConfig.baseURL } : {})
   });
   try {
@@ -163,6 +165,8 @@ export async function summarizeActionPurpose(request: EvaluationRequest, tenantM
       ],
       temperature: 0,
       max_output_tokens: 80
+    }, {
+      signal: AbortSignal.timeout(Math.max(100, Number(process.env.OPENLEASH_ACTION_PURPOSE_TIMEOUT_MS ?? 750)))
     });
     const text = response.output_text.trim();
     return text ? text.replace(/^["']|["']$/g, "") : fallback;

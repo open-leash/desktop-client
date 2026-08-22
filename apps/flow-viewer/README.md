@@ -33,7 +33,7 @@ approvals, mutate policy, or act as a backend.
 ```text
 API hook ───────────┐
 local proxy ────────┼─► normalized pipeline trace ─► flow-viewer
-provider puller ────┘            │
+provider sync worker ┘           │
                                  ├─ conversation grouping
                                  ├─ stage-by-stage inspection
                                  └─ source and outcome filtering
@@ -43,7 +43,7 @@ provider puller ────┘            │
 
 ## 🔥 What you can inspect
 
-- Hook, local-proxy, and provider-puller ingress in one timeline
+- Hook, local-proxy, and provider-sync-worker ingress in one timeline
 - Deduplication when multiple transports report the same agent action
 - Agent, project, session, correlation, and idempotency metadata
 - Normalization and plugin stages in execution order
@@ -73,8 +73,8 @@ From the Leash workspace, the recommended path is:
 python3 run.py
 ```
 
-Choose **Individual Open Source**. The mode runner enables tracing, starts this
-app, and opens it alongside the local `client-api` and desktop client.
+Choose **Personal Open Source**. The mode runner enables tracing and starts this
+app alongside local Engine and Desktop.
 
 Run the standalone test suite with:
 

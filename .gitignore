@@ -32,28 +32,12 @@ release
 dashboard-old/
 design-txample/
 
-# OpenLeash-operated SaaS/private composition should live outside the public repo.
-private/
-cloud-private/
-openleash-cloud-private/
-
-# Local private cloud wrappers. Keep these out of the public repo.
-apps/cloud-client-api/
-apps/cloud-dashboard-api/
-apps/cloud-dashboard-web/
-apps/docs-web/
-apps/main-web/
-apps/provider-mgmt-sync/
-
-# Local workspaces, generated diagnostics, and imported repositories.
+# Local generated diagnostics.
 .playwright-cli/
 __pycache__/
 backups/
-other-apps/
 output/
-plugin-repos/
 snapshots/
-tmp/
 video/
 docs.zip
 cloud-sql-proxy

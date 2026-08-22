@@ -25,6 +25,15 @@ test("every built-in Feature starts enabled for a new user", () => {
   }
 });
 
+test("Token Saver declares every capability used by its in-process handler", () => {
+  const tokenSaver = firstPartyPluginManifests.find((plugin) => plugin.id === "openleash.prompt-compression");
+  assert.ok(tokenSaver);
+  assert.ok(tokenSaver.permissions.includes("model:invoke"));
+  assert.ok(tokenSaver.permissions.includes("prompt:write"));
+  assert.ok(tokenSaver.permissions.includes("usage:write"));
+  assert.ok(tokenSaver.permissions.includes("island:publish"));
+});
+
 test("provider prompt helpers support OpenAI and Anthropic request shapes", () => {
   const responses = { input: [{ type: "message", role: "user", content: [{ type: "input_text", text: "old" }] }] };
   assert.equal(latestProviderPrompt(responses), "old");

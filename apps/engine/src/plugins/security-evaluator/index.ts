@@ -116,6 +116,12 @@ export async function runSecurityEvaluator(input: EvaluationPipelineInput, capab
 
 async function evaluateRules(input: EvaluationPipelineInput, capabilities: PluginCapabilities) {
   const fallback = heuristicEvaluation(input);
+  if (input.policies.every((policy) => isDeterministicRule(policy))) {
+    return {
+      results: fallback,
+      model: "rules-enforcer-heuristic"
+    };
+  }
   const llm = await capabilities.llm.evaluateJson<RulesLlmResult>({
     purpose: "rules-enforcer",
     system: [
@@ -194,6 +200,15 @@ async function evaluateRules(input: EvaluationPipelineInput, capabilities: Plugi
     results: fallback,
     model: "rules-enforcer-heuristic"
   };
+}
+
+function isDeterministicRule(policy: EvaluationPipelineInput["policies"][number]) {
+  const rule = `${policy.name} ${policy.naturalLanguageRule}`.toLowerCase();
+  return matchesPolicy(rule, [
+    "credential", "secret", "token", "password", ".env",
+    "destructive", "delete", "drop", "truncate", "rm -rf",
+    "external", "upload", "sharing", "exfiltrat", "unknown url",
+  ]);
 }
 
 function heuristicEvaluation(input: EvaluationPipelineInput): PolicyDecision[] {

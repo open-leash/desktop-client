@@ -163,12 +163,62 @@ function detectBlastRadius(text: string, config: ReturnType<typeof pluginConfig>
 }
 
 function eventText(input: EvaluationPipelineInput) {
+  const toolInput = input.request.event.tool?.input;
+  const command = toolInput && typeof toolInput === "object" && typeof (toolInput as Record<string, unknown>).command === "string"
+    ? String((toolInput as Record<string, unknown>).command)
+    : undefined;
+  const serializedToolInput = command === undefined
+    ? JSON.stringify(toolInput ?? {})
+    : isDisplayOnlyShellCommand(command) ? "" : command;
   return [
     input.request.event.tool?.name,
-    JSON.stringify(input.request.event.tool?.input ?? {}),
-    input.request.event.prompt,
-    JSON.stringify(input.request.event.raw ?? {})
+    serializedToolInput,
+    discussionSafePrompt(input.request.event.prompt),
+    command === undefined && !input.request.event.prompt ? JSON.stringify(input.request.event.raw ?? {}) : undefined
   ].filter(Boolean).join("\n");
+}
+
+function discussionSafePrompt(prompt: string | undefined) {
+  if (!prompt) return prompt;
+  const discussesOnly = /\b(?:explain|describe|document|documentation|example|why|what does|without (?:running|executing)|do not (?:run|execute))\b/i.test(prompt);
+  const alsoRequestsExecution = /\b(?:then|and)\s+(?:run|execute|delete|remove|wipe|drop)|\b(?:please|now)\s+(?:run|execute|delete|remove|wipe|drop)\b/i.test(prompt);
+  if (!discussesOnly || alsoRequestsExecution) return prompt;
+  return prompt.replace(/`[^`]+`/g, "[documented command]");
+}
+
+function isDisplayOnlyShellCommand(command: string) {
+  const trimmed = command.trim();
+  if (!/^(?:echo|printf|grep|rg)\b/i.test(trimmed)) return false;
+  // A command that starts by printing text may still execute a destructive
+  // second command. Only suppress matching when it is one simple shell command.
+  let quote: "'" | '"' | undefined;
+  for (let index = 0; index < trimmed.length; index += 1) {
+    const character = trimmed[index];
+    if (character === "\\") {
+      index += 1;
+      continue;
+    }
+    if (quote) {
+      if (character === quote) quote = undefined;
+      if (quote !== "'" && (
+        (character === "$" && trimmed[index + 1] === "(")
+        || character === "`"
+        || ((character === "<" || character === ">") && trimmed[index + 1] === "(")
+      )) return false;
+      continue;
+    }
+    if (
+      (character === "$" && trimmed[index + 1] === "(")
+      || character === "`"
+      || ((character === "<" || character === ">") && trimmed[index + 1] === "(")
+    ) return false;
+    if (character === "'" || character === '"') {
+      quote = character;
+      continue;
+    }
+    if (character === ";" || character === "\n" || character === "|" || character === "&") return false;
+  }
+  return true;
 }
 
 function pluginConfig(config: Record<string, unknown> | undefined) {

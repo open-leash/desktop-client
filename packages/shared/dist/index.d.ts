@@ -173,7 +173,7 @@ export declare const FIRST_PARTY_PLUGIN_MANIFESTS: ({
     };
     entrypoint: string;
     events: ("prompt.beforeSubmit" | "provider.request.beforeSend" | "plugin.tool.execute")[];
-    permissions: ("event:read" | "prompt:read" | "prompt:write" | "provider-request:read" | "provider-request:write" | "local-model:run" | "audit:write" | "log:write" | "usage:write" | "island:publish")[];
+    permissions: ("event:read" | "prompt:read" | "prompt:write" | "provider-request:read" | "provider-request:write" | "local-model:run" | "model:invoke" | "audit:write" | "log:write" | "usage:write" | "island:publish")[];
     effects: ("observe" | "transform")[];
     ordering: {
         priority: number;
@@ -652,6 +652,7 @@ export type PluginPromptCompressionConfig = {
     level: PluginPromptCompressionLevel;
     conciseResponse: boolean;
     model: string;
+    minimumChars?: number;
 };
 export type PluginPromptCompressionResult = {
     prompt: string;

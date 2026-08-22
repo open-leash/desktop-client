@@ -2,24 +2,13 @@
 import fs from "node:fs";
 
 const required = [
-  ["canonical product", "docs/Product.md", /Personal, Free \(BYOK\)[\s\S]*Personal, Leash Cloud/],
-  ["business cloud offer", "docs/Product.md", /Business, Leash Cloud[\s\S]*\$18 per user per month[\s\S]*\$14 per user per month/],
-  ["canonical flows", "docs/USER_FLOWS.md", /personal[\s\S]*Features/i],
+  ["public product contract", "README.md", /Personal Open Source[\s\S]*BYOK/i],
   ["desktop personal choice", "apps/desktop/src/window.html", /Personal Open Source/],
   ["desktop Feature setup", "apps/desktop/src/window.html", /built-in Features/],
   ["mobile personal sign-in", "apps/mobile/lib/main.dart", /personal Leash Cloud account/],
 ];
-if (fs.existsSync("apps/main-web/package.json")) {
-  required.push([
-    "web Feature catalog",
-    "apps/main-web/app/features/page.tsx",
-    /Leash Features/,
-  ]);
-}
 const forbidden = [
   ["dashboard workspace", "package.json", /apps\/dashboard-(?:api|web)/],
-  ["organization dashboard onboarding", "apps/main-web/app/account/AccountClient.tsx", /Opening your dashboard|Leash Work/],
-  ["public marketplace upload", "apps/main-web/app/plugins/upload/page.tsx", /submit|upload form|publisher/i],
   ["desktop dashboard launch", "apps/desktop/src/main.ts", /open-debug-dashboard/],
   ["mobile company sign-in", "apps/mobile/lib/main.dart", /company account|Sign in with company/],
 ];
