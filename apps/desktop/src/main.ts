@@ -106,6 +106,7 @@ import {
   discoverAgentInstructionFiles,
   ruleCandidatesFromMarkdown,
 } from "./instruction-rules";
+import { shouldLaunchInBackground } from "./startup-visibility";
 
 const APP_DISPLAY_NAME = app.isPackaged ? "Leash" : "Leash (Dev)";
 let proxyStatus: LocalProxyStatus = {
@@ -770,10 +771,16 @@ if (singleInstanceLock) app
       process.argv.includes("--reset-setup") ||
       process.argv.includes("--fresh-install") ||
       process.argv.includes("--show-window");
-    const openedAsHidden =
-      !forceVisibleLaunch &&
-      (app.getLoginItemSettings().wasOpenedAsHidden ||
-        process.argv.includes("--hidden"));
+    const loginItemSettings = app.getLoginItemSettings();
+    const openedAsHidden = shouldLaunchInBackground({
+      forceVisible: forceVisibleLaunch,
+      hiddenArgument: process.argv.includes("--hidden"),
+      wasOpenedAtLogin: loginItemSettings.wasOpenedAtLogin,
+      wasOpenedAsHidden: loginItemSettings.wasOpenedAsHidden,
+    });
+    startupLog(
+      `launch visibility background=${openedAsHidden} login=${loginItemSettings.wasOpenedAtLogin} legacyHidden=${loginItemSettings.wasOpenedAsHidden} forced=${forceVisibleLaunch}`,
+    );
     const dockIcon = nativeImage.createFromPath(
       path.join(here, "openleash-icon.png"),
     );

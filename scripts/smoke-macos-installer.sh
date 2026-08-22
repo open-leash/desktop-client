@@ -10,7 +10,13 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 INSTALLER="${2:-$ROOT/scripts/install-openleash-personal.sh}"
 DMG="${1:-}"
 if [[ -z "$DMG" ]]; then
-  DMG="$(find "$ROOT/release/personal" "$ROOT/apps/desktop/release/macos" -maxdepth 1 -type f -name 'Leash-*-arm64.dmg' -print 2>/dev/null | sort -V | tail -n 1)"
+  DMG_DIRS=()
+  for candidate in "$ROOT/release/personal" "$ROOT/apps/desktop/release/macos"; do
+    [[ -d "$candidate" ]] && DMG_DIRS+=("$candidate")
+  done
+  if [[ "${#DMG_DIRS[@]}" -gt 0 ]]; then
+    DMG="$(find "${DMG_DIRS[@]}" -maxdepth 1 -type f -name 'Leash-*-arm64.dmg' -print | sort -V | tail -n 1)"
+  fi
 fi
 [[ -f "$INSTALLER" ]] || { printf '%s\n' "Installer was not found: $INSTALLER" >&2; exit 1; }
 [[ -f "$DMG" ]] || { printf '%s\n' "DMG was not found: $DMG" >&2; exit 1; }
