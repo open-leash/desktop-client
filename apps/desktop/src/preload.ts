@@ -23,6 +23,7 @@ contextBridge.exposeInMainWorld("openleash", {
   savePromptTransforms: (payload: unknown) => ipcRenderer.invoke("openleash:save-prompt-transforms", payload),
   deleteData: () => ipcRenderer.invoke("openleash:delete-data"),
   deleteSettings: () => ipcRenderer.invoke("openleash:delete-settings"),
+  disconnectClient: () => ipcRenderer.invoke("openleash:disconnect-client"),
   deleteDataAndSettings: () => ipcRenderer.invoke("openleash:delete-data-and-settings"),
   copyText: (text: string) => ipcRenderer.invoke("openleash:copy-text", text),
   savePolicies: (policies: unknown) => ipcRenderer.invoke("openleash:save-policies", policies),

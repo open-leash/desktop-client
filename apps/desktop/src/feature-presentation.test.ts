@@ -4,6 +4,8 @@ import path from "node:path";
 import test from "node:test";
 
 const renderer = readFileSync(path.join(__dirname, "window.html"), "utf8");
+const desktopMain = readFileSync(path.join(__dirname, "main.ts"), "utf8");
+const preload = readFileSync(path.join(__dirname, "preload.ts"), "utf8");
 const copyAssets = readFileSync(path.join(__dirname, "copy-assets.mjs"), "utf8");
 const canonicalPresentations = JSON.parse(
   readFileSync(path.join(__dirname, "../../../packages/shared/feature-presentations.json"), "utf8"),
@@ -71,6 +73,29 @@ test("desktop tray icon has transparent rounded corners", () => {
   assert.match(copyAssets, /const trayIconCornerRadius = 14/);
   assert.match(copyAssets, /\.ensureAlpha\(\)/);
   assert.match(copyAssets, /blend: "dest-in"/);
+});
+
+test("desktop navigation remains reachable in short windows", () => {
+  assert.match(renderer, /grid-template-columns: clamp\(280px, 25vw, 340px\) minmax\(0, 1fr\)/);
+  assert.match(renderer, /nav\s*\{[\s\S]*?flex: 1 1 auto;[\s\S]*?min-height: 0;[\s\S]*?overflow-y: auto;/);
+  assert.match(renderer, /overscroll-behavior: contain/);
+  assert.match(renderer, /nav button\.navPlugin \.navLabel\s*\{[\s\S]*?white-space: normal;/);
+  assert.match(renderer, /\.foot\s*\{[\s\S]*?flex: 0 0 auto;/);
+});
+
+test("Settings can fully disconnect this Mac and return to setup", () => {
+  assert.match(renderer, /id="disconnectClient">Disconnect this Mac<\/button>/);
+  assert.match(renderer, /window\.openleash\.disconnectClient\(\)/);
+  assert.match(preload, /disconnectClient: \(\) => ipcRenderer\.invoke\("openleash:disconnect-client"\)/);
+  const disconnectHandler = desktopMain.slice(
+    desktopMain.indexOf('ipcMain.handle("openleash:disconnect-client"'),
+    desktopMain.indexOf('ipcMain.handle("openleash:delete-data-and-settings"'),
+  );
+  assert.match(disconnectHandler, /await removeDesktopMonitoring\(\)/);
+  assert.match(disconnectHandler, /localServer\.clearSettings\(\)/);
+  assert.match(disconnectHandler, /desktopAuthSession = undefined/);
+  assert.match(disconnectHandler, /relaunchOpenLeash\(\)/);
+  assert.match(desktopMain, /openAtLogin: localServer\.setupComplete/);
 });
 
 test("desktop Overview focuses on monitored activity and Agents owns enablement", () => {

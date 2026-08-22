@@ -56,7 +56,7 @@
         height: 100vh;
         min-height: 0;
         display: grid;
-        grid-template-columns: 230px minmax(0, 1fr);
+        grid-template-columns: clamp(280px, 25vw, 340px) minmax(0, 1fr);
         gap: 14px;
         padding: 14px;
         overflow: hidden;
@@ -83,7 +83,22 @@
         font-weight: 900;
       }
       .brand img { width: 28px; height: 28px; border-radius: 7px; object-fit: contain; }
-      nav { display: grid; gap: 12px; }
+      nav {
+        display: grid;
+        flex: 1 1 auto;
+        min-height: 0;
+        gap: 12px;
+        overflow-x: hidden;
+        overflow-y: auto;
+        overscroll-behavior: contain;
+        padding-right: 4px;
+        scrollbar-gutter: stable;
+      }
+      nav::-webkit-scrollbar { width: 6px; }
+      nav::-webkit-scrollbar-thumb {
+        border-radius: 999px;
+        background: rgba(58, 55, 48, .18);
+      }
       .navSection {
         display: grid;
         gap: 6px;
@@ -171,8 +186,16 @@
         min-height: 34px;
         border-radius: 10px;
         padding: 8px 10px;
+        align-items: flex-start;
         color: var(--ink-2);
         font-size: 13px;
+      }
+      nav button.navPlugin .navLabel {
+        overflow: visible;
+        text-overflow: clip;
+        white-space: normal;
+        line-height: 1.3;
+        overflow-wrap: anywhere;
       }
       .navPluginIcon {
         display: grid;
@@ -218,6 +241,7 @@
         overflow: hidden;
       }
       .foot {
+        flex: 0 0 auto;
         margin-top: auto;
         padding: 14px;
         border-radius: 14px;
@@ -6719,6 +6743,16 @@
               </div>
               <div id="settingsMessage" class="notice"></div>
             </div>
+            <div class="card">
+              <div class="dangerRow">
+                <div>
+                  <strong>Sign out &amp; disconnect</strong>
+                  <p>${state.remoteUser ? `Signed in as ${escapeHtml(state.remoteUser)}. ` : ""}Disconnecting removes Leash monitoring from this Mac and returns the app to the setup wizard.</p>
+                </div>
+                <button class="secondary dangerButton" id="disconnectClient">Disconnect this Mac</button>
+              </div>
+              <div id="disconnectMessage" class="notice"></div>
+            </div>
             <div class="card dangerZone">
               <div class="dangerGrid">
                 <div>
@@ -6815,6 +6849,22 @@
             state.islandActivityOnly = result.islandActivityOnly;
             document.getElementById("settingsMessage").textContent = "Settings saved.";
           }
+        };
+        document.getElementById("disconnectClient").onclick = async () => {
+          const button = document.getElementById("disconnectClient");
+          const message = document.getElementById("disconnectMessage");
+          button.disabled = true;
+          message.textContent = "Disconnecting Leash and removing monitoring from this Mac…";
+          const result = await window.openleash.disconnectClient().catch((error) => ({
+            ok: false,
+            error: error?.message || "Could not disconnect this Mac."
+          }));
+          if (result?.restarting) {
+            message.textContent = "Disconnected. Restarting Leash in the setup wizard…";
+            return;
+          }
+          button.disabled = false;
+          message.textContent = result?.canceled ? "" : result?.error || "Could not disconnect this Mac.";
         };
         document.getElementById("deleteDataAndSettings").onclick = async () => {
           const result = await window.openleash.deleteDataAndSettings();

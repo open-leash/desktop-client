@@ -792,12 +792,6 @@ if (singleInstanceLock) app
       showDockIcon();
       startupLog("dock shown for visible window launch");
     }
-    app.setLoginItemSettings({
-      openAtLogin: true,
-      openAsHidden: true,
-      name: APP_DISPLAY_NAME,
-    });
-    startupLog("login item set");
     localServer = new LocalOpenLeashServer(app.getPath("userData"), {
       onAgentStop: handleLocalAgentStop,
       onRemoteHookForward: refreshPendingApprovalsSoon,
@@ -828,6 +822,16 @@ if (singleInstanceLock) app
       localServer.resetSetup();
       startupLog("setup reset");
     }
+    app.setLoginItemSettings({
+      openAtLogin: localServer.setupComplete,
+      openAsHidden: localServer.setupComplete,
+      name: APP_DISPLAY_NAME,
+    });
+    startupLog(
+      localServer.setupComplete
+        ? "login item enabled for configured client"
+        : "login item disabled until setup completes",
+    );
     await localServer.start();
     startupLog("local server started");
     const launchRemoteApiUrl = readCliValue(
@@ -2050,6 +2054,40 @@ ipcMain.handle("openleash:delete-settings", async () => {
   localServer.clearSettings();
   relaunchOpenLeash();
   return { ok: true, restarting: true };
+});
+ipcMain.handle("openleash:disconnect-client", async () => {
+  const options: MessageBoxOptions = {
+    type: "warning",
+    buttons: ["Disconnect this Mac", "Cancel"],
+    defaultId: 1,
+    cancelId: 1,
+    title: "Disconnect this Mac?",
+    message: "Stop Leash protection and sign out on this Mac?",
+    detail:
+      "Leash will remove its agent hooks, proxy configuration, local CLI configuration, and startup registration, clear this Mac's account and setup settings, then restart in the setup wizard. The Leash app will remain installed.",
+  };
+  const choice = window
+    ? await dialog.showMessageBox(window, options)
+    : await dialog.showMessageBox(options);
+  if (choice.response !== 0) return { ok: false, canceled: true };
+  try {
+    remoteClientEventStreamKey = "";
+    remoteClientEventStreamAbort?.abort();
+    remoteClientEventStreamAbort = undefined;
+    if (remoteClientEventRetry) clearTimeout(remoteClientEventRetry);
+    remoteClientEventRetry = undefined;
+    desktopAuthSession = undefined;
+    pendingDesktopAuth = undefined;
+    await removeDesktopMonitoring();
+    localServer.clearSettings();
+    relaunchOpenLeash();
+    return { ok: true, restarting: true };
+  } catch (error) {
+    return {
+      ok: false,
+      error: `Could not completely disconnect this Mac: ${error instanceof Error ? error.message : String(error)}`,
+    };
+  }
 });
 ipcMain.handle("openleash:delete-data-and-settings", async () => {
   const options: MessageBoxOptions = {

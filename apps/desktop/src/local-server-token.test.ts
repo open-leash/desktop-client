@@ -31,6 +31,22 @@ test("the configured local service token survives setup and install resets", asy
     assert.equal(server.islandActivityOnly, true, "setup reset should preserve the Island visibility preference");
     assert.equal(server.islandVisibility, "activity");
 
+    server.completeSetup(server.policies, {
+      clientMode: "cloud",
+      remoteApiUrl: "https://api.openleash.test",
+      remoteToken: "enrolled-client-token",
+      remoteOrganization: "Test workspace",
+      remoteUser: "test@example.com",
+    });
+    assert.equal(server.setupComplete, true);
+    assert.equal(server.remoteApiUrl, "https://api.openleash.test");
+    assert.equal(server.effectiveToken, "enrolled-client-token");
+    server.clearSettings();
+    assert.equal(server.setupComplete, false, "disconnect should return the app to setup");
+    assert.equal(server.remoteApiUrl, undefined);
+    assert.equal(server.remoteOrganization, undefined);
+    assert.equal(server.effectiveToken, configuredToken, "disconnect should remove the enrolled client token");
+
     server.resetAllLocalState();
     assert.equal(server.token, configuredToken);
     assert.equal(server.islandActivityOnly, false, "a full settings reset should restore always-on Island visibility");
